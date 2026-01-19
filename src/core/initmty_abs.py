@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from .interfaces import TimesModule
+from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from .times_model_class import TimesModelClass
@@ -15,10 +15,10 @@ GAMS_SOURCE = "initmty_abs.mod"
 
 
 @dataclass(frozen=True)
-class InitmtyAbsModule(TimesModule):
+class InitmtyAbsModule(GamsClass):
     """Translation unit for initmty_abs.mod."""
 
-    def initialize_preload(self, tc: "TimesModelClass") -> None:
+    def compile(self, tc: "TimesModelClass") -> None:
         # --- BEGIN GAMS (compile) ---
         tc.add_gams_code(
             module_name="initmty_abs",
@@ -53,6 +53,3 @@ class InitmtyAbsModule(TimesModule):
 """,
         )
         # --- END GAMS (execute) ---
-
-
-module: TimesModule = InitmtyAbsModule()

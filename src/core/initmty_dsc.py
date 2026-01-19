@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from .interfaces import TimesModule  # The Contract
+from .base_class import TimesModule  # The Contract
 
 if TYPE_CHECKING:
     from .times_model_class import TimesModelClass
@@ -18,7 +18,7 @@ GAMS_SOURCE = "initmty_dsc.mod"
 class InitmtyDscModule(TimesModule):
     """Translation unit for initmty_dsc.mod."""
 
-    def initialize_preload(self, tc: "TimesModelClass") -> None:
+    def compile(self, tc: "TimesModelClass") -> None:
         # --- BEGIN GAMS (compile) ---
         tc.add_gams_code(
             module_name="initmty_dsc",

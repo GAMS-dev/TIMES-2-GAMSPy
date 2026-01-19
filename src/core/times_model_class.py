@@ -1,19 +1,16 @@
 # times_model_class.py
-#   - 1 Python file per original GAMS file.
-#   - Each file exports ONE module object: `module`
-#   - Each module has three phases:
-#       * initialize_preload(tc):   build/declare/compile-time-ish blocks that must run BEFORE data load
-#       * initialize_postload(tc):  compile-time-ish blocks that must run AFTER central data load
-#       * run(tc):                  execution-time blocks (solve, report, etc.)
 
 import logging
 from dataclasses import dataclass
-from typing import List, Optional
+from pathlib import Path
+from typing import TYPE_CHECKING, List
 
 from gamspy import Container
 
-from .config import TimesConfig
-from .interfaces import TimesModule
+from .base_class import GamsClass
+
+if TYPE_CHECKING:
+    from .compile_environment import CompileEnvironment
 
 
 @dataclass(frozen=True)
@@ -29,20 +26,24 @@ class TimesModelClass:
     Central orchestrator / shared state ("tc") for the TIMES model embedding workflow.
     """
 
-    def __init__(self, config: TimesConfig):
-        self.config = config
-        self.container = Container()
+    def __init__(
+        self, env: "CompileEnvironment", output_compile: Path, output_execute: Path
+    ):
+        self.env = env
+        self.output_compile = output_compile
+        self.output_execute = output_execute
+        self.container = Container(debugging_level="keep")
         self.logger = logging.getLogger("TimesModel")
 
         # Ordered list of registered modules
-        self._modules: List[TimesModule] = []
+        self._modules: List[GamsClass] = []
 
         # Optional: collect embedded code for debugging / traceability
         self._gams_chunks: List[GamsCodeChunk] = []
 
-    def register_module(self, module: TimesModule) -> None:
+    def register_module(self, module: GamsClass) -> None:
         """Register a module object."""
-        if not isinstance(module, TimesModule):
+        if not isinstance(module, GamsClass):
             raise TypeError(
                 f"Object {module} does not implement the required TIMES interface."
             )
@@ -53,34 +54,25 @@ class TimesModelClass:
     # -----------------------
     def add_gams_code(
         self,
-        *,
-        module_name: str,
+        module: GamsClass,
         phase: str,
-        gams_source: str,
         code: str,
-        batinclude_args: Optional[List[str]] = None,
     ) -> None:
         """
         Add raw GAMS code into the Container with a traceable header.
-
-        In GAMS, $BATINCLUDE does compile-time textual substitution (e.g., %1, %2) even if the
-        included statements are execution-time. In GAMSPy, emulate such substitution by using
-        tc.add_gams_code(..., batinclude_args=[...]) when needed. This is a *string
-        substitution* helper on the Python side.
         """
-        if batinclude_args:
-            for i, arg in enumerate(batinclude_args, start=1):
-                code = code.replace(f"%{i}", str(arg))
 
         header = (
             f"\n* ============================================================\n"
-            f"* {module_name} :: {phase}\n"
-            f"* source: {gams_source}\n"
+            f"* {module.module_name} :: {phase}\n"
+            f"* source: {module.gams_source}\n"
             f"* ============================================================\n"
         )
 
         self.container.addGamsCode(header + code)
-        self._gams_chunks.append(GamsCodeChunk(module_name, phase, gams_source, code))
+        self._gams_chunks.append(
+            GamsCodeChunk(module.module_name, phase, module.gams_source, code)
+        )
 
     def dump_generated_gams(self, path: str = "generated_times.gms") -> None:
         """
@@ -93,20 +85,13 @@ class TimesModelClass:
     # -----------------------
     # Orchestration phases
     # -----------------------
-    def initialize_preload(self) -> None:
-        """Pre-load phase (declarations that must exist before data load)."""
-        self.logger.info("Phase: initialize_preload (before data load)")
-        for mod in self._modules:
-            mod.initialize_preload(self)
-
-    def initialize_postload(self) -> None:
-        """Post-load compile-like phase."""
-        self.logger.info("Phase: initialize_postload (after data load)")
-        for mod in self._modules:
-            mod.initialize_postload(self)
+    def initialization(self) -> None:
+        """Modules are initialized / compiled within their __init__ method. Only used to write GDX state after compilation."""
+        self.container.write(self.output_compile)
 
     def run(self) -> None:
         """Execution phase (preprocessing / solve / reporting / etc.)."""
         self.logger.info("Phase: run")
         for mod in self._modules:
             mod.run(self)
+        self.container.write(self.output_execute)

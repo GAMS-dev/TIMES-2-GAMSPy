@@ -1,21 +1,19 @@
-# utils.py
-# Put shared Python helpers here. Keep this file Python-native.
-
 from typing import Iterable
 
-from gamspy import Set
 
-
-def add_elements_to_1d_set(symbol: Set, elements: Iterable) -> None:
+def expand_set(symbol, elements: Iterable) -> None:
     """
-    Helper to extend a 1D GAMSPy Set with additional elements, preserving existing records.
+    Expands a 1D GAMSPy Set with additional elements,
+    preserving any existing records and avoiding duplicates.
     """
-    # NOTE: keep your existing implementation here if you already have one.
-    # This skeleton uses a conservative approach.
-    try:
-        existing = set(symbol.records) if symbol.records is not None else set()
-    except Exception:
+    # 1. Extract existing elements from the DataFrame (column 0 is usually 'uni')
+    if symbol.records is not None and not symbol.records.empty:
+        existing = set(symbol.records.iloc[:, 0])
+    else:
         existing = set()
 
-    new = list(existing | set(elements))
-    symbol.setRecords(new)
+    # 2. Perform a union to ensure all elements are unique
+    updated_elements = list(existing | set(elements))
+
+    # 3. Update the GAMSPy symbol with the combined list
+    symbol.setRecords(updated_elements)

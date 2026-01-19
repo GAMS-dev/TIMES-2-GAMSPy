@@ -1,33 +1,14 @@
 # main.py
-# Orchestration:
-#   1) Register modules (ORDER MATTERS)
-#   2) model.initialize_preload()
-#   3) load_data(model)
-#   4) model.initialize_postload()
-#   5) model.run()
 
 import logging
 import os
 import sys
+from pathlib import Path
 
-from gamspy import Alias, Container, UniverseAlias
+from gamspy import Alias, Container, Options, Set, UniverseAlias
 
-from core import (
-    initmty,
-    initmty_abs,
-    initmty_cli,
-    initmty_dsc,
-    initmty_etl,
-    initmty_ier,
-    initmty_mlf,
-    initmty_msa,
-    initmty_stc,
-    initmty_tm,
-    initmty_vda,
-    initsys,
-    setglobs,
-)
-from core.config import TimesConfig
+from core import initsys_mod
+from core.compile_environment import CompileEnvironment
 from core.times_model_class import TimesModelClass
 
 logging.basicConfig(
@@ -37,41 +18,44 @@ logging.basicConfig(
 )
 
 
-def register_modules(model: TimesModelClass, config: TimesConfig) -> None:
+def register_modules(model: TimesModelClass, env: CompileEnvironment) -> None:
     # 1. Essential Base Modules
-    base_modules = [initsys, initmty]
+    base_modules = [
+        initsys_mod
+        # , initmty
+    ]
     for mod in base_modules:
         model.register_module(mod.module)
 
     # 2. Optional Feature Modules (Flag -> Module Mapping)
-    feature_map = {
-        "dsc": initmty_dsc,
-        "vda": initmty_vda,
-        "cli": initmty_cli,
-        "stages": initmty_stc,
-        "etl": initmty_etl,
-        "abs": initmty_abs,
-        "ier": initmty_ier,
-    }
+    # feature_map = {
+    #     "dsc": initmty_dsc,
+    #     "vda": initmty_vda,
+    #     "cli": initmty_cli,
+    #     "stages": initmty_stc,
+    #     "etl": initmty_etl,
+    #     "abs": initmty_abs,
+    #     "ier": initmty_ier,
+    # }
 
-    for flag, mod in feature_map.items():
-        if getattr(config, flag, False):
-            model.register_module(mod.module)
+    # for flag, mod in feature_map.items():
+    #     if getattr(env, flag, False):
+    #         model.register_module(mod.module)
 
     # 3. Macro Selection Logic
-    macro_map = {
-        "MSA": initmty_msa.module,
-        "MLF": initmty_mlf.module,
-        "YES": initmty_tm.module,
-        "CSA": initmty_tm.module,
-    }
+    # macro_map = {
+    #     "MSA": initmty_msa.module,
+    #     "MLF": initmty_mlf.module,
+    #     "YES": initmty_tm.module,
+    #     "CSA": initmty_tm.module,
+    # }
 
-    macro_version = (config.macro or "").upper()
-    if macro_mod := macro_map.get(macro_version):
-        model.register_module(macro_mod)
+    # macro_version = (env.macro or "").upper()
+    # if macro_mod := macro_map.get(macro_version):
+    #     model.register_module(macro_mod)
 
     # 4. Finalization
-    model.register_module(setglobs.module)
+    # model.register_module(setglobs.module)
 
 
 def load_data(model: TimesModelClass) -> None:
@@ -96,32 +80,79 @@ def load_data(model: TimesModelClass) -> None:
     model.logger.info("Data loading complete.")
 
 
-def main() -> None:
-    # Setup Config
-    config = TimesConfig(run_name="demo12", botime=1960)
-    logging.info(f"Starting TIMES {config.run_name}.")
+def main(
+    output_compile: Path = Path("compile_gamspy.gdx"),
+    output_execute: Path = Path("execute_gamspy.gdx"),
+) -> None:
+    logging.info("Starting TIMES.")
 
     # Initialize Core
-    model = TimesModelClass(config)
+    env = CompileEnvironment()
+    model = TimesModelClass(env, output_compile, output_execute)
 
-    register_modules(model, config)
+    # Set Options
+    model._solve_options = Options(
+        time_limit=50000,
+        profile=1,
+        merge_strategy="replace",
+        iteration_limit=999999,
+        equation_listing_limit=0,
+        variable_listing_limit=0,
+        report_solution=0,
+        lp="CBC",
+        basis_detection_threshold=1,
+    )
 
-    # Phase 1: pre-load
-    model.initialize_preload()
+    # User settings
+    # reduction of equation system
+    env.set_scoped("reduce", True)
 
-    # Central data load
-    load_data(model)
+    # initialize the environment variables
+    env.set_scoped("dscauto", True)
+    env.set_scoped("vda", True)
+    env.set_scoped("debug", False)
+    env.set_scoped("dumpsol", False)
+    env.set_scoped("solve_now", True)
+    env.set_scoped("xtqa", True)
 
-    # Phase 2: post-load compile-like steps
-    model.initialize_postload()
+    # VAR_UC being set so that non-binding constraints appear in results
+    env.set_scoped("var_uc", True)
+    env.set_scoped("obj", "MOD")
+    env.set_scoped("solveda", True)
+    env.set_scoped("datagdx", True)
+
+    # load demo12ts.dd
+    # the times-slices MUST come 1st to ensure ordering OK
+    model.all_ts = Set(
+        container=model.container,
+        name="ALL_TS",
+        records=[
+            "ANNUAL",
+            "S",
+            "W",
+            "SD",
+            "SN",
+            "WD",
+            "WN",
+        ],
+    )
+
+    env.set_scoped("botime", 1960)
+
+    model.register_module(initsys_mod.InitsysMod(tc=model, env=env))
+    model.initialization()
+
+    # # Central data load
+    # load_data(model)
+
+    # # Phase 2: post-load compile-like steps
+    # model.initialize_postload()
 
     # Phase 3: execution code blocks / solve / reports
     model.run()
 
     # Debug: dump generated GAMS
-    # model.dump_generated_gams("generated_times.gms")
-
-    model.container.write("gamspy_output.gdx")
+    model.dump_generated_gams("generated_times.gms")
 
 
 if __name__ == "__main__":

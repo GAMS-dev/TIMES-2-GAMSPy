@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from .interfaces import TimesModule
+from .base_class import TimesModule
 
 if TYPE_CHECKING:
     from .times_model_class import TimesModelClass
@@ -18,7 +18,7 @@ GAMS_SOURCE = "setglobs.gms"
 class SetglobsModule(TimesModule):
     """Translation unit for setglobs.gms."""
 
-    def initialize_preload(self, tc: "TimesModelClass") -> None:
+    def compile(self, tc: "TimesModelClass") -> None:
         # --- BEGIN GAMS (compile) ---
         tc.add_gams_code(
             module_name="setglobs",

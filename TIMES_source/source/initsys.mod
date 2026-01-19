@@ -17,7 +17,13 @@ $ offlisting
 $ SET TMP Restart
 $ IF %SYSTEM.LICENSELEVEL%==2 $SET TMP Runtime
 $ IF SET RunTimes $TITLE %SYSTEM.TITLE% -- %TMP% (v%RunTimes%)
+
+* $PHANTOM EMPTY adds EMPTY to the universe
+* We cannot just add uels to the universe in GAMSPy
+* Therefore, we add an auxiliary set PHANTOM
+SET PHANTOM /'EMPTY'/;
 $ PHANTOM EMPTY
+
 $ ONEMPTY
 $ ONMULTI
 * TIME - SET ALL_TS ordering is crucial, since the order of time-slices within a TSLVL is used in EQ_STGTSS.
@@ -35,7 +41,11 @@ $ ONMULTI
 $IF NOT SET BOTIME $SETGLOBAL BOTIME 1850
 $IF NOT SET EOTIME $SETGLOBAL EOTIME 2200
 $IF NOT %SHELL%==ANSWER
-$IF SET MAXSOW SET ITEM /BOH, 1*%EOTIME%/;
+
+*$IF SET MAXSOW SET ITEM /BOH, 1*%EOTIME%/; adds elements to the universe
+* We cannot just add uels to the universe in GAMSPy
+* Therefore, we add an auxiliary set ITEMADD
+$IF SET MAXSOW SET ITEM /BOH, 1*%EOTIME%/; SET ITEMADD /BOH, 1*%EOTIME%/;
 
   SET BOHYEAR                        'BOH + years'                  / BOH, %BOTIME%*%EOTIME% /
   SET ALLYEAR                        'All Years'                    / %BOTIME%*%EOTIME% /
@@ -185,3 +195,7 @@ $ BATINCLUDE maplists.def
 
 * get defalut global scalars and parameters
 $ BATINCLUDE globals.def
+
+$gdxUnload %COMPILE_GDX%
+execute_unload "%EXECUTE_GDX%";
+$stop
