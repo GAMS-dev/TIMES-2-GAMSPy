@@ -438,6 +438,9 @@ $IFI %STAGES%==YES $BATINCLUDE initmty.stc
 *------------------------------------------------------------------------------
 * Stepped extensions etc.
   SET ITEM / "%FIXBOH%", "%TIMESTEP%", "%SPOINT%" /;
+* Add ITEMADD to mirror GAMSPy
+  SET ITEMADD / "%FIXBOH%", "%TIMESTEP%", "%SPOINT%" /;
+
 $SETGLOBAL RPOINT NO
 $IF SET SPOINT IF((NOT J('%SPOINT%'))$(NOT SAMEAS('%SPOINT%','YES')), ABORT 'Invalid Control: SPOINT');
 $IF SET TIMESTEP IF(NOT AGE('%TIMESTEP%'), ABORT 'Invalid Control: TIMESTEP');
@@ -474,11 +477,9 @@ $SETGLOBAL EXTEND %EXTEND% %1 %2 %3 %4 %5 %6
 
 * Load all extension declarations
 $BATINCLUDE main_ext.mod initmty %EXTEND%
-
 $SET VAR VARIABLE OBJZ
 $IF %DATAGDXI%%INTEXT_ONLY%==YESyes $SET VAR *
 $IF ERRORFREE $BATINCLUDE err_stat.mod '$IF NOT ERRORFREE' ABORT 'Errors in Compile' '%VAR%' ': Required _TIMES.g00 Restart File Missing'
-
 *------------------------------------------------------------------------------
 * Call MACRO initmty.tm
 *------------------------------------------------------------------------------
@@ -503,6 +504,7 @@ $ INCLUDE _dd_.dd
 $ hiddencall rm -f _dd_.dmp
 $ TITLE %SYSTEM.TITLE%#
 $ GDXIN
+
 $ IF %VAR%==* $BATINCLUDE maindrv.mod mod
 $ IF %VAR%==* $STOP
 $ LABEL RUN

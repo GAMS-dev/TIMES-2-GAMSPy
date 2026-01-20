@@ -1,58 +1,33 @@
 # initmty_stc.py
 
+
 import logging
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from .base_class import TimesModule
+from .base_class import GamsClass
 
 if TYPE_CHECKING:
+    from .compile_environment import CompileEnvironment
     from .times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
 
-GAMS_SOURCE = "initmty_stc.mod"
 
+class InitmtyStc(GamsClass):
+    """Translation unit for initmty.stc"""
 
-@dataclass(frozen=True)
-class InitmtyStcModule(TimesModule):
-    """Translation unit for initmty_stc.mod."""
+    # Instance attributes
+    module_name: str = "initmty_stc"
+    gams_source: str = "initmty.stc"
+
+    def __init__(self, tc: "TimesModelClass", env: "CompileEnvironment"):
+        self.env = env.fork()
+        self.snapshot = None
+        self._sub_modules = {}
+        self.compile(tc)
 
     def compile(self, tc: "TimesModelClass") -> None:
-        # --- BEGIN GAMS (compile) ---
-        tc.add_gams_code(
-            module_name="initmty_stc",
-            phase="initialize_preload",
-            gams_source=GAMS_SOURCE,
-            code=r"""
-* >>> compile-time GAMS code (before data load)
-""",
-        )
-        # --- END GAMS (compile) ---
-
-    def initialize_postload(self, tc: "TimesModelClass") -> None:
-        # --- BEGIN GAMS (initialize_postload) ---
-        tc.add_gams_code(
-            module_name="initmty_stc",
-            phase="initialize_postload",
-            gams_source=GAMS_SOURCE,
-            code=r"""
-* >>> compile-time GAMS code (after data load)
-""",
-        )
-        # --- END GAMS (initialize_postload) ---
+        pass
 
     def run(self, tc: "TimesModelClass") -> None:
-        # --- BEGIN GAMS (execute) ---
-        tc.add_gams_code(
-            module_name="initmty_stc",
-            phase="run",
-            gams_source=GAMS_SOURCE,
-            code=r"""
-* >>> execution-time GAMS code (preprocessing/solve/report)
-""",
-        )
-        # --- END GAMS (execute) ---
-
-
-module: TimesModule = InitmtyStcModule()
+        pass

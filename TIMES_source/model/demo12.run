@@ -41,6 +41,11 @@ $BATINCLUDE initsys.mod
 * declare the (system/user) empties
 $BATINCLUDE initmty.mod
 
+$show
+$gdxUnload %COMPILE_GDX%
+execute_unload "%EXECUTE_GDX%";
+$stop
+
 * read scenario data
 $BATINCLUDE base.dd
 $BATINCLUDE newtechs.dd

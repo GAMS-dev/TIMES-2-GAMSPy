@@ -195,7 +195,3 @@ $ BATINCLUDE maplists.def
 
 * get defalut global scalars and parameters
 $ BATINCLUDE globals.def
-
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop

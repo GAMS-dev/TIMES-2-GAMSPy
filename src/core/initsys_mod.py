@@ -79,10 +79,7 @@ $ ONMULTI
                 if self.env.is_set("maxsow"):
                     # Expand the universe alias item
                     item_records = ["BOH"] + [i for i in range(1, self.env.eotime + 1)]
-                    if "itemAdd" not in m.listSymbols():
-                        Set(m, name="ITEMADD", records=item_records)
-                    else:
-                        expand_set(tc.itemAdd, item_records)
+                    self.add_records_to_universe_item(tc=tc, records=item_records)
 
         tc.add_gams_code(
             module=self,

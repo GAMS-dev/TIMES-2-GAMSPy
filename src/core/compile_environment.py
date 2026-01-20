@@ -1,6 +1,55 @@
 import copy
-from types import SimpleNamespace
+import logging
 from typing import Any, Literal
+
+# Setup a specific logger for GAMS environment issues
+gams_logger = logging.getLogger("gams_env")
+
+
+class GamsString(str):
+    """
+    A string that behaves like a GAMS macro.
+    Evaluates to False if it matches specific 'negative' values.
+    """
+
+    def __bool__(self):
+        # Define your "Falsy" values here
+        # Usually: empty string, 'N', 'NO', or undefined macro names
+        falsy_values = ["", "N", "NO", "0"]
+
+        # Check if the string itself or its content (if it's a %macro%) is falsy
+        normalized = self.upper()
+        if normalized in falsy_values:
+            return False
+
+        # Also return False if it looks like an undefined macro: "%VAR%"
+        if normalized.startswith("%") and normalized.endswith("%"):
+            return False
+
+        return True
+
+
+class SnapshotProxy:
+    """A helper class to allow dot notation with safe fallbacks."""
+
+    def __init__(self, data: dict):
+        # We use __dict__ directly to avoid triggering __getattr__ during setup
+        self.__dict__["_data"] = data
+
+    def __getattr__(self, name: str) -> GamsString:
+        if name in self._data:
+            # Wrap existing values so 'N' becomes False
+            return GamsString(self._data[name])
+
+        # Return the missing macro name, which GamsString will treat as False
+        return GamsString(f"%{name}%")
+
+    def is_set(self, key: str) -> bool:
+        """
+        Allows you to check if a variable existed at the time of the snapshot.
+        Usage: if self.snapshot.is_set("RUN_NAME"):
+        """
+        return str(key) in self._data
 
 
 class CompileEnvironment:
@@ -45,7 +94,7 @@ class CompileEnvironment:
 
         return new_env
 
-    def snapshot(self) -> SimpleNamespace:
+    def snapshot(self) -> SnapshotProxy:
         """
         Creates a static dictionary of ALL current variables.
         Will be called if variable values need to be accessed at execution time.
@@ -58,7 +107,7 @@ class CompileEnvironment:
         current_state.update(self._globals)
         current_state.update(self._scoped)
         current_state.update(self._local)
-        return SimpleNamespace(**current_state)
+        return SnapshotProxy(current_state)
 
     def is_set(self, key: str) -> bool:
         """
@@ -66,18 +115,9 @@ class CompileEnvironment:
         Checks Local, then Scoped, then Global.
         """
         key = str(key)
-        # Check Local
-        if key in self._local:
-            return True
-        # Check Scoped
-        if key in self._scoped:
-            return True
-        # Check Global
-        if key in self._globals:
-            return True
-        return False
+        return key in self._local or key in self._scoped or key in self._globals
 
-    def set_if_not_exists(self, key: str, value: Any, scope: Literal[scopes]):
+    def set_if_not_exists(self, key: str, value: Any, scope: scopes):
         """
         Mimics '$IF NOT set VAL $SET VAL 100'.
         """
@@ -92,7 +132,9 @@ class CompileEnvironment:
         return False
 
     def __getattr__(self, name):
+        """Allows direct env.var access during compile time with a warning fallback."""
         val = self.get(name)
         if val is None:
-            raise AttributeError(f"GAMS variable '{name}' not found in any scope.")
-        return val
+            gams_logger.debug(f"GAMS macro '%{name}%' undefined. Returning '%{name}%'.")
+            return GamsString(f"%{name}%")
+        return GamsString(val)

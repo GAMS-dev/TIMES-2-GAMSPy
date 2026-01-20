@@ -7,55 +7,68 @@ from pathlib import Path
 
 from gamspy import Alias, Container, Options, Set, UniverseAlias
 
-from core import initsys_mod
+from core import initmty_mod, initsys_mod
 from core.compile_environment import CompileEnvironment
 from core.times_model_class import TimesModelClass
 
+# Create logs directory if it doesn't exist
+os.makedirs("logs", exist_ok=True)
+
+# Main logger
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 
+# Configure the 'gams_env' logger
+file_handler = logging.FileHandler("logs/missing_macros.log")
+file_handler.setLevel(logging.DEBUG)  # The file catches all the small DEBUG notes
 
-def register_modules(model: TimesModelClass, env: CompileEnvironment) -> None:
-    # 1. Essential Base Modules
-    base_modules = [
-        initsys_mod
-        # , initmty
-    ]
-    for mod in base_modules:
-        model.register_module(mod.module)
+formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+file_handler.setFormatter(formatter)
 
-    # 2. Optional Feature Modules (Flag -> Module Mapping)
-    # feature_map = {
-    #     "dsc": initmty_dsc,
-    #     "vda": initmty_vda,
-    #     "cli": initmty_cli,
-    #     "stages": initmty_stc,
-    #     "etl": initmty_etl,
-    #     "abs": initmty_abs,
-    #     "ier": initmty_ier,
-    # }
+# Attach handler to our specific logger
+gams_logger = logging.getLogger("gams_env")
+gams_logger.setLevel(logging.DEBUG)
+gams_logger.addHandler(file_handler)
+gams_logger.propagate = False  # Prevent logs from doubling up in the console
 
-    # for flag, mod in feature_map.items():
-    #     if getattr(env, flag, False):
-    #         model.register_module(mod.module)
+# def register_modules(model: TimesModelClass, env: CompileEnvironment) -> None:
+#     # 1. Essential Base Modules
+#     base_modules = [initsys_mod, initmty_mod]
+#     for mod in base_modules:
+#         model.register_module(mod.module)
 
-    # 3. Macro Selection Logic
-    # macro_map = {
-    #     "MSA": initmty_msa.module,
-    #     "MLF": initmty_mlf.module,
-    #     "YES": initmty_tm.module,
-    #     "CSA": initmty_tm.module,
-    # }
+# 2. Optional Feature Modules (Flag -> Module Mapping)
+# feature_map = {
+#     "dsc": initmty_dsc,
+#     "vda": initmty_vda,
+#     "cli": initmty_cli,
+#     "stages": initmty_stc,
+#     "etl": initmty_etl,
+#     "abs": initmty_abs,
+#     "ier": initmty_ier,
+# }
 
-    # macro_version = (env.macro or "").upper()
-    # if macro_mod := macro_map.get(macro_version):
-    #     model.register_module(macro_mod)
+# for flag, mod in feature_map.items():
+#     if getattr(env, flag, False):
+#         model.register_module(mod.module)
 
-    # 4. Finalization
-    # model.register_module(setglobs.module)
+# 3. Macro Selection Logic
+# macro_map = {
+#     "MSA": initmty_msa.module,
+#     "MLF": initmty_mlf.module,
+#     "YES": initmty_tm.module,
+#     "CSA": initmty_tm.module,
+# }
+
+# macro_version = (env.macro or "").upper()
+# if macro_mod := macro_map.get(macro_version):
+#     model.register_module(macro_mod)
+
+# 4. Finalization
+# model.register_module(setglobs.module)
 
 
 def load_data(model: TimesModelClass) -> None:
@@ -139,7 +152,12 @@ def main(
 
     env.set_scoped("botime", 1960)
 
+    # perform fixed declarations
     model.register_module(initsys_mod.InitsysMod(tc=model, env=env))
+    # declare the (system/user) empties
+    model.register_module(initmty_mod.InitmtyMod(tc=model, env=env))
+
+    # write GDX
     model.initialization()
 
     # # Central data load
