@@ -19,12 +19,9 @@ class MainDrvMod(GamsClass):
     module_name: str = "maindrv_mod"
     gams_source: str = "maindrv.mod"
 
-    def __init__(
-        self,
-        tc: "TimesModelClass",
-        env: "CompileEnvironment",
-    ):
+    def __init__(self, tc: "TimesModelClass", env: "CompileEnvironment", arg1: str):
         self.env = env.fork()
+        self.arg1 = arg1
         self.snapshots = {}
         self._sub_modules = {}
         self.compile(tc)

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from gamspy import Alias, Container, Options, Set, UniverseAlias
 
-from core import demo12_dd, initmty_mod, initsys_mod
+from core import demo12_dd, initmty_mod, initsys_mod, maindrv_mod
 from core.compile_environment import CompileEnvironment
 from core.times_model_class import TimesModelClass
 
@@ -115,6 +115,16 @@ def main(
 
     # Central data load (DD files)
     model.register_module(demo12_dd.Demo12DD(tc=model, env=env))
+
+    # Reduced model to fit with GAMS community license
+    # SET MILESTONYR /2005,2010,2015,2020,2030,2050/;
+    milestonyr = model.container["MILESTONYR"]
+    milestonyr.setRecords([2005, 2010, 2015, 2020, 2030, 2050])
+
+    env.set_scoped("RUN_NAME", "demo12")
+    env.set_scoped("VEDAVDD", True)
+
+    model.register_module(maindrv_mod.MainDrvMod(tc=model, env=env, arg1="mod"))
 
     # write GDX
     model.initialization()

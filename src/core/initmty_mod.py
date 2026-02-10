@@ -153,7 +153,18 @@ class InitmtyMod(GamsClass):
   SET TS_GROUP(ALL_REG,TSLVL,TS)      'Timeslice Level assignment'           //;
   SET TS_MAP(ALL_REG,ALL_TS,ALL_TS)   'Timeslice hierarchy tree: node+below' //;
   SET MILESTONYR(ALLYEAR)             'Projection years for which model to be run' //;
-      ALIAS(MILESTONYR,T,TT);
+""",
+            )
+
+            #   ALIAS(MILESTONYR,T,TT);
+            milestonyr = m["MILESTONYR"]
+            Alias(m, "T", alias_with=milestonyr)
+            Alias(m, "TT", alias_with=milestonyr)
+
+            tc.add_gams_code(
+                module=self,
+                phase=phase,
+                code=r"""
   SET DATAYEAR(ALLYEAR)               'Years for which user data is provided' //;
   SET PASTYEAR(ALLYEAR)               'Years before 1st MILESTONYR for which PASTI needs to be handled' //;
   SET MODLYEAR(ALLYEAR)               'Years for which the model is to be run (MILESTONYR+PASTYEAR)' //;
