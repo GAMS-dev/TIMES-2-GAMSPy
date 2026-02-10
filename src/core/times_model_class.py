@@ -87,11 +87,11 @@ class TimesModelClass:
     # -----------------------
     def initialization(self) -> None:
         """Modules are initialized / compiled within their __init__ method. Only used to write GDX state after compilation."""
-        self.container.write(self.output_compile)
+        self.container.write(self.output_compile, eps_to_zero=False)
 
     def run(self) -> None:
         """Execution phase (preprocessing / solve / reporting / etc.)."""
         self.logger.info("Phase: run")
         for mod in self._modules:
             mod.run(self)
-        self.container.write(self.output_execute)
+        self.container.write(self.output_execute, eps_to_zero=False)

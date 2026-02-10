@@ -7,7 +7,7 @@ from pathlib import Path
 
 from gamspy import Alias, Container, Options, Set, UniverseAlias
 
-from core import initmty_mod, initsys_mod
+from core import demo12_dd, initmty_mod, initsys_mod
 from core.compile_environment import CompileEnvironment
 from core.times_model_class import TimesModelClass
 
@@ -34,62 +34,18 @@ gams_logger.setLevel(logging.DEBUG)
 gams_logger.addHandler(file_handler)
 gams_logger.propagate = False  # Prevent logs from doubling up in the console
 
-# def register_modules(model: TimesModelClass, env: CompileEnvironment) -> None:
-#     # 1. Essential Base Modules
-#     base_modules = [initsys_mod, initmty_mod]
-#     for mod in base_modules:
-#         model.register_module(mod.module)
 
-# 2. Optional Feature Modules (Flag -> Module Mapping)
-# feature_map = {
-#     "dsc": initmty_dsc,
-#     "vda": initmty_vda,
-#     "cli": initmty_cli,
-#     "stages": initmty_stc,
-#     "etl": initmty_etl,
-#     "abs": initmty_abs,
-#     "ier": initmty_ier,
-# }
-
-# for flag, mod in feature_map.items():
-#     if getattr(env, flag, False):
-#         model.register_module(mod.module)
-
-# 3. Macro Selection Logic
-# macro_map = {
-#     "MSA": initmty_msa.module,
-#     "MLF": initmty_mlf.module,
-#     "YES": initmty_tm.module,
-#     "CSA": initmty_tm.module,
-# }
-
-# macro_version = (env.macro or "").upper()
-# if macro_mod := macro_map.get(macro_version):
-#     model.register_module(macro_mod)
-
-# 4. Finalization
-# model.register_module(setglobs.module)
-
-
-def load_data(model: TimesModelClass) -> None:
-    """Central data-loading step."""
+def load_data(model: TimesModelClass, gdx_file: Path) -> None:
+    """Central data-loading step. (Loading .dd files)"""
     model.logger.info("Reading data...")
 
-    gdx_path = os.path.join(os.getcwd(), "src", "data", "demo12_data.gdx")
-    tmp = Container(gdx_path)
+    m = model.container
+    t = Container(load_from=gdx_file)
 
-    known_symbols = model.container.listSymbols()
-    symbols_in_gdx = tmp.listSymbols()
-    common_symbols = set(known_symbols) & set(symbols_in_gdx)
+    for name, symbol in t.data.items():
+        if not isinstance(symbol, (Alias, UniverseAlias)) and name in m.data:
+            m[name].records = symbol.records
 
-    # UniverseAlias symbols cannot load records
-    symbols_to_load = [
-        name
-        for name in common_symbols
-        if not isinstance(model.container[name], (UniverseAlias, Alias))
-    ]
-
-    model.container.loadRecordsFromGdx(gdx_path, symbol_names=symbols_to_load)
     model.logger.info("Data loading complete.")
 
 
@@ -157,16 +113,13 @@ def main(
     # declare the (system/user) empties
     model.register_module(initmty_mod.InitmtyMod(tc=model, env=env))
 
+    # Central data load (DD files)
+    model.register_module(demo12_dd.Demo12DD(tc=model, env=env))
+
     # write GDX
     model.initialization()
 
-    # # Central data load
-    # load_data(model)
-
-    # # Phase 2: post-load compile-like steps
-    # model.initialize_postload()
-
-    # Phase 3: execution code blocks / solve / reports
+    # execution code blocks
     model.run()
 
     # Debug: dump generated GAMS
