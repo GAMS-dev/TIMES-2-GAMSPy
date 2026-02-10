@@ -92,9 +92,5 @@ $show
 $offlisting
 *****
 
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop
-
 * do the rest
 $ BATINCLUDE maindrv.mod mod

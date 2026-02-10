@@ -15,12 +15,33 @@
 *$ONLISTING
 * adjust GAMS language defaults to allow mixed mode $ tests and allow latest syntax
 *-----------------------------------------------------------------------------
+
+$onlisting
+display "maindrv_mod_start";
+$show
+$offlisting
+
 $   ONEMPTY
 $   ONMIXED
 $   USE999
 $   SETLOCAL SRC %1
 $   SETENV GDXCOMPRESS 1
+
+$onlisting
+display "setglobs_gms_start";
+$show
+$offlisting
+
 $   BATINCLUDE setglobs 1
+
+$onlisting
+display "setglobs_gms_end";
+$show
+$offlisting
+$gdxUnload %COMPILE_GDX%
+execute_unload "%EXECUTE_GDX%";
+$stop
+
 $   SET MODEL_NAME TIMES
 $   IFI %MICRO%%TIMESED%==YES0 $SET TIMESED YES
 $   IFI %MACRO%==YES $SET MACRO 'YES' SET TIMESED 0

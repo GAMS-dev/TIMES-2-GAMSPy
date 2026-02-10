@@ -209,6 +209,7 @@ $ LABEL SYSD
   PARAMETER OBJ_CRF(R,ALLYEAR,P,CUR)       'Capital recovery factor'  //;
   PARAMETER OBJ_CRFD(R,ALLYEAR,P,CUR)      'Capital recovery factor for Decommissioning' //;
   PARAMETER OBJ_DISC(R,ALLYEAR,CUR)        'Discounting factor'       //;
+
 $IF %OBMAC%==YES $GOTO RESTOBJ
   PARAMETER OBJ_ICOST(R,ALLYEAR,P,CUR)     'NCAP_COST for each year'  //;
   PARAMETER OBJ_ISUB(R,ALLYEAR,P,CUR)      'NCAP_ISUB for each year'  //;
