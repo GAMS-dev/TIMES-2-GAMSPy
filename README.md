@@ -14,14 +14,21 @@ The translation is done **file-by-file**. This keeps a clear 1:1 mapping between
 
 ---
 
-## Compilation vs. Execution
+## Compilation vs. Execution: Deferred Execution Queue
 
-GAMS has a strict separation between **compile-time** and **execution-time** behavior. GAMSPy doesn’t compile like GAMS, but executes Python. In this repo, each translation unit is represented as a **module class** with two methods:
+GAMS has a strict separation between **compile-time** and **execution-time** behavior. GAMSPy doesn’t compile like GAMS, but executes Python linearly. This behavior is replicated using a **Task Queue**.
 
-- `compile(tc)`: compile-time logic
-- `run(tc)`: execution-time logic
+### Functional Workflow
 
-The model orchestrator calls these phases in a deterministic order. Keep the naming consistent across all modules.
+Instead of executing procedural logic (like assignments or solves) immediately, logic is wrapped in functions and "enqueued."
+
+1. Immediate Capture: During the initialization of a module, the current values of GAMS variables are fetched from the environment.
+
+1. The Enqueue Step: Values are passed into ``tc.enqueue(function, argument)``. Python captures the value of the argument at that exact moment.
+
+1. Deferred Execution: The orchestrator (``tc``) holds these tasks in a queue and executes them in order after the model structure is fully defined.
+
+This ensures that if a GAMS variable changes value later in the script, the previously enqueued tasks still use the "frozen" value received during the compilation phase.
 
 ---
 
@@ -29,10 +36,9 @@ The model orchestrator calls these phases in a deterministic order. Keep the nam
 
 In GAMS, `$set` and `$setglobal` are pre-processor macros. They are substituted into the code at the exact moment the compiler reads the line. In Python, variables are live references. If you use a variable in a method that runs later (during the execution phase), it will reflect the final value of that variable, not the value it had when the module was initialized. This breaks GAMS logic where a global variable changes halfway through the script.
 
-To replicate GAMS accurately, we use a `CompileTimeEnvironment` with a two-step state management system:
+To replicate GAMS accurately, we use a `CompileTimeEnvironment`:
 
 - `fork()`: Manages Scope. Shares `$setglobal` variables and ensures scoped `$set` and `setlocal` variables are isolated to the correct module and its children.
-- `snapshot()`: Manages Timing. "Freezes" the state of all compile time variables at a specific line, mimicking the GAMS string substitution.
 
 In addition, we keep track of variable values using:
 
@@ -40,75 +46,40 @@ In addition, we keep track of variable values using:
 - `set_scoped`("VAL", 500)`: Set/change a scoped variable that is shared with children.
 - `set_global`("VAL", 500)`: Set/change a global variable that is shared globally.
 
+### Rules for Translation
+
+- **Forking**: The environment must be forked via fork() when initializing a sub-module. This mimics entering a new GAMS file scope.
+- **Capturing**: Variables must be extracted from the environment before enqueuing a task.
+
 ### Passing Down and Forking
 
 Every module must receive an env (`CompileEnvironment`) object.
 
-Rule: Always `fork()` the environment when initializing a sub-module. This mimics entering a new GAMS file.
-
 ```python
-def __init__(self, tc, env):
-    self.env = env.fork() # Fork for the current file
-    self._sub_modules = {}
-    self.compile(tc)
+from src.core.base_module import GamsModule
 
-def compile(self, tc):
-    # Passing environment to a sub-include: $include "sub.gms"
-    self.include('SubModule', SubModule(tc, self.env))
-```
+class MyModule(GamsModule):
+    def __init__(self, tc, env, arg1=None):
+        # 1. Scope the environment
+        self.env = env.fork()
+        self.arg1 = arg1
 
-### The Snapshot Pattern
+        # 2. Trigger the logic
+        self.compile(tc)
 
-A snapshot creates a static dictionary of all Global, Scoped, and Local variables at that exact moment.
+    def compile(self, tc):
+        # Define model structure (Sets/Parameters)
+        # ...
 
-Rule: Take snapshots in the `__init__` (the "Compilation" phase).
+        # Capture the environment state
+        current_year = self.env.botime
 
-Rule: Use that snapshot in the `run()` method (the "Execution" phase).
+        # Enqueue execution-time logic with the captured value
+        tc.enqueue(self.assign_logic, tc=tc, year=current_year)
 
-```python
-def __init__(self, tc, env):
-    self.env = env.fork()
-    self.compile_snapshot = self.env.snapshot() # Freeze state HERE
-```
-
-```python
-def run(self, tc):
-    # m = %VAL%
-    val = self.compile_snapshot.get("VAL")
-    tc.add_gams_code(code=f"m = {val};")
-```
-
-### Handling Values Changing Within a Class
-
-Sometimes a single GAMS file changes a value internally:
-
-```
-$set VAL 10
-m = %VAL%;
-$set VAL 20
-p = %VAL%;
-```
-
-In this case, a single `self.compile_snapshot` is insufficient. You must create multiple snapshots to represent different "time-steps" within the same file.
-
-```python
-def compile(self, tc):
-    # State at the start of the file
-    self.env.set_scoped("VAL", 10)
-    self.snap_1 = self.env.snapshot()
-
-    # State after some logic
-    self.env.set_scoped("VAL", 20)
-    self.snap_2 = self.env.snapshot()
-
-def execute(self, tc):
-    # Use snap_1 for the first block of GAMS code
-    val1 = self.snap_1.get("VAL")
-    tc.add_gams_code(code=f"m = {val1};")
-
-    # Use snap_2 for the second block
-    val2 = self.snap_2.get("VAL")
-    tc.add_gams_code(code=f"p = {val2};")
+    def assign_logic(self, tc, year):
+        # This code runs later in the execution sequence
+        tc.add_gams_code(code=f"YEARVAL(ALLYEAR) = {year} + ORD(ALLYEAR)-1;")
 ```
 
 ---
@@ -140,28 +111,13 @@ $ LABEL MODEL
             self._initialize_model_phase(tc)
         else:
             raise ValueError("Wrong argument passed.")
-
-    def run(self, tc: "TimesModelClass") -> None:
-        # Manages $GOTO
-        if self.arg1 == "INIT":
-            self._run_init_phase(tc)
-        elif self.arg1 == "DECL":
-            self._run_declaration_phase(tc)
-        elif self.arg1 == "MODEL":
-            pass
-        else:
-            raise ValueError("Wrong argument passed.")
 ```
 
 ---
 
 ## Data input
 
-`.dd` files are not translated. The GAMSPy model assumes a **single GDX file** containing all relevant scenario data.
-
-- A **single, centralized data-loading step** is used (currently handled in one place, not file-by-file).
-- The GDX path (`gdx_path`) is currently configured in one central entrypoint (in `main.py`).
-
+`.dd` files are currently translated. In future versions the GAMSPy model assumes a **single GDX file** containing all relevant scenario data.
 
 ---
 
@@ -174,8 +130,8 @@ $ LABEL MODEL
 | `$setlocal VAR 10` | `self.env.set_local("VAR", 10)` |
 | `$set VAR 10` | `self.env.set_scoped("VAR", 10)` |
 | `$setglobal VAR 10` | `self.env.set_global("VAR", 10)` |
-| `%VAR%` | `self.snapshot.get("VAR")` |
-
+| `%VAR%` | `self.env.var` |
+| `P = 5;` | `tc.enqueue(func, tc, val)` |
 
 ---
 
@@ -201,46 +157,39 @@ class MyTranslatedModule(GamsModule):
         self.arg1 = arg1
         self.arg2 = arg2
 
-        # 3. Compile-time snapshot
-        # Freezes %VAL%, %MUL%, etc., for the execution phase
-        self.snapshot = self.env.snapshot()
-
-        # 4. Initialize child modules storage
+        # 3. Initialize child modules storage
         self._sub_modules = {}
 
-        # 5. Trigger compilation
+        # 4. Trigger compilation
         self.compile(tc)
 
     def compile(self, tc: TimesModelClass) -> None:
         """
         Equivalent to GAMS Compilation Phase.
-        Define Sets, Parameters, Variables, and Equations here.
+        Define Sets, Parameters, Variables, and Equations here. Put execution logic to queue.
         """
         # Example of handling $GOTO style logic
         if self.arg1 == "DECL":
-            self._initialize_declarations(tc)
+            self.initialize_declarations(tc)
+            val = self.env.val
+            tc.enqueue(self.assign_p, tc=tc, val=val)
 
         # Example of a nested include: $batinclude "sub_file.gms" "A"
         self.include('SubKey', SubModule(tc, self.env, "A"))
 
-    def run(self, tc: TimesModelClass) -> None:
-        """
-        Equivalent to GAMS Execution Phase.
-        Procedural logic, assignments, and solves go here.
-        """
-        # Use the frozen snapshot value (Timing Persistence)
-        val = self.snapshot.get("VAL")
 
-        # Use Python attributes (Pythonic Readability)
-        if self.arg1 == "DECL":
-            tc.add_gams_code(
-                module_name="my_module",
-                phase="execute",
-                code=f"Parameter p; p = {val};"
-            )
-
-        # Execute sub-modules in the order they were included
-        self._sub_modules['SubKey'].run(tc)
+    def initialize_declarations(self, tc):
+        tc.add_gams_code(
+            module_name="my_module",
+            phase="compile",
+            code=f"Parameter p;"
+        )
+    def assign_p(self, tc, val):
+        tc.add_gams_code(
+            module_name="my_module",
+            phase="compile",
+            code=f"p = {val};"
+        )
 ```
 
 ---

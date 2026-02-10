@@ -29,29 +29,6 @@ class GamsString(str):
         return True
 
 
-class SnapshotProxy:
-    """A helper class to allow dot notation with safe fallbacks."""
-
-    def __init__(self, data: dict):
-        # We use __dict__ directly to avoid triggering __getattr__ during setup
-        self.__dict__["_data"] = data
-
-    def __getattr__(self, name: str) -> GamsString:
-        if name in self._data:
-            # Wrap existing values so 'N' becomes False
-            return GamsString(self._data[name])
-
-        # Return the missing macro name, which GamsString will treat as False
-        return GamsString(f"%{name}%")
-
-    def is_set(self, key: str) -> bool:
-        """
-        Allows you to check if a variable existed at the time of the snapshot.
-        Usage: if self.snapshot.is_set("RUN_NAME"):
-        """
-        return str(key) in self._data
-
-
 class CompileEnvironment:
     scopes = Literal["local", "global", "scoped"]
 
@@ -93,21 +70,6 @@ class CompileEnvironment:
         new_env._local = {}
 
         return new_env
-
-    def snapshot(self) -> SnapshotProxy:
-        """
-        Creates a static dictionary of ALL current variables.
-        Will be called if variable values need to be accessed at execution time.
-        If a variable is changes multiple times within a class, multiple instances of snapshot can be stored for later access at execution time.
-        This mimics how GAMS substitutes values into code at compile time.
-        """
-        # Combine Global, Scoped, and Local into one static map
-        # Priority: Globals < Scoped < Local
-        current_state = {}
-        current_state.update(self._globals)
-        current_state.update(self._scoped)
-        current_state.update(self._local)
-        return SnapshotProxy(current_state)
 
     def is_set(self, key: str) -> bool:
         """

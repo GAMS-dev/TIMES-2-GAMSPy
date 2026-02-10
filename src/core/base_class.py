@@ -52,8 +52,3 @@ class GamsClass(ABC):
     def compile(self, tc: "TimesModelClass") -> None:
         """Must be implemented by every translated module."""
         pass
-
-    @abstractmethod
-    def run(self, tc: "TimesModelClass") -> None:
-        """Must be implemented by every translated module."""
-        pass

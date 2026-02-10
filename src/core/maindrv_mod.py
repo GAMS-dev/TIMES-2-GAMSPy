@@ -22,14 +22,9 @@ class MainDrvMod(GamsClass):
     def __init__(self, tc: "TimesModelClass", env: "CompileEnvironment", arg1: str):
         self.env = env.fork()
         self.arg1 = arg1
-        self.snapshots = {}
         self._sub_modules = {}
         self.compile(tc)
 
     def compile(self, tc: "TimesModelClass") -> None:
         phase = "init"
-        print(phase)
-
-    def run(self, tc: "TimesModelClass") -> None:
-        phase = "run"
         print(phase)

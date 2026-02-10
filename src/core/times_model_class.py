@@ -30,6 +30,7 @@ class TimesModelClass:
         self, env: "CompileEnvironment", output_compile: Path, output_execute: Path
     ):
         self.env = env
+        self.execution_list = []
         self.output_compile = output_compile
         self.output_execute = output_execute
         self.container = Container(debugging_level="keep")
@@ -89,9 +90,13 @@ class TimesModelClass:
         """Modules are initialized / compiled within their __init__ method. Only used to write GDX state after compilation."""
         self.container.write(self.output_compile, eps_to_zero=False)
 
-    def run(self) -> None:
-        """Execution phase (preprocessing / solve / reporting / etc.)."""
+    def enqueue(self, func, *args, **kwargs):
+        """Adds a function call to the end of the execution queue."""
+        self.execution_list.append((func, args, kwargs))
+
+    def run(self):
+        """Executes all queued functions in order."""
         self.logger.info("Phase: run")
-        for mod in self._modules:
-            mod.run(self)
+        for func, args, kwargs in self.execution_list:
+            func(*args, **kwargs)
         self.container.write(self.output_execute, eps_to_zero=False)

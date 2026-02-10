@@ -25,14 +25,9 @@ class InitmtyMsa(GamsClass):
         env: "CompileEnvironment",
     ):
         self.env = env.fork()
-        self.snapshots = {}
         self._sub_modules = {}
         self.compile(tc)
 
     def compile(self, tc: "TimesModelClass") -> None:
         phase = "init"
-        print(phase)
-
-    def run(self, tc: "TimesModelClass") -> None:
-        phase = "run"
         print(phase)
