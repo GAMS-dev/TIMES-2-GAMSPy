@@ -76,7 +76,6 @@ $BATINCLUDE uc_nuc_maxcap.dd
 $BATINCLUDE bounds-uc_wsets.dd
 
 
-
 *SET MILESTONYR /2005,2006,2010,2015,2020,2025,2030,2035,2040,2045,2050/;
 * Reduced model to fit with GAMS community license
 SET MILESTONYR /2005,2010,2015,2020,2030,2050/;
