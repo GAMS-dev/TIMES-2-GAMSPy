@@ -66,11 +66,6 @@ $   IF DEFINED REG_FIXT $SET R_T 'RT_PP(%R_T%)' SET R_V_T 'RVT(%R_V_T%)' SET RTP
 $   BATINCLUDE err_stat.mod '$IF NOT ERRORFREE' ABORT '*** ERRORS IN INPUT DATA/COMPILE ***'
 
 *-----------------------------------------------------------------------------
-* hook for GAMS-CGI WWW input
-*-----------------------------------------------------------------------------
-$   IF %GAMS_CGI% == WWW $BATINCLUDE www_in.cgi
-
-*-----------------------------------------------------------------------------
 * perform preprocessor tasks
 *-----------------------------------------------------------------------------
 $   IF NOT '%EXTEND%' == '' $BATINCLUDE main_ext.mod init_ext %EXTEND%
