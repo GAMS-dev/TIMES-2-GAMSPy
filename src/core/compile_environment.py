@@ -98,7 +98,5 @@ class CompileEnvironment:
 
         for scope_name, var_dict in scopes.items():
             for name, val in var_dict.items():
-                data.append(
-                    {"name": name.upper(), "scope": scope_name, "value": str(val)}
-                )
+                data.append({"name": name, "scope": scope_name, "value": val})
         return pd.DataFrame(data)
