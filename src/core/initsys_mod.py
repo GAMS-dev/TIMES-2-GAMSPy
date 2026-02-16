@@ -67,10 +67,10 @@ $ ONMULTI
         tc.item = UniverseAlias(m, name="ITEM")
 
         # $IF NOT SET BOTIME $SETGLOBAL BOTIME 1850
-        self.env.set_if_not_exists("botime", 1850, "global")
+        self.env.set_if_not_exists("botime", "1850", "global")
 
         # $IF NOT SET EOTIME $SETGLOBAL EOTIME 2200
-        self.env.set_if_not_exists("eotime", 2200, "global")
+        self.env.set_if_not_exists("eotime", "2200", "global")
 
         # $IF NOT %SHELL%==ANSWER
         # $IF SET MAXSOW SET ITEM /BOH, 1*%EOTIME%/;
@@ -263,7 +263,7 @@ $ ONMULTI
 
         # Stochastics
         # $ SETGLOBAL MAXSOW 96
-        self.env.set_global("maxsow", 96)
+        self.env.set_global("maxsow", "96")
         tc.add_gams_code(
             module=self,
             phase=phase,

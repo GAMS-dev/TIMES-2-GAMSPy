@@ -220,7 +220,7 @@ class InitmtyMod(GamsClass):
 
             # * Predefined system CGs and one COM:
             # $IF NOT SET PGPRIM $SETGLOBAL PGPRIM "'ACT'"
-            self.env.set_if_not_exists("pgprim", "ACT", scope="global")
+            self.env.set_if_not_exists("pgprim", "'ACT'", scope="global")
             tc.add_gams_code(
                 module=self,
                 phase=phase,
@@ -468,7 +468,7 @@ $onMulti
 
             # * Placeholder for interpolation control option
             # $ SETGLOBAL DFLBL '0'
-            self.env.set_global("dflbl", 0)
+            self.env.set_global("dflbl", "0")
             dflbl = self.env.dflbl
             tc.enqueue(self.assign_yearval, tc=tc, dflbl=dflbl)
 
@@ -634,15 +634,12 @@ PARAMETER IE_DEFAULT(*) //;
             if self.env.dscauto == "YES":
                 self.env.set_global("dsc", "YES")
             # $IF %PGPRIM%==ACT  $SETGLOBAL RETIRE 'YES' SETGLOBAL DSCAUTO Yes
-            if self.env.pgprim == "ACT":
+            if self.env.pgprim == "'ACT'":
                 self.env.set_global("retire", "YES")
                 self.env.set_global("dscauto", "Yes")
             # $IFI %DSC%==YES    $KILL RCAP_BLK
             if self.env.dsc == "YES":
                 tc.add_gams_code(module=self, phase=phase, code="$KILL RCAP_BLK")
-
-            if tc.test_run:
-                tc.save_test_state(env=self.env, checkpoint="justine3")
 
             # Initialize list of standard extensions to be loaded
             # $SET VDA 'YES' SETGLOBAL EXTEND
