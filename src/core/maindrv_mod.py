@@ -15,9 +15,18 @@
 # *-----------------------------------------------------------------------------
 
 import logging
+import os
 from typing import TYPE_CHECKING
 
-from core import setglobs_gms
+from core import (
+    err_stat_mod,
+    init_ext_abs,
+    init_ext_dsc,
+    init_ext_vda,
+    main_ext_mod,
+    readprice_mod,
+    setglobs_gms,
+)
 
 from .base_class import GamsClass
 
@@ -53,3 +62,84 @@ class MainDrvMod(GamsClass):
             tc.save_test_state(env=self.env, checkpoint="setglobs_gms_end")
 
         self.env.set_scoped("model_name", "TIMES")
+
+        if self.env.micro.upper() == "YES":
+            if self.env.timesed == "0":
+                self.env.set_scoped("timesed", "YES")
+
+        if self.env.macro.upper() == "YES":
+            self.env.set_scoped("macro", "YES")
+            self.env.set_scoped("timesed", "0")
+
+        if os.name != "nt":
+            self.env.set_scoped("model_name", "times")
+
+        if self.env.timesed.upper() != "NO":
+            if self.env.timesed != "0":
+                self.include(readprice_mod.ReadpriceMod(tc=tc, env=self.env))
+
+        # TODO: $   %MX% SETGLOBAL MX --> How to handle %MX% here?
+        self.env.set_global("mx", "")
+
+        if self.env.macro.upper() == "YES":
+            self.env.set_scoped("model_name", "TIMES_MACRO")
+            self.env.set_local("src", "tm")
+
+        # Stochastic & sensitivity analysis controls
+        if self.env.stages.upper() == "YES":
+            self.env.set_scoped("stages", "YES")
+        if self.env.sensis.upper() == "YES":
+            self.env.set_scoped("stages", "Yes")
+        if self.env.spines.upper() == "YES":
+            self.env.set_scoped("stages", "YES")
+        if self.env.stages == "YES":
+            self.env.set_scoped("sensis", "NO")
+            self.env.set_scoped("objann", "NO")
+
+        # Stepped TIMES solution controls
+        if self.env.is_set("timestep"):
+            self.env.set_global("stepped", "+")
+        self.env.set_scoped("r_t", "R,T")
+        self.env.set_scoped("tx", "T")
+        self.env.set_scoped("r_v_t", "R,V,T")
+        self.env.set_scoped("rtpx", "")
+
+        if self.env.is_set("stepped"):
+            self.env.set_scoped("r_t", "R,SUBT(T)")
+            self.env.set_scoped("tx", "SUBT(T)")
+            self.env.set_scoped("r_v_t", "R,V,SUBT(T)")
+
+        if tc.container["REG_FIXT"].number_records:
+            r_t = self.env.r_t
+            r_v_t = self.env.r_v_t
+            self.env.set_scoped("r_t", f"RT_PP({r_t})")
+            self.env.set_scoped("r_v_t", f"RVT({r_v_t})")
+            self.env.set_scoped("rtpx", "X")
+
+        if tc.test_run:
+            tc.save_test_state(
+                env=self.env, checkpoint="maindrv_mod_prior_err_stat_mod"
+            )
+
+        arg1 = "$IF NOT ERRORFREE"
+        arg2 = "ABORT"
+        arg3 = "*** ERRORS IN INPUT DATA/COMPILE ***"
+        self.include(
+            err_stat_mod.ErrStatMod(
+                tc=tc, env=self.env, arg1=arg1, arg2=arg2, arg3=arg3
+            )
+        )
+
+        # perform preprocessor tasks
+        if self.env.extend != "":
+            extensions = {
+                "ABS": init_ext_abs.InitExtAbs,
+                "DSC": init_ext_dsc.InitExtDsc,
+                "VDA": init_ext_vda.InitExtVda,
+            }
+            active_extensions = [extensions[ext] for ext in self.env.extend.split(" ")]
+            self.include(
+                main_ext_mod.MainExtMod(
+                    tc=tc, env=self.env, source="maindrv", extensions=active_extensions
+                )
+            )

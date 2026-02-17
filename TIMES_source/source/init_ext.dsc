@@ -21,3 +21,12 @@ $ IF %DSC%==YES $SETGLOBAL SOLMIP YES
 $ IF NOT DEFINED NCAP_DISC $CLEAR NCAP_DISC
 $ IF NOT DEFINED RCAP_BLK  $CLEAR RCAP_BLK
 $ SETGLOBAL DSC %DSC%
+
+$onlisting
+display "init_ext_dsc_end";
+$show
+$offlisting
+
+$gdxUnload %COMPILE_GDX%
+execute_unload "%EXECUTE_GDX%";
+$stop
