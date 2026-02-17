@@ -26,7 +26,3 @@ $onlisting
 display "init_ext_dsc_end";
 $show
 $offlisting
-
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop
