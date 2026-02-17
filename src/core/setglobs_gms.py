@@ -44,6 +44,8 @@ class SetglobsGms(GamsClass):
         # TODO: Do we need any of this?
         # $ SETARGS X1 X2
         # * --- FIXT Dump ---
+        if not self.env.is_set("fixboh"):
+            tc.add_gams_code(module=self, phase="init", code="$KILL REG_FIXT")
         # $ IF NOT SET FIXBOH $KILL REG_FIXT
         # * --- DATA Dump ---
         # $ IF NOT %DATAGDX%==YES $GOTO SYSD
@@ -469,7 +471,7 @@ $onMulti
         varmac = self.env.varmac
         if f"{swx}{swtx}{varmac}" != f"{self.x1}{self.x1}{self.x1}":
             raise ValueError(f"{msg}: SWX")
-        self.env.set_global("swx", ",'1'")
+        self.env.set_global("swx", ",'1")
 
         # $SET TMP '%CTST%'
         self.env.set_scoped("tmp", self.env.ctst)

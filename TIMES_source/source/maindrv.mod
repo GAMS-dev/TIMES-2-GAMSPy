@@ -38,9 +38,6 @@ $onlisting
 display "setglobs_gms_end";
 $show
 $offlisting
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop
 
 $   SET MODEL_NAME TIMES
 $   IFI %MICRO%%TIMESED%==YES0 $SET TIMESED YES
@@ -63,6 +60,12 @@ $   IF DEFINED REG_FIXT $SET R_T 'RT_PP(%R_T%)' SET R_V_T 'RVT(%R_V_T%)' SET RTP
 *-----------------------------------------------------------------------------
 * do a check on user data
 *-----------------------------------------------------------------------------
+
+$onlisting
+display "maindrv_mod_prior_err_stat_mod";
+$show
+$offlisting
+
 $   BATINCLUDE err_stat.mod '$IF NOT ERRORFREE' ABORT '*** ERRORS IN INPUT DATA/COMPILE ***'
 
 *-----------------------------------------------------------------------------

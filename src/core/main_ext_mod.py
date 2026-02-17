@@ -34,18 +34,20 @@ class MainExtMod(GamsClass):
     gams_source: str = "main_ext.mod"
 
     def __init__(
-        self, tc: "TimesModelClass", env: "CompileEnvironment", extensions: List
+        self,
+        tc: "TimesModelClass",
+        env: "CompileEnvironment",
+        source: str,
+        extensions: List,
     ):
         self.env = env.fork()
         self.extension_list = extensions
+        self.source = source
         self._sub_modules = {}
         self.compile(tc)
 
     def compile(self, tc: "TimesModelClass") -> None:
-        phase = "init"
-        tc.add_gams_code(
-            module=self, phase=phase, code=r"$SETNAMES '%SYSTEM.INCPARENT%' . TMP ."
-        )
+        self.env.set_scoped("tmp", self.source)
 
         # Include extensions
         for ext in self.extension_list:

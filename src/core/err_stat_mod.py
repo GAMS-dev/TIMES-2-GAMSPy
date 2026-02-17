@@ -37,11 +37,11 @@ class ErrStatMod(GamsClass):
         self,
         tc: "TimesModelClass",
         env: "CompileEnvironment",
-        arg1: str,
-        arg2: str,
-        arg3: str,
-        arg4: str,
-        arg5: str,
+        arg1: str = "",
+        arg2: str = "",
+        arg3: str = "",
+        arg4: str = "",
+        arg5: str = "",
     ):
         self.env = env.fork()
         self.arg1 = arg1
@@ -70,7 +70,7 @@ class ErrStatMod(GamsClass):
         elif "SOLVESTAT" in tc.container.listSymbols():
             solvestat = tc.container["SOLVESTAT"]
             if solvestat.number_records:
-                done = self.queue_action()
+                done = self.queue_action(tc=tc)
 
         if not done:
             tc.add_gams_code(

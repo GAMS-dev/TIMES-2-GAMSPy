@@ -220,7 +220,7 @@ class InitmtyMod(GamsClass):
 
             # * Predefined system CGs and one COM:
             # $IF NOT SET PGPRIM $SETGLOBAL PGPRIM "'ACT'"
-            self.env.set_if_not_exists("pgprim", "'ACT'", scope="global")
+            self.env.set_if_not_exists("pgprim", "ACT", scope="global")
             tc.add_gams_code(
                 module=self,
                 phase=phase,
@@ -634,7 +634,7 @@ PARAMETER IE_DEFAULT(*) //;
             if self.env.dscauto == "YES":
                 self.env.set_global("dsc", "YES")
             # $IF %PGPRIM%==ACT  $SETGLOBAL RETIRE 'YES' SETGLOBAL DSCAUTO Yes
-            if self.env.pgprim == "'ACT'":
+            if self.env.pgprim == "ACT":
                 self.env.set_global("retire", "YES")
                 self.env.set_global("dscauto", "Yes")
             # $IFI %DSC%==YES    $KILL RCAP_BLK
@@ -715,7 +715,9 @@ PARAMETER IE_DEFAULT(*) //;
                 )
 
             # $BATINCLUDE main_ext.mod initmty %EXTEND%
-            self.include(MainExtMod(tc, self.env, extensions=active_extensions))
+            self.include(
+                MainExtMod(tc, self.env, source="initmty", extensions=active_extensions)
+            )
 
             # $SET VAR VARIABLE OBJZ
             self.env.set_scoped("var", "VARIABLE OBJZ")
