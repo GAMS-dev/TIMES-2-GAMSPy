@@ -4,197 +4,28 @@ This repository contains an **ongoing translation of the ETSAP TIMES model** fro
 
 ---
 
-## File Structure
+## Project Overview
 
-The translation is done **file-by-file**. This keeps a clear 1:1 mapping between the upstream GAMS codebase and the GAMSPy project. This ensures maintainability, simplifies auditing, and allows developers familiar with the original TIMES model to navigate the Python version easily.
+The translation is done **file-by-file**. This keeps a clear 1:1 mapping between the upstream GAMS codebase and the GAMSPy project. This ensures maintainability, simplifies auditing, and allows modelers familiar with the original TIMES model to navigate the Python version easily.
 
 - Each original **GAMS file** has a **Python counterpart**.
 - Naming Convention: Original files like `foo.gms` or `foo.mod` are translated to `foo_gms.py` or `foo_mod.py`.
-- Encapsulation: Each GAMS file is represented as a Module Class.
+- Encapsulation: Each GAMS file is represented as a Python Module Class.
 
 ---
 
-## Compilation vs. Execution: Deferred Execution Queue
+## Information for Developers
 
-GAMS has a strict separation between **compile-time** and **execution-time** behavior. GAMSPy doesn’t compile like GAMS, but executes Python linearly. This behavior is replicated using a **Task Queue**.
-
-### Functional Workflow
-
-Instead of executing procedural logic (like assignments or solves) immediately, logic is wrapped in functions and "enqueued."
-
-1. Immediate Capture: During the initialization of a module, the current values of GAMS variables are fetched from the environment.
-
-1. The Enqueue Step: Values are passed into ``tc.enqueue(function, argument)``. Python captures the value of the argument at that exact moment.
-
-1. Deferred Execution: The orchestrator (``tc``) holds these tasks in a queue and executes them in order after the model structure is fully defined.
-
-This ensures that if a GAMS variable changes value later in the script, the previously enqueued tasks still use the "frozen" value received during the compilation phase.
+If you are joining the parallel translation effort, **please read our [Contributor's Guide](CONTRIBUTING.md).** The `CONTRIBUTING.md` file contains everything you need to get started, including:
+- Local environment setup.
+- The "Fork, Capture, Enqueue" architectural workflow.
+- Translation cheat sheets for GAMS macros (`$IF`, `$SET`, `$GOTO`).
+- How to test your code using Checkpoints and GDX Diff.
+- How to pick issues from our GitLab Issue Board.
 
 ---
 
-## Compile Time Variables: The Fork & Snapshot Architecture
-
-In GAMS, `$set` and `$setglobal` are pre-processor macros. They are substituted into the code at the exact moment the compiler reads the line. In Python, variables are live references. If you use a variable in a method that runs later (during the execution phase), it will reflect the final value of that variable, not the value it had when the module was initialized. This breaks GAMS logic where a global variable changes halfway through the script.
-
-To replicate GAMS accurately, we use a `CompileTimeEnvironment`:
-
-- `fork()`: Manages Scope. Shares `$setglobal` variables and ensures scoped `$set` and `setlocal` variables are isolated to the correct module and its children.
-
-In addition, we keep track of variable values using:
-
-- `set_local`("VAL", 500)`: Set/change a local variable that is only shared in this file.
-- `set_scoped`("VAL", 500)`: Set/change a scoped variable that is shared with children.
-- `set_global`("VAL", 500)`: Set/change a global variable that is shared globally.
-
-### Rules for Translation
-
-- **Forking**: The environment must be forked via fork() when initializing a sub-module. This mimics entering a new GAMS file scope.
-- **Capturing**: Variables must be extracted from the environment before enqueuing a task.
-
-### Passing Down and Forking
-
-Every module must receive an env (`CompileEnvironment`) object.
-
-```python
-from src.core.base_module import GamsModule
-
-class MyModule(GamsModule):
-    def __init__(self, tc, env, arg1=None):
-        # 1. Scope the environment
-        self.env = env.fork()
-        self.arg1 = arg1
-
-        # 2. Trigger the logic
-        self.compile(tc)
-
-    def compile(self, tc):
-        # Define model structure (Sets/Parameters)
-        # ...
-
-        # Capture the environment state
-        current_year = self.env.botime
-
-        # Enqueue execution-time logic with the captured value
-        tc.enqueue(self.assign_logic, tc=tc, year=current_year)
-
-    def assign_logic(self, tc, year):
-        # This code runs later in the execution sequence
-        tc.add_gams_code(code=f"YEARVAL(ALLYEAR) = {year} + ORD(ALLYEAR)-1;")
-```
-
----
-
-## Control Flow: `$label` and `$goto`
-TIMES relies heavily on using `$goto` to jump between initialization, declaration, and model phases within the same file. We replicate this using conditional method dispatching.
-
-Instead of a single block of code, the compile and run methods route logic to protected "Phase Methods" based on arguments passed during the include (e.g., `%1 = INIT`, `DECL`, or `MODEL`).
-
-```
-$ IF NOT '%1'=='' $GOTO %1%2
-  SET I ;
-$ EXIT
-$ LABEL DECL
-  POSITIVE VARIABLE X;
-$ EXIT
-$ LABEL MODEL
-* Do something
-```
-
-```python
-    def compile(self, tc: "TimesModelClass") -> None:
-        # Manages $GOTO
-        if self.arg1 == "INIT":
-            self._initialize_init_phase(tc)
-        elif self.arg1 == "DECL":
-            self._initialize_declaration_phase(tc)
-        elif self.arg1 == "MODEL":
-            self._initialize_model_phase(tc)
-        else:
-            raise ValueError("Wrong argument passed.")
-```
-
----
-
-## Data input
-
-`.dd` files are currently translated. In future versions the GAMSPy model assumes a **single GDX file** containing all relevant scenario data.
-
----
-
-### Cheat-Sheet for Translation
-
-| GAMS | Python|
-| --- | --- |
-| `$include "file.gms"` | `self.include('SubModule', SubModule(tc, self.env))`  |
-| `$batinclude "file.gms" "A"` | `self.include('SubModule', SubModule(tc, self.env, arg1="A"))`  |
-| `$setlocal VAR 10` | `self.env.set_local("VAR", 10)` |
-| `$set VAR 10` | `self.env.set_scoped("VAR", 10)` |
-| `$setglobal VAR 10` | `self.env.set_global("VAR", 10)` |
-| `%VAR%` | `self.env.var` |
-| `P = 5;` | `tc.enqueue(func, tc, val)` |
-
----
-
-## Example Module
-
-```python
-from src.core.base_module import GamsModule
-from src.core.times_model_class import TimesModelClass
-
-class MyTranslatedModule(GamsModule):
-    # Instance attributes
-    module_name: str = "my_translated_module"
-    gams_source: str = "my_translated_module.gms"
-
-    def __init__(self, tc: TimesModelClass, env, arg1=None, arg2=None):
-        """
-        Standard constructor for all TIMES modules.
-        """
-        # 1. Fork environment
-        self.env = env.fork()
-
-        # 2. Python attributes for easy access (usually batinclude arguments %1 %2)
-        self.arg1 = arg1
-        self.arg2 = arg2
-
-        # 3. Initialize child modules storage
-        self._sub_modules = {}
-
-        # 4. Trigger compilation
-        self.compile(tc)
-
-    def compile(self, tc: TimesModelClass) -> None:
-        """
-        Equivalent to GAMS Compilation Phase.
-        Define Sets, Parameters, Variables, and Equations here. Put execution logic to queue.
-        """
-        # Example of handling $GOTO style logic
-        if self.arg1 == "DECL":
-            self.initialize_declarations(tc)
-            val = self.env.val
-            tc.enqueue(self.assign_p, tc=tc, val=val)
-
-        # Example of a nested include: $batinclude "sub_file.gms" "A"
-        self.include('SubKey', SubModule(tc, self.env, "A"))
-
-
-    def initialize_declarations(self, tc):
-        tc.add_gams_code(
-            module_name="my_module",
-            phase="compile",
-            code=f"Parameter p;"
-        )
-    def assign_p(self, tc, val):
-        tc.add_gams_code(
-            module_name="my_module",
-            phase="compile",
-            code=f"p = {val};"
-        )
-```
-
----
-
-## Project layout
+## Project Layout
 
 A typical layout looks like this:
 
@@ -204,59 +35,22 @@ A typical layout looks like this:
     - one Python module per upstream GAMS file (e.g. `initsys_mod.py`, `setglobs_gms.py`, …)
   - `main.py` (entrypoint: create config, build model, run phases)
   - `data/` (GDX or example datasets)
+- `tests/` (Integration tests, GDX diffs, and compile-time state checks)
 
 ---
 
-## Naming conventions
+## How to Run
 
-**Python variable names** are chosen for readability, while **GAMS symbol names are preserved**.
+To run the current state of the translation, you need:
+- A GAMSPy++ license that allows to run `addGamsCode()`
+- `gamspy` and dependencies installed (see `project.toml`)
 
-- **Sets**: `lowercase`
-- **Subsets**: `CamelCase`
-- **Parameters**: `snake_case`
-- **Variables**: `ALL_CAPS`
-
-Rules:
-
-- Keep the legacy GAMS name as the GAMSPy symbol `name="..."`.
-- Use a **descriptive Python attribute/variable name** for the symbol handle.
-  - Example: `tc.all_year = Set(m, name="ALLYEAR", ...)`
-
-This preserves compatibility with upstream naming while keeping Python code readable.
-
----
-
-## How to run
-
-Example (adjust paths and config to your setup):
-
-```bash
-python -m src.main
-```
-
-You need:
-- a GAMSPy++ licence that allows to run `addGamsCode()`
-- `gamspy` and dependencies installed
-- a valid input GDX file
-
----
-
-## Development guidelines
-
-### Keep provenance clear
-When translating, keep it obvious where code came from:
-
-- Preserve upstream comments where possible
-- Keep module boundaries aligned with upstream file boundaries
-
-### Order matters
-TIMES is complex and depends heavily on symbol declaration order and on "phase" behavior. The orchestrator should be the main source of truth for ordering.
+Example execution: `python src/main.py`
 
 ## Known gaps / limitations (current)
 
-- `.dd` files are not yet included.
-- Some upstream compile-time features (macros, `$BATINCLUDE` argument substitution, `%1` / `%2`, etc.) require careful handling when reproduced in Python.
 - Universe aliases / `ALIAS(*,ITEM)` patterns can require workarounds in GAMSPy, depending on the exact synchronization flow.
+- Testing of individual files is not possible.
 
 ---
 
