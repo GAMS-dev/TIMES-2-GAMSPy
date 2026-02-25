@@ -678,11 +678,17 @@ PARAMETER IE_DEFAULT(*) //;
 
                 # Finally, add args %1...%6 to list of extensions:
                 # $SETGLOBAL EXTEND %EXTEND% %1 %2 %3 %4 %5 %6
-                # TODO: only append if != ""
-                self.env.set_global(
-                    "extend",
-                    f"{self.env.extend} {self.arg1} {self.arg2} {self.arg3} {self.arg4} {self.arg5} {self.arg6}".strip(),
-                )
+                parts = [
+                    self.env.extend,
+                    self.arg1,
+                    self.arg2,
+                    self.arg3,
+                    self.arg4,
+                    self.arg5,
+                    self.arg6,
+                ]
+                extend = " ".join(p.strip() for p in parts if p and p.strip())
+                self.env.set_global("extend", extend)
 
                 return ext_list
 
