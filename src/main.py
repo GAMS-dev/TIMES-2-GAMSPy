@@ -52,12 +52,13 @@ def load_data(model: TimesModelClass, gdx_file: Path) -> None:
 def main(
     output_compile: Path = Path("compile_gamspy.gdx"),
     output_execute: Path = Path("execute_gamspy.gdx"),
+    test: bool = False,
 ) -> None:
     logging.info("Starting TIMES.")
 
     # Initialize Core
     env = CompileEnvironment()
-    model = TimesModelClass(env, output_compile, output_execute)
+    model = TimesModelClass(env, output_compile, output_execute, test)
 
     # Set Options
     model._solve_options = Options(
@@ -74,21 +75,21 @@ def main(
 
     # User settings
     # reduction of equation system
-    env.set_scoped("reduce", True)
+    env.set_scoped("reduce", "YES")
 
     # initialize the environment variables
-    env.set_scoped("dscauto", True)
-    env.set_scoped("vda", True)
-    env.set_scoped("debug", False)
-    env.set_scoped("dumpsol", False)
-    env.set_scoped("solve_now", True)
-    env.set_scoped("xtqa", True)
+    env.set_scoped("dscauto", "YES")
+    env.set_scoped("vda", "YES")
+    env.set_scoped("debug", "NO")
+    env.set_scoped("dumpsol", "NO")
+    env.set_scoped("solve_now", "YES")
+    env.set_scoped("xtqa", "YES")
 
     # VAR_UC being set so that non-binding constraints appear in results
-    env.set_scoped("var_uc", True)
+    env.set_scoped("var_uc", "YES")
     env.set_scoped("obj", "MOD")
-    env.set_scoped("solveda", True)
-    env.set_scoped("datagdx", True)
+    env.set_scoped("solveda", "YES")
+    env.set_scoped("datagdx", "YES")
 
     # load demo12ts.dd
     # the times-slices MUST come 1st to ensure ordering OK
@@ -106,12 +107,25 @@ def main(
         ],
     )
 
-    env.set_scoped("botime", 1960)
+    env.set_scoped("botime", "1960")
+    if model.test_run:
+        model.save_test_state(
+            env=env, checkpoint="demo12_run_prior_batinclude_initsys_mod"
+        )
 
     # perform fixed declarations
     model.register_module(initsys_mod.InitsysMod(tc=model, env=env))
+
+    if model.test_run:
+        model.save_test_state(
+            env=env, checkpoint="demo12_run_prior_batinclude_initmty_mod"
+        )
+
     # declare the (system/user) empties
     model.register_module(initmty_mod.InitmtyMod(tc=model, env=env))
+
+    if model.test_run:
+        model.save_test_state(env=env, checkpoint="demo12_run_prior_dd_files")
 
     # Central data load (DD files)
     model.register_module(demo12_dd.Demo12DD(tc=model, env=env))
@@ -122,7 +136,10 @@ def main(
     milestonyr.setRecords([2005, 2010, 2015, 2020, 2030, 2050])
 
     env.set_scoped("RUN_NAME", "demo12")
-    env.set_scoped("VEDAVDD", True)
+    env.set_scoped("VEDAVDD", "YES")
+
+    if model.test_run:
+        model.save_test_state(env=env, checkpoint="demo12_run_prior_maindrv_mod")
 
     model.register_module(maindrv_mod.MainDrvMod(tc=model, env=env, arg1="mod"))
 
@@ -135,6 +152,8 @@ def main(
     # Debug: dump generated GAMS
     model.dump_generated_gams("generated_times.gms")
 
+    return model
+
 
 if __name__ == "__main__":
-    main()
+    result = main()

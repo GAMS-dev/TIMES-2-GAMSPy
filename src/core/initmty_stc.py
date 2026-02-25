@@ -36,7 +36,7 @@ class InitmtyStc(GamsClass):
 
     def compile(self, tc: "TimesModelClass") -> None:
         phase = "init"
-        self.env.set_global("stages", True)
+        self.env.set_global("stages", "YES")
 
         def input_control_parameters():
             tc.add_gams_code(

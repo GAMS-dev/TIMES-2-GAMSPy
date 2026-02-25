@@ -349,16 +349,16 @@ $ ONMULTI
         )
 
         # * user set to 'YES' to activate
-        self.env.set_scoped("debug", False)
-        self.env.set_scoped("dumpsol", False)
-        self.env.set_scoped("solans", False)
+        self.env.set_scoped("debug", "NO")
+        self.env.set_scoped("dumpsol", "NO")
+        self.env.set_scoped("solans", "NO")
 
         # * user set to 'NO' to not abort when error condition fails
-        self.env.set_scoped("err_abort", True)
+        self.env.set_scoped("err_abort", "YES")
         # * user sets to 'WWW' to activate
-        self.env.set_scoped("gams_cgi", False)
+        self.env.set_scoped("gams_cgi", "NO")
         # * user sets to 'NO' if only want to compile
-        self.env.set_scoped("solve_now", True)
+        self.env.set_scoped("solve_now", "YES")
 
         # get list of default units
         self.include(units_def.Units(tc=tc, env=self.env))

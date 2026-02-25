@@ -2,31 +2,10 @@ import copy
 import logging
 from typing import Any, Literal
 
+import pandas as pd
+
 # Setup a specific logger for GAMS environment issues
 gams_logger = logging.getLogger("gams_env")
-
-
-class GamsString(str):
-    """
-    A string that behaves like a GAMS macro.
-    Evaluates to False if it matches specific 'negative' values.
-    """
-
-    def __bool__(self):
-        # Define your "Falsy" values here
-        # Usually: empty string, 'N', 'NO', or undefined macro names
-        falsy_values = ["", "N", "NO", "0"]
-
-        # Check if the string itself or its content (if it's a %macro%) is falsy
-        normalized = self.upper()
-        if normalized in falsy_values:
-            return False
-
-        # Also return False if it looks like an undefined macro: "%VAR%"
-        if normalized.startswith("%") and normalized.endswith("%"):
-            return False
-
-        return True
 
 
 class CompileEnvironment:
@@ -77,7 +56,17 @@ class CompileEnvironment:
         Checks Local, then Scoped, then Global.
         """
         key = str(key)
-        return key in self._local or key in self._scoped or key in self._globals
+        val = self._local.get(key) or self._scoped.get(key) or self._globals.get(key)
+
+        if val is None:
+            return False
+
+        # Return False if value is %key%
+        if isinstance(val, str) and val.startswith("%") and val.endswith("%"):
+            if val.upper() == f"%{key}%":
+                return False
+
+        return True
 
     def set_if_not_exists(self, key: str, value: Any, scope: scopes):
         """
@@ -96,7 +85,20 @@ class CompileEnvironment:
     def __getattr__(self, name):
         """Allows direct env.var access during compile time with a warning fallback."""
         val = self.get(name)
+        # Fallback for undefined compile time variables
         if val is None:
             gams_logger.debug(f"GAMS macro '%{name}%' undefined. Returning '%{name}%'.")
-            return GamsString(f"%{name}%")
-        return GamsString(val)
+            return f"%{name}%"
+        return val
+
+    def get_test_state(self):
+        """Returns the current state of variables categorized by scope."""
+        data = []
+        scopes = {"GLOBAL": self._globals, "SCOPED": self._scoped, "LOCAL": self._local}
+
+        for scope_name, var_dict in scopes.items():
+            for name, val in var_dict.items():
+                data.append(
+                    {"name": name.upper(), "scope": scope_name, "value": str(val)}
+                )
+        return pd.DataFrame(data)

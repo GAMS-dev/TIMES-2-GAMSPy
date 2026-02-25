@@ -37,8 +37,8 @@ class InitmtyDsc(GamsClass):
 
     def compile(self, tc: "TimesModelClass") -> None:
         phase = "init"
-        self.env.set_global("dsc", True)
-        if not self.env.dsc:
+        self.env.set_global("dsc", "YES")
+        if not self.env.dsc == "YES":
             raise Exception("Activation of DSC extension failed")
 
         tc.add_gams_code(

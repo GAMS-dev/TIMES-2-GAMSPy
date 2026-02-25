@@ -36,10 +36,32 @@ $BATINCLUDE demo12_ts.dd
 
 * perform fixed declarations
 $SET BOTIME 1960
+
+*****
+$onlisting
+display "demo12_run_prior_batinclude_initsys_mod";
+$show
+$offlisting
+*****
+
 $BATINCLUDE initsys.mod
+
+*****
+$onlisting
+display "demo12_run_prior_batinclude_initmty_mod";
+$show
+$offlisting
+*****
 
 * declare the (system/user) empties
 $BATINCLUDE initmty.mod
+
+*****
+$onlisting
+display "demo12_run_prior_dd_files";
+$show
+$offlisting
+*****
 
 * read scenario data
 $BATINCLUDE base.dd
@@ -64,7 +86,13 @@ $SET RUN_NAME demo12
 
 $ SET VEDAVDD YES
 
+*****
+$onlisting
+display "demo12_run_prior_maindrv_mod";
 $show
+$offlisting
+*****
+
 $gdxUnload %COMPILE_GDX%
 execute_unload "%EXECUTE_GDX%";
 $stop

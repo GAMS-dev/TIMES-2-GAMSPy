@@ -539,26 +539,26 @@ PARAMETER IE_DEFAULT(*) //;
             self.env.set_global("gdxpath", "")
             # TODO: $ IFI EXIST gamssave\nul $SETGLOBAL GDXPATH 'gamssave/'
             self.env.set_global("sysprefix", "")
-            self.env.set_global("prf", "file=1")
+            self.env.set_global("prf", "FILE=1")
 
             # Alternative objective controls
             Parameter(container=m, name="ALTOBJ", records=1)
             objective = self.env.obj
             tc.enqueue(self.assign_alternative_objective, tc=tc, objective=objective)
 
-            if self.env.macro:
+            if self.env.macro == "YES":
                 tc.enqueue(self.check_macro, tc=tc)
-            if self.env.validate:
+            if self.env.validate == "YES":
                 tc.enqueue(self.validate, tc=tc)
 
             # $SETGLOBAL CTST
             self.env.set_global("ctst", "")
             if self.env.obj == "MOD":
-                self.env.set_global("oblong", True)
+                self.env.set_global("oblong", "YES")
             elif self.env.obj == "ALT":
                 self.env.set_global("ctst", "**EPS")
 
-            if self.env.oblong:
+            if self.env.oblong == "YES":
                 self.env.set_global("ctst", "**0")
 
             if self.env.obj == "LIN":
@@ -566,20 +566,24 @@ PARAMETER IE_DEFAULT(*) //;
 
             # $IFI '%OBLONG%%OBJ%'==YESALT $SETGLOBAL VARCOST LIN
             # $IFI '%OBLONG%%OBJ%'==YESALT ALTOBJ = -2;
-            if self.env.objlong:
+            if self.env.objlong == "YES":
                 if self.env.obj == "ALT":
                     self.env.set_global("varcost", "LIN")
                     tc.enqueue(self.assign_alternative_objective_long, tc=tc)
 
             # Stochastic extension
             # $IFI %SENSIS%==YES $SETLOCAL STAGES yes
-            if self.env.sensis:
-                self.env.set_local("stages", True)
+            if self.env.sensis == "YES":
+                self.env.set_local("stages", "YES")
             # $IFI %SPINES%==YES $SETLOCAL STAGES YES
-            if self.env.spines:
-                self.env.set_local("stages", True)
+            if self.env.spines == "YES":
+                self.env.set_local("stages", "YES")
             # $IFI %STAGES%==YES $BATINCLUDE initmty.stc
-            if self.env.stages:
+            if tc.test_run:
+                tc.save_test_state(
+                    env=self.env, checkpoint="initmty_mod_prior_initmty_stc"
+                )
+            if self.env.stages == "YES":
                 self.include(InitmtyStc(tc, self.env))
 
             # * Stepped extensions etc.
@@ -588,18 +592,29 @@ PARAMETER IE_DEFAULT(*) //;
             itemadd_records = set([self.env.fixboh, self.env.timestep, self.env.spoint])
             self.add_records_to_universe_item(tc=tc, records=itemadd_records)
 
-            self.env.set_global("rpoint", False)
+            self.env.set_global("rpoint", "NO")
 
-            spoint = self.env.is_set("spoint")
-            timestep = self.env.is_set("timestep")
-            fixboh = self.env.is_set("fixboh")
-            tc.enqueue(
-                self.catch_invalid_controls,
-                tc=tc,
-                spoint=spoint,
-                timestep=timestep,
-                fixboh=fixboh,
-            )
+            if self.env.is_set("spoint"):
+                spoint = self.env.spoint
+                tc.enqueue(
+                    self.catch_invalid_spoint_control,
+                    tc=tc,
+                    spoint=spoint,
+                )
+
+            if self.env.is_set("timestep"):
+                timestep = self.env.timestep
+                tc.enqueue(
+                    self.catch_invalid_timestep_control, tc=tc, timestep=timestep
+                )
+
+            if self.env.is_set("fixboh"):
+                fixboh = self.env.fixboh
+                tc.enqueue(
+                    self.catch_invalid_fixboh_control,
+                    tc=tc,
+                    fixboh=fixboh,
+                )
 
             # $IF SET FIXBOH $SETGLOBAL STEPPED -
             if self.env.is_set("fixboh"):
@@ -609,26 +624,29 @@ PARAMETER IE_DEFAULT(*) //;
                 self.env.set_global("stepped", "+")
             # $IF SET STEPPED $SETGLOBAL VAR_UC YES
             if self.env.is_set("stepped"):
-                self.env.set_global("var_uc", True)
+                self.env.set_global("var_uc", "YES")
             # TODO: $IF %SYSTEM.LICENSELEVEL%==2 $SETGLOBAL VAR_UC YES
 
         def other_extensions():
             """Other extensions to TIMES code"""
             # Auto-activation of discrete capacity extensions
             # $IF %DSCAUTO%==YES $SETGLOBAL DSC YES
-            if self.env.dscauto:
-                self.env.set_global("dsc", True)
+            if self.env.dscauto == "YES":
+                self.env.set_global("dsc", "YES")
             # $IF %PGPRIM%==ACT  $SETGLOBAL RETIRE 'YES' SETGLOBAL DSCAUTO Yes
             if self.env.pgprim == "ACT":
-                self.env.set_global("retire", True)
-                self.env.set_global("dsc", True)
+                self.env.set_global("retire", "YES")
+                self.env.set_global("dscauto", "Yes")
             # $IFI %DSC%==YES    $KILL RCAP_BLK
-            if self.env.dsc:
+            if self.env.dsc == "YES":
                 tc.add_gams_code(module=self, phase=phase, code="$KILL RCAP_BLK")
+
+            if tc.test_run:
+                tc.save_test_state(env=self.env, checkpoint="justine3")
 
             # Initialize list of standard extensions to be loaded
             # $SET VDA 'YES' SETGLOBAL EXTEND
-            self.env.set_scoped("vda", True)
+            self.env.set_scoped("vda", "YES")
 
             # Load all extension declarations
             def collect_active_extensions() -> List:
@@ -639,7 +657,7 @@ PARAMETER IE_DEFAULT(*) //;
 
                 # Add recognized extensions if defined
                 # $IFI '%ECB%'==YES   $SETGLOBAL EXTEND '%EXTEND% ECB'
-                if self.env.ecb:
+                if self.env.ecb == "YES":
                     # There is no initmty.ecb
                     self.env.set_global("extend", f"{self.env.extend} ECB".strip())
                 # $IFI '%MACRO%'==CSA $SETGLOBAL EXTEND '%EXTEND% MSA'
@@ -652,27 +670,27 @@ PARAMETER IE_DEFAULT(*) //;
                     ext_list.append(InitmtyMlf)
                     self.env.set_global("extend", f"{self.env.extend} MLF".strip())
 
-                if self.env.etl:
+                if self.env.etl == "YES":
                     ext_list.append(InitmtyEtl)
                     self.env.set_global("extend", f"{self.env.extend} ETL".strip())
 
-                if self.env.cli:
+                if self.env.cli == "YES":
                     ext_list.append(InitmtyCli)
                     self.env.set_global("extend", f"{self.env.extend} CLI".strip())
 
-                if self.env.dsc:
+                if self.env.dsc == "YES":
                     ext_list.append(InitmtyDsc)
                     self.env.set_global("extend", f"{self.env.extend} DSC".strip())
 
-                if self.env.vda:
+                if self.env.vda == "YES":
                     ext_list.append(InitmtyVda)
                     self.env.set_global("extend", f"{self.env.extend} VDA".strip())
 
-                if self.env.abs:
+                if self.env.abs == "YES":
                     ext_list.append(InitmtyAbs)
                     self.env.set_global("extend", f"{self.env.extend} ABS".strip())
 
-                if self.env.mca:
+                if self.env.mca == "YES":
                     # There is no initmty.mca
                     self.env.set_global("extend", f"{self.env.extend} MCA".strip())
 
@@ -693,14 +711,20 @@ PARAMETER IE_DEFAULT(*) //;
                 return ext_list
 
             active_extensions = collect_active_extensions()
+
+            if tc.test_run:
+                tc.save_test_state(
+                    env=self.env, checkpoint="initmty_mod_prior_main_ext_mod"
+                )
+
             # $BATINCLUDE main_ext.mod initmty %EXTEND%
             self.include(MainExtMod(tc, self.env, extensions=active_extensions))
 
             # $SET VAR VARIABLE OBJZ
             self.env.set_scoped("var", "VARIABLE OBJZ")
             # $IF %DATAGDXI%%INTEXT_ONLY%==YESyes $SET VAR *
-            if self.env.datagdxi:
-                if self.env.intext_only:
+            if self.env.datagdxi == "YES":
+                if self.env.intext_only == "YES":
                     self.env.set_scoped("var", "*")
             # $IF ERRORFREE $BATINCLUDE err_stat.mod '$IF NOT ERRORFREE' ABORT 'Errors in Compile' '%VAR%' ': Required _TIMES.g00 Restart File Missing'
             self.include(
@@ -716,21 +740,25 @@ PARAMETER IE_DEFAULT(*) //;
             )
 
         def call_macro_initmty_tm():
+            if tc.test_run:
+                tc.save_test_state(
+                    env=self.env, checkpoint="initmty_mod_prior_initmty_tm"
+                )
             if not self.env.is_set("macro"):
                 self.env.set_global("macro", "N")
-            if self.env.macro:
+            if self.env.macro == "YES":
                 self.include(InitmtyTm(tc=tc, env=self.env))
-            if self.env.datagdxi:
-                self.env.set_global("datagdx", True)
-                if self.env.intext_only:
-                    self.env.set_scoped("datagdx", False)
+            if self.env.datagdxi == "YES":
+                self.env.set_global("datagdx", "YES")
+                if self.env.intext_only == "YES":
+                    self.env.set_scoped("datagdx", "NO")
 
             # Load data from GDX if DATAGDX set and %RUN_NAME%~DATA exists
             # $ IF NOT SET DATAGDX $GOTO RUN
             if not self.env.is_set("datagdx"):
                 return
             # $ IF NOT %G2X6%==YES $GOTO RUN
-            if not self.env.g2x6:
+            if not self.env.g2x6 == "YES":
                 return
             # $ IF NOT SET RUN_NAME $SETNAMES "%SYSTEM.INCPARENT%" . RUN_NAME .
             if not self.env.is_set("run_name"):
@@ -747,8 +775,8 @@ PARAMETER IE_DEFAULT(*) //;
                 self.env.set_scoped("tmp", f"{self.env.run_name}")
 
             # $ IFI %DATAGDXI%%DATAGDX%==YESNO
-            if self.env.datagdxi:
-                if not self.env.datagdx:
+            if self.env.datagdxi == "YES":
+                if self.env.datagdx == "NO":
                     # $ IF EXIST _dd_.gdx $SET TMP _dd_
                     if Path("_dd_.gdx").exists():
                         self.env.set_scoped("tmp", "_dd_")
@@ -782,12 +810,9 @@ $ GDXIN
         call_macro_initmty_tm()
 
     def version_control(self):
-        # TODO: Implement some version control
         # $IF NOT FUNTYPE gamsversion $ABORT TIMES Version 4.8 and above Requires GAMS 23.0 or above!
-        # $IF gamsversion 149 $SETGLOBAL G2X6 Yes
-        # $IF gamsversion 230 $SETGLOBAL OBMAC YES
-        # $IF gamsversion 236 $SETGLOBAL G2X6 YES
-        pass
+        self.env.set_global("g2x6", "YES")
+        self.env.set_global("obmac", "YES")
 
     def assign_yearval(self, tc, dflbl):
         phase = "run"
@@ -835,23 +860,26 @@ $ GDXIN
         alt_obj = tc.container["ALTOBJ"]
         alt_obj[...] = -2
 
-    def catch_invalid_controls(self, tc, spoint, timestep, fixboh):
+    def catch_invalid_spoint_control(self, tc, spoint):
         phase = "run"
-        if spoint:
-            tc.add_gams_code(
-                module=self,
-                phase=phase,
-                code=f"IF((NOT J('{spoint}'))$(NOT SAMEAS('{spoint}','YES')), ABORT 'Invalid Control: SPOINT');",
-            )
-        if timestep:
-            tc.add_gams_code(
-                module=self,
-                phase=phase,
-                code=f"IIF(NOT AGE('{timestep}'), ABORT 'Invalid Control: TIMESTEP');",
-            )
-        if fixboh:
-            tc.add_gams_code(
-                module=self,
-                phase=phase,
-                code=f"IF(NOT ALLYEAR('{fixboh}'), ABORT 'Invalid Control: FIXBOH');",
-            )
+        tc.add_gams_code(
+            module=self,
+            phase=phase,
+            code=f"IF((NOT J('{spoint}'))$(NOT SAMEAS('{spoint}','YES')), ABORT 'Invalid Control: SPOINT');",
+        )
+
+    def catch_invalid_timestep_control(self, tc, timestep):
+        phase = "run"
+        tc.add_gams_code(
+            module=self,
+            phase=phase,
+            code=f"IIF(NOT AGE('{timestep}'), ABORT 'Invalid Control: TIMESTEP');",
+        )
+
+    def catch_invalid_fixboh_control(self, tc, fixboh):
+        phase = "run"
+        tc.add_gams_code(
+            module=self,
+            phase=phase,
+            code=f"IF(NOT ALLYEAR('{fixboh}'), ABORT 'Invalid Control: FIXBOH');",
+        )

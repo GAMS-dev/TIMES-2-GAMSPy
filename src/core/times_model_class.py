@@ -27,12 +27,18 @@ class TimesModelClass:
     """
 
     def __init__(
-        self, env: "CompileEnvironment", output_compile: Path, output_execute: Path
+        self,
+        env: "CompileEnvironment",
+        output_compile: Path,
+        output_execute: Path,
+        test: bool,
     ):
         self.env = env
         self.execution_list = []
         self.output_compile = output_compile
         self.output_execute = output_execute
+        self.test_run = test
+        self.compile_states = {}
         self.container = Container(debugging_level="keep")
         self.logger = logging.getLogger("TimesModel")
 
@@ -82,6 +88,17 @@ class TimesModelClass:
         gms = self.container.generateGamsString()
         with open(path, "w", encoding="utf-8") as f:
             f.write(gms)
+
+    def save_test_state(self, env, checkpoint):
+        """
+        Saves the state of all compile time variables for later testing.
+
+        :param self: Description
+        :param env: Description
+        :param checkpoint: name of the checkpoint
+        """
+        state = env.get_test_state()
+        self.compile_states[checkpoint] = state
 
     # -----------------------
     # Orchestration phases

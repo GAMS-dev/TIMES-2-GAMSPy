@@ -434,6 +434,10 @@ $IFI '%OBLONG%%OBJ%'==YESALT ALTOBJ = -2;
 * Stochastic extension
 $IFI %SENSIS%==YES $SETLOCAL STAGES yes
 $IFI %SPINES%==YES $SETLOCAL STAGES YES
+$onlisting
+display "initmty_mod_prior_initmty_stc";
+$show
+$offlisting
 $IFI %STAGES%==YES $BATINCLUDE initmty.stc
 *------------------------------------------------------------------------------
 * Stepped extensions etc.
@@ -475,6 +479,11 @@ $IFI '%MCA%' == YES $SETGLOBAL EXTEND '%EXTEND% MCA'
 * Finally, add args %1...%6 to list of extensions:
 $SETGLOBAL EXTEND %EXTEND% %1 %2 %3 %4 %5 %6
 
+$onlisting
+display "initmty_mod_prior_main_ext_mod";
+$show
+$offlisting
+
 * Load all extension declarations
 $BATINCLUDE main_ext.mod initmty %EXTEND%
 $SET VAR VARIABLE OBJZ
@@ -483,6 +492,11 @@ $IF ERRORFREE $BATINCLUDE err_stat.mod '$IF NOT ERRORFREE' ABORT 'Errors in Comp
 *------------------------------------------------------------------------------
 * Call MACRO initmty.tm
 *------------------------------------------------------------------------------
+$onlisting
+display "initmty_mod_prior_initmty_tm";
+$show
+$offlisting
+
 $IF NOT SET MACRO $SETGLOBAL MACRO N
 $IF %MACRO%==YES $INCLUDE initmty.tm
 

@@ -38,7 +38,7 @@ class InitmtyVda(GamsClass):
 
     def compile(self, tc: "TimesModelClass") -> None:
         phase = "init"
-        self.env.set_global("vda", True)
+        self.env.set_global("vda", "YES")
         tc.add_gams_code(
             module=self,
             phase=phase,
