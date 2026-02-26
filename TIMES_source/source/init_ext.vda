@@ -131,13 +131,7 @@ display "init_ext_vda_prior_equcrtp_vda";
 $show
 $offlisting
 
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop
-
 $ BATINCLUDE equcrtp.vda INIT_EXT
-
-
 
 $ IF %CLI%==YES LOOP((UC_N,SIDE,R,LL,CM_VAR)$UC_CLI(UC_N,SIDE,R,LL,CM_VAR),UC_ATTR(R,UC_N,'RHS','CLI','YES')=YES);
   LOOP(UC_ATTR(R,UC_N,SIDE,UC_GRPTYPE,UC_NAME(TSL)),UC_TSL(R,UC_N,SIDE,TSL)=YES);
@@ -167,3 +161,12 @@ $LABEL FINISH
 PAR_IRE(R,LL,T,P,C,S,IE)$RPC_IREIN(R,P,C,IE,'OUT') = 0;
 PAR_IPRIC(R,T,P,C,TS,IE)$RPC_IREIN(R,P,C,IE,'OUT') = 0;
 RPC_IREIN(R,P,C,IE,'OUT') = NO;
+
+$onlisting
+display "init_ext_vda_end";
+$show
+$offlisting
+
+$gdxUnload %COMPILE_GDX%
+execute_unload "%EXECUTE_GDX%";
+$stop

@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class EqUcrtpVda(GamsClass):
+class EqucrtpVda(GamsClass):
     """Translation unit for equcrtp.vda."""
 
     # Instance attributes
@@ -34,7 +34,13 @@ class EqUcrtpVda(GamsClass):
     gams_source: str = "equcrtp.vda"
 
     def __init__(
-        self, tc: "TimesModelClass", env: "CompileEnvironment", arg1, arg2, arg3, arg4
+        self,
+        tc: "TimesModelClass",
+        env: "CompileEnvironment",
+        arg1: str = "",
+        arg2: str = "",
+        arg3: str = "",
+        arg4: str = "",
     ):
         self.env = env.fork()
         self.arg1 = arg1
@@ -46,11 +52,11 @@ class EqUcrtpVda(GamsClass):
 
     def compile(self, tc: "TimesModelClass") -> None:
         if self.arg1 == "INIT_EXT":
-            tc.enqueue(self.label_init_ext, tc=tc)
+            tc.enqueue(self.label_init_ext, tc)
         elif self.arg1 == "PREP_EXT":
             self.label_prep_ext()
         elif self.arg1 == "PPM_EXT":
-            tc.enqueue(self.label_ppm_ext, tc=tc)
+            tc.enqueue(self.label_ppm_ext, tc)
         elif self.arg1 == "EQU_EXT":
             self.label_equ_ext()
 
@@ -85,7 +91,7 @@ class EqUcrtpVda(GamsClass):
         )
 
     def label_prep_ext(self, tc):
-        tc.enqueue(self.manipulate_lhs_and_rhs, tc=tc)
+        tc.enqueue(self.manipulate_lhs_and_rhs, tc)
 
         # Inter-/extrapolate without reset
         self.env.set_scoped("reset", 1)
@@ -104,7 +110,7 @@ class EqUcrtpVda(GamsClass):
             )
         )
 
-        tc.enqueue(self.disable_growth, tc=tc)
+        tc.enqueue(self.disable_growth, tc)
 
     def manipulate_lhs_and_rhs(self, tc):
         tc.add_gams_code(

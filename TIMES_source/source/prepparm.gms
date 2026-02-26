@@ -75,3 +75,8 @@ $IF NOT %10==+  %1(%2,'0',%3)$(MAX(0,%1(%2,'0',%3)-MAX(%7,%RESET%))$%1(%2,'0',%3
 $IF NOT %9.==.  %1(%2,%5,%3) $= %9(%2,%3,%5); OPTION KILL=%9;
   ); %1(%2,'EMPTY',%3)=0;
 $OFFLISTING
+
+$ONLISTING
+display "prepparam_gms_end";
+$show
+$offlisting

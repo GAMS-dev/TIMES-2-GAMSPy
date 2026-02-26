@@ -52,6 +52,12 @@ $LABEL PREP_EXT
      (1+(PRC_DYNUC(UC_N,'RHS',R,LL,P,UC_GRPTYPE,BD)-1)$LASTLL(LL))$(NOT SAMEAS('NCAP',UC_GRPTYPE));
 *  Inter-/extrapolate without reset
 $  SET RESET 1
+
+$onlisting
+display "equcrtp_vda_prior_prepparam_gms";
+$show
+$offlisting
+
 $  BATINCLUDE prepparm PRC_DYNUC 'UC_N,SIDE,R' 'P,UC_GRPTYPE,BD' "" T 1 1
 *  Disable growth/decay equation in first period of availability if no constant specified
    PRC_DYNUC(UCN,RHS,RTP(R,TT(T+1),P),UC_GRPTYPE,BD)$((RTP(R,T,P)->MIYR_1(TT))$(NOT UC_GMAP_P(R,UCN,UC_GRPTYPE,P))$PRC_DYNUC(UCN,'LHS',R,'0',P,UC_GRPTYPE,BD)) = 0;

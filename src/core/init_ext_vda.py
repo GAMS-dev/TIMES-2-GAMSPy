@@ -100,34 +100,36 @@ class InitExtVda(GamsClass):
                 module=self, phase=phase, code="PARAMETER VAR_SIFT(LL,S,L) //;"
             )
 
-        self.add_records_to_universe_item(tc=tc, records=[""])
+        self.add_records_to_universe_item(tc, records=[""])
 
-        tc.enqueue(self.clean_up_some_parameters, tc=tc)
+        tc.enqueue(self.clean_up_some_parameters, tc)
 
-        tc.enqueue(self.identify_and_inital_preprocessing, tc=tc)
+        tc.enqueue(self.identify_and_inital_preprocessing, tc)
 
         tc.enqueue(
             self.inital_preprocessing_of_com_agg,
-            tc=tc,
-            shell=self.env.shell,
-            dflbl=self.env.dflbl,
+            tc,
+            self.env.shell,
+            self.env.dflbl,
         )
 
         # * Handle Updatable OFF-ranges & REG_BDNCAP process-based bounds
-        tc.enqueue(self.handle_updatetable_off_ranges, tc=tc, eotime=self.env.eotime)
+        tc.enqueue(self.handle_updatetable_off_ranges, tc, self.env.eotime)
 
         if tc.test_run:
             tc.save_test_state(
                 env=self.env, checkpoint="init_ext_vda_prior_equcrtp_vda"
             )
 
-        return
+        self.include(equcrtp_vda.EqucrtpVda(tc, self.env, arg1="INIT_EXT"))
 
-        self.include(equcrtp_vda.EqucrtpVda(tc=tc, env=self.env, arg1="INIT_EXT"))
-
-        uc_actbet_defined = True if "UC_ACTBET" in m.listSymbols() else False
+        uc_actbet_defined = (
+            True
+            if "UC_ACTBET" in m.listSymbols() and m["UC_ACTBET"].number_records
+            else False
+        )
         tc.enqueue(
-            self.bla,
+            self.prepare_uc_cli_uc_dynbnd_uc_actbet_cont,
             tc=tc,
             cli=self.env.cli,
             uc_actbet_defined=uc_actbet_defined,
@@ -137,56 +139,84 @@ class InitExtVda(GamsClass):
         if self.env.stages == "YES":
             tc.add_gams_code(module=self, phase=phase, code="$CLEAR GG_KGF")
 
-        if "PRC_REACT" in m.listSymbols():
+        if "PRC_REACT" in m.listSymbols() and m["PRC_REACT"].number_records:
             self.env.set_global("powerflo", "YES")
 
-        gr_ptdf = m["GR_PTDF"]
-        gg_kgf = m["GG_KGF"]
-
-        if gr_ptdf.number_records + gg_kgf.number_records:
+        if m["GR_PTDF"].number_records + m["GG_KGF"].number_records:
             self.env.set_global("powerflo", "YES")
 
-        # * Load bounds/prices for exogenous trade from previous run if requested
-        # SET PREMILE(ALLYEAR);
-        # $KILL PAR_IRE PAR_IPRIC
+        tc.add_gams_code(
+            module=self,
+            phase=phase,
+            code="""
+* Load bounds/prices for exogenous trade from previous run if requested
+SET PREMILE(ALLYEAR);
+$KILL PAR_IRE PAR_IPRIC
+""",
+        )
 
         if not self.env.is_set("gdx_irebnd"):
-            self.label_ifprice()
-
+            self.label_ifprice(tc)
         else:
             if not os.exists(f"{self.env.gdxpath}{self.env.gdx_irebnd}.gdx"):
-                self.label_ifprice()
+                self.label_ifprice(tc)
             else:
-                # $GDXIN %GDXPATH%%GDX_IREBND%
-                # $LOAD RPC_IREIN=RPC_IREIO PREMILE=MILESTONYR PAR_IRE
+                tc.add_gams_code(
+                    module=self,
+                    phase=phase,
+                    code=f"""
+$GDXIN {self.env.gdxpath}{self.env.gdx_irebnd}
+$LOAD RPC_IREIN=RPC_IREIO PREMILE=MILESTONYR PAR_IRE
+""",
+                )
                 if self.env.GDX_IREBND.upper() == self.env.GDX_IPRIC:
-                    self.load2()
-                # $IFI %GDX_IREBND%==%GDX_IPRIC% $GOTO LOAD2
-                # $GDXIN
+                    self.load2(tc)
+                else:
+                    tc.add_gams_code(module=self, phase=phase, code="$GDXIN")
+                    self.label_ifprice(tc)
+        tc.enqueue(
+            self.remove_originally_exogenous_trade_flows,
+            tc=tc,
+        )
 
-    def label_ifprice():
-        # $IF NOT SET GDX_IPRIC $GOTO FINISH
-        # $IF NOT EXIST %GDXPATH%%GDX_IPRIC%.GDX $GOTO FINISH
-        # $GDXIN %GDXPATH%%GDX_IPRIC%
-        # $LABEL LOAD2 LOAD RPC_IREIN=RPC_IREIO PREMILE=MILESTONYR PAR_IPRIC
-        # $GDXIN
-        pass
+        if tc.test_run:
+            tc.save_test_state(env=self.env, checkpoint="init_ext_vda_end")
 
-    def label_load2():
-        # LOAD RPC_IREIN=RPC_IREIO PREMILE=MILESTONYR PAR_IPRIC
-        # $GDXIN
-        pass
+    def label_ifprice(self, tc):
+        if not self.env.is_set("gdx_ipric"):
+            return
+        if not os.exists(f"{self.env.gdxpath}{self.env.gdx_ipric}.gdx"):
+            return
+        self.label_load2()
 
-    def bla(self, tc, cli, uc_actbet_defined, pgprim):
+    def label_load2(self, tc):
+        tc.add_gams_code(
+            module=self,
+            phase="init",
+            code="""
+$LOAD RPC_IREIN=RPC_IREIO PREMILE=MILESTONYR PAR_IPRIC
+$GDXIN
+""",
+        )
+
+    def prepare_uc_cli_uc_dynbnd_uc_actbet_cont(
+        self, tc, cli, uc_actbet_defined, pgprim
+    ):
         if cli == "YES":
             tc.add_gams_code(
                 module=self,
                 phase="run",
                 code="""
-LOOP((UC_N,SIDE,R,LL,CM_VAR)$UC_CLI(UC_N,SIDE,R,LL,CM_VAR),UC_ATTR(R,UC_N,'RHS','CLI','YES')=YES);
-  LOOP(UC_ATTR(R,UC_N,SIDE,UC_GRPTYPE,UC_NAME(TSL)),UC_TSL(R,UC_N,SIDE,TSL)=YES);
+  LOOP((UC_N,SIDE,R,LL,CM_VAR)$UC_CLI(UC_N,SIDE,R,LL,CM_VAR),UC_ATTR(R,UC_N,'RHS','CLI','YES')=YES);
 """,
             )
+        tc.add_gams_code(
+            module=self,
+            phase="run",
+            code="""
+  LOOP(UC_ATTR(R,UC_N,SIDE,UC_GRPTYPE,UC_NAME(TSL)),UC_TSL(R,UC_N,SIDE,TSL)=YES);
+""",
+        )
         if uc_actbet_defined:
             tc.add_gams_code(
                 module=self,
@@ -327,5 +357,16 @@ LOOP((UC_N,SIDE,R,LL,CM_VAR)$UC_CLI(UC_N,SIDE,R,LL,CM_VAR),UC_ATTR(R,UC_N,'RHS',
     PRC_NOFF(R,P,BOHYEAR(LL),LL+(NCAP_BND(R,LL,P,'N')-YEARVAL(LL)))$RVP(R,LL,P) = YES);
   NCAP_BND(RVP(R,LL,P),L('N')) = MOD(MIN(2,ROUND(MAX(NCAP_BND(RVP,L),-1))),2)$LASTLL(LL)+(YEARVAL(LL)-1)$(ROUND(MOD(NCAP_BND(RVP,L)-YEARVAL(LL),MAX(1,YEARVAL(LL))))=-1);
   OPTION CLEAR=RVP;
+""",
+        )
+
+    def remove_originally_exogenous_trade_flows(self, tc):
+        tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=r"""
+PAR_IRE(R,LL,T,P,C,S,IE)$RPC_IREIN(R,P,C,IE,'OUT') = 0;
+PAR_IPRIC(R,T,P,C,TS,IE)$RPC_IREIN(R,P,C,IE,'OUT') = 0;
+RPC_IREIN(R,P,C,IE,'OUT') = NO;
 """,
         )
