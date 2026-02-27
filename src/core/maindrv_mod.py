@@ -24,6 +24,7 @@ from core import (
     init_ext_dsc,
     init_ext_vda,
     main_ext_mod,
+    ppmain_mod,
     readprice_mod,
     setglobs_gms,
 )
@@ -143,3 +144,5 @@ class MainDrvMod(GamsClass):
                     tc=tc, env=self.env, source="maindrv", extensions=active_extensions
                 )
             )
+
+            self.include(ppmain_mod.PpmainMod(tc=tc, env=self.env))
