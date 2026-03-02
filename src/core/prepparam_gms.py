@@ -68,16 +68,18 @@ class PrepparamGms(GamsClass):
 
     def compile(self, tc: "TimesModelClass") -> None:
         phase = "init"
-        self.data = f"MY_FIL2({self.arg5})"
+        self.env.set_local("data",f"MY_FIL2({self.arg5})")
+        self.env.set_local('opt', "*")
         self.opt = False
-        self.ll = ""
+        self.env.set_local("ll", "")
         if not self.arg7 == "0":
-            self.ll = f",'{self.env.dflbl}'"
+            self.env_set_local("ll", f",'{self.env.dflbl}'")
+            self.env.set_local('opt', "")
             self.opt = True
         self.def_iebd = self.env.def_iebd
         if len(self.arg8):
-            self.def_iebd = self.arg8
-        if len(self.arg8):
+            self.env.set_local("def_iebd", self.arg8)
+        if len(self.arg9):
             tc.add_gams_code(
                 module=self,
                 phase=phase,
@@ -91,7 +93,7 @@ $EOLCOM !
 * conditional interpolation flag
 IF(G_NOINTERP, INT_DEFAULT('{self.arg1}')=NO;
   ELSE OPTION CLEAR=UNCD7; CNT = ({self.def_iedb}+(3-{self.def_iedb})$IE_DEFAULT('{self.arg1}'))${self.arg7};
-   IF(CNT=0, UNCD7({self.arg2}{self.ll},{self.arg3}{self.arg4})$({self.arg1}({self.arg2},'{self.env.dflbl},{self.arg3})>0) = YES;
+   IF(CNT=0, UNCD7({self.arg2}{self.ll},{self.arg3}{self.arg4})$({self.arg1}({self.arg2},'{dflbl},{self.arg3})>0) = YES;
 """
         if self.opt:
             code += f"""
