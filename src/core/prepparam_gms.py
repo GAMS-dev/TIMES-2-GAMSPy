@@ -15,8 +15,13 @@
 # *      arg5 - MODLYEAR or MILESTONYR depending on parameter
 # *      arg6 - RTP controlling the assignment to the MODLYEARs
 # *      arg7 - Option to prohibit extrapolation (1 for other than cost parameters)
+# *      arg8 -
+# *      arg9 -
+# *      arg10-
 # *******************************************************************************
 
+
+from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
@@ -38,9 +43,9 @@ class PrepparamGms(GamsClass):
     gams_source: str = "prepparam.gms"
 
     def __init__(
-        self,
-        tc: "TimesModelClass",
-        env: "CompileEnvironment",
+        self: PrepparamGms,
+        tc: TimesModelClass,
+        env: CompileEnvironment,
         arg1: str = "",
         arg2: str = "",
         arg3: str = "",
@@ -53,6 +58,7 @@ class PrepparamGms(GamsClass):
         arg10: str = "",
     ):
         self.env = env.fork()
+        self.tc = tc
         self.arg1 = arg1
         self.arg2 = arg2
         self.arg3 = arg3
@@ -64,45 +70,57 @@ class PrepparamGms(GamsClass):
         self.arg9 = arg9
         self.arg10 = arg10
         self._sub_modules = {}
-        self.compile(tc)
+        self.compile()
 
-    def compile(self, tc: "TimesModelClass") -> None:
-        phase = "init"
-        self.env.set_local("data",f"MY_FIL2({self.arg5})")
-        self.env.set_local('opt', "*")
-        self.opt = False
+    def compile(self: PrepparamGms) -> None:
+        self.env.set_local("data", f"MY_FIL2({self.arg5})")
+        self.env.set_local("opt", "*")
         self.env.set_local("ll", "")
         if not self.arg7 == "0":
             self.env_set_local("ll", f",'{self.env.dflbl}'")
-            self.env.set_local('opt', "")
-            self.opt = True
-        self.def_iebd = self.env.def_iebd
+            self.env.set_local("opt", "")
         if len(self.arg8):
             self.env.set_local("def_iebd", self.arg8)
         if len(self.arg9):
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
-                phase=phase,
+                phase="init",
                 code=f"PARAMETER {self.arg9}({self.arg2},{self.arg3},ALLYEAR);",
             )
-        tc.enqueue(self.interpolation_extrapolation, tc)
+        self.tc.enqueue(
+            self.interpolation_extrapolation,
+            def_iebd=self.env.def_iebd,
+            opt=self.env.opt != "*",
+            dflbl=self.env.dflbl,
+            ll=self.env.ll,
+            data=self.env.data,
+            reset=self.env.reset,
+        )
 
-    def interpolation_extrapolation(self, tc):
+    def interpolation_extrapolation(
+        self: PrepparamGms,
+        def_iebd: str,
+        opt: bool,
+        dflbl: str,
+        ll: str,
+        data: str,
+        reset: str,
+    ):
         code = f"""
 $EOLCOM !
 * conditional interpolation flag
 IF(G_NOINTERP, INT_DEFAULT('{self.arg1}')=NO;
-  ELSE OPTION CLEAR=UNCD7; CNT = ({self.def_iedb}+(3-{self.def_iedb})$IE_DEFAULT('{self.arg1}'))${self.arg7};
-   IF(CNT=0, UNCD7({self.arg2}{self.ll},{self.arg3}{self.arg4})$({self.arg1}({self.arg2},'{dflbl},{self.arg3})>0) = YES;
+  ELSE OPTION CLEAR=UNCD7; CNT = ({def_iebd}+(3-{def_iebd})$IE_DEFAULT('{self.arg1}'))${self.arg7};
+   IF(CNT=0, UNCD7({self.arg2}{ll},{self.arg3}{self.arg4})$({self.arg1}({self.arg2},'{dflbl},{self.arg3})>0) = YES;
 """
-        if self.opt:
+        if opt:
             code += f"""
-   ELSE UNCD7({self.arg2},{self.arg5},{self.arg3}{self.arg4})$({self.arg1}({self.arg2},'{self.env.dflbl}',{self.arg3})=-13) $= {self.arg1}({self.arg2},{self.arg5},{self.arg3});
+   ELSE UNCD7({self.arg2},{self.arg5},{self.arg3}{self.arg4})$({self.arg1}({self.arg2},'{dflbl}',{self.arg3})=-13) $= {self.arg1}({self.arg2},{self.arg5},{self.arg3});
      IF(CARD(UNCD7),{self.arg1}({self.arg2},{self.arg5},{self.arg3})$UNCD7({self.arg2},{self.arg5},{self.arg3}{self.arg4})=0; OPTION CLEAR=UNCD7);
-     UNCD7({self.arg2},LL--ORD(LL),{self.arg3}{self.arg4})$(({self.arg10}({self.arg1}({self.arg2},'{self.env.dflbl}',{self.arg3}))>-.5)${self.arg1}({self.arg2},LL,{self.arg2}))=YES;
+     UNCD7({self.arg2},LL--ORD(LL),{self.arg3}{self.arg4})$(({self.arg10}({self.arg1}({self.arg2},'{dflbl}',{self.arg3}))>-.5)${self.arg1}({self.arg2},LL,{self.arg2}))=YES;
 """
         code += f"""
-   LOOP(UNCD7({self.arg2}{self.ll},{self.arg3}{self.arg4}), DFUNC = CNT; DFUNC $= ROUND({self.arg1}({self.arg2},'{self.env.dflbl}',{self.arg3}));
+   LOOP(UNCD7({self.arg2}{ll},{self.arg3}{self.arg4}), DFUNC = CNT; DFUNC $= ROUND({self.arg1}({self.arg2},'{dflbl}',{self.arg3}));
       MY_ARRAY(DM_YEAR) = {self.arg1}({self.arg2},DM_YEAR,{self.arg3}); OPTION CLEAR=MY_FIL2;
 * do interpolate
       IF(DFUNC NE 10, LAST_VAL=0; F = 0; Z = 0;
@@ -110,18 +128,18 @@ IF(G_NOINTERP, INT_DEFAULT('{self.arg1}')=NO;
            MY_F = MY_ARRAY(DM_YEAR); Z = YEARVAL(DM_YEAR);
            IF(LAST_VAL,
              IF((Z GT DFUNC)$(DFUNC GT 999),     ! exponential function
-                {self.data}$((Z>YEARVAL({self.arg5}))$(YEARVAL({self.arg5})>MY_FYEAR))
+                {data}$((Z>YEARVAL({self.arg5}))$(YEARVAL({self.arg5})>MY_FYEAR))
 			= LAST_VAL*POWER(1+MY_F,YEARVAL({self.arg5})-MY_FYEAR)+EPS;
                 MY_F = LAST_VAL*POWER(1+MY_F,Z-MY_FYEAR)+EPS;
                 MY_FIL2(DM_YEAR) = MY_F;         ! overwrite old data
              ELSE                                ! linear interpolation
-                {self.data}$((Z>YEARVAL({self.arg5}))$(YEARVAL({self.arg5})>MY_FYEAR))
+                {data}$((Z>YEARVAL({self.arg5}))$(YEARVAL({self.arg5})>MY_FYEAR))
 			= LAST_VAL + (MY_F-LAST_VAL)/(Z-MY_FYEAR)*(YEARVAL({self.arg5})-MY_FYEAR);
              );
            ELSE F = Z; FIRST_VAL = MY_F);
            LAST_VAL = MY_F; MY_FYEAR=Z;);        ! remember the value and year
 """
-        if self.opt:
+        if opt:
             code += f"""
       ELSE FIRST_VAL = 0; MY_FYEAR = 0;          ! intra-period I/E
         LOOP(MY_FIL(LL)$MY_ARRAY(MY_FIL),        ! check for data values
@@ -132,7 +150,7 @@ IF(G_NOINTERP, INT_DEFAULT('{self.arg1}')=NO;
         DFUNC = {self.arg7};
 """
         code += ");\n"
-        if self.opt:
+        if opt:
             code += f"""
       IF(FLOOR(DFUNC/10)=1,
         LOOP(MIYR_1(LL), MY_FYEAR=YEARVAL(LL);
@@ -143,27 +161,25 @@ IF(G_NOINTERP, INT_DEFAULT('{self.arg1}')=NO;
         code += f"""
       IF(DFUNC NE {self.arg7},
 * Do back/forward extrapolate, or fill in with EPS
-       IF(DFUNC LE 2, {self.data}$({self.arg6}$(NOT {self.data}+MY_ARRAY({self.arg5}))) = EPS; ELSE
+       IF(DFUNC LE 2, {data}$({self.arg6}$(NOT {data}+MY_ARRAY({self.arg5}))) = EPS; ELSE
          IF(DFUNC EQ 4, Z = INF; ELSEIF DFUNC EQ 5, F = 0);
-         {self.data}$({self.arg6}) $= FIRST_VAL$(YEARVAL({self.arg5})<F) + LAST_VAL$(YEARVAL({self.arg5})>Z);
-         IF((NOT {self.arg7})$LAST_VAL, {self.data}$({self.arg6}$(NOT {self.data}+MY_ARRAY({self.arg5})))=EPS);
+         {data}$({self.arg6}) $= FIRST_VAL$(YEARVAL({self.arg5})<F) + LAST_VAL$(YEARVAL({self.arg5})>Z);
+         IF((NOT {self.arg7})$LAST_VAL, {data}$({self.arg6}$(NOT {data}+MY_ARRAY({self.arg5})))=EPS);
       ));
 """
         if len(self.arg9):
-            code += (
-                f"{self.arg1}({self.arg2},{self.arg5},{self.arg3})   $= {self.data};"
-            )
+            code += f"{self.arg1}({self.arg2},{self.arg5},{self.arg3})   $= {data};"
         else:
-            code += f"{self.arg9}({self.arg2},{self.arg3},{self.arg5})$({self.arg6}) $= {self.data};"
+            code += f"{self.arg9}({self.arg2},{self.arg3},{self.arg5})$({self.arg6}) $= {data};"
         code += ");\n"
 
-        if not self.arg10 == "+.":
-            code += f"{self.arg1}({self.arg2},'0',{self.arg3})$(MAX(0,{self.arg1}({self.arg2},'0',{self.arg3})-MAX({self.arg7},{self.env.reset}))${self.arg1}({self.arg2},'0',{self.arg3})) = {self.env.reset};"
+        if not self.arg10 == "+":
+            code += f"{self.arg1}({self.arg2},'0',{self.arg3})$(MAX(0,{self.arg1}({self.arg2},'0',{self.arg3})-MAX({self.arg7},{reset}))${self.arg1}({self.arg2},'0',{self.arg3})) = {reset};"
         if len(self.arg9):
             code += f"{self.arg1}({self.arg2},{self.arg5},{self.arg3}) $= {self.arg9}({self.arg2},{self.arg3},{self.arg5}); OPTION KILL={self.arg9};"
         code += f"  ); {self.arg1}({self.arg2},'EMPTY',{self.arg3})=0;"
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=code,

@@ -7,6 +7,8 @@
 # * INIT_EXT.VDA has all the initial preprocessing for VEDA
 # *=============================================================================*
 
+from __future__ import annotations
+
 import logging
 import os
 from typing import TYPE_CHECKING
@@ -30,20 +32,20 @@ class InitExtVda(GamsClass):
     gams_source: str = "init_ext.vda"
 
     def __init__(
-        self,
-        tc: "TimesModelClass",
-        env: "CompileEnvironment",
+        self: InitExtVda,
+        tc: TimesModelClass,
+        env: CompileEnvironment,
     ):
         self.env = env.fork()
         self._sub_modules = {}
-        self.compile(tc)
+        self.tc = tc
+        self.compile()
 
-    def compile(self, tc: "TimesModelClass") -> None:
-        phase = "init"
-        m = tc.container
-        tc.add_gams_code(
+    def compile(self: InitExtVda) -> None:
+        m = self.tc.container
+        self.tc.add_gams_code(
             module=self,
-            phase=phase,
+            phase="init",
             code=r"""
 * Internal SETs
  SET RP_UX(R,P);
@@ -89,55 +91,73 @@ class InitExtVda(GamsClass):
 """,
         )
 
-        tc.enqueue(
-            self.basic_years_stuff, tc=tc, dflbl=self.env.dflbl, waver=self.env.waver
+        self.tc.enqueue(
+            self.basic_years_stuff,
+            dflbl=self.env.dflbl,
+            waver=self.env.waver,
         )
 
-        tc.enqueue(self.peaking_and_storage_stuff, tc=tc)
+        self.tc.enqueue(
+            self.peaking_and_storage_stuff,
+        )
 
         if not self.env.obmac == "YES":
-            tc.add_gams_code(
-                module=self, phase=phase, code="PARAMETER VAR_SIFT(LL,S,L) //;"
+            self.tc.add_gams_code(
+                module=self,
+                phase="init",
+                code="PARAMETER VAR_SIFT(LL,S,L) //;",
             )
 
-        self.add_records_to_universe_item(tc, records=[""])
+        self.add_records_to_universe_item(self.tc, records=[""])
 
-        tc.enqueue(self.clean_up_some_parameters, tc)
+        self.tc.enqueue(
+            self.clean_up_some_parameters,
+        )
 
-        tc.enqueue(self.identify_and_inital_preprocessing, tc)
+        self.tc.enqueue(
+            self.identify_and_inital_preprocessing,
+        )
 
-        tc.enqueue(
+        self.tc.enqueue(
             self.inital_preprocessing_of_com_agg,
-            tc,
             self.env.shell,
             self.env.dflbl,
         )
 
         # * Handle Updatable OFF-ranges & REG_BDNCAP process-based bounds
-        tc.enqueue(self.handle_updatetable_off_ranges, tc, self.env.eotime)
+        self.tc.enqueue(self.handle_updatetable_off_ranges, self.env.eotime)
 
-        if tc.test_run:
-            tc.save_test_state(
+        if self.tc.test_run:
+            self.tc.save_test_state(
                 env=self.env, checkpoint="init_ext_vda_prior_equcrtp_vda"
             )
 
-        self.include(equcrtp_vda.EqucrtpVda(tc, self.env, arg1="INIT_EXT"))
+        self.include(
+            equcrtp_vda.EqucrtpVda(
+                self.tc,
+                self.env,
+                arg1="INIT_EXT",
+            )
+        )
 
         uc_actbet_defined = (
             True
             if "UC_ACTBET" in m.listSymbols() and m["UC_ACTBET"].number_records
             else False
         )
-        tc.enqueue(
+        self.tc.enqueue(
             self.prepare_uc_cli_uc_dynbnd_uc_actbet_cont,
-            tc=tc,
             cli=self.env.cli,
             uc_actbet_defined=uc_actbet_defined,
             pgprim=self.env.pgprim,
         )
 
         if self.env.stages == "YES":
-            tc.add_gams_code(module=self, phase=phase, code="$CLEAR GG_KGF")
+            self.tc.add_gams_code(
+                module=self,
+                phase="init",
+                code="$CLEAR GG_KGF",
+            )
 
         if "PRC_REACT" in m.listSymbols() and m["PRC_REACT"].number_records:
             self.env.set_global("powerflo", "YES")
@@ -145,9 +165,9 @@ class InitExtVda(GamsClass):
         if m["GR_PTDF"].number_records + m["GG_KGF"].number_records:
             self.env.set_global("powerflo", "YES")
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
-            phase=phase,
+            phase="init",
             code="""
 * Load bounds/prices for exogenous trade from previous run if requested
 SET PREMILE(ALLYEAR);
@@ -156,41 +176,44 @@ $KILL PAR_IRE PAR_IPRIC
         )
 
         if not self.env.is_set("gdx_irebnd"):
-            self.label_ifprice(tc)
+            self.label_ifprice()
         else:
             if not os.exists(f"{self.env.gdxpath}{self.env.gdx_irebnd}.gdx"):
-                self.label_ifprice(tc)
+                self.label_ifprice()
             else:
-                tc.add_gams_code(
+                self.tc.add_gams_code(
                     module=self,
-                    phase=phase,
+                    phase="init",
                     code=f"""
 $GDXIN {self.env.gdxpath}{self.env.gdx_irebnd}
 $LOAD RPC_IREIN=RPC_IREIO PREMILE=MILESTONYR PAR_IRE
 """,
                 )
                 if self.env.GDX_IREBND.upper() == self.env.GDX_IPRIC:
-                    self.load2(tc)
+                    self.load2()
                 else:
-                    tc.add_gams_code(module=self, phase=phase, code="$GDXIN")
-                    self.label_ifprice(tc)
-        tc.enqueue(
+                    self.tc.add_gams_code(
+                        module=self,
+                        phase="init",
+                        code="$GDXIN",
+                    )
+                    self.label_ifprice()
+        self.tc.enqueue(
             self.remove_originally_exogenous_trade_flows,
-            tc=tc,
         )
 
-        if tc.test_run:
-            tc.save_test_state(env=self.env, checkpoint="init_ext_vda_end")
+        if self.tc.test_run:
+            self.tc.save_test_state(env=self.env, checkpoint="init_ext_vda_end")
 
-    def label_ifprice(self, tc):
+    def label_ifprice(self: InitExtVda) -> None:
         if not self.env.is_set("gdx_ipric"):
             return
         if not os.exists(f"{self.env.gdxpath}{self.env.gdx_ipric}.gdx"):
             return
         self.label_load2()
 
-    def label_load2(self, tc):
-        tc.add_gams_code(
+    def label_load2(self: InitExtVda) -> None:
+        self.tc.add_gams_code(
             module=self,
             phase="init",
             code="""
@@ -200,17 +223,20 @@ $GDXIN
         )
 
     def prepare_uc_cli_uc_dynbnd_uc_actbet_cont(
-        self, tc, cli, uc_actbet_defined, pgprim
-    ):
+        self: InitExtVda,
+        cli: str,
+        uc_actbet_defined: bool,
+        pgprim: str,
+    ) -> None:
         if cli == "YES":
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase="run",
                 code="""
   LOOP((UC_N,SIDE,R,LL,CM_VAR)$UC_CLI(UC_N,SIDE,R,LL,CM_VAR),UC_ATTR(R,UC_N,'RHS','CLI','YES')=YES);
 """,
             )
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code="""
@@ -218,7 +244,7 @@ $GDXIN
 """,
         )
         if uc_actbet_defined:
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase="run",
                 code=f"""
@@ -226,8 +252,12 @@ $GDXIN
 """,
             )
 
-    def basic_years_stuff(self, tc, dflbl, waver):
-        tc.add_gams_code(
+    def basic_years_stuff(
+        self: InitExtVda,
+        dflbl: str,
+        waver: str,
+    ) -> None:
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"""
@@ -243,10 +273,14 @@ $GDXIN
         )
 
         if waver.upper() == "YES":
-            tc.add_gams_code(module=self, phase="run", code="INT_DEFAULT('PASTI')=1;")
+            self.tc.add_gams_code(
+                module=self,
+                phase="run",
+                code="INT_DEFAULT('PASTI')=1;",
+            )
 
-    def peaking_and_storage_stuff(self, tc):
-        tc.add_gams_code(
+    def peaking_and_storage_stuff(self: InitExtVda) -> None:
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
@@ -265,8 +299,8 @@ $GDXIN
 """,
         )
 
-    def clean_up_some_parameters(self, tc):
-        tc.add_gams_code(
+    def clean_up_some_parameters(self: InitExtVda) -> None:
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
@@ -287,8 +321,8 @@ $GDXIN
 """,
         )
 
-    def identify_and_inital_preprocessing(self, tc):
-        tc.add_gams_code(
+    def identify_and_inital_preprocessing(self: InitExtVda) -> None:
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
@@ -313,8 +347,12 @@ $GDXIN
 """,
         )
 
-    def inital_preprocessing_of_com_agg(self, tc, shell, dflbl):
-        tc.add_gams_code(
+    def inital_preprocessing_of_com_agg(
+        self: InitExtVda,
+        shell: str,
+        dflbl: str,
+    ) -> None:
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"""
@@ -326,24 +364,23 @@ $GDXIN
         )
 
         if shell.upper() == "ANSWER":
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase="run",
-                code=rf"""
-  KEEP_FLOF(R,P,C)$PRC_ACTFLO(R,'{dflbl}',P,C) = YES;
-""",
+                code=rf"KEEP_FLOF(R,P,C)$PRC_ACTFLO(R,'{dflbl}',P,C) = YES;",
             )
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
-  OPTION RP_XRED<ACT_FLO, CLEAR=ACT_FLO;
-""",
+            code=r"OPTION RP_XRED<ACT_FLO, CLEAR=ACT_FLO;",
         )
 
-    def handle_updatetable_off_ranges(self, tc, eotime):
-        tc.add_gams_code(
+    def handle_updatetable_off_ranges(
+        self: InitExtVda,
+        eotime: str,
+    ) -> None:
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"""
@@ -360,8 +397,8 @@ $GDXIN
 """,
         )
 
-    def remove_originally_exogenous_trade_flows(self, tc):
-        tc.add_gams_code(
+    def remove_originally_exogenous_trade_flows(self: InitExtVda) -> None:
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
