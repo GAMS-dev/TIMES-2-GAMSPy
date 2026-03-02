@@ -132,7 +132,6 @@ class PpmainMod(GamsClass):
 
         if tc.test_run:
             tc.save_test_state(env=self.env, checkpoint="pp_main_mod_prior_filparam")
-        return
 
         # Inter/Extrapolate G_OFFTHD if specified
         if m["G_OFFTHD"].number_records:
@@ -153,6 +152,11 @@ class PpmainMod(GamsClass):
             )
 
         tc.enqueue(self.g_offthd_to_zero, tc=tc)
+
+        if tc.test_run:
+            tc.save_test_state(env=self.env, checkpoint="pp_main_mod_after_filparam")
+
+        return
 
         if tc.test_run:
             tc.save_test_state(env=self.env, checkpoint="pp_main_mod_prior_timeslice")

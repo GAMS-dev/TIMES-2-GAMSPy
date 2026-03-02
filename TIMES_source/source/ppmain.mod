@@ -192,14 +192,19 @@ display "pp_main_mod_prior_filparam";
 $show
 $offlisting
 
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop
 
 * Inter/Extrapolate G_OFFTHD if specified
 $IF DEFINED G_OFFTHD $BATINCLUDE filparam G_OFFTHD '' '' ",'','','','','',''" YEAR T '' '' 5
     G_OFFTHD('0') = 0;
 
+$onlisting
+display "pp_main_mod_after_filparam";
+$show
+$offlisting
+
+$gdxUnload %COMPILE_GDX%
+execute_unload "%EXECUTE_GDX%";
+$stop
 *-----------------------------------------------------------------------------
 * complete timeslice declarations
 *-----------------------------------------------------------------------------
