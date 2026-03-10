@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 class InitExtDsc(GamsClass):
-    """Translation unit for init_ext.abs."""
+    """Translation unit for init_ext.dsc."""
 
     # Instance attributes
     module_name: str = "init_ext_dsc"
