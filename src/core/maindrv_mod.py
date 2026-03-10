@@ -24,7 +24,7 @@ from core import (
     init_ext_dsc,
     init_ext_vda,
     main_ext_mod,
-    readprice_mod,
+    readbprice_mod,
     setglobs_gms,
 )
 
@@ -76,7 +76,7 @@ class MainDrvMod(GamsClass):
 
         if self.env.timesed.upper() != "NO":
             if self.env.timesed != "0":
-                self.include(readprice_mod.ReadpriceMod(tc=tc, env=self.env))
+                self.include(readbprice_mod.ReadpriceMod(tc=tc, env=self.env))
 
         # TODO: $   %MX% SETGLOBAL MX --> How to handle %MX% here?
         self.env.set_global("mx", "")

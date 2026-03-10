@@ -1,4 +1,4 @@
-# readprice_mod.py
+# readbprice_mod.py
 # *++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # * Copyright (C) 2000-2023 Energy Technology Systems Analysis Programme (ETSAP)
 # * This file is part of the IEA-ETSAP TIMES model generator, licensed
@@ -20,11 +20,11 @@ logger = logging.getLogger(__name__)
 
 
 class ReadpriceMod(GamsClass):
-    """Translation unit for readprice.mod."""
+    """Translation unit for readbprice.mod."""
 
     # Instance attributes
-    module_name: str = "readprice_mod"
-    gams_source: str = "readprice.mod"
+    module_name: str = "readbprice_mod"
+    gams_source: str = "readbprice.mod"
 
     def __init__(
         self,
