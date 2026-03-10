@@ -72,7 +72,7 @@ class InitExtDsc(GamsClass):
         if self.env.dsc == "YES":
             self.env.set_global("solmip", "YES")
 
-        if "RCAP_BLK" in m.listSymbols() and not m["NCAP_DISC"].number_records:
+        if "NCAP_DISC" in m.listSymbols() and not m["NCAP_DISC"].number_records:
             self.tc.add_gams_code(module=self, phase="init", code="$CLEAR NCAP_DISC")
 
         if "RCAP_BLK" in m.listSymbols() and not m["RCAP_BLK"].number_records:
