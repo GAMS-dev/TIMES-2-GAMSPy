@@ -33,7 +33,6 @@ from core.initmty_msa import InitmtyMsa
 from core.initmty_stc import InitmtyStc
 from core.initmty_tm import InitmtyTm
 from core.initmty_vda import InitmtyVda
-from core.main_ext_mod import MainExtMod
 from core.maindrv_mod import MainDrvMod
 
 from .base_class import GamsClass
@@ -715,9 +714,23 @@ PARAMETER IE_DEFAULT(*) //;
                 )
 
             # $BATINCLUDE main_ext.mod initmty %EXTEND%
-            self.include(
-                MainExtMod(tc, self.env, source="initmty", extensions=active_extensions)
-            )
+            extensions = {
+                "ABS": InitmtyAbs,
+                "CLI": InitmtyCli,
+                "DSC": InitmtyDsc,
+                "ETL": InitmtyEtl,
+                "MLF": InitmtyMlf,
+                "MSA": InitmtyMsa,
+                "STC": InitmtyStc,
+                "TM":  InitmtyTm,
+                "VDA": InitmtyVda,                
+            }
+            for ext in active_extensions.split(" "):
+                self.include(
+                    extensions[ext](
+                        tc=self.tc, env=self.env, source="initmty", arg1=ext, arg2="initmty"
+                    )
+                )
 
             # $SET VAR VARIABLE OBJZ
             self.env.set_scoped("var", "VARIABLE OBJZ")
