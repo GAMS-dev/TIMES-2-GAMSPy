@@ -23,6 +23,8 @@ class InitmtyMlf(GamsClass):
         self,
         tc: "TimesModelClass",
         env: "CompileEnvironment",
+        arg1: str = "",
+        arg2: str = "",
     ):
         self.env = env.fork()
         self._sub_modules = {}

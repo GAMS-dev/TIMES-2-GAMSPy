@@ -80,4 +80,3 @@ class InitExtAbs(GamsClass):
   BS_STIME(R,P,C,BD)$(NOT BS_RTYPE(R,C))=0;
 """,
         )
-

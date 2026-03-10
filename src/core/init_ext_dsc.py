@@ -50,7 +50,9 @@ class InitExtDsc(GamsClass):
         if "PRC_DSCNCAP" in m.listSymbols() and m["PRC_DSCNCAP"].number_records:
             self.tc.enqueue(self.assign_ncap_disc)
 
-        self.tc.enqueue(self.project_ncap_semi,)
+        self.tc.enqueue(
+            self.project_ncap_semi,
+        )
 
         if "NCAP_SEMI" in m.listSymbols() and m["NCAP_SEMI"].number_records:
             self.tc.enqueue(self.assign_prc_semi)

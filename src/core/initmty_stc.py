@@ -29,7 +29,13 @@ class InitmtyStc(GamsClass):
     module_name: str = "initmty_stc"
     gams_source: str = "initmty.stc"
 
-    def __init__(self, tc: "TimesModelClass", env: "CompileEnvironment"):
+    def __init__(
+        self,
+        tc: "TimesModelClass",
+        env: "CompileEnvironment",
+        arg1: str = "",
+        arg2: str = "",
+    ):
         self.env = env.fork()
         self._sub_modules = {}
         self.compile(tc)

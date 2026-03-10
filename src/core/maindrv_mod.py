@@ -45,12 +45,7 @@ class MainDrvMod(GamsClass):
     module_name: str = "maindrv_mod"
     gams_source: str = "maindrv.mod"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment, arg1: str):
         self.env = env.fork()
         self.arg1 = arg1
         self.tc = tc
@@ -64,7 +59,7 @@ class MainDrvMod(GamsClass):
 
         if self.tc.test_run:
             self.tc.save_test_state(env=self.env, checkpoint="setglobs_gms_start")
-        self.include(setglobs_gms.SetglobsGms(tc=tc, env=self.env, arg1=1))
+        self.include(setglobs_gms.SetglobsGms(tc=self.tc, env=self.env, arg1=1))
         if self.tc.test_run:
             self.tc.save_test_state(env=self.env, checkpoint="setglobs_gms_end")
 
@@ -116,7 +111,10 @@ class MainDrvMod(GamsClass):
             self.env.set_scoped("tx", "SUBT(T)")
             self.env.set_scoped("r_v_t", "R,V,SUBT(T)")
 
-        if "REG_FIXT" in self.tc.container.listSymbols() and self.tc.container["REG_FIXT"].number_records:
+        if (
+            "REG_FIXT" in self.tc.container.listSymbols()
+            and self.tc.container["REG_FIXT"].number_records
+        ):
             r_t = self.env.r_t
             r_v_t = self.env.r_v_t
             self.env.set_scoped("r_t", f"RT_PP({r_t})")
@@ -147,6 +145,9 @@ class MainDrvMod(GamsClass):
             for ext in self.env.extend.split(" "):
                 self.include(
                     extensions[ext](
-                        tc=self.tc, env=self.env, source="maindrv", arg1=ext, arg2="maindrv"
+                        tc=self.tc,
+                        env=self.env,
+                        arg1=ext,
+                        arg2="maindrv",
                     )
                 )
