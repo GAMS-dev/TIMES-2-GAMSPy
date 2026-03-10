@@ -115,11 +115,11 @@ class InitExtVda(GamsClass):
         )
 
         self.tc.enqueue(
-            self.identify_and_inital_preprocessing,
+            self.identify_and_initial_preprocessing,
         )
 
         self.tc.enqueue(
-            self.inital_preprocessing_of_com_agg,
+            self.initial_preprocessing_of_com_agg,
             self.env.shell,
             self.env.dflbl,
         )
@@ -321,7 +321,7 @@ $GDXIN
 """,
         )
 
-    def identify_and_inital_preprocessing(self: InitExtVda) -> None:
+    def identify_and_initial_preprocessing(self: InitExtVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -347,7 +347,7 @@ $GDXIN
 """,
         )
 
-    def inital_preprocessing_of_com_agg(
+    def initial_preprocessing_of_com_agg(
         self: InitExtVda,
         shell: str,
         dflbl: str,

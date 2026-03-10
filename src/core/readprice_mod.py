@@ -1,4 +1,11 @@
 # readprice_mod.py
+# *++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# * Copyright (C) 2000-2023 Energy Technology Systems Analysis Programme (ETSAP)
+# * This file is part of the IEA-ETSAP TIMES model generator, licensed
+# * under the GNU General Public License v3.0 (see file NOTICE-GPLv3.txt).
+# *=============================================================================*
+# * Importing sol_bprice and assigning it to parameter COM_BPRICE
+# *=============================================================================*
 
 import logging
 from typing import TYPE_CHECKING

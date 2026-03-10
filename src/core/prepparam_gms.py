@@ -77,7 +77,7 @@ class PrepparamGms(GamsClass):
         self.env.set_local("opt", "*")
         self.env.set_local("ll", "")
         if not self.arg7 == "0":
-            self.env_set_local("ll", f",'{self.env.dflbl}'")
+            self.env.set_local("ll", f",'{self.env.dflbl}'")
             self.env.set_local("opt", "")
         if len(self.arg8):
             self.env.set_local("def_iebd", self.arg8)
@@ -111,13 +111,13 @@ $EOLCOM !
 * conditional interpolation flag
 IF(G_NOINTERP, INT_DEFAULT('{self.arg1}')=NO;
   ELSE OPTION CLEAR=UNCD7; CNT = ({def_iebd}+(3-{def_iebd})$IE_DEFAULT('{self.arg1}'))${self.arg7};
-   IF(CNT=0, UNCD7({self.arg2}{ll},{self.arg3}{self.arg4})$({self.arg1}({self.arg2},'{dflbl},{self.arg3})>0) = YES;
+   IF(CNT=0, UNCD7({self.arg2}{ll},{self.arg3}{self.arg4})$({self.arg1}({self.arg2},'{dflbl}',{self.arg3})>0) = YES;
 """
         if opt:
             code += f"""
    ELSE UNCD7({self.arg2},{self.arg5},{self.arg3}{self.arg4})$({self.arg1}({self.arg2},'{dflbl}',{self.arg3})=-13) $= {self.arg1}({self.arg2},{self.arg5},{self.arg3});
      IF(CARD(UNCD7),{self.arg1}({self.arg2},{self.arg5},{self.arg3})$UNCD7({self.arg2},{self.arg5},{self.arg3}{self.arg4})=0; OPTION CLEAR=UNCD7);
-     UNCD7({self.arg2},LL--ORD(LL),{self.arg3}{self.arg4})$(({self.arg10}({self.arg1}({self.arg2},'{dflbl}',{self.arg3}))>-.5)${self.arg1}({self.arg2},LL,{self.arg2}))=YES;
+     UNCD7({self.arg2},LL--ORD(LL),{self.arg3}{self.arg4})$(({self.arg10}({self.arg1}({self.arg2},'{dflbl}',{self.arg3}))>-.5)${self.arg1}({self.arg2},LL,{self.arg3}))=YES;
 """
         code += f"""
    LOOP(UNCD7({self.arg2}{ll},{self.arg3}{self.arg4}), DFUNC = CNT; DFUNC $= ROUND({self.arg1}({self.arg2},'{dflbl}',{self.arg3}));
@@ -167,7 +167,7 @@ IF(G_NOINTERP, INT_DEFAULT('{self.arg1}')=NO;
          IF((NOT {self.arg7})$LAST_VAL, {data}$({self.arg6}$(NOT {data}+MY_ARRAY({self.arg5})))=EPS);
       ));
 """
-        if len(self.arg9):
+        if 0 == len(self.arg9):
             code += f"{self.arg1}({self.arg2},{self.arg5},{self.arg3})   $= {data};"
         else:
             code += f"{self.arg9}({self.arg2},{self.arg3},{self.arg5})$({self.arg6}) $= {data};"
