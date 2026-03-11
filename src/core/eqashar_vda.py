@@ -18,9 +18,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core import pp_lvlfc_mod
-from core import cal_nored_red
-from core import cal_red_red
+from core import cal_nored_red, cal_red_red, pp_lvlfc_mod
 
 from .base_class import GamsClass
 

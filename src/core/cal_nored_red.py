@@ -1,23 +1,21 @@
 # cal_nored_red.py
-#*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-#* Copyright (C) 2000-2024 Energy Technology Systems Analysis Programme (ETSAP)
-#* This file is part of the IEA-ETSAP TIMES model generator, licensed
-#* under the GNU General Public License v3.0 (see file NOTICE-GPLv3.txt).
-#*=============================================================================================*
-#* CAL_RED the code associated with the substitution of flow variables by activity variables
-#*	arg1 - commodity of flow
-#*	arg2 - commodity associated with the activity variable
-#*	arg3 - timeslice index	of flow variable
-#*	arg4 - process index of flow variable
-#*	arg5 - period index of flow variable
-#*	arg6 - for output routine '.L' suffix. otherwise nothing
-#*	arg7 - optional T or V or '' (for non-vintaged / vintaged / general case)
-#*=============================================================================================*
+# *++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# * Copyright (C) 2000-2024 Energy Technology Systems Analysis Programme (ETSAP)
+# * This file is part of the IEA-ETSAP TIMES model generator, licensed
+# * under the GNU General Public License v3.0 (see file NOTICE-GPLv3.txt).
+# *=============================================================================================*
+# * CAL_RED the code associated with the substitution of flow variables by activity variables
+# *	arg1 - commodity of flow
+# *	arg2 - commodity associated with the activity variable
+# *	arg3 - timeslice index	of flow variable
+# *	arg4 - process index of flow variable
+# *	arg5 - period index of flow variable
+# *	arg6 - for output routine '.L' suffix. otherwise nothing
+# *	arg7 - optional T or V or '' (for non-vintaged / vintaged / general case)
+# *=============================================================================================*
 
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING
 
 def cal_nored_red(
     arg1: str = "",
@@ -34,11 +32,10 @@ def cal_nored_red(
     sow: str = "",
     var: str = "",
 ) -> str:
-
     shp3 = ""
     vnt = arg5
     shg = f",{arg4},CG3,{arg1}"
-    tst = f'$PRC_VINT(R,{arg4})'
+    tst = f"$PRC_VINT(R,{arg4})"
 
     if arg7 == "V":
         tst = ""
