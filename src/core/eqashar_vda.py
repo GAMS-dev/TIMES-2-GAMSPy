@@ -185,7 +185,7 @@ class EqasharVda(GamsClass):
    SUM(PRC_TS(R,P,TS)$TS_MAP(R,S,TS),{var}_ACT(R,V,T,P,TS {sow})$(NOT NO_ACT(R,P))+
      SUM(RPC_PG(NO_ACT(R,P),C),{var}_FLO(R,V,T,P,C,TS {sow})/PRC_ACTFLO(R,V,P,C)))$ACTCG(CG) +
    SUM((TOP(RPC_STG(R,P,C(CG)),'OUT'),RPCS_VAR(R,P,C,TS)),RS_FR(R,S,TS)*(1+RTCS_FR(R,T,C,S,TS))*
-     {var}_SOUT(R,V,T,P,C,TS{sow}/PRC_ACTFLO(R,V,P,C))$ACTCG(CG2)
+     {var}_SOUT(R,V,T,P,C,TS{sow})/PRC_ACTFLO(R,V,P,C))$ACTCG(CG2)
 
 ;
 """,

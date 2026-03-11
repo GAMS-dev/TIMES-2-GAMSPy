@@ -88,7 +88,7 @@ class PpLvlfcMod(GamsClass):
             self.env.set_local("awgt", "1")
             self.env.set_local("iwgt", f"*G_YRFR(R,S)/G_YRFR(R,{self.arg6})")
         if self.arg11 == "N":
-            self.env.set_local("take", "${arg1}(R,'0',{arg2}{arg10},'ANNUAL'{arg4})")
+            self.env.set_local("take", f"${self.arg1}(R,'0',{self.arg2}{self.arg10},'ANNUAL'{self.arg4})")
 
         self.tc.enqueue(
             self.all_exec,
@@ -112,7 +112,7 @@ class PpLvlfcMod(GamsClass):
                 module=self,
                 phase="run",
                 code=rf"""
-{self.arg1}(R,LL--ORD(LL),{self.arg2}{self.arg10},S+STOA(S){self.arg4})$(STOAL(R,S)${self.arg1}R,LL,{self.arg2}{self.arg10},S{self.arg4})) = 1;
+{self.arg1}(R,LL--ORD(LL),{self.arg2}{self.arg10},S+STOA(S){self.arg4})$(STOAL(R,S)${self.arg1}(R,LL,{self.arg2}{self.arg10},S{self.arg4})) = 1;
 """
             )
         self.tc.add_gams_code(
@@ -142,7 +142,7 @@ LOOP(UNCD7({regy},{self.arg2}{self.arg10}{self.arg4}{self.arg5}), TS_ARRAY(S) = 
                 module=self,
                 phase="run",
                 code=rf"""
-{self.arg1}({regy},{self.arg2}{self.arg10}0,S{self.arg4})$((NOT {self.arg1}({regy},{self.arg2}{self.arg10},S{self.arg4}))${self.arg3}(R,{self.arg2},S)) $= {self.arg1}({regy},{self.arg2}{self.arg10},'ANNUAL'{self.arg4});
+{self.arg1}({regy},{self.arg2}{self.arg10},S{self.arg4})$((NOT {self.arg1}({regy},{self.arg2}{self.arg10},S{self.arg4}))${self.arg3}(R,{self.arg2},S)) $= {self.arg1}({regy},{self.arg2}{self.arg10},'ANNUAL'{self.arg4});
 """
             )
         if len(self.arg11):

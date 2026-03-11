@@ -53,7 +53,7 @@ def cal_red_red(
         shp1 = f"*({shff}S(R,{vnt}{shg1}{sow}))"
         shp2 = f"*({shff}S(R,{vnt}{shg2}{sow}))"
         shp3 = f"*({shff}S(R,{vnt}{shg}{sow}))"
-    if arg7 == "T":
+    if arg7 == "V":
         tst = ""
     if not arg7 == "T":
         shp1 = f"*({shff}X(R,V,{arg5}{shg1}){tst}){shp1}"
