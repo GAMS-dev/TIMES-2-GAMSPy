@@ -14,6 +14,8 @@
 # *   - [AL]: support for TIMES extension modules added
 # *-----------------------------------------------------------------------------
 
+from __future__ import annotations
+
 import logging
 import os
 from typing import TYPE_CHECKING
@@ -23,9 +25,7 @@ from core import (
     init_ext_abs,
     init_ext_dsc,
     init_ext_vda,
-    main_ext_mod,
-    ppmain_mod,
-    readprice_mod,
+    readbprice_mod,
     setglobs_gms,
 )
 
@@ -45,22 +45,23 @@ class MainDrvMod(GamsClass):
     module_name: str = "maindrv_mod"
     gams_source: str = "maindrv.mod"
 
-    def __init__(self, tc: "TimesModelClass", env: "CompileEnvironment", arg1: str):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment, arg1: str):
         self.env = env.fork()
         self.arg1 = arg1
+        self.tc = tc
         self._sub_modules = {}
         if tc.test_run:
             tc.save_test_state(env=self.env, checkpoint="maindrv_mod_start")
-        self.compile(tc)
+        self.compile()
 
-    def compile(self, tc: "TimesModelClass") -> None:
+    def compile(self) -> None:
         self.env.set_local("src", self.arg1)
 
-        if tc.test_run:
-            tc.save_test_state(env=self.env, checkpoint="setglobs_gms_start")
-        self.include(setglobs_gms.SetglobsGms(tc=tc, env=self.env, arg1=1))
-        if tc.test_run:
-            tc.save_test_state(env=self.env, checkpoint="setglobs_gms_end")
+        if self.tc.test_run:
+            self.tc.save_test_state(env=self.env, checkpoint="setglobs_gms_start")
+        self.include(setglobs_gms.SetglobsGms(tc=self.tc, env=self.env, arg1=1))
+        if self.tc.test_run:
+            self.tc.save_test_state(env=self.env, checkpoint="setglobs_gms_end")
 
         self.env.set_scoped("model_name", "TIMES")
 
@@ -77,7 +78,7 @@ class MainDrvMod(GamsClass):
 
         if self.env.timesed.upper() != "NO":
             if self.env.timesed != "0":
-                self.include(readprice_mod.ReadpriceMod(tc=tc, env=self.env))
+                self.include(readbprice_mod.ReadpriceMod(tc=self.tc, env=self.env))
 
         # TODO: $   %MX% SETGLOBAL MX --> How to handle %MX% here?
         self.env.set_global("mx", "")
@@ -110,15 +111,18 @@ class MainDrvMod(GamsClass):
             self.env.set_scoped("tx", "SUBT(T)")
             self.env.set_scoped("r_v_t", "R,V,SUBT(T)")
 
-        if tc.container["REG_FIXT"].number_records:
+        if (
+            "REG_FIXT" in self.tc.container.listSymbols()
+            and self.tc.container["REG_FIXT"].number_records
+        ):
             r_t = self.env.r_t
             r_v_t = self.env.r_v_t
             self.env.set_scoped("r_t", f"RT_PP({r_t})")
             self.env.set_scoped("r_v_t", f"RVT({r_v_t})")
             self.env.set_scoped("rtpx", "X")
 
-        if tc.test_run:
-            tc.save_test_state(
+        if self.tc.test_run:
+            self.tc.save_test_state(
                 env=self.env, checkpoint="maindrv_mod_prior_err_stat_mod"
             )
 
@@ -127,7 +131,7 @@ class MainDrvMod(GamsClass):
         arg3 = "*** ERRORS IN INPUT DATA/COMPILE ***"
         self.include(
             err_stat_mod.ErrStatMod(
-                tc=tc, env=self.env, arg1=arg1, arg2=arg2, arg3=arg3
+                tc=self.tc, env=self.env, arg1=arg1, arg2=arg2, arg3=arg3
             )
         )
 
@@ -138,11 +142,12 @@ class MainDrvMod(GamsClass):
                 "DSC": init_ext_dsc.InitExtDsc,
                 "VDA": init_ext_vda.InitExtVda,
             }
-            active_extensions = [extensions[ext] for ext in self.env.extend.split(" ")]
-            self.include(
-                main_ext_mod.MainExtMod(
-                    tc=tc, env=self.env, source="maindrv", extensions=active_extensions
+            for ext in self.env.extend.split(" "):
+                self.include(
+                    extensions[ext](
+                        tc=self.tc,
+                        env=self.env,
+                        arg1=ext,
+                        arg2="maindrv",
+                    )
                 )
-            )
-
-            self.include(ppmain_mod.PpmainMod(tc=tc, env=self.env))

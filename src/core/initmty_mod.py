@@ -19,7 +19,7 @@
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 from gamspy import Alias, Parameter
 
@@ -33,7 +33,6 @@ from core.initmty_msa import InitmtyMsa
 from core.initmty_stc import InitmtyStc
 from core.initmty_tm import InitmtyTm
 from core.initmty_vda import InitmtyVda
-from core.main_ext_mod import MainExtMod
 from core.maindrv_mod import MainDrvMod
 
 from .base_class import GamsClass
@@ -646,11 +645,10 @@ PARAMETER IE_DEFAULT(*) //;
             self.env.set_scoped("vda", "YES")
 
             # Load all extension declarations
-            def collect_active_extensions() -> List:
+            def collect_active_extensions() -> None:
                 """Collect active extensions based on various env variables
                 will be collected and passed to MainExtMod"""
                 self.env.set_global("extend", "")
-                ext_list = []
 
                 # Add recognized extensions if defined
                 # $IFI '%ECB%'==YES   $SETGLOBAL EXTEND '%EXTEND% ECB'
@@ -660,36 +658,30 @@ PARAMETER IE_DEFAULT(*) //;
                 # $IFI '%MACRO%'==CSA $SETGLOBAL EXTEND '%EXTEND% MSA'
                 # $IFI '%MACRO%'==MSA $SETGLOBAL EXTEND '%EXTEND% MSA'
                 if self.env.macro in ["CSA", "MSA"]:
-                    ext_list.append(InitmtyMsa)
                     self.env.set_global("extend", f"{self.env.extend} MSA".strip())
                 # $IFI '%MACRO%'==MLF $SETGLOBAL EXTEND '%EXTEND% MLF'
                 elif self.env.macro == "MLF":
-                    ext_list.append(InitmtyMlf)
                     self.env.set_global("extend", f"{self.env.extend} MLF".strip())
 
                 if self.env.etl == "YES":
-                    ext_list.append(InitmtyEtl)
                     self.env.set_global("extend", f"{self.env.extend} ETL".strip())
 
                 if self.env.cli == "YES":
-                    ext_list.append(InitmtyCli)
                     self.env.set_global("extend", f"{self.env.extend} CLI".strip())
 
                 if self.env.dsc == "YES":
-                    ext_list.append(InitmtyDsc)
                     self.env.set_global("extend", f"{self.env.extend} DSC".strip())
 
                 if self.env.vda == "YES":
-                    ext_list.append(InitmtyVda)
                     self.env.set_global("extend", f"{self.env.extend} VDA".strip())
 
                 if self.env.abs == "YES":
-                    ext_list.append(InitmtyAbs)
                     self.env.set_global("extend", f"{self.env.extend} ABS".strip())
 
                 if self.env.mca == "YES":
-                    # There is no initmty.mca
                     self.env.set_global("extend", f"{self.env.extend} MCA".strip())
+                    # There is no initmty.mca
+                    raise Exception("No module initmty MCA")
 
                 # Finally, add args %1...%6 to list of extensions:
                 # $SETGLOBAL EXTEND %EXTEND% %1 %2 %3 %4 %5 %6
@@ -705,9 +697,7 @@ PARAMETER IE_DEFAULT(*) //;
                 extend = " ".join(p.strip() for p in parts if p and p.strip())
                 self.env.set_global("extend", extend)
 
-                return ext_list
-
-            active_extensions = collect_active_extensions()
+            collect_active_extensions()
 
             if tc.test_run:
                 tc.save_test_state(
@@ -715,9 +705,26 @@ PARAMETER IE_DEFAULT(*) //;
                 )
 
             # $BATINCLUDE main_ext.mod initmty %EXTEND%
-            self.include(
-                MainExtMod(tc, self.env, source="initmty", extensions=active_extensions)
-            )
+            extensions = {
+                "ABS": InitmtyAbs,
+                "CLI": InitmtyCli,
+                "DSC": InitmtyDsc,
+                "ETL": InitmtyEtl,
+                "MLF": InitmtyMlf,
+                "MSA": InitmtyMsa,
+                "STC": InitmtyStc,
+                "TM": InitmtyTm,
+                "VDA": InitmtyVda,
+            }
+            for ext in self.env.extend.split(" "):
+                self.include(
+                    extensions[ext](
+                        tc=tc,
+                        env=self.env,
+                        arg1=ext,
+                        arg2="initmty",
+                    )
+                )
 
             # $SET VAR VARIABLE OBJZ
             self.env.set_scoped("var", "VARIABLE OBJZ")

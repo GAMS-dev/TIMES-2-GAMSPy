@@ -6,11 +6,13 @@
 # *==============================================================================*
 # * EQ_UCRTP.MOD : Annual bounds for process dynamic development                 *
 # *==============================================================================*
-# * %1 - jump label
-# * %2 - eq. declaration type
-# * %3 - eq. definition type
-# * %4 - bound type
+# * arg1 - jump label
+# * arg2 - eq. declaration type
+# * arg3 - eq. definition type
+# * arg4 - bound type
 
+
+from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
@@ -34,34 +36,35 @@ class EqucrtpVda(GamsClass):
     gams_source: str = "equcrtp.vda"
 
     def __init__(
-        self,
-        tc: "TimesModelClass",
-        env: "CompileEnvironment",
+        self: EqucrtpVda,
+        tc: TimesModelClass,
+        env: CompileEnvironment,
         arg1: str = "",
         arg2: str = "",
         arg3: str = "",
         arg4: str = "",
     ):
         self.env = env.fork()
+        self.tc = tc
         self.arg1 = arg1
         self.arg2 = arg2
         self.arg3 = arg3
         self.arg4 = arg4
         self._sub_modules = {}
-        self.compile(tc)
+        self.compile()
 
-    def compile(self, tc: "TimesModelClass") -> None:
+    def compile(self: EqucrtpVda) -> None:
         if self.arg1 == "INIT_EXT":
-            tc.enqueue(self.label_init_ext, tc)
+            self.tc.enqueue(self.init_ext)
         elif self.arg1 == "PREP_EXT":
             self.label_prep_ext()
         elif self.arg1 == "PPM_EXT":
-            tc.enqueue(self.label_ppm_ext, tc)
+            self.tc.enqueue(self.ppm_ext)
         elif self.arg1 == "EQU_EXT":
             self.label_equ_ext()
 
-    def label_init_ext(self, tc):
-        tc.add_gams_code(
+    def init_ext(self: EqucrtpVda):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
@@ -90,15 +93,15 @@ class EqucrtpVda(GamsClass):
 """,
         )
 
-    def label_prep_ext(self, tc):
-        tc.enqueue(self.manipulate_lhs_and_rhs, tc)
+    def label_prep_ext(self: EqucrtpVda):
+        self.tc.enqueue(self.manipulate_lhs_and_rhs)
 
         # Inter-/extrapolate without reset
         self.env.set_scoped("reset", 1)
 
         self.include(
             prepparam_gms.PrepparamGms(
-                tc=tc,
+                tc=self.tc,
                 env=self.env,
                 arg1="PRC_DYNUC",
                 arg2="UC_N,SIDE,R",
@@ -110,10 +113,10 @@ class EqucrtpVda(GamsClass):
             )
         )
 
-        tc.enqueue(self.disable_growth, tc)
+        self.tc.enqueue(self.disable_growth)
 
-    def manipulate_lhs_and_rhs(self, tc):
-        tc.add_gams_code(
+    def manipulate_lhs_and_rhs(self: EqucrtpVda):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
@@ -132,8 +135,8 @@ class EqucrtpVda(GamsClass):
 """,
         )
 
-    def disable_growth(self, tc):
-        tc.add_gams_code(
+    def disable_growth(self: EqucrtpVda):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
@@ -146,8 +149,8 @@ class EqucrtpVda(GamsClass):
 """,
         )
 
-    def label_ppm_ext(self, tc):
-        tc.add_gams_code(
+    def ppm_ext(self: EqucrtpVda):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
@@ -160,40 +163,30 @@ class EqucrtpVda(GamsClass):
 """,
         )
 
-    def label_equ_ext(self, tc):
-        eq = self.env.eq
-        r_t = self.env.r_t
-        swt = self.env.swt
-        sws = self.env.sws
-        sow = self.env.sow
-        mx = self.env.mx
-        var = self.env.var
-        varv = self.env.varv
-        vartt = self.env.vartt
-
-        tc.add_gams_code(
+    def label_equ_ext(self: EqucrtpVda):
+        self.tc.add_gams_code(
             module=self,
-            phase="run",
+            phase="init",
             code=rf"""
-{eq}{self.arg2}_UCRTP(UC_N,RTP({r_t},P),UC_GRPTYPE,BD({self.arg4}) {swt})$(PRC_DYNUC{mx}(UC_N,'RHS',R,T,P,UC_GRPTYPE,BD))..
+{self.env.eq}{self.arg2}_UCRTP(UC_N,RTP({self.env.r_t},P),UC_GRPTYPE,BD({self.arg4}) {self.env.swt})$(PRC_DYNUC{self.env.mx}(UC_N,'RHS',R,T,P,UC_GRPTYPE,BD))..
 
 *-------
 * Difference in capacity between previous and current period
   (SUM(SAMEAS(T-1,V(TT))$RTP(R,V,P), POWER(PRC_DYNUC(UC_N,'LHS',R,T,P,UC_GRPTYPE,BD),LEAD(T)) *
-     {varv}_CAP(R,V,P {sws}))*(1-2$BDUPX(BD))
-   -  {var}_CAP(R,T,P {sow}) *(1-2$BDUPX(BD)))$SAMEAS('CAP',UC_GRPTYPE)
+     {self.env.varv}_CAP(R,V,P {self.env.swt}))*(1-2$BDUPX(BD))
+   -  {self.env.var}_CAP(R,T,P {self.env.sow}) *(1-2$BDUPX(BD)))$SAMEAS('CAP',UC_GRPTYPE)
 *-------
   +
 * Difference in NCAP between previous and current period
   (SUM(SAMEAS(T-1,V(TT))$RTP(R,V,P), POWER(PRC_DYNUC(UC_N,'LHS',R,T,P,UC_GRPTYPE,BD),LEAD(T)) *
-     {varv}_NCAP(R,V,P {sws}))*(1-2$BDUPX(BD))
-   -  {var}_NCAP(R,T,P {sow}) *(1-2$BDUPX(BD)))$SAMEAS('NCAP',UC_GRPTYPE)
+     {self.env.varv}_NCAP(R,V,P {self.env.swt}))*(1-2$BDUPX(BD))
+   -  {self.env.var}_NCAP(R,T,P {self.env.sow}) *(1-2$BDUPX(BD)))$SAMEAS('NCAP',UC_GRPTYPE)
 *-------
   +
 * Difference in ACT between previous and current period
   (SUM(SAMEAS(T-1,V(TT))$RTP_VARA(R,V,P), POWER(PRC_DYNUC(UC_N,'LHS',R,T,P,UC_GRPTYPE,BD),LEAD(T)) *
-       SUM((RTP_VINTYR(R,MODLYEAR,V,P),PRC_TS(R,P,S)),{vartt}_ACT(R,MODLYEAR,V,P,S {sws})))*(1-2$BDUPX(BD))
-   -   SUM((RTP_VINTYR(R,MODLYEAR,T,P),PRC_TS(R,P,S)),  {var}_ACT(R,MODLYEAR,T,P,S {sow})) *(1-2$BDUPX(BD)))$SAMEAS('ACT',UC_GRPTYPE)
+       SUM((RTP_VINTYR(R,MODLYEAR,V,P),PRC_TS(R,P,S)),{self.env.vartt}_ACT(R,MODLYEAR,V,P,S {self.env.swt})))*(1-2$BDUPX(BD))
+   -   SUM((RTP_VINTYR(R,MODLYEAR,T,P),PRC_TS(R,P,S)),  {self.env.var}_ACT(R,MODLYEAR,T,P,S {self.env.sow})) *(1-2$BDUPX(BD)))$SAMEAS('ACT',UC_GRPTYPE)
 
   ={self.arg3}=
 
@@ -205,23 +198,23 @@ class EqucrtpVda(GamsClass):
         if self.arg2.upper() == "E":
             return
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
-            phase="run",
+            phase="init",
             code=rf"""
-{eq}{self.arg2}_UCRTC(UC_N,COM_VAR,RTC({r_t},C),ANNUAL(S),BD({self.arg4}) {swt})$(UC_COM(UC_N,COM_VAR,'RHS',RTC,S,'UCN')$UC_DYNBND(UC_N,BD))..
+{self.env.eq}{self.arg2}_UCRTC(UC_N,COM_VAR,RTC({self.env.r_t},C),ANNUAL(S),BD({self.arg4}) {self.env.swt})$(UC_COM(UC_N,COM_VAR,'RHS',RTC,S,'UCN')$UC_DYNBND(UC_N,BD))..
 
 *-------
 * Difference in COMNET between previous and current period
   (SUM(SAMEAS(T-1,Y(TT))$RTC(R,Y,C), POWER(UC_COM(UC_N,COM_VAR,'LHS',RTC,S,'UCN'),LEAD(T)) *
-     SUM(RHS_COMBAL(R,Y,C,S),{vartt}_COMNET(R,Y,C,S {sws})))*(1-2$BDUPX(BD))
-   - SUM(RHS_COMBAL(R,T,C,S),  {var}_COMNET(R,T,C,S {sow})) *(1-2$BDUPX(BD)))$SAMEAS('NET',COM_VAR)
+     SUM(RHS_COMBAL(R,Y,C,S),{self.env.vartt}_COMNET(R,Y,C,S {self.env.sws})))*(1-2$BDUPX(BD))
+   - SUM(RHS_COMBAL(R,T,C,S),  {self.env.var}_COMNET(R,T,C,S {self.env.sow})) *(1-2$BDUPX(BD)))$SAMEAS('NET',COM_VAR)
 *-------
   +
 * Difference in COMPRD between previous and current period
   (SUM(SAMEAS(T-1,Y(TT))$RTC(R,Y,C), POWER(UC_COM(UC_N,COM_VAR,'LHS',RTC,S,'UCN'),LEAD(T)) *
-     SUM(RHS_COMPRD(R,Y,C,S),{vartt}_COMPRD(R,Y,C,S {sws})))*(1-2$BDUPX(BD))
-   - SUM(RHS_COMPRD(R,T,C,S),  {var}_COMPRD(R,T,C,S {sow})) *(1-2$BDUPX(BD)))$SAMEAS('PRD',COM_VAR)
+     SUM(RHS_COMPRD(R,Y,C,S),{self.env.vartt}_COMPRD(R,Y,C,S {self.env.sws})))*(1-2$BDUPX(BD))
+   - SUM(RHS_COMPRD(R,T,C,S),  {self.env.var}_COMPRD(R,T,C,S {self.env.sow})) *(1-2$BDUPX(BD)))$SAMEAS('PRD',COM_VAR)
 
   ={self.arg3}=
 

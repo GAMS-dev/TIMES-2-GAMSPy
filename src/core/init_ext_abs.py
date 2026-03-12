@@ -5,9 +5,10 @@
 # * under the GNU General Public License v3.0 (see file NOTICE-GPLv3.txt).
 # *=============================================================================*
 # * INIT_EXT.xtd oversees initial preprocessor activities
-# *   %1 - mod or v# for the source code to be used
+# *   arg11 - mod or v# for the source code to be used
 # *=============================================================================*
 
+from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
@@ -30,26 +31,26 @@ class InitExtAbs(GamsClass):
 
     def __init__(
         self,
-        tc: "TimesModelClass",
-        env: "CompileEnvironment",
+        tc: TimesModelClass,
+        env: CompileEnvironment,
+        arg1: str = "",
+        arg2: str = "",
     ):
         self.env = env.fork()
         self._sub_modules = {}
+        self.tc = tc
         self.compile(tc)
 
-    def compile(self, tc: "TimesModelClass") -> None:
-        phase = "init"
-        tc.add_gams_code(
+    def compile(self) -> None:
+        self.tc.add_gams_code(
             module=self,
-            phase=phase,
-            code=r"""
-  SET BS_RVT(R,YEAR,T);
-""",
+            phase="init",
+            code="SET BS_RVT(R,YEAR,T);",
         )
-        tc.enqueue(self.preprocessor_activities, tc=tc)
+        self.tc.enqueue(self.proc_allowed)
 
-    def preprocessor_activities(self, tc):
-        tc.add_gams_code(
+    def proc_allowed(self) -> None:
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""

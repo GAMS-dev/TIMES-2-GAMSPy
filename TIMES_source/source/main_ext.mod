@@ -12,6 +12,8 @@
 *          reporting routines rpt_ext.RP1 and rpt_ext.RP2
 *-----------------------------------------------------------------------------
 $SETNAMES "%SYSTEM.INCPARENT%" . TMP .
+$SETLOCAL TMP %TMP%
+$DROP TMP
 $SETLOCAL WHCALL %1
 $LABEL MORE
 $SHIFT
