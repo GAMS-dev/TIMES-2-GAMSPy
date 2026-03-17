@@ -132,6 +132,7 @@ $ IF WARNINGS $BATINCLUDE pp_qaput.%1 PUTOUT 0 * 'GAMS Warnings Detected%TMP%'
     NCAP_PASTI(R,LL,P)$PASTSUM(R,LL,P) = NCAP_PASTI(R,LL,P) + PASTSUM(R,LL,P);
 * extend the list of past years
     OPTION PASTYEAR < NCAP_PASTI;
+    Set ITEMADD /'PASTI'/;
     INT_DEFAULT('PASTI')$PYR('0')=1; PYR('0')=NO;
     OPTION CLEAR=PRC_CAP, CLEAR=PASTSUM;
 *-----------------------------------------------------------------------------
@@ -142,6 +143,7 @@ $ IF WARNINGS $BATINCLUDE pp_qaput.%1 PUTOUT 0 * 'GAMS Warnings Detected%TMP%'
 * [UR]: duration of period moved from *.dd to ppmain.mod
     D(MILESTONYR)=E(MILESTONYR)-B(MILESTONYR)+1;
     M(MILESTONYR)=FLOOR(B(MILESTONYR)+(D(MILESTONYR)-1)/2);
+
 $IFI %OBJ%==MOD M(T) = 0;
     IF(ALTOBJ=1,ALTOBJ=1$SUM(T,M(T) NE YEARVAL(T)));
 
@@ -185,10 +187,24 @@ $IFI '%OBLONG%'==YES IF(MIYR_V1+SUM(T,E(T)+1-B(T))-MIYR_VL NE 1,ABORT "Inconsist
 * create list of all years in each period
     PERIODYR(T,EOHYEARS)$((YEARVAL(EOHYEARS) >= B(T)) * (YEARVAL(EOHYEARS) <= E(T))) = YES;
 
+$onlisting
+display "pp_main_mod_prior_filparam";
+$show
+$offlisting
+
+
 * Inter/Extrapolate G_OFFTHD if specified
 $IF DEFINED G_OFFTHD $BATINCLUDE filparam G_OFFTHD '' '' ",'','','','','',''" YEAR T '' '' 5
     G_OFFTHD('0') = 0;
 
+$onlisting
+display "pp_main_mod_after_filparam";
+$show
+$offlisting
+
+$gdxUnload %COMPILE_GDX%
+execute_unload "%EXECUTE_GDX%";
+$stop
 *-----------------------------------------------------------------------------
 * complete timeslice declarations
 *-----------------------------------------------------------------------------

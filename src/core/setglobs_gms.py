@@ -11,6 +11,8 @@
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Alias
+
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -188,9 +190,18 @@ $onMulti
     PASTMILE(ALLYEAR)        'PAST years that are not MILESYONYR'  //
     EACHYEAR(ALLYEAR)        'Each year from 1st PASTYEAR to last MILESTONYR + DUR_MAX' //
     EOHYEARS(ALLYEAR)        'Each year from 1st PASTYEAR to last MILESTONYR' //;
-  ALIAS(PASTYEAR,PYR);
-  ALIAS(MODLYEAR,V);
+""",
+        )
 
+        pastyear = tc.container["PASTYEAR"]
+        Alias(container=tc.container, name="PYR", alias_with=pastyear)
+        modlyear = tc.container["MODLYEAR"]
+        Alias(container=tc.container, name="V", alias_with=modlyear)
+
+        tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=r"""
 * identifiers for beginning/end of model horizon
   SET MIYR_1(ALLYEAR) 'First T'   //;
   SET MIYR_L(ALLYEAR) 'Last year' //;
