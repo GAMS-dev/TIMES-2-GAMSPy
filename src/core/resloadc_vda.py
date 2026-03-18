@@ -55,6 +55,8 @@ def cal_red_red(
     arg7: str = "",
     arg8: str = "",
     arg9: str = "",
+    arg10: str = "",
+    pgprim: str ="",
     def_rtp_ffcs: bool = False,
     shff: str = "",
     sow: str = "",
@@ -233,7 +235,7 @@ class ResloadcVda(GamsClass):
 """,
             )
 
-    def preparations(self: ReloadcVda) -> None:
+    def preparations(self: ResloadcVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -248,7 +250,7 @@ class ResloadcVda(GamsClass):
 """,
         )
 
-    def coef(self: ReloadcVda) -> None:
+    def coef(self: ResloadcVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -291,7 +293,7 @@ class ResloadcVda(GamsClass):
 """,
         )
 
-    def equa(self: ReloadcVda, vas: str, sow: str) -> None:
+    def equa(self: ResloadcVda, vas: str, sow: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
