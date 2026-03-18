@@ -63,7 +63,7 @@ def cal_red_red(
     return ""
 
 
-class ReloadcVda(GamsClass):
+class ResloadcVda(GamsClass):
     """Translation unit for resloadc.vda."""
 
     # Instance attributes

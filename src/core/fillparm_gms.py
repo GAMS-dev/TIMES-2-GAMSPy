@@ -75,7 +75,7 @@ class FillparamGms(GamsClass):
         self.env.set_local("add", "")
         if len(self.arg8):
             self.env.set_local(
-                "data", f"{self.arg8}({self.arg2},{self.arg5},{self.arg3})"
+                "data", f"{self.arg8}({self.arg2},{self.arg3},{self.arg5})"
             )
             self.env.set_local("item", f"MY_FIL2({self.arg5})")
             self.env.set_local("add", f"+MY_FIL2({self.arg5})")
