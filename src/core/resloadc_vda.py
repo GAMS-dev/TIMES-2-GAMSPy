@@ -56,7 +56,7 @@ def cal_red_red(
     arg8: str = "",
     arg9: str = "",
     arg10: str = "",
-    pgprim: str ="",
+    pgprim: str = "",
     def_rtp_ffcs: bool = False,
     shff: str = "",
     sow: str = "",
