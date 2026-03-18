@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class FillparamGms(GamsClass):
+class FillparmGms(GamsClass):
     """Translation unit for fillparm.gms."""
 
     # Instance attributes
@@ -95,7 +95,7 @@ class FillparamGms(GamsClass):
         )
 
     def fillparm_exec(
-        self: FillparamGms,
+        self: FillparmGms,
         dflbl: str,
         item: str,
         data: str,
