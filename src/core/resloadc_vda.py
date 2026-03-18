@@ -97,7 +97,19 @@ class ResloadcVda(GamsClass):
 """,
             )
             self.tc.enqueue(self.preparations)
-            self.include(FillparmGms(self.tc, self.env))
+            self.include(
+                FillparmGms(
+                    self.tc,
+                    self.env.fork,
+                    arg1="GR_THMIN",
+                    arg2="R",
+                    arg3="P",
+                    arg4=",'0','0','0','0','0'",
+                    arg5="T",
+                    arg6="RTP(R,T,P)",
+                    arg7="GE 0",
+                )
+            )
         elif self.arg1.upper() == "COEF":
             self.tc.enqueue(self.coef)
         elif self.arg1.upper() == "EQUA":
