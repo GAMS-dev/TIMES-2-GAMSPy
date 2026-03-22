@@ -80,14 +80,14 @@ class PrepExtVda(GamsClass):
                 FillparmGms(
                     self.tc,
                     self.env,
-                    arg1=arg[1],
-                    arg2=arg[2],
-                    arg3=arg[3],
-                    arg4=arg[4],
-                    arg5=arg[5],
-                    arg6=arg[6],
-                    arg7=arg[7],
-                    arg8=arg[8],
+                    arg1=arg[0],
+                    arg2=arg[1],
+                    arg3=arg[2],
+                    arg4=arg[3],
+                    arg5=arg[4],
+                    arg6=arg[5],
+                    arg7=arg[6],
+                    arg8=arg[7],
                 )
             )
         if self.env.powerflow.upper() == "YES":

@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.prepparm_gms import PrepparamGms
+from core.prepparm_gms import PrepparmGms
 
 from .base_class import GamsClass
 
@@ -52,7 +52,7 @@ class PrepExtDsc(GamsClass):
                 self.prepextdsc_exec,
             )
             self.include(
-                PrepparamGms(
+                PrepparmGms(
                     self.tc,
                     self.env,
                     arg1="NCAP_DISC",

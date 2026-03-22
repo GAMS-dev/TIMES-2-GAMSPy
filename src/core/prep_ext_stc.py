@@ -14,7 +14,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from core.fillparm_gms import FillparmGms
-from core.prepparmm_gms import PrepparmGms
+from core.prepparm_gms import PrepparmGms
 from core.recurrin_stc import RecurrinStc
 
 from .base_class import GamsClass
