@@ -41,9 +41,17 @@ class PpChpIer(GamsClass):
     def compile(self) -> None:
         self.tc.enqueue(
             self.electricity_commodity_pg,
+        )
+        self.tc.enqueue(
             self.commodity_group,
+        )
+        self.tc.enqueue(
             self.calculate_electricity_heat_ratio,
+        )
+        self.tc.enqueue(
             self.convert_input_capacity,
+        )
+        self.tc.enqueue(
             self.extrapolate_past_years,
         )
 
