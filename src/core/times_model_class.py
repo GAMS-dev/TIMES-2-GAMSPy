@@ -124,5 +124,5 @@ class TimesModelClass:
     def defined(self, symbol) -> None:
         return (
             symbol.upper() in self.tc.container.listSymbols()
-            and self.container[symbol.upper()].number_records()
+            and self.container[symbol.upper()].number_records
         )
