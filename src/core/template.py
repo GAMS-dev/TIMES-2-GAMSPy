@@ -1,4 +1,4 @@
-# <filename_ext>.py
+# filename_ext.py
 
 from __future__ import annotations
 import logging
@@ -80,10 +80,7 @@ PARAMETER {self.arg3} //;
                     arg8=arg[7],
                 )
             )
-        if ( # defined
-             "GR_VARGEN" in self.tc.container.listSymbols()
-             and self.tc.container["GR_VARGEN"].number_records()
-        ):
+        if ( self.tc.defined("GR_VARGEN") ):
             pass
         if self.env.powerflow.upper() == "YES": # IFI
             pass
