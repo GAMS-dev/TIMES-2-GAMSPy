@@ -117,3 +117,9 @@ class TimesModelClass:
         for func, args, kwargs in self.execution_list:
             func(*args, **kwargs)
         self.container.write(self.output_execute, eps_to_zero=False)
+
+    # -----------------------
+    # Utils
+    # -----------------------
+    def defined(self, symbol) -> None:
+        return symbol.upper() in self.tc.container.listSymbols() and self.container[symbol.upper()].number_records()
