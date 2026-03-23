@@ -125,6 +125,7 @@ OPTION CLEAR = {arg6};
             module=self,
             phase="run",
             code=rf"""
+$EOLCOM !
 LOOP({arg6}({arg2},'{dflbl}'{tail}{arg4}),
   DFUNC={DEF}; DFUNC $= MOD(ROUND({arg1}({arg2},'{dflbl}'{tail})),1000);
   MY_ARRAY(DM_YEAR) = {arg1}({arg2},DM_YEAR{tail});
@@ -152,5 +153,6 @@ LOOP({arg6}({arg2},'{dflbl}'{tail}{arg4}),
      {arg1}({arg2},{arg5}{tail})${arg7} $= FIRST_VAL$(YEARVAL({arg5})<F) + LAST_VAL$(YEARVAL({arg5})>Z);
    );
   );
+$OFFLISTING
 """,
         )
