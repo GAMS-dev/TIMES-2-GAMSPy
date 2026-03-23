@@ -82,7 +82,7 @@ PARAMETER {self.arg3} //;
                     arg8=arg[7],
                 )
             )
-        if ( self.tc.defined("GR_VARGEN") ):
+        if self.tc.defined("GR_VARGEN"):
             pass
         if self.env.powerflow.upper() == "YES":  # IFI
             pass
