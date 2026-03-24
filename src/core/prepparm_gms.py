@@ -1,4 +1,4 @@
-# prepparam_gms.py
+# prepparm_gms.py
 # *++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # * Copyright (C) 2025 IEA-ETSAP.  Licensed under GPLv3 (see file NOTICE-GPLv3.txt).
 # *******************************************************************************
@@ -35,15 +35,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class PrepparamGms(GamsClass):
-    """Translation unit for prepparam.gms."""
+class PrepparmGms(GamsClass):
+    """Translation unit for prepparm.gms."""
 
     # Instance attributes
-    module_name: str = "prepparam_gms"
-    gams_source: str = "prepparam.gms"
+    module_name: str = "prepparm_gms"
+    gams_source: str = "prepparm.gms"
 
     def __init__(
-        self: PrepparamGms,
+        self: PrepparmGms,
         tc: TimesModelClass,
         env: CompileEnvironment,
         arg1: str = "",
@@ -72,7 +72,7 @@ class PrepparamGms(GamsClass):
         self._sub_modules = {}
         self.compile()
 
-    def compile(self: PrepparamGms) -> None:
+    def compile(self: PrepparmGms) -> None:
         self.env.set_local("data", f"MY_FIL2({self.arg5})")
         self.env.set_local("opt", "*")
         self.env.set_local("ll", "")
@@ -98,7 +98,7 @@ class PrepparamGms(GamsClass):
         )
 
     def interpolation_extrapolation(
-        self: PrepparamGms,
+        self: PrepparmGms,
         def_iebd: str,
         opt: bool,
         dflbl: str,
