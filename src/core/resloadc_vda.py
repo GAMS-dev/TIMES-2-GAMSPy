@@ -102,7 +102,7 @@ class ResloadcVda(GamsClass):
             self.include(
                 FillparmGms(
                     self.tc,
-                    self.env.fork,
+                    self.env.fork(),
                     arg1="GR_THMIN",
                     arg2="R",
                     arg3="P",
