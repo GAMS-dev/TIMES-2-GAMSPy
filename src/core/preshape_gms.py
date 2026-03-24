@@ -103,7 +103,7 @@ class PreShapeGms(GamsClass):
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf""""
+            code=rf"""
 OPTION CLEAR = {arg6};
 {arg6}({arg2},LL--ORD(LL){tail}{arg4}) $= {arg1}({arg2},LL{tail});
 """,

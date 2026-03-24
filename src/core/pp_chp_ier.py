@@ -59,7 +59,7 @@ class PpChpIer(GamsClass):
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r""""
+            code=r"""
 * Assumption: electricity commodity is given by PG
 ECT_ELC(RP_PG(ECT_CHP,C)) = YES;
 RP_PG(ECT_ELC(R,P,C))     = NO;
