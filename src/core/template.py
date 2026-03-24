@@ -1,7 +1,11 @@
-# <filename_ext>.py
+# filename_ext.py
+
+from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
+
+from core.fillparm_gms import FillparmGms
 
 from .base_class import GamsClass
 
@@ -21,13 +25,85 @@ class TemplateMod(GamsClass):  # FilenameExt
 
     def __init__(
         self,
-        tc: "TimesModelClass",
-        env: "CompileEnvironment",
+        tc: TimesModelClass,
+        env: CompileEnvironment,
+        arg1: str = "",
+        arg2: str = "",
+        arg3: str = "",
+        arg4: str = "",
+        arg5: str = "",
+        arg6: str = "",
+        arg7: str = "",
+        arg8: str = "",
+        arg9: str = "",
+        arg10: str = "",
     ):
         self.env = env.fork()
         self._sub_modules = {}
-        self.compile(tc)
+        self.tc = tc
+        self.arg1 = arg1
+        self.arg2 = arg2
+        self.arg3 = arg3
+        self.arg4 = arg4
+        self.arg5 = arg5
+        self.arg6 = arg6
+        self.arg7 = arg7
+        self.arg8 = arg8
+        self.arg9 = arg9
+        self.arg10 = arg10
+        self.compile()
 
-    def compile(self, tc: "TimesModelClass") -> None:
-        phase = "init"
-        print(phase)
+    def compile(self) -> None:
+        self.comp1()
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=rf"""
+PARAMETER {self.arg3} //;
+""",
+        )
+        # fmt: off
+        batincludes = [
+            ("VDA_EMCB", "R", "C,COM", ",'0','0','0','0'", "V", "1", "GE 0", ""),
+        ]
+        # fmt: on
+        for arg in batincludes:
+            self.include(
+                FillparmGms(
+                    self.tc,
+                    self.env,
+                    arg1=arg[0],
+                    arg2=arg[1],
+                    arg3=arg[2],
+                    arg4=arg[3],
+                    arg5=arg[4],
+                    arg6=arg[5],
+                    arg7=arg[6],
+                    arg8=arg[7],
+                )
+            )
+        if self.tc.defined("GR_VARGEN"):
+            pass
+        if self.env.powerflow.upper() == "YES":  # IFI
+            pass
+        self.tc.enqueue(
+            self.exec1,
+            waver=self.env.waver.upper() == "YES",
+        )
+
+    def comp1(
+        self: TemplateMod,
+    ):
+        pass
+
+    def exec1(
+        self: TemplateMod,
+        waver: bool,
+    ):
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=rf"""
+  FLO_FUNCX(R,LL,P,C,CG)$(NOT PRC_VINT(R,P)) = {"0" if waver else "1"};
+""",
+        )
