@@ -131,7 +131,7 @@ class PrepExtVda(GamsClass):
                 )
             )
         self.tc.enqueue(
-            self, self.tailored_interpolation, waver=self.env.waver.upper() == "YES"
+            self.tailored_interpolation, waver=self.env.waver.upper() == "YES"
         )
 
     def prepare_availabilities(
