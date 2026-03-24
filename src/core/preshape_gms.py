@@ -65,10 +65,10 @@ class PreShapeGms(GamsClass):
     def compile(self) -> None:
         self.env.set_local("tail", f",{self.arg3}")
         self.env.set_local("def", "10")
-        if len(self.arg3):
+        if not len(self.arg3):
             self.env.set_local("tail", "")
 
-        if not len(self.arg8):
+        if len(self.arg8):
             self.env.set_local("def", f"{self.arg8}")
 
         self.tc.enqueue(
