@@ -588,7 +588,7 @@ class PpmainMod(GamsClass):
             )
         )
         # preprocessing of FLO_MARK/PRC_MARK
-        self.include(eqflomrk_mod.Eqflomrk(tc=tc, env=self.env))
+        self.include(eqflomrk_mod.EqflomrkMod(tc=tc, env=self.env))
 
         tc.enqueue(self.deactivate_rpc_noflo, tc=tc)
 
