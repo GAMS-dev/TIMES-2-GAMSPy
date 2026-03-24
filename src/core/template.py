@@ -1,10 +1,12 @@
 # filename_ext.py
 
 from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING
 
 from core.fillparm_gms import FillparmGms
+
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -58,8 +60,8 @@ class TemplateMod(GamsClass):  # FilenameExt
             phase="init",
             code=rf""""
 PARAMETER {self.arg3} //;
-"""  
-        )        
+""",
+        )
         # fmt: off
         batincludes = [
             ("VDA_EMCB", "R", "C,COM", ",'0','0','0','0'", "V", "1", "GE 0", ""),
@@ -80,15 +82,14 @@ PARAMETER {self.arg3} //;
                     arg8=arg[7],
                 )
             )
-        if ( self.tc.defined("GR_VARGEN") ):
+        if self.tc.defined("GR_VARGEN"):
             pass
-        if self.env.powerflow.upper() == "YES": # IFI
+        if self.env.powerflow.upper() == "YES":  # IFI
             pass
         self.tc.enqueue(
             self.exec1,
             waver=self.env.waver.upper() == "YES",
         )
-
 
     def comp1(
         self: TemplateMod,
@@ -104,5 +105,5 @@ PARAMETER {self.arg3} //;
             phase="run",
             code=rf""""
   FLO_FUNCX(R,LL,P,C,CG)$(NOT PRC_VINT(R,P)) = {"0" if waver else "1"};
-"""  
+""",
         )
