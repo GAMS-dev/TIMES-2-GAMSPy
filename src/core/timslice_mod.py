@@ -13,8 +13,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.pp_off_mod import pp_off_mod
-from core.pp_qaput_mod import pp_qaput_mod
+from core.pp_off_mod import pp_off
+from core.pp_qaput_mod import pp_qaput
 
 from .base_class import GamsClass
 
@@ -109,7 +109,7 @@ class TimsliceMod(GamsClass):
             phase="run",
             code=rf"""
   LOOP(RS_BELOW1(R,ANNUAL,S)$SUM(TS_OFF(R,S,BOHYEAR,EOHYEAR),1),
-{pp_off_mod("TS_OFF", "S", "", f"NORTS(R,T{mx},S)$(", "1")}
+{pp_off("TS_OFF", "S", "", f"NORTS(R,T{mx},S)$(", "1")}
     IF(PROD(T{mx},FIL(T)),G_YRFR(R,TS)$TS_MAP(R,S,TS) = 0;
     ELSE NORTS(R,T(FIL{mx}),TS)$TS_MAP(R,S,TS) = -INF));
 """,
@@ -159,7 +159,7 @@ class TimsliceMod(GamsClass):
      F=ABS(MY_F-MY_SUM); IF(F*Z>1,G_YRFR(R,TS)$RS_BELOW1(R,S,TS)=MY_F/MY_SUM*G_YRFR(R,TS)));
 *  If the sum differs from the lump sum by over a second, do normalize:
    IF(F*Z > 1,
-{pp_qaput_mod("PUTOUT", "PUTGRP", "01", "User-provided G_YRFR values are not valid year fractions")}
+{pp_qaput("PUTOUT", "PUTGRP", "01", "User-provided G_YRFR values are not valid year fractions")}
      PUT QLOG ' WARNING       - TS fractions normalized,  (R.TSL.S)=',TS_GROUP.TE(TS_GROUP);
   ));
 *-----------------------------------------------------------------------------
@@ -181,7 +181,7 @@ class TimsliceMod(GamsClass):
   OPTION STOAL<RS_BELOW1,CLEAR=RS_HR; STOAL(R,S)$(STOAL(R,S)=1)=0;
   IF(CARD(STOAL),PUTGRP=0;
     LOOP((R,S)$STOAL(R,S),
-{pp_qaput_mod("PUTOUT", "PUTGRP", "99", "Duplicate parent timeslices - Fatal")}
+{pp_qaput("PUTOUT", "PUTGRP", "99", "Duplicate parent timeslices - Fatal")}
     PUT QLOG ' FATAL ERROR   -    REG=',R.TL,' TS='S.TL));
 * Define the lags to the ANNUAL timeslice for all S
   LOOP(ANNUAL(TS), STOA(S) = ORD(TS)-ORD(S));

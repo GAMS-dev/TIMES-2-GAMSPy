@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 
-def pp_qaput_mod(
+def pp_qaput(
     arg1: str = "",
     arg2: str = "",
     arg3: str = "",

@@ -214,9 +214,6 @@ display "pp_main_mod_after_timslice";
 $show
 $offlisting
 
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop
 *-----------------------------------------------------------------------------
 * Migrate PASTIs defined on Milestonyr if requested
   IF(INT_DEFAULT('PASTI'), LOOP(PYR(T(LL))$(M(T)>B(T)), VNT(LL-1,T)=YES);
@@ -262,7 +259,9 @@ $     BATINCLUDE pp_off.%1 PRC_NOFF P "" "RTP_OFF(R,T,P)$(" YES
     RTP(R,PYR,P)$(RP(R,P)$(NCAP_PASTI(R,PYR,P)>0)$NCAP_PASTI(R,PYR,P)) = YES;
     RVP(RTP(R,T,P)) = YES;
     OPTION CLEAR=TRACKP;
-
+$gdxUnload %COMPILE_GDX%
+execute_unload "%EXECUTE_GDX%";
+$stop
 *-----------------------------------------------
 * interpolation/extrapolation
 *-----------------------------------------------

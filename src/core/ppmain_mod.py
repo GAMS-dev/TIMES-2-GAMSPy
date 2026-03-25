@@ -1,3 +1,4 @@
+# ruff: noqa: F821
 # ppmain_mod.py
 # *++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # * Copyright (C) 2000-2025 Energy Technology Systems Analysis Programme (ETSAP)
@@ -10,7 +11,7 @@
 # *GaG Questions/Comments:
 # *   - determination of B/E/D(t)
 # *-----------------------------------------------------------------------------
-
+from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
@@ -21,6 +22,8 @@ from core import (  # eqflomrk_mod,; filshape_gms,; pp_chp_ier,; pp_chp_mod,; pp
     filparam_gms,
     timslice_mod,
 )
+from core.pp_off_mod import pp_off
+from core.pp_qaput_mod import pp_qaput
 
 from .base_class import GamsClass
 
@@ -40,17 +43,18 @@ class PpmainMod(GamsClass):
 
     def __init__(
         self,
-        tc: "TimesModelClass",
-        env: "CompileEnvironment",
+        tc: TimesModelClass,
+        env: CompileEnvironment,
     ):
         self.env = env.fork()
+        self.tc = tc
         self._sub_modules = {}
-        self.compile(tc)
+        self.compile()
 
-    def compile(self, tc: "TimesModelClass") -> None:
+    def compile(self) -> None:
         phase = "init"
-        m = tc.container
-        tc.add_gams_code(
+        m = self.tc.container
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=r"""
@@ -82,12 +86,12 @@ class PpmainMod(GamsClass):
 
         # TODO: $ IF WARNINGS $BATINCLUDE pp_qaput.%1 PUTOUT 0 * 'GAMS Warnings Detected%TMP%'
 
-        tc.enqueue(self.phase_one, tc=tc, pgprim=self.env.pgprim)
+        self.tc.enqueue(self.phase_one, pgprim=self.env.pgprim)
 
         # *-----------------------------------------------------------------------------
         # * spread NCAP_PASTI and determine PASTYEAR
         # *-----------------------------------------------------------------------------
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=r"""
@@ -96,28 +100,29 @@ class PpmainMod(GamsClass):
 """,
         )
 
-        tc.enqueue(self.phase_two, tc=tc)
-        self.add_records_to_universe_item(tc=tc, records=["PASTI"])
-        tc.enqueue(self.phase_two_two, tc=tc)
+        self.tc.enqueue(self.phase_two)
+        self.add_records_to_universe_item(tc=self.tc, records=["PASTI"])
+        self.tc.enqueue(self.phase_two_two)
 
         if self.env.obj.upper() == "MOD":
-            tc.enqueue(self.set_mt_zero, tc=tc)
-
-        tc.enqueue(self.phase_three, tc=tc)
+            self.tc.enqueue(self.set_mt_zero)
+        self.tc.enqueue(self.phase_three, condition=self.env.oblong.upper() == "YES")
 
         # Initialize MINYR already here (was in COEF_OBJ.mod)
-        tc.add_gams_code(module=self, phase=phase, code="SCALAR MINYR;")
+        self.tc.add_gams_code(module=self, phase=phase, code="SCALAR MINYR;")
 
-        tc.enqueue(self.phase_four, tc=tc)
+        self.tc.enqueue(self.phase_four)
 
-        if tc.test_run:
-            tc.save_test_state(env=self.env, checkpoint="pp_main_mod_prior_filparam")
+        if self.tc.test_run:
+            self.tc.save_test_state(
+                env=self.env, checkpoint="pp_main_mod_prior_filparam"
+            )
 
         # Inter/Extrapolate G_OFFTHD if specified
         if m["G_OFFTHD"].number_records:
             self.include(
                 filparam_gms.FilparamGms(
-                    tc=tc,
+                    tc=self.tc,
                     env=self.env,
                     arg1="G_OFFTHD",
                     arg2="",
@@ -131,28 +136,31 @@ class PpmainMod(GamsClass):
                 )
             )
 
-        tc.enqueue(self.g_offthd_to_zero, tc=tc)
+        self.tc.enqueue(self.g_offthd_to_zero)
 
-        if tc.test_run:
-            tc.save_test_state(env=self.env, checkpoint="pp_main_mod_after_filparam")
+        if self.tc.test_run:
+            self.tc.save_test_state(
+                env=self.env, checkpoint="pp_main_mod_after_filparam"
+            )
 
         # *-----------------------------------------------------------------------------
         # * complete timeslice declarations
         # *-----------------------------------------------------------------------------
         # * Include preprocessing of timeslice attributes
-        self.include(timslice_mod.TimsliceMod(tc=tc, env=self.env))
+        self.include(timslice_mod.TimsliceMod(tc=self.tc, env=self.env))
 
-        if tc.test_run:
-            tc.save_test_state(env=self.env, checkpoint="pp_main_mod_after_timslice")
+        if self.tc.test_run:
+            self.tc.save_test_state(
+                env=self.env, checkpoint="pp_main_mod_after_timslice"
+            )
 
-        return
+        self.tc.enqueue(self.phase_five, botime=self.env.botime)
 
-        tc.enqueue(self.phase_five, tc=tc)
-
-        tc.enqueue(self.check_ncap_pasti)
+        self.tc.enqueue(self.check_ncap_pasti, rl=self.env.rl)
 
         # Set the RTP_OFF for all remaining PRC_NOFF ranges
-        tc.enqueue(self.set_rtp_off, tc=tc)
+        self.tc.enqueue(self.set_rtp_off)
+        return
 
         # *-----------------------------------------------
         # * interpolation/extrapolation
@@ -926,8 +934,8 @@ PARAMETER BLE_BAL(R,YEAR,C,C) //;
             module=self, phase="run", code=r"RTP_CPTYR(R,T,T,P)$RTP(R,T,P) = YES;"
         )
 
-    def phase_one(self, tc, pgprim):
-        tc.add_gams_code(
+    def phase_one(self: PpmainMod, pgprim: str):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"""
@@ -1015,8 +1023,8 @@ PARAMETER BLE_BAL(R,YEAR,C,C) //;
 """,
         )
 
-    def phase_two(self, tc):
-        tc.add_gams_code(
+    def phase_two(self: PpmainMod):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
@@ -1034,8 +1042,8 @@ PARAMETER BLE_BAL(R,YEAR,C,C) //;
 """,
         )
 
-    def phase_two_two(self, tc):
-        tc.add_gams_code(
+    def phase_two_two(self: PpmainMod):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
@@ -1052,17 +1060,17 @@ PARAMETER BLE_BAL(R,YEAR,C,C) //;
 """,
         )
 
-    def set_mt_zero(self, tc):
-        tc.add_gams_code(module=self, phase="run", code="M(T) = 0;")
+    def set_mt_zero(self: PpmainMod):
+        self.tc.add_gams_code(module=self, phase="run", code="M(T) = 0;")
 
-    def g_offthd_to_zero(self, tc):
-        tc.add_gams_code(module=self, phase="run", code="G_OFFTHD('0') = 0;")
+    def g_offthd_to_zero(self: PpmainMod):
+        self.tc.add_gams_code(module=self, phase="run", code="G_OFFTHD('0') = 0;")
 
-    def phase_three(self, tc):
-        tc.add_gams_code(
+    def phase_three(self: PpmainMod, condition: bool):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
+            code=rf"""
     IF(ALTOBJ=1,ALTOBJ=1$SUM(T,M(T) NE YEARVAL(T)));
 
 * establish 1st/last run year
@@ -1076,7 +1084,7 @@ PARAMETER BLE_BAL(R,YEAR,C,C) //;
 *V0.5c 980904 - set 1st value to B not milestone itself
     MIYR_V1 = SMIN(MIYR_1, B(MIYR_1));
     MIYR_VL = SMAX(T$(ORD(T) = CARD(T)), E(T));
-$IFI '%OBLONG%'==YES IF(MIYR_V1+SUM(T,E(T)+1-B(T))-MIYR_VL NE 1,ABORT "Inconsistent periods - cannot use OBLONG.");
+    {"IF(MIYR_V1+SUM(T,E(T)+1-B(T))-MIYR_VL NE 1,ABORT 'Inconsistent periods - cannot use OBLONG.');" if condition else ""}
     LOOP(MIYR_1(LL),PASTYEAR(LL-(YEARVAL(LL)-MIYR_V1+1)) = YES);
 * Set LEADs and LAGs for periods
     LEAD(TT(T++1)) = MAX(M(TT)-M(T),M(TT)-B(TT)+1);
@@ -1086,8 +1094,8 @@ $IFI '%OBLONG%'==YES IF(MIYR_V1+SUM(T,E(T)+1-B(T))-MIYR_VL NE 1,ABORT "Inconsist
 """,
         )
 
-    def phase_four(self, tc):
-        tc.add_gams_code(
+    def phase_four(self: PpmainMod):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
@@ -1113,11 +1121,11 @@ $IFI '%OBLONG%'==YES IF(MIYR_V1+SUM(T,E(T)+1-B(T))-MIYR_VL NE 1,ABORT "Inconsist
 """,
         )
 
-    def phase_five(self, tc):
-        tc.add_gams_code(
+    def phase_five(self: PpmainMod, botime: str):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
+            code=rf"""
 *-----------------------------------------------------------------------------
 * Migrate PASTIs defined on Milestonyr if requested
   IF(INT_DEFAULT('PASTI'), LOOP(PYR(T(LL))$(M(T)>B(T)), VNT(LL-1,T)=YES);
@@ -1135,13 +1143,13 @@ $IFI '%OBLONG%'==YES IF(MIYR_V1+SUM(T,E(T)+1-B(T))-MIYR_VL NE 1,ABORT "Inconsist
 *-----------------------------------------------------------------------------
   PUTGRP = 0;
 * Convert START to NOFF
-  LOOP(LASTLL(LL)$CARD(NCAP_START), Z=CARD(LL)+%BOTIME%;
+  LOOP(LASTLL(LL)$CARD(NCAP_START), Z=CARD(LL)+{botime};
     PRC_NOFF(RP,'BOH',EOHYEAR)$NCAP_START(RP) = NO;
     PRC_NOFF(RP,'BOH',LL+MIN(-1,NCAP_START(RP)-Z))$NCAP_START(RP) = YES);
 * Construct year sets for the active model horizon
   OPTION CLEAR=PRC_YMAX, CLEAR=UNCD1;
   UNCD1('BOH') = YES; UNCD1(YEAR)$(YEARVAL(YEAR) LE MIYR_V1) = YES;
-  PRC_YMAX(RP(R,P)) = MAX(0,SMAX(PRC_NOFF(R,P,BOHYEAR(UNCD1),EOHYEAR),ORD(EOHYEAR)+%BOTIME%-2));
+  PRC_YMAX(RP(R,P)) = MAX(0,SMAX(PRC_NOFF(R,P,BOHYEAR(UNCD1),EOHYEAR),ORD(EOHYEAR)+{botime}-2));
 * Set RTP_OFF for delayed processes
   TRACKP(RP) $= PRC_YMAX(RP);
   RTP_OFF(R,T,P)$((YEARVAL(T) LE PRC_YMAX(R,P))$TRACKP(R,P)) = ((PRC_YMAX(R,P)-B(T)+1)/D(T) GE G_OFFTHD(T));
@@ -1149,57 +1157,36 @@ $IFI '%OBLONG%'==YES IF(MIYR_V1+SUM(T,E(T)+1-B(T))-MIYR_VL NE 1,ABORT "Inconsist
 """,
         )
 
-    def check_ncap_pasti(self):
-        """
-        TODO:
-        * Check NCAP_PASTI
+    def check_ncap_pasti(self: PpmainMod, rl: str):
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=rf"""
         LOOP(TRACKP(R,P)$SUM(PYR$NCAP_PASTI(R,PYR,P),1),
             IF(PRC_YMAX(R,P) GT 0,
-        $        BATINCLUDE pp_qaput.%1 PUTOUT PUTGRP 01 'Delayed Process but PASTInvestment'
-                PUT QLOG ' WARNING       - Delay is ignored:   R=',%RL%,' P=',P.TL ;
+        {pp_qaput("PUTOUT", "PUTGRP", "01", "Delayed Process but PASTInvestment")}
+                PUT QLOG ' WARNING       - Delay is ignored:   R=',{rl},' P=',P.TL ;
             PRC_YMAX(R,P) = 0));
-        """
-        pass
-
-    def set_rtp_off(self, tc):
-        """
-        * Set the RTP_OFF for all remaining PRC_NOFF ranges
-            UNCD1(BOHYEAR) = NOT UNCD1(BOHYEAR);
-            LOOP(PRC_NOFF(RP(R,P),BOHYEAR(UNCD1),EOHYEAR),TRACKP(R,P) = YES);
-            LOOP(TRACKP(R,P),
-        $     BATINCLUDE pp_off.%1 PRC_NOFF P "" "RTP_OFF(R,T,P)$(" YES
-            );
-            RTP(R,T,P)$RP(R,P) = YES$(YEARVAL(T) GT PRC_YMAX(R,P));
-            RTP(R,PYR,P)$(RP(R,P)$(NCAP_PASTI(R,PYR,P)>0)$NCAP_PASTI(R,PYR,P)) = YES;
-            RVP(RTP(R,T,P)) = YES;
-            OPTION CLEAR=TRACKP;
-        """
-
-        tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-UNCD1(BOHYEAR) = NOT UNCD1(BOHYEAR);
-LOOP(PRC_NOFF(RP(R,P),BOHYEAR(UNCD1),EOHYEAR),TRACKP(R,P) = YES);
-""",
+        OPTION CLEAR=TRACKP;
+        """,
         )
 
-        # TODO:
-        """
-        LOOP(TRACKP(R,P),
-            $BATINCLUDE pp_off.%1 PRC_NOFF P "" "RTP_OFF(R,T,P)$(" YES
-        );
-        """
-
-        tc.add_gams_code(
+    def set_rtp_off(self: PpmainMod):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
-RTP(R,T,P)$RP(R,P) = YES$(YEARVAL(T) GT PRC_YMAX(R,P));
-RTP(R,PYR,P)$(RP(R,P)$(NCAP_PASTI(R,PYR,P)>0)$NCAP_PASTI(R,PYR,P)) = YES;
-RVP(RTP(R,T,P)) = YES;
-OPTION CLEAR=TRACKP;
-""",
+            code=rf"""
+* Set the RTP_OFF for all remaining PRC_NOFF ranges
+    UNCD1(BOHYEAR) = NOT UNCD1(BOHYEAR);
+    LOOP(PRC_NOFF(RP(R,P),BOHYEAR(UNCD1),EOHYEAR),TRACKP(R,P) = YES);
+    LOOP(TRACKP(R,P),
+    {pp_off("PRC_NOFF", "P", "", "RTP_OFF(R,T,P)$(", "YES")}
+    );
+    RTP(R,T,P)$RP(R,P) = YES$(YEARVAL(T) GT PRC_YMAX(R,P));
+    RTP(R,PYR,P)$(RP(R,P)$(NCAP_PASTI(R,PYR,P)>0)$NCAP_PASTI(R,PYR,P)) = YES;
+    RVP(RTP(R,T,P)) = YES;
+    OPTION CLEAR=TRACKP;
+        """,
         )
 
     def phase_six(self, tc):

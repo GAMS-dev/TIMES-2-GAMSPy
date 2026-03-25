@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.pp_qaput_mod import pp_qaput_mod
+from core.pp_qaput_mod import pp_qaput
 
 from .base_class import GamsClass
 
@@ -115,7 +115,7 @@ class PpChpMod(GamsClass):
   RVP(RVP)$(NCAP_CEH(RVP)+1$NCAP_CHPR(RVP,'FX')+NCAP_CHPR(RVP,'LO')>0) = NO;
   PUTGRP = 0;
   LOOP(RVP(R,V,P)$(T(V)+PRC_VINT(R,P)),
-{pp_qaput_mod("PUTOUT", "PUTGRP", "01", "CHP process with zero CEH but only upper bound on CHPR.")}
+{pp_qaput("PUTOUT", "PUTGRP", "01", "CHP process with zero CEH but only upper bound on CHPR.")}
      PUT QLOG ' WARNING       - Unusual CHP operation: R=',{rl},' P=',{pl},' V=',V.TL;
   );
   OPTION CLEAR=PRC_ACT,CLEAR=RVP,CLEAR=TRACKP,CLEAR=TRACKPG,CLEAR=RP_PRC,CLEAR=RP_GRP,CLEAR=COEF_RTP;

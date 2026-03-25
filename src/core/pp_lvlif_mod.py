@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.pp_qaput_mod import pp_qaput_mod
+from core.pp_qaput_mod import pp_qaput
 
 from .base_class import GamsClass
 
@@ -58,7 +58,7 @@ class PplvlifMod(GamsClass):
         rl: str,
         pl: str,
     ):
-        include_pp_qaput = pp_qaput_mod(
+        include_pp_qaput = pp_qaput(
             "PUTOUT", "PUTGRP", "02", "'IRE_FLO import commodity not in TOP_IRE'"
         )
         self.tc.add_gams_code(

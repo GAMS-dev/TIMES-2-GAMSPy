@@ -19,7 +19,7 @@ from core.powerflo_vda import PowerfloVda
 from core.pplvlfc_mod import PplvlfcMod
 
 from .base_class import GamsClass
-from .pp_qaput_mod import pp_qaput_mod
+from .pp_qaput_mod import pp_qaput
 
 if TYPE_CHECKING:
     from .compile_environment import CompileEnvironment
@@ -306,7 +306,7 @@ FLO_SUM(RTP(R,V,P),CG2,C,CG,S)$(RPC_PG(R,P,C)$RPCC_FFUNC(R,P,CG2,CG)) = VDA_FLOP
   FLO_SUM(RTP(R,V,P),COM,C,COM,S)$(RPC_PG(R,P,C)$RP_CGC(R,P,{pgprim},COM)) = FLO_EMIS(RTP,{pgprim},COM,S)/PRC_ACTFLO(RTP,C);
   RP_CGC(R,P,{pgprim},C) = NO; PUTGRP=0;
   LOOP(RP_CGC(R,P,CG,COM)$RPC_EMIS(R,P,COM),
-  {pp_qaput_mod("PUTOUT", "PUTGRP", "01", "FLO_EMIS with no members of source group in process - ignored")}
+  {pp_qaput("PUTOUT", "PUTGRP", "01", "FLO_EMIS with no members of source group in process - ignored")}
     PUT QLOG ' WARNING       -     R=',{rl},' P=',{pl},' CG=',CG.TL,' COM=',COM.TL;
   );
   FLO_SUM(RTP(R,V,P),COM,C,COM,ANNUAL)$RPC_PG(R,P,C) $= SUM(RP_CGC(R,P,CG,COM)$RPC_EMIS(R,P,COM),EPS);

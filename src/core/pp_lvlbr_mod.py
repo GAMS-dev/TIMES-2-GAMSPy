@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.pp_qaput_mod import pp_qaput_mod
+from core.pp_qaput_mod import pp_qaput
 
 from .base_class import GamsClass
 
@@ -85,7 +85,7 @@ LOOP((RTP(R,V,P){arg2},S,BD)$((NOT {arg3}(R,P,{arg7}S))${arg1}(R,V,P{arg2},S,BD)
 * If value is below target level, aggregate only if value not found at target level
     IF({arg1}(R,V,P{arg2},TS,BD), F = 1;
       IF({arg3}(R,P,{arg7}TS), Z = 0; IF(NOT UNCD7(R,TS,P{arg2},TS,BD{arg4}),
-{pp_qaput_mod("PUTOUT", "PUTGRP", "01", f"{arg1} Bounds conflict: Bound at {arg3} level and below, lower ignored")}
+{pp_qaput("PUTOUT", "PUTGRP", "01", f"{arg1} Bounds conflict: Bound at {arg3} level and below, lower ignored")}
          PUT QLOG ' WARNING       -     R=',{rl},' P=',{pl},' TS=',TS.TL ;
          UNCD7(R,TS,P{arg2},TS,BD{arg4}) = YES));
     ELSEIF {arg3}(R,P,{arg7}TS), Z = 0; UNCD7(R,V,P{arg2},TS,BD{arg4}) = YES));
@@ -113,7 +113,7 @@ IF({arg6}, PUTGRP = 0;
   LOOP((R,V,P{arg2},S)${arg1}(R,V,P{arg2},S,'FX'),
 * check to see if both LO/FX and UP/FX at same S
     IF({arg3}(R,P,{arg7}S) AND ({arg1}(R,V,P{arg2},S,'UP') + {arg1}(R,V,P{arg2},S,'LO')),
-{pp_qaput_mod("PUTOUT", "PUTGRP", "01", f"{arg1} Bounds conflict: FX + LO/UP at same TS-level, latter ignored")}
+{pp_qaput("PUTOUT", "PUTGRP", "01", f"{arg1} Bounds conflict: FX + LO/UP at same TS-level, latter ignored")}
       PUT QLOG ' WARNING       -     R=',{rl},' Y=',V.TL,' P=',{pl},' S=',S.TL ;
       UNCD7(R,V,P{arg2},S,'0'{arg4}) = YES;));
   IF(PUTGRP, {arg1}(R,V,P{arg2},S,BDNEQ)$UNCD7(R,V,P{arg2},S,'0'{arg4}) = 0;

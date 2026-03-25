@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 
-def pp_off_mod(
+def pp_off(
     arg1: str = "",
     arg2: str = "",
     arg3: str = "",

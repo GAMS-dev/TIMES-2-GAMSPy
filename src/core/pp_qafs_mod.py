@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.pp_qaput_mod import pp_qaput_mod
+from core.pp_qaput_mod import pp_qaput
 
 from .base_class import GamsClass
 
@@ -78,7 +78,7 @@ class PpQafsMod(GamsClass):
 * Collect the Groups involved
  OPTION RP_CCG <= FLO_SHAR; PUTGRP=0;
  LOOP(RP_CCG(R,P,C,CG)$(NOT RPC(R,P,C)$COM_GMAP(R,CG,C)),
-{pp_qaput_mod("PUTOUT", "PUTGRP", "07", "Unsupported FLO_SHARE: C not in RPC or CG")}
+{pp_qaput("PUTOUT", "PUTGRP", "07", "Unsupported FLO_SHARE: C not in RPC or CG")}
      PUT QLOG ' SEVERE ERROR  -     R=',{rl},' P=',{pl},' C=',C.TL,' CG=',CG.TL;);
  IF(PUTGRP, RP_CCG(R,P,C,CG)$(NOT COM_GMAP(R,CG,C)) = NO);
  RTPGIG(R,'0',P,C,IO,CG)$(TOP(R,P,C,IO)$RP_CCG(R,P,C,CG)) = YES;
@@ -94,7 +94,7 @@ class PpQafsMod(GamsClass):
   RTP_CGC(R,V,P,C,CG) $= FLO_SHAR(R,V,P,C,CG,'ANNUAL','FX');
   PUTGRP = 0;
   LOOP(RTP_CGC(R,V,P,C,CG)$(FLO_SHAR(R,V,P,C,CG,'ANNUAL','LO')+FLO_SHAR(R,V,P,C,CG,'ANNUAL','UP')),
-{pp_qaput_mod("PUTOUT", "PUTGRP", "01", "FLO_SHAR conflict: Both FX + LO/UP specified, latter ignored")}
+{pp_qaput("PUTOUT", "PUTGRP", "01", "FLO_SHAR conflict: Both FX + LO/UP specified, latter ignored")}
       PUT QLOG ' WARNING       -     R=',{rl},' Y=',V.TL,' P=',{pl},' CG=',CG.TL,' C=',C.TL ;
     RTPGIG(R,V,P,C,'OUT',CG) = YES;
   );
@@ -128,7 +128,7 @@ class PpQafsMod(GamsClass):
    Z = SUM(RP_GIC(R,P,CG,IO,C),FLO_SHAR(R,V,P,C,CG,'ANNUAL','FX')+8);
    F = MOD(Z,8);
    IF(ABS(F-1) GT .001,
-{pp_qaput_mod("PUTOUT", "PUTGRP", "07", "Inconsistent sum of fixed FLO_SHAREs in Group")}
+{pp_qaput("PUTOUT", "PUTGRP", "07", "Inconsistent sum of fixed FLO_SHAREs in Group")}
      PUT QLOG ' SEVERE ERROR  -     R=',{rl},' P=',{pl},' V=',V.TL,' CG=',CG.TL,' SUM=',F:0:5;);
    F = MAX(F-1,F/Z*8-{sharetol});
 {"LOOP(RP_GIC(R,P,CG,IO,C)$Z, IF(FLO_SHAR(R,V,P,C,CG,'ANNUAL','FX') GT F, Z=0; RTPGIG(R,V,P,CG,IO,C) = YES));" if notsharerelaxno else ""}
@@ -149,7 +149,7 @@ class PpQafsMod(GamsClass):
     IF(F LT 1+{sharetol}, Z = 1;
 {"LOOP(RP_GIC(R,P,CG,IO,C)$Z, MY_F=FLO_SHAR(R,V,P,C,CG,'ANNUAL','UP'); IF((MY_F GT F-1)$MY_F, Z=0; RTPGIG(R,V,P,CG,'OUT',C)=YES));" if notsharerelaxno else ""}
      IF(F LT 1-{sharetol}$(NOT Z),
-{pp_qaput_mod("PUTOUT", "PUTGRP", "07", "Defective sum of FX and UP FLO_SHAREs in Group")}
+{pp_qaput("PUTOUT", "PUTGRP", "07", "Defective sum of FX and UP FLO_SHAREs in Group")}
       PUT QLOG ' SEVERE ERROR  -     R=',{rl},' P=',{pl},' V=',V.TL,' CG=',CG.TL,' SUM=',F:0:5;
       IF(NOT Z,PUT QLOG ' (Auto-relaxed)'))));
   OPTION CLEAR=RTP_GRP,CLEAR=RTP_CGC;
@@ -168,7 +168,7 @@ class PpQafsMod(GamsClass):
     F = SUM((RP_GIC(R,P,CG,IO,C),BDLOX),FLO_SHAR(R,V,P,C,CG,'ANNUAL',BDLOX));
     IF(F GT 1-{sharetol}, Z = 1; MY_F = 0;
      IF(F GT 1+{sharetol}, MY_F = 1;
-{pp_qaput_mod("PUTOUT", "PUTGRP", "07", "Excessive sum of FX and LO FLO_SHAREs in Group")}
+{pp_qaput("PUTOUT", "PUTGRP", "07", "Excessive sum of FX and LO FLO_SHAREs in Group")}
       PUT QLOG ' SEVERE ERROR  -     R=',{rl},' P=',{pl},' V=',V.TL,' CG=',CG.TL,' SUM=',F:0:5;);
       F = MAX(0,F-1); LOOP((RP_GIC(R,P,CG,IO,C),BDLOX)$Z, IF(FLO_SHAR(R,V,P,C,CG,'ANNUAL',BDLOX) GT F, Z=0;
 {"RTPGIG(R,V,P,CG,'OUT',C) = YES; IF(MY_F,PUT QLOG ' (Auto-relaxed)';);" if notsharerelaxno else ""}
