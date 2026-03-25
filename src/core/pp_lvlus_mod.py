@@ -79,7 +79,7 @@ class PpLvlusMod(GamsClass):
             arg10=self.arg10,
         )
         self.tc.enqueue(
-            self.simultaneou_aggregation,
+            self.simultaneous_aggregation,
             arg1=self.arg1,
             arg2=self.arg2,
             arg3=self.arg3,
@@ -106,7 +106,7 @@ class PpLvlusMod(GamsClass):
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf""""
+            code=rf"""
   OPTION CLEAR=UNCD7;
   LOOP((UC_N{arg6},SIDE,R,T,{arg2},S{arg5})${arg1}(UC_N{arg6},SIDE,R,T,{arg2},S{arg5}),
     IF((NOT {arg3}(R,{arg7}{arg10},S))$STOA(S),Z=STOAL(R,S);
@@ -116,7 +116,7 @@ class PpLvlusMod(GamsClass):
 """,
         )
 
-    def simultaneou_aggregation(
+    def simultaneous_aggregation(
         self: PpLvlusMod,
         arg1: str,
         arg2: str,

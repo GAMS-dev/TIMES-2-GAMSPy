@@ -27,7 +27,7 @@ class PpmainTm(GamsClass):
     """Translation unit for ppmain.tm."""
 
     # Instance attributes
-    module_name: str = "ppmain_tmd"
+    module_name: str = "ppmain_tm"
     gams_source: str = "ppmain.tm"
 
     def __init__(
