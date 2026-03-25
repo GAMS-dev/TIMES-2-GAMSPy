@@ -57,7 +57,7 @@ class GasgridsVda(GamsClass):
 
         # Internal SETs and Parameters
         self.tc.add_gams_code(
-            module_name=self,
+            module=self,
             phase="init",
             code=rf"""
   SETS
