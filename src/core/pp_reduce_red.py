@@ -41,32 +41,37 @@ class PpReduceRed(GamsClass):
     def compile(self) -> None:
         self.tc.enqueue(self.reduction_of_model_size)
         self.env.set_global("cal_red", "cal_nored.red")
-        if self.env.reduce == "NO":  # GOTO reddone
+        if self.env.reduce == "NO":  # L15: GOTO reddone
             self.tc.enqueue(
                 self.reddone,
             )
-        self.tc.enqueue(self.determine_capacity_variables)
-        self.tc.enqueue(self.determine_emission_flow_variables)
-        if not self.env.reduce == "YES":  # GOTO reddone
-            self.tc.enqueue(
-                self.reddone,
-            )
-        self.env.set_global("cal_red", "cal_red.red")
-        self.tc.enqueue(self.update_rpc_act, pgprim=self.env.pgprim)
-        self.tc.enqueue(self.get_flo_func)
-        self.tc.enqueue(self.check_flo_sum_order)
+        else:
+            self.tc.enqueue(self.determine_capacity_variables)
+            self.tc.enqueue(self.determine_emission_flow_variables)
+            if not self.env.reduce == "YES":  # L58: GOTO reddone
+                self.tc.enqueue(
+                    self.reddone,
+                )
+            else:
+                self.env.set_global("cal_red", "cal_red.red")
+                self.tc.enqueue(self.update_rpc_act, pgprim=self.env.pgprim)
+                self.tc.enqueue(self.get_flo_func)
+                self.tc.enqueue(self.check_flo_sum_order)
 
-        self.tc.enqueue(
-            self.check_commodity_processes_in_flo_sum, pgprim=self.env.pgprim
-        )
-        self.tc.enqueue(self.check_shadow_group)
-        self.tc.enqueue(self.update_rpc_ffunc)
-        self.tc.enqueue(self.add_to_rpc_ffunc)
-        self.tc.enqueue(self.check_act_bnd_level)
-        self.tc.enqueue(self.varf_early_clear)
-        self.tc.enqueue(self.track_commodities)
-        self.tc.enqueue(self.check_commodity)
-        self.tc.enqueue(self.set_eps_bounds_prc_ts)
+                self.tc.enqueue(
+                    self.check_commodity_processes_in_flo_sum, pgprim=self.env.pgprim
+                )
+                self.tc.enqueue(self.check_shadow_group)
+                self.tc.enqueue(self.update_rpc_ffunc)
+                self.tc.enqueue(self.add_to_rpc_ffunc)
+                self.tc.enqueue(self.check_act_bnd_level)
+                self.tc.enqueue(self.varf_early_clear)
+                self.tc.enqueue(self.track_commodities)
+                self.tc.enqueue(self.check_commodity)
+                self.tc.enqueue(self.set_eps_bounds_prc_ts)
+                self.tc.enqueue(
+                    self.reddone,
+                )
 
         if not self.env.rts == "S":
             self.include(
@@ -110,6 +115,9 @@ class PpReduceRed(GamsClass):
             module=self,
             phase="run",
             code=rf"""
+*-----------------------------------------------------------------------------
+* limiting the number of capacity variables
+*-----------------------------------------------------------------------------
 * determining processes that need capacity variables
   PRC_CAP(RP) = NO;
 {"PRC_CAP(PRC_DSCNCAP) = YES;" if self.tc.defined("PRC_DSCNCAP") else ""}
