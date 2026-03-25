@@ -61,7 +61,7 @@ class PpLvlffMod(GamsClass):  # FilenameExt
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r""""
+            code=r"""
 * check all commodities in the groups of a process at other than PRC_TS level
   OPTION FFCKS <= FLO_FUNC; FFCKS(R,P,CG,CG2,S)$(PRC_TS(R,P,S)+ACTCG(CG))=NO;
   LOOP(FFCKS(R,P,CG,COM_GRP,S)$STOA(S),CG_GRP(R,P,CG,COM_GRP) = YES);

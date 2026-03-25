@@ -61,7 +61,7 @@ class PpLvlfsMod(GamsClass):  # FilenameExt
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r""""
+            code=r"""
 * check all commodities in the groups of a process at other than PRC_TS level
   COEF_PTRAN(R,LL,P,CG,C,COM_GRP,S) $= FLO_SUM(R,LL,P,CG,C,COM_GRP,S)$(NOT RPCS_VAR(R,P,C,S));
   OPTION FSCKS <= COEF_PTRAN;

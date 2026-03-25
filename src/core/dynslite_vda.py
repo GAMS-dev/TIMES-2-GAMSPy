@@ -43,7 +43,7 @@ class DynsliteVda(GamsClass):  # FilenameExt
         if self.arg1.upper() == "PRELEV":
             self.tc.enqueue(
                 self.prelev_exec,
-                ducyes=self.env.duc.upper == "YES",
+                ducyes=self.env.duc.upper() == "YES",
                 tmp=self.env.tmp,
             )
         elif self.arg1.upper() in ["PRELEV", "CLEAR"]:
@@ -101,7 +101,7 @@ class DynsliteVda(GamsClass):  # FilenameExt
             self.tc.add_gams_code(
                 module=self,
                 phase="run",
-                code=rf""""
+                code=rf"""
 * Re-calculate the leads for the SEASON timeslice cycle
   LOOP((R,ANNUAL(S),T), F=0;
    LOOP(RS_BELOW1(R,S,TS)$(NOT NORTS(R,T,TS)), IF(F, RS_STG(R,TS)=ORD(TS)-Z; Z=ORD(TS); ELSE Z=ORD(TS); F=Z));
@@ -139,7 +139,7 @@ class DynsliteVda(GamsClass):  # FilenameExt
             self.tc.add_gams_code(
                 module=self,
                 phase="run",
-                code=rf""""
+                code=rf"""
 * Vintage-based cleared selectively
     RVP(RTP(R,T,P))$(NOT PRC_VINT(R,P))=YES;
     ACT_FLO(RVP(R,T,P),CG,S){tmp}=0;
@@ -226,9 +226,9 @@ class DynsliteVda(GamsClass):  # FilenameExt
             )
             # fmt: off
             tl = [
-                ( dflbl, item, data, add, reset, "FLO_FUNC", "R", "P,CG,CG2,ANNUAL",     ",'',''",    "V", "RVP(R,V,P)" ">0", "X_RPGGS",   "X_RPGGS"  )
-                ( dflbl, item, data, add, reset, "ACT_EFF",  "R", "P,CG,ANNUAL",         ",'','',''", "V", "RVP(R,V,P)" ">0", "X_RPGS",    "X_RPGS"   )
-                ( dflbl, item, data, add, reset, "ACT_FLO",  "R", "P,CG,ANNUAL",         ",'','',''", "V", "RVP(R,V,P)" ">0", "X_RPGS",    "X_RPGS"   )
+                ( dflbl, item, data, add, reset, "FLO_FUNC", "R", "P,CG,CG2,ANNUAL",     ",'',''",    "V", "RVP(R,V,P)" ">0", "X_RPGGS",   "X_RPGGS"  ),
+                ( dflbl, item, data, add, reset, "ACT_EFF",  "R", "P,CG,ANNUAL",         ",'','',''", "V", "RVP(R,V,P)" ">0", "X_RPGS",    "X_RPGS"   ),
+                ( dflbl, item, data, add, reset, "ACT_FLO",  "R", "P,CG,ANNUAL",         ",'','',''", "V", "RVP(R,V,P)" ">0", "X_RPGS",    "X_RPGS"   ),
                 ( dflbl, item, data, add, reset, "FLO_SUM",  "R", "P,CG1,C,CG2,ANNUAL",  ",''",       "V", "RVP(R,V,P)" ">0", "X_RPGCGS",  "X_RPGCGS" )
             ]
             # fmt: on
