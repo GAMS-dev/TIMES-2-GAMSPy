@@ -12,16 +12,16 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.curex_gms import CurexGms
 from core.fillparm_gms import FillparmGms
-from core.filparam_gms import FilparamGms
 from core.fillvint_gms import FillvintGms
+from core.filparam_gms import FilparamGms
+from core.mainext_mod import MainExtMod
+from core.prep_ext_stc import PrepExtStc
 from core.prepparm_gms import PrepparmGms
 from core.prepret_dsc import PrepretDsc
 from core.prepxtra_mod import PrepxtraMod
 from core.preshape_gms import PreshapeGms
-from core.curex_gms import CurexGms
-from core.mainext_mod import MainExtMod
-from core.prep_ext_stc import PrepExtStc
 
 from .base_class import GamsClass
 
@@ -63,32 +63,23 @@ class PreppmMod(GamsClass):
 
         if self.env.prep_ans.upper() == "YES":
             return
-   
-        
-        self.tc.enqueue(
-            self.exec1, 
-            dflbl=self.env.dflbl
-        )
+
+        self.tc.enqueue(self.exec1, dflbl=self.env.dflbl)
 
         if self.tc.defined("G_CUREX"):
             self.tc.enqueue(self.exec2)
-        
+
         if self.tc.defined("R_CUREX"):
             self.include(CurexGms(self.tc, self.env))
 
-        self.tc.enqueue(
-            self.exec3, 
-            dflbl=self.env.dflbl
-        )
-        
+        self.tc.enqueue(self.exec3, dflbl=self.env.dflbl)
+
         # Starting data pre-preprocessing with temporary control sets for parameters
         if not self.env.is_set("def_iebd"):
             self.env.set_scoped("def_iebd", "10")
 
-        self.tc.enqueue(
-            self.exec4, 
-        )
-            
+        self.tc.enqueue(self.exec4)
+
         if self.env.is_set("retire"):
             self.include(
                 PrepretDsc(
@@ -99,13 +90,11 @@ class PreppmMod(GamsClass):
                     arg3="RCAP_BND",
                 )
             )
-        
+
         # Use RVP for extrapolating vintaged flow parameters
         self.include(FillvintGms(self.tc, self.env))
 
-        self.tc.enqueue(
-            self.exec5, 
-        )
+        self.tc.enqueue(self.exec5)
 
         # *-----------------------------------------------------------------------------
         # *       Interpolation Options
@@ -390,7 +379,6 @@ class PreppmMod(GamsClass):
                     )
                 )
 
-
         if self.env.stages.upper() == "YES":
             self.include(PrepExtStc(self.tc, self.env))
 
@@ -406,7 +394,6 @@ class PreppmMod(GamsClass):
 
         if self.env.intext_only.upper() == "YES":
             self.include(PrepxtraMod(self.tc, self.env, arg1="XTIE"))
-
 
         # *=============================================================================
         # ***************************** SHAPE/MULTI INDEXES ****************************
@@ -442,21 +429,18 @@ class PreppmMod(GamsClass):
                 )
             )
 
-        self.tc.enqueue(
-            self.exec6, 
-            dflbl=self.env.dflbl
-        )
+        self.tc.enqueue(self.exec6, dflbl=self.env.dflbl)
 
         # * Optional weighting of vintaged attributes
         if self.env.vintopt != "1":
             return
 
         fillvints = [
-            ("FLO_FUNC",  "R", "P,CG1,CG2,TS", "X_RPGGS"),
-            ("FLO_SUM",   "R", "P,CG1,C,CG2,TS", "X_RPGCGS"),
+            ("FLO_FUNC", "R", "P,CG1,CG2,TS", "X_RPGGS"),
+            ("FLO_SUM", "R", "P,CG1,C,CG2,TS", "X_RPGCGS"),
             ("NCAP_CDME", "R", "P", "X_RP"),
             ("NCAP_CHPR", "R", "P,BD", "X_RPB"),
-            ("FLO_SHAR",  "R", "P,C,CG,TS,BD", "X_RPCGSB"),
+            ("FLO_SHAR", "R", "P,C,CG,TS,BD", "X_RPCGSB"),
         ]
 
         for arg in fillvints:
@@ -471,13 +455,9 @@ class PreppmMod(GamsClass):
                 )
             )
 
-        self.tc.enqueue(
-            self.exec7,
-        )
+        self.tc.enqueue(self.exec7)
 
-    def exec1(
-            self,
-            dflbl: str ) -> None:
+    def exec1(self, dflbl: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -510,9 +490,7 @@ R_CUREX(R,CURR,CUR)$NO=0; R_CUREX(R,CURR,CUR)$(NOT R_CUREX(R,CURR,CUR))$=G_CUREX
 """,
         )
 
-    def exec3(
-            self, 
-            dflbl: str ) -> None:
+    def exec3(self, dflbl: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -546,12 +524,11 @@ FLO_SUB(R,LL--ORD(LL),P,C,S,CUR)$((NOT FLO_SUB(R,'{dflbl}',P,C,S,CUR))$FLO_SUB(R
 """,
         )
 
-
     def exec4(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf"""
+            code=r"""
 *-----------------------------------------------------------------------------
 * Starting data pre-preprocessing with temporary control sets for parameters
 IE_DEFAULT(INT_DEFAULT) = 3;
@@ -562,14 +539,12 @@ IE_DEFAULT(INT_DEFAULT) = 3;
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf"""
+            code=r"""
 RVP(RTP(R,V,P))$PRC_VINT(R,P) = YES;
 """,
         )
 
-    def exec6(
-            self, 
-            dflbl: str ) -> None:
+    def exec6(self, dflbl: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -590,7 +565,7 @@ DATAYEAR('{dflbl}') = NO;
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf"""
+            code=r"""
 OPTION CLEAR=PASTSUM;
 """,
         )

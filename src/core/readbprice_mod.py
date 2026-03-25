@@ -59,16 +59,16 @@ $KILL DAM_TVOC
 
         if self.env.timesed.upper() != "YES":
             self.env.set_local("tmp", f"{self.env.gdxpath}{self.env.timesed}")
-        
+
             current_tmp = self.env.tmp
             if Path(f"{current_tmp}_DP.gdx").exists():
                 self.env.set_local("tmp", f"{current_tmp}_DP")
-        
+
             current_tmp = self.env.tmp
             if not Path(f"{current_tmp}.gdx").exists():
                 self.env.drop_local("tmp")
 
-        #TODO: skipped 2x $IF NOT ERRORFREE $GOTO FINISH. corect?
+        # TODO: skipped 2x $IF NOT ERRORFREE $GOTO FINISH. corect?
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -137,7 +137,7 @@ $CLEARERROR
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf"""
+            code=r"""
 OPTION DEM < COM_PROJ;
 DEM(R,C)$COM_TMAP(R,'DEM',C) = YES;
 
@@ -149,7 +149,7 @@ COM_BPRICE(R,T,C,S,CUR)$DEM(R,C) $= SOL_BPRICE(R,T,C,S,CUR);
 OPTION CLEAR=DEM;
 """,
         )
-            
+
     def exec2(self: ReadbpriceMod):
         self.tc.add_gams_code(
             module=self,
@@ -161,8 +161,8 @@ TRACKC(R,C)$DAM_BQTY(R,C) = NO;
 TRACKC(R,C)$(NOT DAM_ELAST(R,C,'N')) = NO;
 """,
         )
-            
-    def exec3(self: ReadbpriceMod):       
+
+    def exec3(self: ReadbpriceMod):
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -171,13 +171,13 @@ LOOP((R,T,C,CUR)$DAM_COST(R,T,C,CUR), TRACKC(R,C) = NO);
 """,
         )
 
-    def exec4(self: ReadbpriceMod):       
+    def exec4(self: ReadbpriceMod):
         self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code=r"""
+            module=self,
+            phase="run",
+            code=r"""
 DAM_COST(R,T,C,CUR)$TRACKC(R,C) = 1$(DAM_TVOC(R,T,C,'N')>0)+EPS;
 DAM_TQTY(R,T,C)$TRACKC(R,C) $= DAM_TVOC(R,T,C,'N');
 OPTION CLEAR=DAM_TVOC,CLEAR=TRACKC;
 """,
-            )
+        )

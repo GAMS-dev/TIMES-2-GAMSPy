@@ -53,7 +53,7 @@ class GdxfilterGms(GamsClass):
         # $ IF NOT DEFINED %1 $SET MX %1 %MX%
         # $ SHIFT GOTO MORE
         # $ LABEL PUTOUT
-        # $ echon $KILL %MX% > _dd_.dmp    
+        # $ echon $KILL %MX% > _dd_.dmp
 
     def main(self) -> None:
         self.env.set_scoped("tmp", "'")
