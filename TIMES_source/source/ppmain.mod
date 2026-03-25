@@ -202,15 +202,21 @@ display "pp_main_mod_after_filparam";
 $show
 $offlisting
 
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop
+
 *-----------------------------------------------------------------------------
 * complete timeslice declarations
 *-----------------------------------------------------------------------------
 * Include preprocessing of timeslice attributes
 $ INCLUDE timslice.mod
 
+$onlisting
+display "pp_main_mod_after_timslice";
+$show
+$offlisting
+
+$gdxUnload %COMPILE_GDX%
+execute_unload "%EXECUTE_GDX%";
+$stop
 *-----------------------------------------------------------------------------
 * Migrate PASTIs defined on Milestonyr if requested
   IF(INT_DEFAULT('PASTI'), LOOP(PYR(T(LL))$(M(T)>B(T)), VNT(LL-1,T)=YES);
