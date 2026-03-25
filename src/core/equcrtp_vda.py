@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core import prepparam_gms
+from core import prepparm_gms
 
 from .base_class import GamsClass
 
@@ -100,7 +100,7 @@ class EqucrtpVda(GamsClass):
         self.env.set_scoped("reset", 1)
 
         self.include(
-            prepparam_gms.PrepparamGms(
+            prepparm_gms.PrepparamGms(
                 tc=self.tc,
                 env=self.env,
                 arg1="PRC_DYNUC",

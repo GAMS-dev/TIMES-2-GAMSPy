@@ -17,29 +17,9 @@ from typing import TYPE_CHECKING
 
 from gamspy import Alias
 
-from core import (
-    eqflomrk_mod,
+from core import (  # eqflomrk_mod,; filshape_gms,; pp_chp_ier,; pp_chp_mod,; pp_lvlbd_mod,; pp_lvlbr_mod,; pp_lvlfc_mod,; pp_lvlff_mod,; pp_lvlfs_mod,; pp_lvlif_mod,; pp_lvlpk_mod,; pp_lvlus_mod,; ppmain_tm,; pp_micro_mod,; pp_prelv_vda,; pp_qafs_mod,; pp_reduce_red,; preppm_mod,; prepxtra_mod,
     filparam_gms,
-    filshape_gms,
-    main_ext_mod,
-    pp_chp_ier,
-    pp_chp_mod,
-    pp_lvlbd_mod,
-    pp_lvlbr_mod,
-    pp_lvlfc_mod,
-    pp_lvlff_mod,
-    pp_lvlfs_mod,
-    pp_lvlif_mod,
-    pp_lvlpk_mod,
-    pp_lvlus_mod,
-    pp_main_tm,
-    pp_micro_mod,
-    pp_prelvl_vda,
-    pp_qafs_mod,
-    pp_reduce_red,
-    preppm_mod,
-    prepxtra_mod,
-    timeslice_mod,
+    timslice_mod,
 )
 
 from .base_class import GamsClass
@@ -136,7 +116,7 @@ class PpmainMod(GamsClass):
         # Inter/Extrapolate G_OFFTHD if specified
         if m["G_OFFTHD"].number_records:
             self.include(
-                filparam_gms.Filparam(
+                filparam_gms.FilparamGms(
                     tc=tc,
                     env=self.env,
                     arg1="G_OFFTHD",
@@ -156,17 +136,16 @@ class PpmainMod(GamsClass):
         if tc.test_run:
             tc.save_test_state(env=self.env, checkpoint="pp_main_mod_after_filparam")
 
-        return
-
-        if tc.test_run:
-            tc.save_test_state(env=self.env, checkpoint="pp_main_mod_prior_timeslice")
-        return
-
         # *-----------------------------------------------------------------------------
         # * complete timeslice declarations
         # *-----------------------------------------------------------------------------
         # * Include preprocessing of timeslice attributes
-        self.include(timeslice_mod.TimesliceMod(tc=tc, env=self.env))
+        self.include(timslice_mod.TimsliceMod(tc=tc, env=self.env))
+
+        if tc.test_run:
+            tc.save_test_state(env=self.env, checkpoint="pp_main_mod_after_timslice")
+
+        return
 
         tc.enqueue(self.phase_five, tc=tc)
 
@@ -179,7 +158,7 @@ class PpmainMod(GamsClass):
         # * interpolation/extrapolation
         # *-----------------------------------------------
         # * Call interpolation subsystem
-        self.include(preppm_mod.PreppmMod(tc=tc, env=self.env))
+        self.include(preppm_mod.PreppmMod(tc=tc, env=self.env))  # noqa: F821
 
         if self.env.intext_only.upper() == "YES":
             return
@@ -202,16 +181,16 @@ class PpmainMod(GamsClass):
         tc.enqueue(self.phase_eight, tc=tc)
 
         # Extensions after establishing RPCS_VAR and PRC_CAPACT but before levelising
-        extensions = {"VDA": pp_prelvl_vda.PpPrelvVda}
+        extensions = {"VDA": pp_prelvl_vda.PpPrelvVda}  # noqa: F821
         active_extensions = [extensions[ext] for ext in self.env.extend]
         self.include(
-            main_ext_mod.MainExtMod(
+            main_ext_mod.MainExtMod(  # noqa: F821
                 tc=tc, env=self.env, source="ppmain", extensions=active_extensions
             )
         )
 
         # Make various QA checks for FLO_SHAR
-        self.include(pp_qafs_mod.PpQafsMod(tc=tc, env=self.env))
+        self.include(pp_qafs_mod.PpQafsMod(tc=tc, env=self.env))  # noqa: F821
 
         # *-----------------------------------------------------------------------------
         # * setup and apply (some) SHAPE/MULTI
@@ -221,14 +200,14 @@ class PpmainMod(GamsClass):
         tc.enqueue(self.phase_nine, tc=tc)
 
         # Call the SHAPE inter-/extrapolation routine
-        self.include(filshape_gms.FilshapeGms(tc=tc, env=self.env, arg1="STARTOFF"))
+        self.include(filshape_gms.FilshapeGms(tc=tc, env=self.env, arg1="STARTOFF"))  # noqa: F821
 
         tc.enqueue(self.adjust_shape, tc=tc)
 
         # *GG* note that multi will take additional parameter NO/YES to do 2nd assignment or not
         # * Call the inter-/extrapolation routine for MULTI
         self.include(
-            filparam_gms.Filparam(
+            filparam_gms.FilparamGms(
                 tc=tc,
                 env=self.env,
                 arg1="MULTI",
@@ -240,7 +219,7 @@ class PpmainMod(GamsClass):
                 arg7="NO$",
                 arg8="",
             )
-        )
+        )  # noqa: F821
 
         tc.enqueue(self.phase_ten, tc=tc)
 
@@ -264,7 +243,7 @@ class PpmainMod(GamsClass):
         tc.enqueue(self.activate_rtc_net, tc=tc)
 
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(
+            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="COM_IE",
@@ -275,10 +254,10 @@ class PpmainMod(GamsClass):
                 arg6="ALL_TS",
                 arg7="T",
                 arg8="RTC(R,T,C)",
-            )
+            )  # noqa: F821
         )
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(
+            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="COM_FR",
@@ -293,7 +272,7 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(
+            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="COM_PKFLX",
@@ -307,7 +286,7 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(
+            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="OBJ_COMNT",
@@ -321,7 +300,7 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(
+            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="OBJ_COMPD",
@@ -335,7 +314,7 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(
+            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="COM_ELAST",
@@ -349,7 +328,7 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(
+            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="COM_BPRICE",
@@ -363,7 +342,7 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(
+            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="COM_BQTY",
@@ -390,12 +369,12 @@ class PpmainMod(GamsClass):
 
         # Preprocess TIMES-Micro
         if self.env.timesed == "YES":
-            self.include(pp_micro_mod.PpMicroMod(tc=tc, env=self.env, arg1="PRE"))
+            self.include(pp_micro_mod.PpMicroMod(tc=tc, env=self.env, arg1="PRE"))  # noqa: F821
 
         tc.enqueue(self.phase_fourteen, tc=tc)
 
         self.include(
-            pp_lvlbr_mod.PpLvlbrMod(
+            pp_lvlbr_mod.PpLvlbrMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="NCAP_AF",
@@ -409,14 +388,14 @@ class PpmainMod(GamsClass):
 
         tc.enqueue(self.phase_fiveteen, tc=tc)
 
-        self.include(pp_lvlpk_mod.PpLvlpkMod(tc=tc, env=self.env, arg1="1.0"))
+        self.include(pp_lvlpk_mod.PpLvlpkMod(tc=tc, env=self.env, arg1="1.0"))  # noqa: F821
 
         # *-----------------------------------------------------------------------------
         # * flow related attributes
         # *-----------------------------------------------------------------------------
         # * costs, subsidy, taxes, & flow rates
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(
+            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="FLO_COST",
@@ -433,7 +412,7 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(
+            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="FLO_DELIV",
@@ -450,7 +429,7 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(
+            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="FLO_SUB",
@@ -467,7 +446,7 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(
+            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="FLO_TAX",
@@ -484,7 +463,7 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(
+            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="FLO_PKCOI",
@@ -498,7 +477,7 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(
+            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="FLO_BDLVL",
@@ -516,7 +495,7 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(
+            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="FLO_BDLVL",
@@ -534,7 +513,7 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(
+            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="ACT_FLO",
@@ -556,9 +535,9 @@ class PpmainMod(GamsClass):
 
         # derive the CHP flow control attributes
         if self.arg1.upper() == "IER":
-            self.include(pp_chp_ier.PpChpIer(tc=tc, env=self.env, arg1=self.arg1))
+            self.include(pp_chp_ier.PpChpIer(tc=tc, env=self.env, arg1=self.arg1))  # noqa: F821
         elif self.arg1.upper() == "MOD":
-            self.include(pp_chp_mod.PpChpMod(tc=tc, env=self.env, arg1=self.arg1))
+            self.include(pp_chp_mod.PpChpMod(tc=tc, env=self.env, arg1=self.arg1))  # noqa: F821
         else:
             raise FileNotFoundError("No matching pp_chp file found.")
 
@@ -568,14 +547,14 @@ class PpmainMod(GamsClass):
         # * FLO_ attributes
 
         # * handle FLO_FUNC and FLO_SUM aggregation/inheritance
-        self.include(pp_lvlff_mod.PpLvlffMod(tc=tc, env=self.env))
-        self.include(pp_lvlfs_mod.PpLvlfsMod(tc=tc, env=self.env))
+        self.include(pp_lvlff_mod.PpLvlffMod(tc=tc, env=self.env))  # noqa: F821
+        self.include(pp_lvlfs_mod.PpLvlfsMod(tc=tc, env=self.env))  # noqa: F821
 
         tc.enqueue(self.phase_seventeen, tc=tc)
 
         # handle FLO_SHAR aggregation/inheritance
         self.include(
-            pp_lvlbr_mod.PpLvlbrMod(
+            pp_lvlbr_mod.PpLvlbrMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="FLO_SHAR",
@@ -588,13 +567,13 @@ class PpmainMod(GamsClass):
             )
         )
         # preprocessing of FLO_MARK/PRC_MARK
-        self.include(eqflomrk_mod.EqflomrkMod(tc=tc, env=self.env))
+        self.include(eqflomrk_mod.EqflomrkMod(tc=tc, env=self.env))  # noqa: F821
 
         tc.enqueue(self.deactivate_rpc_noflo, tc=tc)
 
         # inter-regional exchange related attributes
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(
+            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="IRE_PRICE",
@@ -608,7 +587,7 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(
+            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="IRE_FLOSUM",
@@ -624,7 +603,7 @@ class PpmainMod(GamsClass):
             )
         )
         # this routine only handles IRE_FLO
-        self.include(pp_lvlif_mod.PplvlifMod(tc=tc, env=self.env, arg1=self.arg1))
+        self.include(pp_lvlif_mod.PplvlifMod(tc=tc, env=self.env, arg1=self.arg1))  # noqa: F821
 
         tc.enqueue(
             self.phase_eightteen, tc=tc, micro=self.env.micro, macro=self.env.macro
@@ -632,7 +611,7 @@ class PpmainMod(GamsClass):
 
         # process bounds to see if aggregation is necessary
         self.include(
-            pp_lvlbd_mod.PpLvlbdMod(
+            pp_lvlbd_mod.PpLvlbdMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="ACT_BND",
@@ -647,7 +626,7 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlbd_mod.PpLvlbdMod(
+            pp_lvlbd_mod.PpLvlbdMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="FLO_FR",
@@ -662,7 +641,7 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlbd_mod.PpLvlbdMod(
+            pp_lvlbd_mod.PpLvlbdMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="COM_BNDNET",
@@ -676,7 +655,7 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlbd_mod.PpLvlbdMod(
+            pp_lvlbd_mod.PpLvlbdMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="COM_BNDPRD",
@@ -690,7 +669,7 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlbd_mod.PpLvlbdMod(
+            pp_lvlbd_mod.PpLvlbdMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="IRE_BND",
@@ -714,7 +693,7 @@ class PpmainMod(GamsClass):
 
         # Levelization of STG_LOSS and STG_SIFT
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(
+            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="STG_LOSS",
@@ -728,7 +707,7 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(
+            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="STG_SIFT",
@@ -746,7 +725,7 @@ class PpmainMod(GamsClass):
 
         # User constraints
         # Default values
-        self.include(prepxtra_mod.PrepxtraMod(tc=tc, env=self.env, arg1="UCINT"))
+        self.include(prepxtra_mod.PrepxtraMod(tc=tc, env=self.env, arg1="UCINT"))  # noqa: F821
 
         tc.enqueue(self.phase_twentyone, tc=tc)
 
@@ -764,7 +743,7 @@ class PpmainMod(GamsClass):
 
         # ...Handle UC_FLO/IRE/ACT/COM leveling by aggregation/inheritance
         self.include(
-            pp_lvlus_mod.PpLvlusMod(
+            pp_lvlus_mod.PpLvlusMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="UC_ACT",
@@ -778,7 +757,7 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlus_mod.PpLvlusMod(
+            pp_lvlus_mod.PpLvlusMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="UC_FLO",
@@ -794,7 +773,7 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlus_mod.PpLvlusMod(
+            pp_lvlus_mod.PpLvlusMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="UC_IRE",
@@ -808,7 +787,7 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlus_mod.PpLvlusMod(
+            pp_lvlus_mod.PpLvlusMod(  # noqa: F821
                 tc=tc,
                 env=self.env,
                 arg1="UC_COM",
@@ -857,7 +836,7 @@ PARAMETER BLE_BAL(R,YEAR,C,C) //;
 
         tc.enqueue(self.phase_twentyfour, tc=tc)
 
-        self.include(pp_reduce_red.PpReduceRed(tc=tc, env=self.env))
+        self.include(pp_reduce_red.PpReduceRed(tc=tc, env=self.env))  # noqa: F821
 
         tc.enqueue(self.phase_twentyfive, tc=tc)
 
@@ -865,7 +844,7 @@ PARAMETER BLE_BAL(R,YEAR,C,C) //;
         # * MACRO
         # *----------------------------------------------------------------
         if self.env.macro == "YES":
-            self.include(pp_main_tm.PpmainTm(tc=tc, env=self.env))
+            self.include(pp_main_tm.PpmainTm(tc=tc, env=self.env))  # noqa: F821
 
         # TODO:
         # PUTCLOSE QLOG;

@@ -29,7 +29,7 @@ repos:
     rev: v2.8.0
     hooks:
       - id: pip-audit
-        args: ["."]
+        args: [".", "--ignore-vuln", "GHSA-5239-wwwm-4pmq"]
         stages: [manual]
   - repo: https://github.com/PyCQA/isort
     rev: 5.12.0

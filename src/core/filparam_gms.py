@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class Filparam(GamsClass):
+class FilparamGms(GamsClass):
     """Translation unit for filparam.gms."""
 
     # Instance attributes
