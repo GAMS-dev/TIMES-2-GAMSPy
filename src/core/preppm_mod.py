@@ -32,11 +32,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class PrepmMod(GamsClass):
-    """Translation unit for prepm.mod."""
+class PreppmMod(GamsClass):
+    """Translation unit for preppm.mod."""
 
-    module_name: str = "prepm_mod"
-    gams_source: str = "prepm.mod"
+    module_name: str = "preppm_mod"
+    gams_source: str = "preppm.mod"
 
     def __init__(
         self,
