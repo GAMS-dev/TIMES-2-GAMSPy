@@ -16,8 +16,13 @@ from core.curex_gms import CurexGms
 from core.fillparm_gms import FillparmGms
 from core.fillvint_gms import FillvintGms
 from core.filparam_gms import FilparamGms
-from core.mainext_mod import MainExtMod
+from core.prep_ext_abs import PrepExtAbs
+from core.prep_ext_dsc import PrepExtDsc
+from core.prep_ext_ier import PrepExtIer
+from core.prep_ext_mlf import PrepExtMlf
 from core.prep_ext_stc import PrepExtStc
+from core.prep_ext_tm import PrepExtTm
+from core.prep_ext_vda import PrepExtVda
 from core.prepparm_gms import PrepparmGms
 from core.prepret_dsc import PrepretDsc
 from core.prepxtra_mod import PrepxtraMod
@@ -61,7 +66,7 @@ class PreppmMod(GamsClass):
         if f"{self.env.prep_ans}{self.env.reset}".upper() == "YES15":
             self.include(PrepxtraMod(self.tc, self.env, arg1="POST"))
 
-        if self.env.prep_ans.upper() == "YES":
+        if self.env.prep_ans.upper() != "YES":
             return
 
         self.tc.enqueue(self.exec1, dflbl=self.env.dflbl)
@@ -382,13 +387,23 @@ class PreppmMod(GamsClass):
         if self.env.stages.upper() == "YES":
             self.include(PrepExtStc(self.tc, self.env))
 
-        if self.env.extend != "":
+        # $   IF NOT '%EXTEND%' == '' $BATINCLUDE main_ext.mod prep_ext %EXTEND%
+        extensions = {
+            "ABS": PrepExtAbs,
+            "DSC": PrepExtDsc,
+            "IER": PrepExtIer,
+            "MLF": PrepExtMlf,
+            "TM": PrepExtTm,
+            "STC": PrepExtStc,
+            "VDA": PrepExtVda,
+        }
+        for ext in self.env.extend.split(" "):
             self.include(
-                MainExtMod(
-                    self.tc,
-                    self.env,
-                    arg1="prep_ext",
-                    arg2=self.env.extend,
+                extensions[ext](
+                    tc=self.tc,
+                    env=self.env,
+                    arg1=ext,
+                    arg2="prep_ext",
                 )
             )
 

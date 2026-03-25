@@ -1,3 +1,4 @@
+# readbprice_mod.py
 # *++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # * Copyright (C) 2000-2023 Energy Technology Systems Analysis Programme (ETSAP)
 # * This file is part of the IEA-ETSAP TIMES model generator, licensed
@@ -50,7 +51,6 @@ PARAMETER SOL_BPRICE(R,YEAR,C,TS,CUR) //;
             module=self,
             phase="run",
             code=r"""
-$IF NOT ERRORFREE $EXIT
 $KILL DAM_TVOC
 """,
         )
@@ -125,13 +125,7 @@ $GDXIN
 
         # TODO: $clearerror, see https://git.gams.com/consulting/times-2-gamspy/-/issues/253#note_303881
         if self.env.macro.upper() != "MLF":
-            self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code=r"""
-$CLEARERROR
-""",
-            )
+            pass
 
     def exec1(self: ReadbpriceMod):
         self.tc.add_gams_code(

@@ -1,12 +1,7 @@
-# readbprice_mod.py
+# gdxfilter_gms.py
 # *++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# * Copyright (C) 2000-2023 Energy Technology Systems Analysis Programme (ETSAP)
-# * This file is part of the IEA-ETSAP TIMES model generator, licensed
-# * under the GNU General Public License v3.0 (see file NOTICE-GPLv3.txt).
+# * Copyright (C) 2023 IEA-ETSAP.  Licensed under GPLv3 (see file NOTICE-GPLv3.txt).
 # *=============================================================================*
-# * Importing sol_bprice and assigning it to parameter COM_BPRICE
-# *=============================================================================*
-
 from __future__ import annotations
 
 import logging
@@ -57,7 +52,7 @@ class GdxfilterGms(GamsClass):
 
     def main(self) -> None:
         self.env.set_scoped("tmp", "'")
-        self.env.set_scoped("mx", " ")
+        self.env.set_scoped("mx", "")
         if platform.system().upper().startswith("WIN"):
             self.env.set_scoped("tmp", '"')
 
@@ -65,14 +60,13 @@ class GdxfilterGms(GamsClass):
 
         self.tc.add_gams_code(
             module=self,
-            phase="run",
+            phase="init",
             code=rf"""
 $hiddencall gdxdump _dd_.gdx NODATA > _dd_.dmp
 $hiddencall sed {self.env.tmp}/^\(Scalar\|[^$(]*([^,]*)\|[^$].*empty *$\)/{{N;d;}}; /^\([^$]\|$\)/d; s/\$LOAD.. /\$LOADR /I{self.env.tmp} _dd_.dmp > _dd_.dd
 $INCLUDE _dd_.dd
 $GDXIN
 $hiddencall rm -f _dd_.dmp
-$EXIT
 """,
         )
 
