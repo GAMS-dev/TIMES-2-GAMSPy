@@ -46,7 +46,7 @@ class DynsliteVda(GamsClass):  # FilenameExt
                 ducyes=self.env.duc.upper() == "YES",
                 tmp=self.env.tmp,
             )
-        elif self.arg1.upper() in ["PRELEV", "CLEAR"]:
+        if self.arg1.upper() in ["PRELEV", "CLEAR"]:
             self.env.set_local("rts", "$(NORTS(R,V,S)+NORTS(R,T,S)$PASTMILE(V))")
             self.tc.enqueue(
                 self.clear_exec,
