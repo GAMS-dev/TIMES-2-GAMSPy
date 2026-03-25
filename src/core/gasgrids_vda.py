@@ -1,0 +1,365 @@
+# gasgrids_vda.py
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Copyright (C) 2000-2025 Energy Technology Systems Analysis Programme (ETSAP)
+# This file is part of the IEA-ETSAP TIMES model generator, licensed
+# under the GNU General Public License v3.0 (see file NOTICE-GPLv3.txt).
+# =============================================================================*
+# Gasgrids - define gasgrid equations
+# =============================================================================*
+from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING, Literal
+
+from .base_class import GamsClass
+
+if TYPE_CHECKING:
+    from .compile_environment import CompileEnvironment
+    from .times_model_class import TimesModelClass
+
+logger = logging.getLogger(__name__)
+
+PhaseName = Literal["INIT", "DECL", "MODEL"]
+
+
+class GasgridsVda(GamsClass):
+    """Translation unit for gasgrids.vda."""
+
+    # Instance attributes
+    module_name: str = "gasgrids_vda"
+    gams_source: str = "gasgrids.vda"
+
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment, arg1: PhaseName):
+        self.env = env.fork()
+        self.tc = tc
+        self.arg1 = arg1
+        self._sub_modules = {}
+        self.compile()
+
+    def compile(self: GasgridsVda) -> None:
+        # exit file if no records for GG_KGF
+        gg_kgf = self.tc.container["GG_KGF"]
+        if not gg_kgf.number_records:
+            return
+
+        # Manages $GOTO
+        if self.arg1 == "INIT":
+            self._init_phase()
+        elif self.arg1 == "DECL":
+            self._declaration_phase()
+        elif self.arg1 == "MODEL":
+            self._model_phase()
+        else:
+            raise ValueError("Wrong argument passed.")
+
+    def _init_phase(self: GasgridsVda) -> None:
+        self.env.set_global("gg_wn", "19")
+
+        # Internal SETs and Parameters
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=rf"""
+  SETS
+    GG_ARC(ALL_REG,C,ALL_REG,C) Undirected grid edges
+    GG_TOP(ALL_R,C,ALL_R,C,P)   Undirected grid pipeline topology
+    GG_LINK(ALL_R,P,C,ALL_R,C)  Directed grid pipeline topology
+    GG_EDGE(ALL_R,P,ALL_R)      Undirected grid pipeline topology
+    GG_WINK(ALL_R,P,C,ALL_R,C)  Alternate Weymouth topology
+    GG_RTC(R,YEAR,C)            Grid nodes by period
+    GG_RTPC(R,MILESTONYR,P,C)   Grid pipelines by period
+    GG_WTX(R,P,C)               Pipelines with Taylor expansion
+    OMG(J) /1*51/, GG_O(J) / 1*{self.env.gg_wn} /, GG_VI(J) /1,2,99/;
+
+  SCALARS GG_M1 /0/;
+  PARAMETERS
+    GG_MM(R,T,P,C)              Big-M estimates
+    GG_PPM(R,YEAR,P,C,R,C,J)    Alternate pressure points
+    GG_PPW(R,YEAR,P,C,R,C,J)    Alternate Weymouth points
+  ;
+""",
+        )
+
+        # Set global SOLMIP to True if G_PP has records
+        gg_pp = self.tc.container["GG_PP"]
+        if gg_pp.number_records:
+            self.env.set_global("solmip", "YES")
+
+        self.tc.enqueue(self.collect_gas_grid_node)
+        self.tc.enqueue(self.prepare_control_sets)
+        self.tc.enqueue(self.sync_kgf_and_klp)
+        self.tc.enqueue(self.bounds_gamma_links)
+        self.tc.enqueue(self.assign_gg, solmip=self.env.solmip)
+        self.tc.enqueue(self.autogenerate_pressure_points)
+        self.tc.enqueue(self.gamma_controls_bigM)
+
+    def collect_gas_grid_node(self: GasgridsVda):
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=r"""
+  OPTION GG_WTX < GG_PP;
+  TRACKC(R,C) $= SUM(NRG_GMAP(R,'GAS',C),GG_DENS(R,C));
+* Collect gas grid nodes according to GG_DEMS
+  LOOP(GR_GRID(J,TRACKC), GG_DENS(R,C)$((NOT GG_DENS(R,C))$GR_GRID(J,R,C)) = GG_DENS(TRACKC));
+  OPTION TRACKC < GG_DENS;
+""",
+        )
+
+    def prepare_control_sets(self: GasgridsVda):
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=r"""
+  GG_RTC(RC_GRID(R,T,C)) $= TRACKC(R,C);
+  TRACKP(RP_IRE(R,P))$SUM(TRACKC(R,C)$GR_FLOW(R,P,C),1) = YES;
+  GG_RTPC(RTP(R,T,P),C)$(GG_RTC(R,T,C)$GR_FLOW(R,P,C)) = YES;
+  GG_ARC(GR_ARC(TRACKC(R,C),RC))=YES;
+  GG_TOP(TOP_IRE(TRACKC(R,C),RC,P))$TRACKP(R,P) = YES;
+  OPTION GG_LINK <= GG_TOP, CLEAR=GG_TOP, GG_EDGE <= GG_LINK;
+  GG_TOP(GR_TOP(TRACKC(R,C),RC,P)) = YES;
+""",
+        )
+
+    def sync_kgf_and_klp(self: GasgridsVda):
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=r"""
+  LOOP(GG_TOP(R,C,REG,COM,P),
+    GG_KGF(R,T,P,C)$((NOT GG_KGF(R,T,P,C))$GG_KGF(REG,T,P,COM)) = GG_KGF(REG,T,P,COM);
+    GG_KGF(REG,T,P,COM)$((NOT GG_KGF(REG,T,P,COM))$GG_KGF(R,T,P,C)) = GG_KGF(R,T,P,C);
+    GG_KLP(R,T,P,C)$((NOT GG_KLP(R,T,P,C))$GG_KLP(REG,T,P,COM)) = GG_KLP(REG,T,P,COM);
+    GG_KLP(R,T,P,COM2(ACTCG))$(NOT GG_KLP(R,T,P,COM2)) = GG_KLP(REG,T,P,COM2);
+    GG_KLP(REG,T,P,COM) = 0; IF(NOT SAMEAS(R,REG),GG_KLP(REG,T,P,COM2) = 0));
+""",
+        )
+
+    def bounds_gamma_links(self: GasgridsVda):
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=r"""
+* Try ensuring all nodes have pressure bounds
+  GG_PRBD(GG_RTC(RTC),BD('UP'))$(GG_PRBD(RTC,BD)<GG_PRBD(RTC,'LO')) $= GG_PRBD(RTC,'LO');
+  GG_PRBD(GG_RTC(RTC),BD('LO'))$(GG_PRBD(RTC,BD)>GG_PRBD(RTC,'UP')) $= GG_PRBD(RTC,'UP');
+* Default for Gamma
+  GG_GAMMA(GG_RTPC(R,T,P,C))$(NOT RPC_IRE(R,P,C,'EXP')) = 1;
+  GG_GAMMA(GG_RTPC(R,T,P,C))$(GG_GAMMA(R,T,P,C)<1+1/128) = 1;
+* Get bidirectional links
+  LOOP(GG_LINK(R,P,C,REG,COM)$GG_LINK(REG,P,COM,R,C),TRACKPC(R,P,C)=YES);
+       """,
+        )
+
+    def assign_gg(self: GasgridsVda, solmip: str):
+        if solmip.upper() == "YES":
+            code_block = "GG_M1 = 1;"
+        else:
+            code_block = "GG_WTX(TRACKPC) = NO;"
+        self.tc.add_gams_code(module=self, phase="run", code=code_block)
+
+    def autogenerate_pressure_points(self: GasgridsVda):
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=r"""
+* Autogenerate pressure points when needed
+  GG_WTX(TRACKPC(R,P,C))$SUM(GG_LINK(R,P,C,REG,COM)$GG_WTX(REG,P,COM),1)=YES;
+  LOOP((GG_RTPC(R,T,P,C),GG_LINK(R,P,C,REG,COM)),
+    CNT=ROUND(MAX(0,GG_PP(R,'0',P,C,'N','1'),GG_PP(REG,'0',P,COM,'N','1')));
+    F=Z; DFUNC=GG_WTX(R,P,C)$CNT;
+    IF(DFUNC->CNT, CNT=MIN(50,CNT);
+      F = GG_PRBD(R,T,C,'UP')*MAX(1,GG_GAMMA(R,T,P,C));
+      Z = MAX(F*.1,GG_PRBD(REG,T,COM,'LO')));
+    IF(F>Z,
+      IF(DFUNC,IF(CNT<9, MY_F=1.25; ELSE MY_F=((1-Z/F)/0.001)**(1/CNT)); CNT=CEIL(LOG((1-Z/F)/0.001)/LOG(MY_F)-.001)+1;
+         GG_PP(R,T,P,C,'UP',OMG(J))$(ORD(J)<=CNT) = F;
+         GG_PP(REG,T,P,COM,'LO',OMG(J))$(ORD(J)<=CNT) = F*(1-.001*POWER(MY_F,ORD(J)-1));
+      ELSE CNT=CARD(GG_O); MY_F=1.283; DFUNC=.233; DONE=(1-Z/F)*DFUNC/(CNT/2*(CNT-1));
+         CNT=CNT-1+GG_M1/2; Z=(1-Z/F)*(1-DFUNC)/(MY_F**CNT);
+         GG_PPM(R,T,P,C,REG,COM,GG_O(J)) = F*(1-Z*POWER(MY_F,ORD(J)-1)-ORD(J)/2*(ORD(J)-1)*DONE))));
+  GG_PP(R,LL,P,C,'N',OMG) = 0; OPTION GG_WTX < GG_PP, OMG < GG_PP;
+  GG_PPM(GG_RTPC(R,T,P,C),R,C,GG_O(J))$(NOT GG_WTX(R,P,C)) = GG_PRBD(R,T,C,'UP')*MAX(1,GG_GAMMA(R,T,P,C));
+  GG_PPW(GG_RTPC(R,T,P,C),RC,GG_O(J))$((NOT GG_WTX(R,P,C))$GG_PPM(R,T,P,C,RC,J)) = SQRT(POWER(GG_PPM(R,T,P,C,R,C,J),2)-POWER(GG_PPM(R,T,P,C,RC,J),2));
+""",
+        )
+
+    def gamma_controls_bigM(self: GasgridsVda):
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=r"""
+* Reset GAMMA for non-compressor links (no bidirectional reset)
+  GG_GAMMA(GG_RTPC(R,T,P,C))$(GG_GAMMA(R,T,P,C)<1+1/128) = 0;
+* Finalise some controls
+  GG_RTPC(R,T,P,C)$(NOT GG_KGF(R,T,P,C)) = NO;
+  GG_KLP(RTPC(R,T,P,C))$(NOT GG_RTPC(RTPC)) = 0;
+  LOOP(GG_LINK(GG_WTX(R,P,C),REG,COM),GG_PP(R,T,P,C,'UP',OMG)$(GG_PP(R,T,P,C,'UP',OMG)<=GG_PP(REG,T,P,COM,'LO',OMG))=0);
+  IRE_FLOSUM(GG_RTPC(R,T,P,C),ANNUAL,IE,C,'IN')$(NOT RPC_IRE(R,P,C,IE)) $= RPC_IRE(R,P,C,'IMP');
+  GG_WINK(GG_LINK(R,P,C,RC))$(NOT GG_WTX(R,P,C)) = YES;
+* Estimates for Big-M
+  GG_MM(GG_RTPC(R,T,P,C)) = MAX(60,GG_PRBD(R,T,C,'UP'))*MAX(1,GG_GAMMA(R,T,P,C))*GG_KGF(R,T,P,C);
+  GG_PPW(GG_RTPC(R,T,P,C),R,C,'1')$GG_WTX(R,P,C) = SUM(OMG$GG_PP(R,T,P,C,'UP',OMG),1);
+  GG_KGF(GG_RTPC)$(NOT SUM((RC,J)$GG_PPW(GG_RTPC,RC,J),1)) = 0;
+  OPTION CLEAR=TRACKC, CLEAR=TRACKPC, CLEAR=TRACKP;
+""",
+        )
+
+    def _declaration_phase(self: GasgridsVda) -> None:
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=r"""
+POSITIVE VARIABLES
+    VAR_GG_PR(R,T,C,S)            Nodal pressures
+    VAR_GG_MF(R,T,P,C,R,C,S)      Mass flows of gases
+    VAR_GG_PDIF(R,T,P,C,R,C,S)    Pressure differences over pipeline
+    VAR_GG_PADD(R,T,P,C,S)        Pressure boost due to compressor at input node
+    VAR_GG_STEP(R,T,P,C,S,J)      Alternate step variables
+  ;
+""",
+        )
+        var_type = "BINARY" if self.env.solmip.upper() == "YES" else "POSITIVE"
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=rf"""
+{var_type} VARIABLES VAR_GG_Y(R,T,P,C,S);
+""",
+        )
+        self.tc.enqueue(self.delete_eq_ire)
+        self.tc.enqueue(self.bounds_for_pressure_and_linepack, pgprim=self.env.pgprim)
+        self.tc.enqueue(self.fix_reserve_pressure_difference)
+        self.equations()
+
+    def delete_eq_ire(self: GasgridsVda):
+        """Delete EQ_IRE for all with gg_klp defined"""
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=r"""
+  OPTION TRACKPC < GG_KLP;
+  TRACKPC(R,P,C)$(NOT GR_FLOW(R,P,C)) = NO
+  LOOP(GG_LINK(TRACKPC(R,P,C),REG,COM),RPC_EQIRE(REG,P,COM,IE) = NO);
+""",
+        )
+
+    def bounds_for_pressure_and_linepack(self: GasgridsVda, pgprim: str):
+        """Bounds for pressures and linepack"""
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=rf"""
+  LOOP(GG_TOP(R,C,REG,COM,P),
+    VAR_GG_PR.LO(GG_RTC(R,T,C),S)$PRC_TS(R,P,S) = GG_PRBD(R,T,C,'LO');
+    VAR_GG_PR.UP(GG_RTC(R,T,C),S)$PRC_TS(R,P,S) = GG_PRBD(R,T,C,'UP');
+    VAR_GG_PR.LO(RTC(REG,T,COM),S)$PRC_TS(R,P,S) = GG_PRBD(RTC,'LO');
+    VAR_GG_PR.UP(RTC(REG,T,COM),S)$PRC_TS(R,P,S) = GG_PRBD(RTC,'UP'));
+  VAR_GG_PADD.LO(RTP(r,t,p),COM({pgprim}),S)$(PRC_TS(R,P,S)$GG_KLP(r,t,p,COM)) =
+    SUM(RPC_IRE(TRACKPC(R,P,C),'EXP'),MIN((GG_PRBD(R,T,C,'UP')*MAX(1,GG_GAMMA(R,T,P,C))+GG_PRBD(R,T,C,'LO'))/2*GG_KLP(R,T,P,C),GG_KLP(r,t,p,COM)) * GG_DENS(R,C) * RS_STGPRD(R,S));
+""",
+        )
+
+    def fix_reserve_pressure_difference(self: GasgridsVda):
+        """Fix reverse pressure difference to zero for unidirectional case"""
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=r"""
+  VAR_GG_PDIF.FX(GG_RTPC(REG,T,P,COM),R,C,S)$((NOT GG_LINK(REG,P,COM,R,C))$GG_LINK(R,P,C,REG,COM)$PRC_TS(REG,P,S)) = 0;
+  VAR_GG_STEP.UP(RTPCS_VARF(GG_RTPC(R,T,P,C),S),GG_O)$SUM(GG_LINK(R,P,C,RC)$GG_PPW(R,T,P,C,RC,GG_O),1) = EXP(1);
+  VAR_GG_Y.UP(RTPCS_VARF(GG_RTPC,S)) = 1;
+  OPTION CLEAR=TRACKPC;
+""",
+        )
+
+    def equations(self: GasgridsVda):
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=r"""
+EQUATIONS
+    EQ_GG_GAMA(R,T,P,C,R,C,TS)     'Maximum pressure increase due to compressor'
+    EQ_GG_MFLO(R,T,P,C,R,C,TS)     'Standard IRE flows to mass flows (2-way)'
+    EQ_GG_MBND(R,T,P,C,R,C,L,TS)   'Mass flow bound by pressure difference (2-way)'
+    EQ_GG_HLIP(R,T,P,C,R,C,TS)     'Linepack storage balance (1-way)'
+    EQ_GG_HLEV(R,T,P,C,R,C,TS)     'Linepack as a funtion of average pressure (1-way)'
+    EQ_GG_STEP(R,T,P,C,R,C,TS)     'Stepped linearization (1-way)'
+    EQ_GG_PRIO(R,T,P,C,R,C,L,TS)   'Pressures at input and output node (2-way)'
+    EQ_GG_PDIF1(R,T,P,C,R,C,J,TS)  'Maximum pressure differences (2-way)'
+    EQ_GG_PDIF2(R,T,P,C,R,C,TS)    'Unsigned pressure differences'
+    EQ_GG_WEYMST(R,T,P,C,R,C,L,TS) 'Weymouth stepped linearization (2-way)'
+    EQ_GG_WEYMTX(R,T,P,C,R,C,S,J)  'Weymouth Taylor expansion formulation (2-way)'
+  ;
+""",
+        )
+
+    def _model_phase(self: GasgridsVda) -> None:
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=rf"""
+$ MACRO VAR_GG_PRU(r,t,p,c,s) sum(actcg(com2),VAR_GG_PDIF(r,t,p,c,r,com2,s))
+$ MACRO VAR_GG_Y2(r,t,p,c,reg,com,s) (VAR_GG_Y(R,T,P,C,S)$GG_TOP(R,C,REG,COM,P)+(1-VAR_GG_Y(REG,T,P,COM,S))$GG_TOP(REG,COM,R,C,P))
+$ MACRO VAR_GG_PRIO(r,t,p,c,s) (VAR_GG_PR(r,t,c,s)+VAR_GG_PADD(r,t,p,c,s)$GG_GAMMA(r,t,p,c))
+$ MACRO VAR_GG_HLIP(r,t,p,s) VAR_GG_PADD(r,t,p,{self.env.pgprim},s)
+$ MACRO VAR_GG_WSLAC(r,t,p,c,reg,com,s) sum(com2(actcg)$GG_KGF(r,t,p,c),var_gg_pdif(r,t,p,com2,r,c,s)+8/11*var_gg_pdif(reg,t,p,com2,reg,com,s)$gg_wink(reg,p,com,r,c)$(GG_M1->0))
+* Max pr-diffs in LP vs. MIP CASE
+$ MACRO VAR_GG_PDMAX(r,t,p,c,reg,com,ts,z) MAX(POWER(GG_PRBD(R,T,C,'UP')*max(1,GG_GAMMA(r,t,p,c)),Z)-POWER(GG_PRBD(REG,T,COM,'LO'),Z),0))*((VAR_GG_Y(r,t,p,c,ts)$GG_TOP(r,c,reg,com,p) + (1-VAR_GG_Y(reg,t,p,com,ts))$GG_TOP(reg,com,r,c,p))
+
+* Gas grid equation formulations
+    EQ_GG_MFLO(GG_RTPC({self.env.r_t},P,C),RC(REG,COM1),RTS(S))$(PRC_TS(R,P,S)$GG_LINK(R,P,C,RC))..
+      VAR_GG_MF(r,t,p,C,RC,S) * GG_DENS(r,c) * G_YRFR(r,S)*8760  =E=
+      SUM(TOP_IRE(R,COM,REG,COM2,P)$(GG_EDGE(R,P,R)->((RPC_PG(R,P,COM2) XOR RPC_PG(R,P,C)) OR COM_GMAP(R,C,COM)$COM_GMAP(RC,COM2))),
+        SUM(RTP_VINTYR(R,V,T,P),(VAR_IRE(R,V,T,P,COM,S,'EXP')$(NOT RPC_AIRE(R,P,COM))+VAR_ACT(R,V,T,P,S)*PRC_ACTFLO(R,V,P,COM)$RPC_AIRE(R,P,COM))/2) +
+        SUM(RTP_VINTYR(REG,V,T,P),(VAR_IRE(REG,V,T,P,COM2,S,'IMP')$(NOT RPC_AIRE(REG,P,COM2))+VAR_ACT(REG,V,T,P,S)*PRC_ACTFLO(REG,V,P,COM2)$RPC_AIRE(REG,P,COM2))/2))
+    ;
+    EQ_GG_GAMA(GG_RTPC({self.env.r_t},P,C),REG,COM,RTS(S))$(PRC_TS(R,P,S)$GG_LINK(R,P,C,REG,COM)$GG_GAMMA(R,T,P,C))..
+      VAR_GG_PADD(R,T,P,C,S) =L= (GG_GAMMA(R,T,P,C)-1) * VAR_GG_PR(R,T,C,S)
+    ;
+    EQ_GG_MBND(GG_RTPC({self.env.r_t},P,C),RC(REG,COM),LNX(L),RTS(S))$(PRC_TS(R,P,S)$(GG_LINK(REG,P,COM,R,C)$BD(L)+IPS(L)$(GG_M1->GG_WTX(R,P,C)))$GG_LINK(R,P,C,RC))..
+      VAR_GG_MF(R,T,P,C,REG,COM,S) + VAR_GG_WSLAC(R,T,P,C,REG,COM,S)$GG_WINK(REG,P,COM,R,C) =L=
+      ((GG_MM(R,T,P,C) * (VAR_GG_PRIO(R,T,P,C,S) - VAR_GG_PRIO(REG,T,P,COM,S) + VAR_GG_PDIF(REG,T,P,COM,R,C,S)$GG_LINK(REG,P,COM,R,C)))$GG_TOP(R,C,RC,P) +
+       (GG_MM(R,T,P,C) * VAR_GG_PDIF(R,T,P,C,REG,COM,S))$GG_TOP(RC,R,C,P))$IPS(L) +
+      (GG_KGF(r,t,p,c) * SQRT(VAR_GG_PDMAX(R,T,P,C,REG,COM,S,2)))$BD(L)
+    ;
+    EQ_GG_WEYMTX(GG_RTPC({self.env.r_t},P,C),REG,COM,RTS(S),OMG)$(GG_PP(R,T,P,C,'UP',OMG)$PRC_TS(R,P,S)$GG_LINK(R,P,C,REG,COM)$GG_WTX(R,P,C))..
+      VAR_GG_MF(r,t,p,c,reg,com,S)
+      =L=
+      GG_KGF(r,t,p,c) * (GG_PP(r,t,P,c,'UP',omg)    /SQRT(POWER(GG_PP(r,t,P,c,'UP',omg),2)-POWER(GG_PP(reg,t,p,com,'LO',omg),2)) * VAR_GG_PRIO(r,t,p,c,s) -
+                         GG_PP(REG,t,P,COM,'LO',omg)/SQRT(POWER(GG_PP(r,t,P,c,'UP',omg),2)-POWER(GG_PP(reg,t,p,com,'LO',omg),2)) * (VAR_GG_PRIO(reg,t,p,com,s) - VAR_GG_PDIF(reg,t,p,com,r,c,s)$GG_LINK(reg,p,com,r,c)))
+    ;
+    EQ_GG_HLIP(GG_RTPC({self.env.r_t},P,C),REG,COM,RTS(S))$(PRC_TS(R,P,S)$GG_KLP(r,t,p,c)$GG_LINK(R,P,C,REG,COM)$GG_ARC(R,C,REG,COM))..
+      VAR_GG_HLIP(R,T,P,S)  =E=  VAR_GG_HLIP(R,T,P,S--RS_STG(R,S)) +
+      SUM((RTP_VINTYR(R,V,T,P),RPC_IRE(R,P,C,IE)),(VAR_IRE(R,V,T,P,C,S,IE)$(NOT RPC_AIRE(R,P,C))+VAR_ACT(R,V,T,P,S)*PRC_ACTFLO(R,V,P,C)$RPC_AIRE(R,P,C))*(2$XPT(IE)-1)) +
+      SUM((RTP_VINTYR(REG,V,T,P),RPC_IRE(REG,P,COM,IE)),(VAR_IRE(REG,V,T,P,COM,S,IE)$(NOT RPC_AIRE(REG,P,COM))+VAR_ACT(REG,V,T,P,S)*PRC_ACTFLO(REG,V,P,COM)$RPC_AIRE(REG,P,COM))*(2$XPT(IE)-1))
+    ;
+    EQ_GG_HLEV(GG_RTPC({self.env.r_t},P,C),REG,COM,RTS(S))$(PRC_TS(R,P,S)$GG_LINK(R,P,C,REG,COM)$GG_ARC(R,C,REG,COM))..
+      VAR_GG_HLIP(R,T,P,S)  =E= GG_KLP(R,T,P,C) * GG_DENS(R,C) * RS_STGPRD(R,S) * (VAR_GG_PRIO(R,T,P,C,S) + VAR_GG_PRIO(REG,T,P,COM,S))/2
+    ;
+    EQ_GG_PDIF1(GG_RTPC({self.env.r_t},P,C),RC(REG,COM),GG_VI(J),RTS(S))$((NOT GG_WTX(R,P,C)$GG_O(J))$GG_LINK(REG,P,COM,R,C)$PRC_TS(R,P,S)$GG_LINK(R,P,C,RC))..
+      (VAR_GG_PDIF(R,T,P,C,REG,COM,S) - (VAR_GG_PDMAX(R,T,P,C,REG,COM,S,1)))$(NOT GG_O(J)) +
+      SUM(GG_O(J)$(ORD(J)=1),VAR_GG_PRU(R,T,P,C,S) - GG_PRBD(R,T,C,'UP')*VAR_GG_Y2(R,T,P,C,REG,COM,S)) +
+      SUM(GG_O(J)$(ORD(J)=2),VAR_GG_PRU(R,T,P,C,S) - (VAR_GG_PRIO(R,T,P,C,S)-GG_PRBD(R,T,C,'LO')*(1-VAR_GG_Y2(R,T,P,C,REG,COM,S))))
+      =L= 0
+    ;
+    EQ_GG_PDIF2(GG_RTPC({self.env.r_t},P,C),REG,COM,RTS(S))$(GG_LINK(REG,P,COM,R,C)$PRC_TS(R,P,S)$GG_TOP(R,C,REG,COM,P))..
+      VAR_GG_PDIF(REG,T,P,COM,R,C,S) =E= VAR_GG_PRIO(REG,T,P,COM,S) - VAR_GG_PRIO(R,T,P,C,S) + VAR_GG_PDIF(R,T,P,C,REG,COM,S)
+    ;
+    EQ_GG_STEP(GG_RTPC({self.env.r_t},P,C),RC(REG,COM),RTS(S))$((GG_M1->0)$PRC_TS(R,P,S)$GG_WINK(REG,P,COM,R,C)$GG_WINK(R,P,C,RC)$GG_ARC(R,C,RC))..
+      SUM((J)$GG_PPW(r,t,p,c,RC,j),VAR_GG_STEP(r,t,p,c,s,j)) + SUM((J)$GG_PPW(reg,t,p,com,r,c,j),VAR_GG_STEP(reg,t,p,com,s,j))
+      =L= 1
+    ;
+    EQ_GG_PRIO(GG_RTPC({self.env.r_t},P,C),RC(REG,COM),LNX(L),RTS(S))$(PRC_TS(R,P,S)$GG_WINK(R,P,C,RC)$GG_ARC(R,C,RC))..
+      (VAR_GG_PRU(R,T,P,C,S) + VAR_GG_PRU(REG,T,P,COM,S) - VAR_GG_PDIF(REG,T,P,COM,R,C,S)$IPS(L) - VAR_GG_PDIF(R,T,P,C,REG,COM,S)$BD(L))
+      =E= VAR_GG_PRIO(R,T,P,C,S)$IPS(L) + VAR_GG_PRIO(REG,T,P,COM,S)$BD(L) - VAR_GG_PDIF(R,T,P,C,R,C,S)
+    ;
+    EQ_GG_WEYMST(GG_RTPC({self.env.r_t},P,C),RC(REG,COM),BD(L),RTS(S))$(PRC_TS(R,P,S)$GG_WINK(R,P,C,RC))..
+      (VAR_GG_MF(R,T,P,C,REG,COM,S) + VAR_GG_WSLAC(R,T,P,C,REG,COM,S))$LNX(L) + (VAR_GG_PDIF(R,T,P,C,REG,COM,S)$BDLOX(BD) + VAR_GG_PRU(R,T,P,C,S)$BDUPX(BD))$BDNEQ(BD)
+      =E=
+      (GG_KGF(R,T,P,C)*SUM((J)$GG_PPW(R,T,P,C,RC,J),VAR_GG_STEP(R,T,P,C,S,J)*GG_PPW(R,T,P,C,RC,J)))$LNX(L) +
+      (SUM((J)$GG_PPW(R,T,P,C,RC,J),VAR_GG_STEP(R,T,P,C,S,J)*(GG_PPM(r,t,p,c,r,c,j)-GG_PPM(r,t,p,c,RC,j)))$BDLOX(BD) +
+       SUM((J)$GG_PPW(R,T,P,C,RC,J),VAR_GG_STEP(R,T,P,C,S,J)*GG_PPM(r,t,p,c,r,c,j))$BDUPX(BD))$BDNEQ(BD)
+    ;
+""",
+        )
