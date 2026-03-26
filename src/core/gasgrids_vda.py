@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-PhaseName = Literal["INIT", "DECL", "MODEL"]
+PhaseName = Literal["", "DECL", "MODEL"]
 
 
 class GasgridsVda(GamsClass):
@@ -43,7 +43,7 @@ class GasgridsVda(GamsClass):
             return
 
         # Manages $GOTO
-        if self.arg1 == "INIT":
+        if self.arg1 == "":
             self._init_phase()
         elif self.arg1 == "DECL":
             self._declaration_phase()
