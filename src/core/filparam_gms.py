@@ -16,6 +16,7 @@
 # *      %9 - Default interpolation option
 # *******************************************************************************
 
+from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
@@ -38,8 +39,8 @@ class FilparamGms(GamsClass):
 
     def __init__(
         self,
-        tc: "TimesModelClass",
-        env: "CompileEnvironment",
+        tc: TimesModelClass,
+        env: CompileEnvironment,
         arg1: str = "",
         arg2: str = "",
         arg3: str = "",
@@ -52,6 +53,8 @@ class FilparamGms(GamsClass):
         arg10: str = "",
     ):
         self.env = env.fork()
+        self._sub_modules = {}
+        self.tc = tc
         self.arg1 = arg1
         self.arg2 = arg2
         self.arg3 = arg3
@@ -62,10 +65,9 @@ class FilparamGms(GamsClass):
         self.arg8 = arg8
         self.arg9 = arg9
         self.arg10 = arg10
-        self._sub_modules = {}
-        self.compile(tc)
+        self.compile()
 
-    def compile(self, tc: "TimesModelClass") -> None:
+    def compile(self) -> None:
         self.env.set_local("src", self.arg1)
         self.env.set_local("tail1", self.arg3)
         self.env.set_local("tail2", f",{self.arg3}")
@@ -74,79 +76,146 @@ class FilparamGms(GamsClass):
             self.env.set_local("tail1", "''")
             self.env.set_local("tail2", "")
 
-        tc.enqueue(
+        self.tc.enqueue(
             self.assign_uncd7,
-            tc=tc,
+            arg2=self.arg2,
+            arg4=self.arg4,
+            arg5=self.arg5,
+            arg10=self.arg10,
             tail1=self.env.tail1,
             tail2=self.env.tail2,
             src=self.env.src,
         )
-        tc.enqueue(
+        self.tc.enqueue(
             self.assign_dfunc,
-            tc=tc,
+            arg2=self.arg2,
+            arg4=self.arg4,
+            arg5=self.arg5,
+            arg9=self.arg9,
+            arg10=self.arg10,
             tail1=self.env.tail1,
             tail2=self.env.tail2,
             src=self.env.src,
+            dflbl=self.env.dflbl,
         )
-        tc.enqueue(self.interpolate, tc=tc, tail2=self.env.tail2)
-        tc.enqueue(self.extrapolate, tc=tc, tail2=self.env.tail2)
+        self.tc.enqueue(
+            self.interpolate,
+            arg1=self.arg1,
+            arg2=self.arg2,
+            arg5=self.arg5,
+            arg6=self.arg6,
+            tail2=self.env.tail2,
+        )
+        self.tc.enqueue(
+            self.extrapolate,
+            arg1=self.arg1,
+            arg2=self.arg2,
+            arg6=self.arg6,
+            arg7=self.arg7,
+            arg8=self.arg8,
+            tail2=self.env.tail2,
+        )
 
-    def assign_uncd7(self, tc, tail1, tail2, src):
-        if self.arg10 == "":
-            code_block = f"IF(YES, OPTION CLEAR = UNCD7; LOOP(({self.arg2}{self.arg5}{tail2})${src}({self.arg2}{self.arg5}{tail2}), UNCD7({self.arg2}{tail1}{self.arg4}) = YES));"
+    def assign_uncd7(
+        self: FilparamGms,
+        arg2: str,
+        arg4: str,
+        arg5: str,
+        arg10: str,
+        tail1: str,
+        tail2: str,
+        src: str,
+    ):
+        if arg10 == "":
+            code_block = (
+                f"IF(YES, OPTION CLEAR = UNCD7; "
+                f"LOOP(({arg2}{arg5}{tail2})${src}({arg2}{arg5}{tail2}), "
+                f"UNCD7({arg2}{tail1}{arg4}) = YES));"
+            )
         else:
-            code_block = f"IF(YES, OPTION CLEAR = UNCD7; UNCD7({self.arg2}LL--ORD(LL),{tail1}{self.arg4})${src}({self.arg2}LL{tail2}) = YES);"
+            code_block = (
+                f"IF(YES, OPTION CLEAR = UNCD7; "
+                f"UNCD7({arg2}LL--ORD(LL),{tail1}{arg4})${src}({arg2}LL{tail2}) = YES);"
+            )
 
-        tc.add_gams_code(module=self, phase="run", code=code_block)
+        self.tc.add_gams_code(module=self, phase="run", code=code_block)
 
-    def assign_dfunc(self, tc, tail1, tail2, src, dflbl):
-        tc.add_gams_code(
+    def assign_dfunc(
+        self: FilparamGms,
+        arg2: str,
+        arg4: str,
+        arg5: str,
+        arg9: str,
+        arg10: str,
+        tail1: str,
+        tail2: str,
+        src: str,
+        dflbl: str,
+    ):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"""
- LOOP(UNCD7({self.arg2}{self.arg10}{tail1}{self.arg4}), F=0; Z=INF; MY_FYEAR=9999;
-   DFUNC = ROUND({src}({self.arg2}'{dflbl}'{tail2}));
+ LOOP(UNCD7({arg2}{arg10}{tail1}{arg4}), F=0; Z=INF; MY_FYEAR=9999;
+   DFUNC = ROUND({src}({arg2}'{dflbl}'{tail2}));
 """,
         )
-        if not self.arg9 == "":
-            tc.add_gams_code(
-                module=self, phase="run", code=f"IF(NOT DFUNC, DFUNC = {self.arg9});"
+        if arg9 != "":
+            self.tc.add_gams_code(
+                module=self,
+                phase="run",
+                code=f"IF(NOT DFUNC, DFUNC = {arg9});",
             )
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"""
    IF(DFUNC GE 0,
-    MY_ARRAY({self.arg5}) = {src}({self.arg2}{self.arg5}{tail2}); MY_ARRAY('{dflbl}')=0;
+    MY_ARRAY({arg5}) = {src}({arg2}{arg5}{tail2}); MY_ARRAY('{dflbl}')=0;
 """,
         )
 
-    def interpolate(self, tc, tail2):
-        tc.add_gams_code(
+    def interpolate(
+        self: FilparamGms,
+        arg1: str,
+        arg2: str,
+        arg5: str,
+        arg6: str,
+        tail2: str,
+    ):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"""
 $ EOLCOM !
-    LOOP({self.arg5}$MY_ARRAY({self.arg5}),              ! check for nonzero (including EPS)
-	  MY_F = MY_ARRAY({self.arg5}); Z = YEARVAL({self.arg5});
+    LOOP({arg5}$MY_ARRAY({arg5}),              ! check for nonzero (including EPS)
+	  MY_F = MY_ARRAY({arg5}); Z = YEARVAL({arg5});
 	  IF(Z > MY_FYEAR+1,               ! linear interpolation
-	     {self.arg1}({self.arg2}{self.arg6}{tail2})$((Z GT YEARVAL({self.arg6}))$(YEARVAL({self.arg6}) GT MY_FYEAR))
-			= LAST_VAL + (MY_F-LAST_VAL)/(Z-MY_FYEAR)*(YEARVAL({self.arg6})-MY_FYEAR); ! not the first one
+	     {arg1}({arg2}{arg6}{tail2})$((Z GT YEARVAL({arg6}))$(YEARVAL({arg6}) GT MY_FYEAR))
+			= LAST_VAL + (MY_F-LAST_VAL)/(Z-MY_FYEAR)*(YEARVAL({arg6})-MY_FYEAR); ! not the first one
 	  ELSEIF Z LT MY_FYEAR, F=Z; FIRST_VAL = MY_F);
 	  LAST_VAL = MY_F; MY_FYEAR=Z);    ! remember the value and year
 """,
         )
 
-    def extrapolate(self, tc, tail2):
-        tc.add_gams_code(
+    def extrapolate(
+        self: FilparamGms,
+        arg1: str,
+        arg2: str,
+        arg6: str,
+        arg7: str,
+        arg8: str,
+        tail2: str,
+    ):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"""
     IF(DFUNC GT 1, DFUNC=MOD(DFUNC,10);
       IF(DFUNC EQ 2, FIRST_VAL=EPS; LAST_VAL=EPS; ELSEIF DFUNC EQ 4, Z=INF; ELSEIF DFUNC EQ 5, F=0));
     IF(DFUNC NE 1,
-      {self.arg1}({self.arg2}{self.arg6}{tail2}) $= FIRST_VAL$({self.arg7}(YEARVAL({self.arg6}) LT F)) + LAST_VAL$({self.arg8}(YEARVAL({self.arg6}) GT Z));
+      {arg1}({arg2}{arg6}{tail2}) $= FIRST_VAL$({arg7}(YEARVAL({arg6}) LT F)) + LAST_VAL$({arg8}(YEARVAL({arg6}) GT Z));
     ));
   );
 """,
