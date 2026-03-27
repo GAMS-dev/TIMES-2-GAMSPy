@@ -58,7 +58,7 @@ class TemplateMod(GamsClass):  # FilenameExt
         self.tc.add_gams_code(
             module=self,
             phase="init",
-            code=rf""""
+            code=rf"""
 PARAMETER {self.arg3} //;
 """,
         )
@@ -103,7 +103,7 @@ PARAMETER {self.arg3} //;
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf""""
+            code=rf"""
   FLO_FUNCX(R,LL,P,C,CG)$(NOT PRC_VINT(R,P)) = {"0" if waver else "1"};
 """,
         )
