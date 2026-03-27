@@ -58,6 +58,7 @@ class InitsysMod(GamsClass):
             module=self,
             phase=phase,
             code="""
+$ PHANTOM EMPTY
 $ ONEMPTY
 $ ONMULTI
 """,

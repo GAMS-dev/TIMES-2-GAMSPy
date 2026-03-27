@@ -103,38 +103,11 @@ class PrepretDsc(GamsClass):
             # Interpolate RCAP_BND
             if self.env.tst == self.arg1:
                 self.tc.enqueue(self.exec_prep3, tst=self.env.tst, arg2=self.arg2)
-        self.include(
-            FillparmGms(
-                self.tc,
-                self.env,
-                arg1="RCAP_BLK",
-                arg2="R",
-                arg3="P",
-                arg4=",'','','','',''",
-                arg5="V",
-                arg6="RTP(R,V,P)",
-                arg7="GE 0",
-            )
-        )
-        self.include(
-            PrepparmGms(
-                self.tc,
-                self.env,
-                arg1="RCAP_BND",
-                arg2="R",
-                arg3="P,L",
-                arg4=",'','',''",
-                arg5="V",
-                arg6="RTP(R,V,P)",
-                arg7="1",
-            )
-        )
-        if self.tc.defined("NCAP_OLIFE"):
             self.include(
                 FillparmGms(
                     self.tc,
                     self.env,
-                    arg1="NCAP_OLIFE",
+                    arg1="RCAP_BLK",
                     arg2="R",
                     arg3="P",
                     arg4=",'','','','',''",
@@ -143,14 +116,41 @@ class PrepretDsc(GamsClass):
                     arg7="GE 0",
                 )
             )
-            self.tc.enqueue(self.exec_prep4)
-        # Preprocess refits
-        self.tc.enqueue(self.exec_prep5)
-        # Activate MIP solution if requested
-        if self.env.dsc.upper() == "YES":
-            self.env.set_global("solmip", self.env.retire)
-        if self.env.retire.upper() == "MIP":
-            self.env.set_global("solmip", "YES")
+            self.include(
+                PrepparmGms(
+                    self.tc,
+                    self.env,
+                    arg1="RCAP_BND",
+                    arg2="R",
+                    arg3="P,L",
+                    arg4=",'','',''",
+                    arg5="V",
+                    arg6="RTP(R,V,P)",
+                    arg7="1",
+                )
+            )
+            if self.tc.defined("NCAP_OLIFE"):
+                self.include(
+                    FillparmGms(
+                        self.tc,
+                        self.env,
+                        arg1="NCAP_OLIFE",
+                        arg2="R",
+                        arg3="P",
+                        arg4=",'','','','',''",
+                        arg5="V",
+                        arg6="RTP(R,V,P)",
+                        arg7="GE 0",
+                    )
+                )
+                self.tc.enqueue(self.exec_prep4)
+            # Preprocess refits
+            self.tc.enqueue(self.exec_prep5)
+            # Activate MIP solution if requested
+            if self.env.dsc.upper() == "YES":
+                self.env.set_global("solmip", self.env.retire)
+            if self.env.retire.upper() == "MIP":
+                self.env.set_global("solmip", "YES")
 
     def exec_prep1(self: PrepretDsc, sym2: str, sym3: str):
         self.tc.add_gams_code(

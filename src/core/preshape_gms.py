@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class PreShapeGms(GamsClass):
+class PreshapeGms(GamsClass):
     """Translation unit for preshape.gms."""
 
     # Instance attributes
@@ -93,7 +93,7 @@ class PreShapeGms(GamsClass):
         )
 
     def exec1(
-        self: PreShapeGms,
+        self: PreshapeGms,
         tail: str,
         arg1: str,
         arg2: str,
@@ -110,7 +110,7 @@ OPTION CLEAR = {arg6};
         )
 
     def main_loop(
-        self: PreShapeGms,
+        self: PreshapeGms,
         tail: str,
         dflbl: str,
         DEF: str,  # def is a keyword

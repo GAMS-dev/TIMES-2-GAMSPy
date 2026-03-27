@@ -122,7 +122,6 @@ class TimesModelClass:
     # Utils
     # -----------------------
     def defined(self, symbol) -> bool:
-        return (
-            symbol.upper() in self.tc.container.listSymbols()
-            and self.container[symbol.upper()].number_records
+        return symbol.upper() in self.container.listSymbols() and (
+            self.container[symbol.upper()].number_records > 0
         )

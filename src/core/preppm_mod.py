@@ -27,6 +27,7 @@ from core.prepparm_gms import PrepparmGms
 from core.prepret_dsc import PrepretDsc
 from core.prepxtra_mod import PrepxtraMod
 from core.preshape_gms import PreshapeGms
+from core.utils import EscapeStack
 
 from .base_class import GamsClass
 
@@ -66,7 +67,7 @@ class PreppmMod(GamsClass):
         if f"{self.env.prep_ans}{self.env.reset}".upper() == "YES15":
             self.include(PrepxtraMod(self.tc, self.env, arg1="POST"))
 
-        if self.env.prep_ans.upper() != "YES":
+        if self.env.prep_ans.upper() == "YES":
             return
 
         self.tc.enqueue(self.exec1, dflbl=self.env.dflbl)
@@ -77,13 +78,27 @@ class PreppmMod(GamsClass):
         if self.tc.defined("R_CUREX"):
             self.include(CurexGms(self.tc, self.env))
 
-        self.tc.enqueue(self.exec3, dflbl=self.env.dflbl)
+        self.tc.enqueue(self.exec3)
+
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code="""
+ SET OBJ_VFLO(R,P,C,CUR,UC_COST);
+ SET RPC_CUR(REG,PRC,COM,CUR);
+""",
+        )
+
+        self.tc.enqueue(self.prepare_flags_for_flow_tax_sub, dflbl=self.env.dflbl)
 
         # Starting data pre-preprocessing with temporary control sets for parameters
         if not self.env.is_set("def_iebd"):
             self.env.set_scoped("def_iebd", "10")
 
         self.tc.enqueue(self.exec4)
+
+        if self.tc.test_run:
+            self.tc.save_test_state(env=self.env, checkpoint="preppm_prior_prepret")
 
         if self.env.is_set("retire"):
             self.include(
@@ -291,7 +306,7 @@ class PreppmMod(GamsClass):
             ("fillparm", "UC_IRE", "UC_N,SIDE,R", "P,C,TS,IE", "", "T", "RTP(R,T,P)", "GE 0", "", ""),
             ("fillparm", "UC_NCAP", "UC_N,SIDE,R", "P", ",'0','0','0'", "T", "RTP(R,T,P)", "GE 0", "", ""),
             ("fillparm", "UC_UCN", "UC_N,SIDE,R", "UCN", ",'0','0','0'", "T", "1", "GE 0", "", ""),
-            ("filparam", "UC_TIME", "UC_N,R,", "", ",'0','0','0'", "DATAYEAR", "T", "", "", "YEAR,"),
+            ("filparam", "UC_TIME", "UC_N,R,", "", ",'0','0','0'", "DATAYEAR", "T", "", "", "", "YEAR,"),
             # *=============================================================================
             # ******* NON-REGULAR NON-COST PARAMETERS: NOT interpolated by default *********
             # *-----------------------------------------------------------------------------
@@ -346,7 +361,7 @@ class PreppmMod(GamsClass):
                         arg7=arg[7],
                         arg8=arg[8],
                         arg9=arg[9],
-                        arg10=arg[10],
+                        arg10=arg[10] if len(arg) > 10 else "",
                     )
                 )
             elif arg[0] == "fillparm":
@@ -363,7 +378,7 @@ class PreppmMod(GamsClass):
                         arg7=arg[7],
                         arg8=arg[8],
                         arg9=arg[9],
-                        arg10=arg[10],
+                        arg10=arg[10] if len(arg) > 10 else "",
                     )
                 )
             elif arg[0] == "filparam":
@@ -383,6 +398,9 @@ class PreppmMod(GamsClass):
                         arg10=arg[10],
                     )
                 )
+
+        if self.tc.test_run:
+            self.tc.save_test_state(env=self.env, checkpoint="preppm_prior_prepextstc")
 
         if self.env.stages.upper() == "YES":
             self.include(PrepExtStc(self.tc, self.env))
@@ -407,6 +425,7 @@ class PreppmMod(GamsClass):
                 )
             )
 
+        raise EscapeStack(self.module_name)
         if self.env.intext_only.upper() == "YES":
             self.include(PrepxtraMod(self.tc, self.env, arg1="XTIE"))
 
@@ -505,11 +524,11 @@ R_CUREX(R,CURR,CUR)$NO=0; R_CUREX(R,CURR,CUR)$(NOT R_CUREX(R,CURR,CUR))$=G_CUREX
 """,
         )
 
-    def exec3(self, dflbl: str) -> None:
+    def exec3(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf"""
+            code=r"""
 * Merge special case user attributes to generic case
 FLO_MARK(R,LL,P,C,BD)$((NOT RPC(R,P,C))$RC(R,C)$FLO_MARK(R,LL,P,C,BD)) = 0;
 PRC_MARK(R,LL,P,P,C,BD)$((RPC(R,P,C)->(FLO_MARK(R,'0',P,C,BD)>1))$RC(R,C)$PRC_MARK(R,LL,P,P,C,BD)) = 0;
@@ -528,14 +547,18 @@ UC_COM(UC_N,'PRD',SIDE,R,DATAYEAR,C,S,'COMCON')$(NOT UC_ATTR(R,UC_N,SIDE,'COMCON
 UC_COM(UC_N,'NET',SIDE,R,DATAYEAR,C,S,'COMPRD')$UC_ATTR(R,UC_N,SIDE,'COMPRD','NET') $= UC_COMPRD(UC_N,SIDE,R,DATAYEAR,C,S);
 UC_COM(UC_N,'NET',SIDE,R,DATAYEAR,C,S,'COMCON')$UC_COMCON(UC_N,SIDE,R,DATAYEAR,C,S)  = UC_COMCON(UC_N,SIDE,R,DATAYEAR,C,S)*(-1);
 UC_COM(UC_N,'NET',SIDE,R,DATAYEAR,C,S,'COMNET') $= UC_COMNET(UC_N,SIDE,R,DATAYEAR,C,S);
+""",
+        )
 
-* Prepare flags for flow tax/sub
-SET OBJ_VFLO(R,P,C,CUR,UC_COST);
-SET RPC_CUR(REG,PRC,COM,CUR);
-OPTION RPC_CUR <= FLO_TAX; OBJ_VFLO(RPC_CUR,'TAX') = YES;
-OPTION RPC_CUR <= FLO_SUB; OBJ_VFLO(RPC_CUR,'SUB') $= OBJ_VFLO(RPC_CUR,'TAX');
-FLO_TAX(R,LL--ORD(LL),P,C,S,CUR)$((NOT FLO_TAX(R,'{dflbl}',P,C,S,CUR))$FLO_TAX(R,LL,P,C,S,CUR)$OBJ_VFLO(R,P,C,CUR,'SUB')) = 3;
-FLO_SUB(R,LL--ORD(LL),P,C,S,CUR)$((NOT FLO_SUB(R,'{dflbl}',P,C,S,CUR))$FLO_SUB(R,LL,P,C,S,CUR)$OBJ_VFLO(R,P,C,CUR,'SUB')) = 3;
+    def prepare_flags_for_flow_tax_sub(self: PreppmMod, dflbl: str):
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=rf"""
+ OPTION RPC_CUR <= FLO_TAX; OBJ_VFLO(RPC_CUR,'TAX') = YES;
+ OPTION RPC_CUR <= FLO_SUB; OBJ_VFLO(RPC_CUR,'SUB') $= OBJ_VFLO(RPC_CUR,'TAX');
+ FLO_TAX(R,LL--ORD(LL),P,C,S,CUR)$((NOT FLO_TAX(R,'{dflbl}',P,C,S,CUR))$FLO_TAX(R,LL,P,C,S,CUR)$OBJ_VFLO(R,P,C,CUR,'SUB')) = 3;
+ FLO_SUB(R,LL--ORD(LL),P,C,S,CUR)$((NOT FLO_SUB(R,'{dflbl}',P,C,S,CUR))$FLO_SUB(R,LL,P,C,S,CUR)$OBJ_VFLO(R,P,C,CUR,'SUB')) = 3;
 """,
         )
 

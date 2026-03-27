@@ -10,6 +10,7 @@ from gamspy import Alias, Container, Options, Set, UniverseAlias
 from core import demo12_dd, initmty_mod, initsys_mod, maindrv_mod
 from core.compile_environment import CompileEnvironment
 from core.times_model_class import TimesModelClass
+from core.utils import EscapeStack
 
 # Create logs directory if it doesn't exist
 os.makedirs("logs", exist_ok=True)
@@ -135,22 +136,24 @@ def main(
     milestonyr = model.container["MILESTONYR"]
     milestonyr.setRecords([2005, 2010, 2015, 2020, 2030, 2050])
 
-    env.set_scoped("RUN_NAME", "demo12")
-    env.set_scoped("VEDAVDD", "YES")
+    env.set_scoped("run_name", "demo12")
+    env.set_scoped("vedavdd", "YES")
 
     if model.test_run:
         model.save_test_state(env=env, checkpoint="demo12_run_prior_maindrv_mod")
 
-    model.register_module(maindrv_mod.MainDrvMod(tc=model, env=env, arg1="mod"))
+    try:
+        model.register_module(maindrv_mod.MainDrvMod(tc=model, env=env, arg1="mod"))
+    except EscapeStack as e:
+        print("Escape Stack", e)
+        # write GDX
+        model.initialization()
 
-    # write GDX
-    model.initialization()
+        # execution code blocks
+        model.run()
 
-    # execution code blocks
-    model.run()
-
-    # Debug: dump generated GAMS
-    model.dump_generated_gams("generated_times.gms")
+        # Debug: dump generated GAMS
+        model.dump_generated_gams("generated_times.gms")
 
     return model
 
