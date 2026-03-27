@@ -15,6 +15,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Alias
+
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -238,13 +240,14 @@ OPTION PRO{prf},CLEAR=RYPM,CLEAR=RYPCSM,CLEAR=RYPCSRXM,CLEAR=RYCSM;
 """,
         )
 
-    def comp1(
-        self: CurexGms,
-    ):
+    def comp1(self: CurexGms):
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=r"""
 SET CURMAP(REG,CUR,CUR);
-ALIAS(CUR,CRU);""",
+""",
         )
+        m = self.tc.container
+        cur = m["CUR"]
+        Alias(m, "CRU", alias_with=cur)

@@ -9,9 +9,10 @@
 # * Questions/Comments:
 # *-----------------------------------------------------------------------------
 
-
 import logging
 from typing import TYPE_CHECKING
+
+from gamspy import Alias
 
 from .base_class import GamsClass
 
@@ -61,11 +62,14 @@ $onMulti
             )
 
         def internal_sets_and_parameters():
+            m = tc.container
+            # ALIAS (ALLSOW,WW);
+            allsow = m["ALLSOW"]
+            Alias(m, "WW", alias_with=allsow)
             tc.add_gams_code(
                 module=self,
                 phase=phase,
                 code=r"""
-  ALIAS (ALLSOW,WW);
   SET SW_CHILD(J,WW,WW) 'Child SOWs of parent SOW at stage J' //;
   SET SW_TREE(J,WW,WW)  'Finest level SOWs of SOW at stage J' //;
   SET SW_COPY(J,ALLSOW) 'Parent SOW of SOWs to be copied' //;

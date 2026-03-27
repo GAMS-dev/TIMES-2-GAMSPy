@@ -147,7 +147,20 @@ class InitmtyMod(GamsClass):
 
 * time
 *  SET TS(ALL_TS)                     'Time slices of the year               //;
-      ALIAS(ALL_TS,TS,S,SL,S2);
+""",
+            )
+
+            #   ALIAS(ALL_TS,TS,S,SL,S2);
+            all_ts = m["ALL_TS"]
+            Alias(m, "TS", alias_with=all_ts)
+            Alias(m, "S", alias_with=all_ts)
+            Alias(m, "SL", alias_with=all_ts)
+            Alias(m, "S2", alias_with=all_ts)
+
+            tc.add_gams_code(
+                module=self,
+                phase="init",
+                code="""
   SET TS_OFF(REG,TS,BOHYEAR,EOHYEAR)  'Timeslices turned off';
   SET TS_GROUP(ALL_REG,TSLVL,TS)      'Timeslice Level assignment'           //;
   SET TS_MAP(ALL_REG,ALL_TS,ALL_TS)   'Timeslice hierarchy tree: node+below' //;
@@ -167,8 +180,16 @@ class InitmtyMod(GamsClass):
   SET DATAYEAR(ALLYEAR)               'Years for which user data is provided' //;
   SET PASTYEAR(ALLYEAR)               'Years before 1st MILESTONYR for which PASTI needs to be handled' //;
   SET MODLYEAR(ALLYEAR)               'Years for which the model is to be run (MILESTONYR+PASTYEAR)' //;
-      ALIAS(TSLVL,TSL);
+""",
+            )
+            #    ALIAS(TSLVL,TSL);
+            tslvl = m["TSLVL"]
+            Alias(m, "TSL", alias_with=tslvl)
 
+            tc.add_gams_code(
+                module=self,
+                phase=phase,
+                code=r"""
 * topology
   SET TOP(REG,PRC,COM,IO)                  'Topology for all process'        //;
   SET TOP_IRE(ALL_REG,COM,ALL_REG,COM,PRC) 'Trade within area of study'      //;

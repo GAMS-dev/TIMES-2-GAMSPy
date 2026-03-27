@@ -27,7 +27,6 @@ from core.prepparm_gms import PrepparmGms
 from core.prepret_dsc import PrepretDsc
 from core.prepxtra_mod import PrepxtraMod
 from core.preshape_gms import PreshapeGms
-from core.utils import EscapeStack
 
 from .base_class import GamsClass
 
@@ -425,7 +424,6 @@ class PreppmMod(GamsClass):
                 )
             )
 
-        raise EscapeStack(self.module_name)
         if self.env.intext_only.upper() == "YES":
             self.include(PrepxtraMod(self.tc, self.env, arg1="XTIE"))
 

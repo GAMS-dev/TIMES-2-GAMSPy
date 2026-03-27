@@ -9,11 +9,12 @@
 # *=============================================================================*
 # * Comments: If TM_EC0 not defined, try loading MSADDF
 # *------------------------------------------------------------------------------
-
 from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
+
+from gamspy import Alias
 
 from core.fillparm_gms import FillparmGms
 
@@ -88,7 +89,18 @@ $IF NOT DEFINED TM_EC0 OPTION CLEAR=TM_EC0;
 * Additions to support MACRO soft-link
   SCALAR TM_SL /0/;
   SETS MR(R), PP(T), TLAST(T), DM(C), XCP(J) /1, 6, 12/;
-  ALIAS (MIYR_1,T_1);
+""",
+        )
+
+        m = self.tc.container
+        # ALIAS (MIYR_1,T_1);
+        miry_1 = m["MIYR_1"]
+        Alias(m, "T_1", alias_with=miry_1)
+
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=r"""
   PARAMETER NYPER(ALLYEAR);
 """,
         )

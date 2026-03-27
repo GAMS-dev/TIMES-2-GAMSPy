@@ -23,6 +23,7 @@ from core.pp_off_mod import pp_off
 from core.pp_qaput_mod import pp_qaput
 from core.preppm_mod import PreppmMod
 from core.timslice_mod import TimsliceMod
+from core.utils import EscapeStack
 
 from .base_class import GamsClass
 
@@ -169,7 +170,7 @@ class PpmainMod(GamsClass):
         if self.tc.test_run:
             self.tc.save_test_state(env=self.env, checkpoint="pp_main_mod_after_preppm")
 
-        return
+        raise EscapeStack(self.module_name)
 
         if self.env.intext_only.upper() == "YES":
             return

@@ -13,6 +13,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Alias
+
 from core.fillparm_gms import FillparmGms
 
 from .base_class import GamsClass
@@ -77,8 +79,21 @@ class PrepExtMlf(GamsClass):
   SET MR(R), PP(T), TLAST(T), DM(C), XCP(J) /1, 6, 12/;
   SET TM_DM(REG,COM);
   SET XTP(LL);
-  ALIAS (MIYR_1,T_1,TB);
-  ALIAS (T,TP);
+  """,
+        )
+        m = self.tc.container
+        #   ALIAS (MIYR_1,T_1,TB);
+        miyr_1 = m["MIYR_1"]
+        Alias(m, "T_1", alias_with=miyr_1)
+        Alias(m, "TB", alias_with=miyr_1)
+        #   ALIAS (T,TP);
+        t = m["T"]
+        Alias(m, "TP", alias_with=t)
+
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=r"""
   PARAMETER NYPER(ALLYEAR);
   PARAMETER CM_LED(LL);
   PARAMETER TM_TAXREV(R,T) //;

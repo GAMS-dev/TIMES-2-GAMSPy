@@ -224,9 +224,6 @@ $offlisting
 *------------------------------------------------------------------------------
 $   IFI %STAGES% == YES     $BATINCLUDE prep_ext.stc
 $   IF NOT '%EXTEND%' == '' $BATINCLUDE main_ext.mod prep_ext %EXTEND%
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop
 $   IFI %INTEXT_ONLY%==YES  $BATINCLUDE prepxtra.mod XTIE
 *=============================================================================
 ***************************** SHAPE/MULTI INDEXES ****************************

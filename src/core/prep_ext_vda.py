@@ -101,10 +101,17 @@ class PrepExtVda(GamsClass):
                     arg1="PREP",
                 )
             )
-        raise EscapeStack(self.module_name)
         if self.tc.defined("GR_VARGEN"):
-            self.include(EqucrtpVda(self.tc, self.env))
-        self.include(ResloadcVda(self.tc, self.env, arg1="PREP_EXT"))
+            self.include(ResloadcVda(self.tc, self.env))
+
+        if self.tc.test_run:
+            self.tc.save_test_state(
+                env=self.env, checkpoint="prep_ext_vda_prio_equcrtp"
+            )
+
+        self.include(EqucrtpVda(self.tc, self.env, arg1="PREP_EXT"))
+        raise EscapeStack(self.module_name)
+
         if self.env.vintopt == "1":
             self.include(
                 FillvintGms(
