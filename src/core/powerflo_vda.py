@@ -240,16 +240,19 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
                 )
                 self.include(GasgridsVda(self.tc, self.env, arg1="MODEL"))
 
-            elif label == "IREAUXIN":
-                self.env.set_scoped("mx", "COM_IE(R,T,C,S)*")
-
             elif label in ["IREAUXIN", "IREAUXOUT-"]:
-                # $GOTO IREAUXOUT -> end of file
+                mx = self.env.mx
+                if label == "IREAUXIN":
+                    mx = "COM_IE(R,T,C,S)*"
+
                 return self.return_str_for_IREAUX(
-                    mx=self.env.mx,
+                    mx=mx,
                     var=self.env.var,
                     sow=self.env.sow,
                 )
+
+            elif label == "IREAUXOUT":
+                pass  # end of file
 
             elif label == "CSTBAL":
                 # ends with $EXIT
