@@ -259,14 +259,20 @@ $     BATINCLUDE pp_off.%1 PRC_NOFF P "" "RTP_OFF(R,T,P)$(" YES
     RTP(R,PYR,P)$(RP(R,P)$(NCAP_PASTI(R,PYR,P)>0)$NCAP_PASTI(R,PYR,P)) = YES;
     RVP(RTP(R,T,P)) = YES;
     OPTION CLEAR=TRACKP;
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop
 *-----------------------------------------------
 * interpolation/extrapolation
 *-----------------------------------------------
 * Call interpolation subsystem
 $ INCLUDE preppm.mod
+
+$onlisting
+display "pp_main_mod_after_preppm";
+$show
+$offlisting
+
+$gdxUnload %COMPILE_GDX%
+execute_unload "%EXECUTE_GDX%";
+$stop
 $ IFI %INTEXT_ONLY% == YES $EXIT
 *-----------------------------------------------
 

@@ -79,7 +79,7 @@ class FillvintGms(GamsClass):
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf""""
+            code=rf"""
 * Initialization
   OPTION CLEAR=PRC_YMIN,CLEAR=PASTSUM;
 {"PRC_SIMV(PRC_VINT(R,P)) = NOT PRC_MAP(R,'STG',P);" if vintopteq2 else ""}
@@ -101,7 +101,7 @@ class FillvintGms(GamsClass):
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf""""
+            code=rf"""
   IF(CARD(PASTSUM)=0,
     PASTSUM(RTP(R,T,P))$PRC_VINT(R,P) =
       MIN(1,(MAX(YEARVAL(T)-(LEAD(T)-1)/2,B(T)+MAX(NCAP_ILED(RTP),(D(T)+NCAP_ILED(RTP)-NCAP_TLIFE(RTP))/2)) -

@@ -203,9 +203,20 @@ class PrepxtraMod(GamsClass):
             )
 
             # removed x1 and PAD, is not necessary anymore since python can handle the padding
+            self.env.set_scoped(
+                "gdate", "10000*MOD(GYEAR(JSTART),100)+100*GMONTH(JSTART)+GDAY(JSTART)"
+            )
+            self.env.set_scoped("x1", "")
+            self.env.set_scoped(
+                "gtime", "10000*GHOUR(JSTART)+100*GMINUTE(JSTART)+GSECOND(JSTART)"
+            )
             self.env.set_scoped("x2", "5")
+
             if rf"{self.env.g2x6}{self.arg1}" == "YESSAVE":
                 self.env.set_scoped("x2", "")
+
+            if self.tc.test_run:
+                self.tc.save_test_state(env=self.env, checkpoint="prepxtra_mod_save")
 
             if rf"{self.env.g2x6}{self.arg1}{self.env.x2}".upper() == "YESSAVE5":
                 self.tc.enqueue(
@@ -224,14 +235,11 @@ class PrepxtraMod(GamsClass):
                     gdate=py_gdate,
                 )
 
-    def exec1(
-        self: PrepxtraMod,
-        condition: bool,
-    ):
+    def exec1(self: PrepxtraMod, condition: bool):
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf""""
+            code=rf"""
 MODLYEAR(LL) = T(LL)+PASTYEAR(LL);
 *-----------------------------------------------------------------------------
 * Clean up some unwanted stuff
@@ -240,14 +248,11 @@ MODLYEAR(LL) = T(LL)+PASTYEAR(LL);
 """,
         )
 
-    def exec2(
-        self: PrepxtraMod,
-        dflbl: str,
-    ):
+    def exec2(self: PrepxtraMod, dflbl: str):
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf""""
+            code=rf"""
 * Check 'every T' specifications through using DFLBL:
 * For T_SUM, fill in between user-specified year range or all
   UC_DT(R,UC_N)$UC_T_SUM(R,UC_N,'{dflbl}') = YES; UC_T_SUM(UC_DT,'{dflbl}') = NO;
@@ -266,11 +271,7 @@ MODLYEAR(LL) = T(LL)+PASTYEAR(LL);
 """,
         )
 
-    def exec3(
-        self: PrepxtraMod,
-        gdxpath: str,
-        run_name: str,
-    ):
+    def exec3(self: PrepxtraMod, gdxpath: str, run_name: str):
         self.tc.add_gams_code(
             module=self,
             phase="run",

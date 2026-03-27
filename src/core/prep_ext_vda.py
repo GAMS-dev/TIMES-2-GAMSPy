@@ -20,6 +20,7 @@ from core.fillparm_gms import FillparmGms
 from core.fillvint_gms import FillvintGms
 from core.powerflo_vda import PowerfloVda
 from core.resloadc_vda import ResloadcVda
+from core.utils import EscapeStack
 
 from .base_class import GamsClass
 
@@ -42,11 +43,13 @@ class PrepExtVda(GamsClass):
         tc: TimesModelClass,
         env: CompileEnvironment,
         arg1: str = "",
+        arg2: str = "",
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
         self.arg1 = arg1
+        self.arg2 = arg2
         self.compile()
 
     def compile(self) -> None:
@@ -65,17 +68,16 @@ class PrepExtVda(GamsClass):
             ("ACT_SDTIME", "R",      "P,UPT,BD",     ",'0','0','0'",         "V", "RVP(R,V,P)", "GE 0",           ""),
             ("ACT_MAXNON", "R",      "P,UPT",        ",'0','0','0','0'",     "V", "RVP(R,V,P)", "GE 0",           ""),
             ("STG_MAXCYC", "R",      "P",            ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0",           ""),
-            ("UC_FLOBET",  "UC_N,R", "P,C",          ",'0','0','0'",         "T", "1",          "GE 0",           ""),
-            ("COM_CSTBAL", "R",      "C,S,ITEM,CUR", ",'0','0'",             "T", "1",          "GE 0",           ""),
         ]
         # fmt: on
+
+        if self.tc.defined("UC_FLOBET"):
+            batincludes.append("UC_FLOBET", "UC_N,R", "P,C", ",'0','0','0'", "T", "1", "GE 0", "")  # fmt: skip
+
+        if self.tc.defined("COM_CSTBAL"):
+            batincludes.append("COM_CSTBAL", "R", "C,S,ITEM,CUR", ",'0','0'", "T", "1", "GE 0", "")  # fmt: skip
+
         for arg in batincludes:
-            if arg[0] in ["UC_FLOBET", "COM_CSTBAL"]:
-                if (
-                    arg[0] not in self.tc.container.listSymbols()
-                    or not self.tc.container[arg[0]].number_records()
-                ):
-                    continue
             self.include(
                 FillparmGms(
                     self.tc,
@@ -90,6 +92,7 @@ class PrepExtVda(GamsClass):
                     arg8=arg[7],
                 )
             )
+
         if self.env.powerflow.upper() == "YES":
             self.include(
                 PowerfloVda(
@@ -98,16 +101,9 @@ class PrepExtVda(GamsClass):
                     arg1="PREP",
                 )
             )
-        if (
-            "GR_VARGEN" in self.tc.container.listSymbols()
-            and self.tc.container["GR_VARGEN"].number_records()
-        ):
-            self.include(
-                EqucrtpVda(
-                    self.tc,
-                    self.env,
-                )
-            )
+        raise EscapeStack(self.module_name)
+        if self.tc.defined("GR_VARGEN"):
+            self.include(EqucrtpVda(self.tc, self.env))
         self.include(ResloadcVda(self.tc, self.env, arg1="PREP_EXT"))
         if self.env.vintopt == "1":
             self.include(
@@ -134,13 +130,11 @@ class PrepExtVda(GamsClass):
             self.tailored_interpolation, waver=self.env.waver.upper() == "YES"
         )
 
-    def prepare_availabilities(
-        self: PrepExtVda,
-    ):
+    def prepare_availabilities(self: PrepExtVda):
         self.tc.add_gams_code(
             module=self,
-            phase="init",
-            code=r""""
+            phase="run",
+            code=r"""
 * Prepare commodity-specific availabilities; NCAP_AFAC overrides NCAP_AFC
   OPTION RP_GRP < NCAP_AFAC;
   NCAP_AFC(R,DATAYEAR,P,CG,'ANNUAL')$RP_GRP(R,P,CG) = NCAP_AFAC(R,DATAYEAR,P,CG);
@@ -155,14 +149,11 @@ class PrepExtVda(GamsClass):
 """,
         )
 
-    def tailored_interpolation(
-        self: PrepExtVda,
-        waver: bool,
-    ):
+    def tailored_interpolation(self: PrepExtVda, waver: bool):
         self.tc.add_gams_code(
             module=self,
-            phase="init",
-            code=rf""""
+            phase="run",
+            code=rf"""
   FLO_FUNCX(R,LL,P,C,CG)$(NOT PRC_VINT(R,P)) = 0;
 *------------------------------------------------------------------------------
 

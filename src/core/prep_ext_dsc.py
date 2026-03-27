@@ -39,18 +39,18 @@ class PrepExtDsc(GamsClass):
         tc: TimesModelClass,
         env: CompileEnvironment,
         arg1: str = "",
+        arg2: str = "",
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
         self.arg1 = arg1
+        self.arg2 = arg2
         self.compile()
 
     def compile(self) -> None:
         if self.env.dsc.upper() == "YES":
-            self.tc.enqueue(
-                self.prepextdsc_exec,
-            )
+            self.tc.enqueue(self.prepextdsc_exec)
             self.include(
                 PrepparmGms(
                     self.tc,
@@ -66,9 +66,7 @@ class PrepExtDsc(GamsClass):
             )
             self.tc.enqueue(self.process_semicontinuous_requests)
 
-    def process_semicontinuous_requests(
-        self: PrepExtDsc,
-    ):
+    def process_semicontinuous_requests(self: PrepExtDsc):
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -79,9 +77,7 @@ class PrepExtDsc(GamsClass):
 """,
         )
 
-    def prepextdsc_exec(
-        self: PrepExtDsc,
-    ):
+    def prepextdsc_exec(self: PrepExtDsc):
         self.tc.add_gams_code(
             module=self, phase="init", code="PRC_DSCNCAP(R,P) $= PRC_SEMI(R,P);"
         )

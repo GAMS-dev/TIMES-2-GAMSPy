@@ -87,6 +87,13 @@ class PrepparmGms(GamsClass):
                 phase="init",
                 code=f"PARAMETER {self.arg9}({self.arg2},{self.arg3},ALLYEAR);",
             )
+
+        if self.tc.test_run:
+            self.tc.save_test_state(env=self.env, checkpoint="prepparm_gms")
+
+        # Universe set workaround
+        self.add_records_to_universe_item(tc=self.tc, records=[self.arg1])
+
         self.tc.enqueue(
             self.interpolation_extrapolation,
             def_iebd=self.env.def_iebd,
@@ -107,7 +114,6 @@ class PrepparmGms(GamsClass):
         reset: str,
     ):
         code = f"""
-$EOLCOM !
 * conditional interpolation flag
 IF(G_NOINTERP, INT_DEFAULT('{self.arg1}')=NO;
   ELSE OPTION CLEAR=UNCD7; CNT = ({def_iebd}+(3-{def_iebd})$IE_DEFAULT('{self.arg1}'))${self.arg7};
@@ -119,34 +125,37 @@ IF(G_NOINTERP, INT_DEFAULT('{self.arg1}')=NO;
      IF(CARD(UNCD7),{self.arg1}({self.arg2},{self.arg5},{self.arg3})$UNCD7({self.arg2},{self.arg5},{self.arg3}{self.arg4})=0; OPTION CLEAR=UNCD7);
      UNCD7({self.arg2},LL--ORD(LL),{self.arg3}{self.arg4})$(({self.arg10}({self.arg1}({self.arg2},'{dflbl}',{self.arg3}))>-.5)${self.arg1}({self.arg2},LL,{self.arg3}))=YES;
 """
+
+        code += "   );\n"
+
         code += f"""
    LOOP(UNCD7({self.arg2}{ll},{self.arg3}{self.arg4}), DFUNC = CNT; DFUNC $= ROUND({self.arg1}({self.arg2},'{dflbl}',{self.arg3}));
       MY_ARRAY(DM_YEAR) = {self.arg1}({self.arg2},DM_YEAR,{self.arg3}); OPTION CLEAR=MY_FIL2;
 * do interpolate
       IF(DFUNC NE 10, LAST_VAL=0; F = 0; Z = 0;
-        LOOP(DM_YEAR$MY_ARRAY(DM_YEAR),          ! check for nonzero (including EPS)
+        LOOP(DM_YEAR$MY_ARRAY(DM_YEAR),          {"! check for nonzero (including EPS)" if False else ""}
            MY_F = MY_ARRAY(DM_YEAR); Z = YEARVAL(DM_YEAR);
            IF(LAST_VAL,
-             IF((Z GT DFUNC)$(DFUNC GT 999),     ! exponential function
+             IF((Z GT DFUNC)$(DFUNC GT 999),     {"! exponential function" if False else ""}
                 {data}$((Z>YEARVAL({self.arg5}))$(YEARVAL({self.arg5})>MY_FYEAR))
 			= LAST_VAL*POWER(1+MY_F,YEARVAL({self.arg5})-MY_FYEAR)+EPS;
                 MY_F = LAST_VAL*POWER(1+MY_F,Z-MY_FYEAR)+EPS;
-                MY_FIL2(DM_YEAR) = MY_F;         ! overwrite old data
-             ELSE                                ! linear interpolation
+                MY_FIL2(DM_YEAR) = MY_F;         {"! overwrite old data" if False else ""}
+             ELSE                                {"! linear interpolation" if False else ""}
                 {data}$((Z>YEARVAL({self.arg5}))$(YEARVAL({self.arg5})>MY_FYEAR))
 			= LAST_VAL + (MY_F-LAST_VAL)/(Z-MY_FYEAR)*(YEARVAL({self.arg5})-MY_FYEAR);
              );
            ELSE F = Z; FIRST_VAL = MY_F);
-           LAST_VAL = MY_F; MY_FYEAR=Z;);        ! remember the value and year
+           LAST_VAL = MY_F; MY_FYEAR=Z;);        {"! remember the value and year" if False else ""}
 """
         if opt:
             code += f"""
-      ELSE FIRST_VAL = 0; MY_FYEAR = 0;          ! intra-period I/E
-        LOOP(MY_FIL(LL)$MY_ARRAY(MY_FIL),        ! check for data values
+      ELSE FIRST_VAL = 0; MY_FYEAR = 0;          {"! intra-period I/E" if False else ""}
+        LOOP(MY_FIL(LL)$MY_ARRAY(MY_FIL),        {"! check for data values" if False else ""}
           MY_F = MY_ARRAY(LL); Z = YEARVAL(LL); F = FIL2(LL);
           IF(MY_FYEAR < F, IF(F > MIN(FIRST_VAL,Z), LAST_VAL = MY_F; FIRST_VAL = F);
             MY_FIL2({self.arg5}(LL+(F-YEARVAL(LL))))$(NOT MY_ARRAY({self.arg5})) = LAST_VAL+(MY_F-LAST_VAL)/(Z-MY_FYEAR)*(F-MY_FYEAR));
-            LAST_VAL = MY_F; MY_FYEAR=Z;);       ! remember the value and year
+            LAST_VAL = MY_F; MY_FYEAR=Z;);       {"! remember the value and year" if False else ""}
         DFUNC = {self.arg7};
 """
         code += ");\n"

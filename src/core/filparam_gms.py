@@ -88,32 +88,19 @@ class FilparamGms(GamsClass):
         )
         self.tc.enqueue(
             self.assign_dfunc,
+            arg1=self.arg1,
             arg2=self.arg2,
             arg4=self.arg4,
             arg5=self.arg5,
+            arg6=self.arg6,
+            arg7=self.arg7,
+            arg8=self.arg8,
             arg9=self.arg9,
             arg10=self.arg10,
             tail1=self.env.tail1,
             tail2=self.env.tail2,
             src=self.env.src,
             dflbl=self.env.dflbl,
-        )
-        self.tc.enqueue(
-            self.interpolate,
-            arg1=self.arg1,
-            arg2=self.arg2,
-            arg5=self.arg5,
-            arg6=self.arg6,
-            tail2=self.env.tail2,
-        )
-        self.tc.enqueue(
-            self.extrapolate,
-            arg1=self.arg1,
-            arg2=self.arg2,
-            arg6=self.arg6,
-            arg7=self.arg7,
-            arg8=self.arg8,
-            tail2=self.env.tail2,
         )
 
     def assign_uncd7(
@@ -142,9 +129,13 @@ class FilparamGms(GamsClass):
 
     def assign_dfunc(
         self: FilparamGms,
+        arg1: str,
         arg2: str,
         arg4: str,
         arg5: str,
+        arg6: str,
+        arg7: str,
+        arg8: str,
         arg9: str,
         arg10: str,
         tail1: str,
@@ -152,71 +143,25 @@ class FilparamGms(GamsClass):
         src: str,
         dflbl: str,
     ):
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
+        # TODO: EOLINE does not work -> therefore comments starting with ! in {} if False else ""
+        code_block = rf"""
  LOOP(UNCD7({arg2}{arg10}{tail1}{arg4}), F=0; Z=INF; MY_FYEAR=9999;
    DFUNC = ROUND({src}({arg2}'{dflbl}'{tail2}));
-""",
-        )
-        if arg9 != "":
-            self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code=f"IF(NOT DFUNC, DFUNC = {arg9});",
-            )
-
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
+   {f"IF(NOT DFUNC, DFUNC = {arg9});" if arg9 != "" else ""}
    IF(DFUNC GE 0,
     MY_ARRAY({arg5}) = {src}({arg2}{arg5}{tail2}); MY_ARRAY('{dflbl}')=0;
-""",
-        )
-
-    def interpolate(
-        self: FilparamGms,
-        arg1: str,
-        arg2: str,
-        arg5: str,
-        arg6: str,
-        tail2: str,
-    ):
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-$ EOLCOM !
-    LOOP({arg5}$MY_ARRAY({arg5}),              ! check for nonzero (including EPS)
+        LOOP({arg5}$MY_ARRAY({arg5}),              {"! check for nonzero (including EPS)" if False else ""}
 	  MY_F = MY_ARRAY({arg5}); Z = YEARVAL({arg5});
-	  IF(Z > MY_FYEAR+1,               ! linear interpolation
+	  IF(Z > MY_FYEAR+1,               {"! linear interpolation" if False else ""}
 	     {arg1}({arg2}{arg6}{tail2})$((Z GT YEARVAL({arg6}))$(YEARVAL({arg6}) GT MY_FYEAR))
-			= LAST_VAL + (MY_F-LAST_VAL)/(Z-MY_FYEAR)*(YEARVAL({arg6})-MY_FYEAR); ! not the first one
+			= LAST_VAL + (MY_F-LAST_VAL)/(Z-MY_FYEAR)*(YEARVAL({arg6})-MY_FYEAR); {"! not the first one" if False else ""}
 	  ELSEIF Z LT MY_FYEAR, F=Z; FIRST_VAL = MY_F);
-	  LAST_VAL = MY_F; MY_FYEAR=Z);    ! remember the value and year
-""",
-        )
-
-    def extrapolate(
-        self: FilparamGms,
-        arg1: str,
-        arg2: str,
-        arg6: str,
-        arg7: str,
-        arg8: str,
-        tail2: str,
-    ):
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
+	  LAST_VAL = MY_F; MY_FYEAR=Z);    {"! remember the value and year" if False else ""}
     IF(DFUNC GT 1, DFUNC=MOD(DFUNC,10);
       IF(DFUNC EQ 2, FIRST_VAL=EPS; LAST_VAL=EPS; ELSEIF DFUNC EQ 4, Z=INF; ELSEIF DFUNC EQ 5, F=0));
     IF(DFUNC NE 1,
       {arg1}({arg2}{arg6}{tail2}) $= FIRST_VAL$({arg7}(YEARVAL({arg6}) LT F)) + LAST_VAL$({arg8}(YEARVAL({arg6}) GT Z));
     ));
   );
-""",
-        )
+"""
+        self.tc.add_gams_code(module=self, phase="run", code=code_block)

@@ -54,6 +54,11 @@ $IF DEFINED R_CUREX $INCLUDE curex
 * Starting data pre-preprocessing with temporary control sets for parameters
 $IF NOT SET DEF_IEBD $SET DEF_IEBD 10
   IE_DEFAULT(INT_DEFAULT) = 3;
+$onlisting
+display "preppm_prior_prepret";
+$show
+$offlisting
+
 $IF SET RETIRE $BATINCLUDE prepret.dsc PREP PRC_RCAP RCAP_BND
 *-----------------------------------------------------------------------------
 * Use RVP for extrapolating vintaged flow parameters
@@ -210,11 +215,18 @@ $BATINCLUDE prepparm REG_BNDCST R 'COSTAGG,CUR,BD' ",'0','0'" T 1 1
 *-----------------------------------------------------------------------------
 $ BATINCLUDE prepparm FLO_SHAR R 'P,C,CG,TS,BD' "" PASTMILE 'RVP(R,PASTMILE,P)' 1 3 X_RPCGSB -ABS
 *-----------------------------------------------------------------------------
+$onlisting
+display "preppm_prior_prepextstc";
+$show
+$offlisting
 *=============================================================================
 * Additions through extensions:
 *------------------------------------------------------------------------------
 $   IFI %STAGES% == YES     $BATINCLUDE prep_ext.stc
 $   IF NOT '%EXTEND%' == '' $BATINCLUDE main_ext.mod prep_ext %EXTEND%
+$gdxUnload %COMPILE_GDX%
+execute_unload "%EXECUTE_GDX%";
+$stop
 $   IFI %INTEXT_ONLY%==YES  $BATINCLUDE prepxtra.mod XTIE
 *=============================================================================
 ***************************** SHAPE/MULTI INDEXES ****************************

@@ -18,12 +18,11 @@ from typing import TYPE_CHECKING
 
 from gamspy import Alias
 
-from core import (  # eqflomrk_mod,; filshape_gms,; pp_chp_ier,; pp_chp_mod,; pp_lvlbd_mod,; pp_lvlbr_mod,; pp_lvlfc_mod,; pp_lvlff_mod,; pp_lvlfs_mod,; pp_lvlif_mod,; pp_lvlpk_mod,; pp_lvlus_mod,; ppmain_tm,; pp_micro_mod,; pp_prelv_vda,; pp_qafs_mod,; pp_reduce_red,; preppm_mod,; prepxtra_mod,
-    filparam_gms,
-    timslice_mod,
-)
+from core.filparam_gms import FilparamGms
 from core.pp_off_mod import pp_off
 from core.pp_qaput_mod import pp_qaput
+from core.preppm_mod import PreppmMod
+from core.timslice_mod import TimsliceMod
 
 from .base_class import GamsClass
 
@@ -121,7 +120,7 @@ class PpmainMod(GamsClass):
         # Inter/Extrapolate G_OFFTHD if specified
         if m["G_OFFTHD"].number_records:
             self.include(
-                filparam_gms.FilparamGms(
+                FilparamGms(
                     tc=self.tc,
                     env=self.env,
                     arg1="G_OFFTHD",
@@ -147,7 +146,7 @@ class PpmainMod(GamsClass):
         # * complete timeslice declarations
         # *-----------------------------------------------------------------------------
         # * Include preprocessing of timeslice attributes
-        self.include(timslice_mod.TimsliceMod(tc=self.tc, env=self.env))
+        self.include(TimsliceMod(tc=self.tc, env=self.env))
 
         if self.tc.test_run:
             self.tc.save_test_state(
@@ -160,13 +159,17 @@ class PpmainMod(GamsClass):
 
         # Set the RTP_OFF for all remaining PRC_NOFF ranges
         self.tc.enqueue(self.set_rtp_off)
-        return
 
         # *-----------------------------------------------
         # * interpolation/extrapolation
         # *-----------------------------------------------
         # * Call interpolation subsystem
-        self.include(preppm_mod.PreppmMod(tc=tc, env=self.env))  # noqa: F821
+        self.include(PreppmMod(tc=self.tc, env=self.env))
+
+        if self.tc.test_run:
+            self.tc.save_test_state(env=self.env, checkpoint="pp_main_mod_after_preppm")
+
+        return
 
         if self.env.intext_only.upper() == "YES":
             return

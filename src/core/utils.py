@@ -1,6 +1,12 @@
 from typing import Iterable
 
 
+class EscapeStack(Exception):
+    """Helper function to safely return back to surface while testing."""
+
+    pass
+
+
 def expand_set(symbol, elements: Iterable) -> None:
     """
     Expands a 1D GAMSPy Set with additional elements,

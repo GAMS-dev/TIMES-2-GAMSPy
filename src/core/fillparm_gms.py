@@ -54,6 +54,7 @@ class FillparmGms(GamsClass):
         arg7: str = "",
         arg8: str = "",
         arg9: str = "",
+        arg10: str = "",
     ):
         self.env = env.fork()
         self._sub_modules = {}
@@ -67,6 +68,7 @@ class FillparmGms(GamsClass):
         self.arg7 = arg7
         self.arg8 = arg8
         self.arg9 = arg9
+        self.arg10 = arg10
         self.compile()
 
     def compile(self) -> None:
@@ -137,19 +139,19 @@ def fillparm(
     IF(DFUNC {arg7}, OPTION CLEAR=MY_FIL2; CNT = (DFUNC LE 999);
       MY_ARRAY(DM_YEAR) = {arg1}({arg2},DM_YEAR,{arg3}); LAST_VAL=0; F = 0; Z = 0;
 * do interpolate
-	LOOP(DM_YEAR$MY_ARRAY(DM_YEAR),                    ! check for nonzero (including EPS)
+	LOOP(DM_YEAR$MY_ARRAY(DM_YEAR),                    {"! check for nonzero (including EPS)" if False else ""}
            MY_F = MY_ARRAY(DM_YEAR); Z = YEARVAL(DM_YEAR);
            IF(LAST_VAL,
-             IF(CNT OR (Z LE DFUNC),             ! linear interpolation
+             IF(CNT OR (Z LE DFUNC),             {"! linear interpolation" if False else ""}
                 {item}$((Z GT YEARVAL({arg5}))$(YEARVAL({arg5}) GT MY_FYEAR))
-			= LAST_VAL + (MY_F-LAST_VAL)/(Z-MY_FYEAR)*(YEARVAL({arg5})-MY_FYEAR); ! not the first one
-             ELSE                                ! exponential function
+			= LAST_VAL + (MY_F-LAST_VAL)/(Z-MY_FYEAR)*(YEARVAL({arg5})-MY_FYEAR); {"! not the first one" if False else ""}
+             ELSE                                {"! exponential function" if False else ""}
                 {item}$((Z GT YEARVAL({arg5}))$(YEARVAL({arg5}) GT MY_FYEAR))
 			= LAST_VAL*POWER(1+MY_F,YEARVAL({arg5})-MY_FYEAR)+EPS;
                 MY_F = LAST_VAL*POWER(1+MY_F,Z-MY_FYEAR)+EPS;
-                {arg1}({arg2},DM_YEAR,{arg3}) = MY_F;);      ! overwrite old data
+                {arg1}({arg2},DM_YEAR,{arg3}) = MY_F;);      {"! overwrite old data" if False else ""}
            ELSE F = Z; FIRST_VAL = MY_F;);
-           LAST_VAL = MY_F; MY_FYEAR=Z;);        ! remember the value and year
+           LAST_VAL = MY_F; MY_FYEAR=Z;);        {"! remember the value and year" if False else ""}
       IF(DFUNC GT 1,
         IF(CNT,DFUNC=MOD(DFUNC,10);
          IF(DFUNC EQ 2, FIRST_VAL = EPS; LAST_VAL = EPS; ELSEIF DFUNC EQ 4, Z = INF; ELSEIF DFUNC EQ 5, F = 0)));
