@@ -17,8 +17,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.eqobjvar_mod import eqobjvar
 from core.eqdamage_mod import EqdamageMod
+from core.eqobjvar_mod import eqobjvar
 
 from .base_class import GamsClass
 
