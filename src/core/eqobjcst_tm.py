@@ -54,6 +54,7 @@ class EqobjcstTm(GamsClass):
             is_dam_cost_defined = True
         else:
             is_dam_cost_defined = False
+
         self.tc.enqueue(
             self.variable_cost_equation,
             is_dam_cost_defined,
