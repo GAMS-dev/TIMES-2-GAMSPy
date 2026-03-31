@@ -849,8 +849,6 @@ $   BATINCLUDE pp_lvlfc.mod ACT_FLO   'P'   RPS_S1   '' ",'0','0','0'" ALL_TS V 
     TRACKPC(PRC_PKNO(R,P),C)=NO;
     FLO_PKCOI(RTP(R,T,P),C,S)$(RPCS_VAR(R,P,C,S)$TRACKPC(R,P,C))  = 1.0
     OPTION CLEAR=TRACKPC;
-
-$show
 * derive the CHP flow control attributes
 $   BATINCLUDE pp_chp.%1 %1
 
@@ -874,9 +872,6 @@ $   BATINCLUDE pp_lvlfs.mod
 $ BATINCLUDE pp_lvlbr.%1 FLO_SHAR ',C,CG' RPCS_VAR "" 1 0 C,
 * preprocessing of FLO_MARK/PRC_MARK
 $ BATINCLUDE eqflomrk.%1
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop
   RPC_NOFLO(RMKC(RPC)) = NO;
 
 *-----------------------------------------------------------------------------
@@ -1030,6 +1025,9 @@ $  BATINCLUDE pp_lvlbd.%1 FLO_FR     P C, '' ",''"       RPCS_VAR RPCS_VAR UNCD7
 $  BATINCLUDE pp_lvlbd.%1 COM_BNDNET C '' '' ",'',''"    COM_TS RCS_COMTS UNCD7
 $  BATINCLUDE pp_lvlbd.%1 COM_BNDPRD C '' '' ",'',''"    COM_TS RCS_COMTS UNCD7
 $  BATINCLUDE pp_lvlbd.%1 IRE_BND    C '' 'ALL_R,IE,' '' COM_TS RCS_COMTS UNCD7 EPS
+$gdxUnload %COMPILE_GDX%
+execute_unload "%EXECUTE_GDX%";
+$stop
 
 * Add bounds based on rate levels
   FLO_BDLVL(RTP,CG,S,BD)$FLO_BND(RTP,CG,S,BD) = 0;

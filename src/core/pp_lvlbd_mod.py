@@ -89,9 +89,7 @@ class PpLvlbdMod(GamsClass):
             condition=not (self.arg9 == ""),
         )
 
-    def comp1(
-        self: PpLvlbdMod,
-    ):
+    def comp1(self: PpLvlbdMod):
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -119,12 +117,12 @@ class PpLvlbdMod(GamsClass):
             "PUTOUT",
             "PUTGRP",
             "01",
-            f"'{arg1} Bounds conflict: Value at {arg6} level and below, latter ignored'",
+            f"{arg1} Bounds conflict: Value at {arg6} level and below, latter ignored",
         )
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf""""
+            code=rf"""
   {arg8}(RT{arg2}(R,T,{arg2}),{arg3}S--ORD(S),{arg4}'FX'{arg5}) $= SUM(BD${arg1}(RT{arg2},{arg3}S,{arg4}BD),1)$(NOT {arg7}(R,{arg2},{arg3}S));
 
 * Aggregation only if target level value is not present

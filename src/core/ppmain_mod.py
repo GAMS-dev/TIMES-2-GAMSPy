@@ -24,10 +24,12 @@ from core.filshape_gms import FilshapeGms
 from core.main_ext_mod import include_extension
 from core.pp_chp_ier import PpChpIer
 from core.pp_chp_mod import PpChpMod
+from core.pp_lvlbd_mod import PpLvlbdMod
 from core.pp_lvlbr_mod import PpLvlbrMod
 from core.pp_lvlfc_mod import PpLvlfcMod
 from core.pp_lvlff_mod import PpLvlffMod
 from core.pp_lvlfs_mod import PpLvlfsMod
+from core.pp_lvlif_mod import PplvlifMod
 from core.pp_lvlpk_mod import PpLvlpkMod
 from core.pp_micro_mod import PpMicroMod
 from core.pp_off_mod import pp_off
@@ -418,14 +420,13 @@ class PpmainMod(GamsClass):
         )
         # preprocessing of FLO_MARK/PRC_MARK
         self.include(EqflomrkMod(tc=self.tc, env=self.env))
-        raise EscapeStack(self.module_name)
 
-        tc.enqueue(self.deactivate_rpc_noflo, tc=tc)
+        self.tc.enqueue(self.deactivate_rpc_noflo)
 
         # inter-regional exchange related attributes
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
-                tc=tc,
+            PpLvlfcMod(
+                tc=self.tc,
                 env=self.env,
                 arg1="IRE_PRICE",
                 arg2="P,C",
@@ -438,8 +439,8 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
-                tc=tc,
+            PpLvlfcMod(
+                tc=self.tc,
                 env=self.env,
                 arg1="IRE_FLOSUM",
                 arg2="P",
@@ -454,86 +455,44 @@ class PpmainMod(GamsClass):
             )
         )
         # this routine only handles IRE_FLO
-        self.include(pp_lvlif_mod.PplvlifMod(tc=tc, env=self.env, arg1=self.arg1))  # noqa: F821
+        self.include(PplvlifMod(tc=self.tc, env=self.env, arg1=self.arg1))
 
-        tc.enqueue(
-            self.phase_eightteen, tc=tc, micro=self.env.micro, macro=self.env.macro
+        self.tc.enqueue(
+            self.phase_eightteen,
+            micro=self.env.micro,
+            macro=self.env.macro,
+            rl=self.env.rl,
+            pgprim=self.env.pgprim,
         )
 
         # process bounds to see if aggregation is necessary
-        self.include(
-            pp_lvlbd_mod.PpLvlbdMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="ACT_BND",
-                arg2="P",
-                arg3="",
-                arg4="",
-                arg5="",
-                arg6="PRC_TS",
-                arg7="RPS_PRCTS",
-                arg8="RTPS_BD",
-                arg9="EPS",
+        # fmt: off
+        batincludes = [
+            ("ACT_BND",    "P", '', '', '',          "PRC_TS", "RPS_PRCTS", "RTPS_BD", "EPS"),
+            ("FLO_FR",     "P", "C,", '', ",''",     "RPCS_VAR", "RPCS_VAR", "UNCD7", "0"),
+            ("COM_BNDNET", "C", '', '', ",'',''",    "COM_TS", "RCS_COMTS", "UNCD7"),
+            ("COM_BNDPRD", "C", '', '', ",'',''",    "COM_TS", "RCS_COMTS", "UNCD7"),
+            ("IRE_BND",    "C", '', 'ALL_R,IE,', '', "COM_TS", "RCS_COMTS", "UNCD7", "EPS"),
+
+        ]
+        # fmt: on
+        for arg in batincludes:
+            self.include(
+                PpLvlbdMod(
+                    tc=self.tc,
+                    env=self.env,
+                    arg1=arg[0],
+                    arg2=arg[1],
+                    arg3=arg[2],
+                    arg4=arg[3],
+                    arg5=arg[4],
+                    arg6=arg[5],
+                    arg7=arg[6],
+                    arg8=arg[7],
+                    arg9=arg[8] if len(arg) > 8 else "",
+                )
             )
-        )
-        self.include(
-            pp_lvlbd_mod.PpLvlbdMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="FLO_FR",
-                arg2="P",
-                arg3="C,",
-                arg4="",
-                arg5=",''",
-                arg6="RPCS_VAR",
-                arg7="RPCS_VAR",
-                arg8="UNCD7",
-                arg9="0",
-            )
-        )
-        self.include(
-            pp_lvlbd_mod.PpLvlbdMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="COM_BNDNET",
-                arg2="C",
-                arg3="",
-                arg4="",
-                arg5=",'',''",
-                arg6="COM_TS",
-                arg7="RCS_COMTS",
-                arg8="UNCD7",
-            )
-        )
-        self.include(
-            pp_lvlbd_mod.PpLvlbdMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="COM_BNDPRD",
-                arg2="C",
-                arg3="",
-                arg4="",
-                arg5=",'',''",
-                arg6="COM_TS",
-                arg7="RCS_COMTS",
-                arg8="UNCD7",
-            )
-        )
-        self.include(
-            pp_lvlbd_mod.PpLvlbdMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="IRE_BND",
-                arg2="C",
-                arg3="",
-                arg4="ALL_R,IE,",
-                arg5="",
-                arg6="COM_TS",
-                arg7="RCS_COMTS",
-                arg8="UNCD7",
-                arg9="EPS",
-            )
-        )
+        raise EscapeStack(self.module_name)
 
         tc.enqueue(self.phase_nineteen, tc=tc)
 
@@ -735,24 +694,24 @@ PARAMETER BLE_BAL(R,YEAR,C,C) //;
 """,
         )
 
-    def commodities_in_dam_comprod(self, tc):
-        tc.add_gams_code(
+    def commodities_in_dam_comprod(self: PpmainMod):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code="RHS_COMPRD(RTCS_VARC(R,T,C,S))$DAM_ELAST(R,C,'N') = YES;",
         )
 
-    def deactivate_rpc_noflo(self, tc):
-        tc.add_gams_code(
+    def deactivate_rpc_noflo(self: PpmainMod):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code="""
-        RPC_NOFLO(RMKC(RPC)) = NO;
-        *-----------------------------------------------------------------------------
-        * inter-regional exchange related attributes
-        *-----------------------------------------------------------------------------
-        PUTGRP = 0;
-        """,
+RPC_NOFLO(RMKC(RPC)) = NO;
+*-----------------------------------------------------------------------------
+* inter-regional exchange related attributes
+*-----------------------------------------------------------------------------
+PUTGRP = 0;
+""",
         )
 
     def activate_rtc_net(self: PpmainMod):
@@ -1700,11 +1659,11 @@ IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
 """,
         )
 
-    def phase_eightteen(self, tc, macro, micro):
-        tc.add_gams_code(
+    def phase_eightteen(self: PpmainMod, macro: str, micro: str, rl: str, pgprim: str):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
+            code=rf"""
 *-----------------------------------------------------------------------------
 * Preprocess market-based trade
 *-----------------------------------------------------------------------------
@@ -1728,28 +1687,25 @@ IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
       IF(NOT SUM(COM2$TOP_IRE(REG,COM1,R,COM2,P),1),RXX(REG,P,COM1)=YES));
     OPTION CLEAR=TRACKPC; TRACKPC(RXX(R,P,C))$(NOT RPC_MARKET(R,P,C,'EXP')) = YES;
     RPC_MARKET(TRACKPC,'EXP') = YES);
-        """,
+
+PUTGRP=0;
+* Set the import commodities for marketplaces
+LOOP(RPC_MARKET(R,P,C,IE)$(NOT SUM(TOP_IRE(R,C,R,COM,P),1)),
+* If only one import and market commodity is involved for (R,P), choose the import:
+    Z=SUM(RPC_IRE(R,P,COM,'IMP'),1)+EPS;
+    IF(IRE_DIST(R,P),IF(Z GT 1,
+    {pp_qaput("PUTOUT", "PUTGRP", "01", "Unsupported diverging trade topology")}
+    PUT QLOG ' WARNING       - Too complex topology:  R=',{rl},' P=',P.TL;)
+    ELSEIF Z=1, Z=SUM(COM$RPC_MARKET(R,P,COM,'EXP'),1));
+    IF(Z EQ 1, LOOP(RPC_IRE(R,P,COM,'IMP'), Z=0; CG_GRP(R,P,C,COM) = YES));
+    IF(Z,CG_GRP(R,P,C,C) = YES));
+""",
         )
 
-        # TODO:
-        """
-        PUTGRP=0;
-        * Set the import commodities for marketplaces
-        LOOP(RPC_MARKET(R,P,C,IE)$(NOT SUM(TOP_IRE(R,C,R,COM,P),1)),
-        * If only one import and market commodity is involved for (R,P), choose the import:
-            Z=SUM(RPC_IRE(R,P,COM,'IMP'),1)+EPS;
-            IF(IRE_DIST(R,P),IF(Z GT 1,
-        $      BATINCLUDE pp_qaput.%1 PUTOUT PUTGRP 01 'Unsupported diverging trade topology'
-            PUT QLOG ' WARNING       - Too complex topology:  R=',%RL%,' P=',P.TL;)
-            ELSEIF Z=1, Z=SUM(COM$RPC_MARKET(R,P,COM,'EXP'),1));
-            IF(Z EQ 1, LOOP(RPC_IRE(R,P,COM,'IMP'), Z=0; CG_GRP(R,P,C,COM) = YES));
-            IF(Z,CG_GRP(R,P,C,C) = YES));
-        """
-
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
+            code=rf"""
   LOOP(CG_GRP(R,P,C,COM),RC_RC(R,C,R,COM) = YES);
   TOP_IRE(RC_RC(R,C,R,COM),P)$CG_GRP(R,P,C,COM) = YES;
   OPTION CLEAR=CG_GRP;
@@ -1785,9 +1741,9 @@ IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
   RP_AIRE(RP_IRE(R,P),'EXP')$(RP_AIRE(R,P,'IMP')$IRE_DIST(R,P)) = NO;
 
 * Set IRE_FLOSUM for C if activity has IE flow
-  IRE_FLOSUM(RTP(R,T,P),C,S,IE,COM,IO)$(RPC_PG(R,P,C)$RP_AIRE(R,P,IE)$IRE_FLOSUM(RTP,%PGPRIM%,S,IE,COM,IO)) =
-     IRE_FLOSUM(RTP,%PGPRIM%,S,IE,COM,IO)*(1/PRC_ACTFLO(RTP,C));
-  IRE_FLOSUM(R,T,P,%PGPRIM%,S,IE,COM,IO) = 0;
+  IRE_FLOSUM(RTP(R,T,P),C,S,IE,COM,IO)$(RPC_PG(R,P,C)$RP_AIRE(R,P,IE)$IRE_FLOSUM(RTP,'{pgprim}',S,IE,COM,IO)) =
+     IRE_FLOSUM(RTP,'{pgprim}',S,IE,COM,IO)*(1/PRC_ACTFLO(RTP,C));
+  IRE_FLOSUM(R,T,P,'{pgprim}',S,IE,COM,IO) = 0;
 *-----------------------------------------------------------------------------
 
 * OK inter-regional trade if in topology
@@ -1826,19 +1782,19 @@ IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
 
         # handle TIMES-MACRO
         if macro.upper() == "YES":
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase="run",
                 code=r"""COM_LIM(RC(DEM),BD)$(NOT COM_LIM(RC,'N')) = NOT BDNEQ(BD);""",
             )
         if micro.upper() == "YES":
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase="run",
                 code=r"""COM_LIM(RC(DEM),BD)$(NOT COM_LIM(RC,'N')) = NOT BDNEQ(BD);""",
             )
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
@@ -1871,16 +1827,16 @@ IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
 """,
         )
 
-    def phase_nineteen(self, tc):
-        tc.add_gams_code(
+    def phase_nineteen(self: PpmainMod, pgprim: str):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
+            code=rf"""
 * Add bounds based on rate levels
   FLO_BDLVL(RTP,CG,S,BD)$FLO_BND(RTP,CG,S,BD) = 0;
   FLO_BND(RTPC(R,T,P,C),S,BD)$(RPCS_VAR(R,P,C,S)$FLO_BDLVL(RTPC,S,BD)) = FLO_BDLVL(RTPC,S,BD)*G_YRFR(R,S)*8760;
   FLO_BND(RTP(R,T,P),CG(COM_TYPE),S,BD)$(PRC_TS(R,P,S)$RP_IRE(R,P)$FLO_BDLVL(RTP,CG,S,BD)) = FLO_BDLVL(RTP,CG,S,BD)*G_YRFR(R,S)*8760;
-  ACT_BND(RTP(R,T,P),S,BD)$((RP_STG(R,P)->0)$PRC_TS(R,P,S)$FLO_BDLVL(RTP,%PGPRIM%,S,BD)) = FLO_BDLVL(RTP,%PGPRIM%,S,BD)*G_YRFR(R,S)*8760;
+  ACT_BND(RTP(R,T,P),S,BD)$((RP_STG(R,P)->0)$PRC_TS(R,P,S)$FLO_BDLVL(RTP,'{pgprim}',S,BD)) = FLO_BDLVL(RTP,'{pgprim}',S,BD)*G_YRFR(R,S)*8760;
 
 *-----------------------------------------------------------------------------
 * process cumulative bounds
@@ -1888,12 +1844,12 @@ IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
 * process flows: UC_CUMFLO
   UC_CUMFLO(UC_N,R,P,C,BOHYEAR+BEOH(BOHYEAR),EOHYEAR+BEOH(EOHYEAR)) $= UC_CUMFLO(UC_N,R,P,C,BOHYEAR,EOHYEAR);
   UC_CUMFLO(UC_N,R,P,C,BOHYEAR,EOHYEAR)$(NOT LL(BOHYEAR)*LL(EOHYEAR)) = 0;
-  UC_CUMFLO(UC_N,R,P,%PGPRIM%,BOHYEAR+BEOH(BOHYEAR),EOHYEAR+BEOH(EOHYEAR)) $= UC_CUMACT(UC_N,R,P,BOHYEAR,EOHYEAR);
+  UC_CUMFLO(UC_N,R,P,'{pgprim}',BOHYEAR+BEOH(BOHYEAR),EOHYEAR+BEOH(EOHYEAR)) $= UC_CUMACT(UC_N,R,P,BOHYEAR,EOHYEAR);
   LOOP((UC_N,RP,C,YEAR,LL)$UC_CUMFLO(UC_N,RP,C,YEAR,LL),RPC_CUMFLO(RP,C,YEAR,LL)=YES);
 * process flows: FLO_CUM
   FLO_CUM(R,P,C,BOHYEAR+BEOH(BOHYEAR),EOHYEAR+BEOH(EOHYEAR),L) $= FLO_CUM(R,P,C,BOHYEAR,EOHYEAR,L);
   FLO_CUM(R,P,C,BOHYEAR,EOHYEAR,L)$(NOT LL(BOHYEAR)*LL(EOHYEAR)) = 0;
-  FLO_CUM(R,P,%PGPRIM%,BOHYEAR+BEOH(BOHYEAR),EOHYEAR+BEOH(EOHYEAR),L) $= ACT_CUM(R,P,BOHYEAR,EOHYEAR,L);
+  FLO_CUM(R,P,'{pgprim}',BOHYEAR+BEOH(BOHYEAR),EOHYEAR+BEOH(EOHYEAR),L) $= ACT_CUM(R,P,BOHYEAR,EOHYEAR,L);
   RPC_CUMFLO(RP,C,YEAR,LL) $= SUM(L$FLO_CUM(RP,C,YEAR,LL,L),YES);
   OPTION CLEAR=UC_CUMACT,CLEAR=ACT_CUM;
 * commodities: UC_CUMCOM
@@ -1918,10 +1874,10 @@ IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
 """,
         )
 
-    def phase_twenty(self, tc, obj):
+    def phase_twenty(self: PpmainMod, obj: str, pgprim: str):
         conditional = "RTC_NET(R,T,C)$((M(T)+LAGT(T) > YEARVAL(ALLYEAR)) * (M(T)-LEAD(T) < YEARVAL(LL))) = YES;"
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"""
@@ -1937,10 +1893,10 @@ IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
 """,
         )
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
+            code=rf"""
 * check all TS at/above COM_TSL for bounds
     RHS_COMBAL(RTCS_VARC(RTC_NET,S)) = YES;
     COM_CSTNET(R,LL--ORD(LL),C,S--ORD(S),CUR)$(COM_CSTNET(R,LL,C,S,CUR)+COM_SUBNET(R,LL,C,S,CUR)+COM_TAXNET(R,LL,C,S,CUR)) = EPS;
@@ -1972,7 +1928,7 @@ IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
       STG_SIFT(R,T,P,C,S)$(STOAL(R,S) NE F)=0);
     ACT_TIME(RTP(R,T,P),'LO')$(ACT_TIME(RTP,'UP')=0)=0;
     ACT_TIME(RTP(R,T,P),BD)$ACT_TIME(RTP,'FX')=ACT_TIME(RTP,'FX')$BDUPX(BD));
-  RPC_LS(RPC(RP,C))$RPC_LS(RP,%PGPRIM%)=NO;
+  RPC_LS(RPC(RP,C))$RPC_LS(RP,'{pgprim}')=NO;
 
 * Controls for flexible general storage
   RPS_STG(PRC_TS(RP_STG,TS)) = YES;

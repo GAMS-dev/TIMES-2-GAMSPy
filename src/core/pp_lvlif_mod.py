@@ -47,19 +47,11 @@ class PplvlifMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.enqueue(
-            self.exec1,
-            rl=self.env.rl,
-            pl=self.env.pl,
-        )
+        self.tc.enqueue(self.exec1, rl=self.env.rl, pl=self.env.pl)
 
-    def exec1(
-        self: PplvlifMod,
-        rl: str,
-        pl: str,
-    ):
+    def exec1(self: PplvlifMod, rl: str, pl: str):
         include_pp_qaput = pp_qaput(
-            "PUTOUT", "PUTGRP", "02", "'IRE_FLO import commodity not in TOP_IRE'"
+            "PUTOUT", "PUTGRP", "02", "IRE_FLO import commodity not in TOP_IRE"
         )
         self.tc.add_gams_code(
             module=self,
