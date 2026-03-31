@@ -646,9 +646,6 @@ $offlisting
 *-----------------------------------------------------------------------------
 * Extensions after establishing RPCS_VAR and PRC_CAPACT but before levelising
 $  BATINCLUDE main_ext.mod pp_prelv %EXTEND%
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop
 * Make various QA checks for FLO_SHAR
 $  BATINCLUDE pp_qafs.mod mod
 
@@ -662,6 +659,9 @@ $  BATINCLUDE pp_qafs.mod mod
     STARTOFF = CEIL(MAX(MAXLIFE,SMAX(RTC_SHED(R,T,C,BD,J),COM_VOC(R,T,C,BD))*100))+1;
 * Call the SHAPE inter-/extrapolation routine
 $   BATINCLUDE filshape 'STARTOFF'
+$gdxUnload %COMPILE_GDX%
+execute_unload "%EXECUTE_GDX%";
+$stop
     SHAPE('1',AGE)$(ORD(AGE) LE STARTOFF) = 1.;
     SHAPE(J,AGE)$((SHAPE(J,AGE) EQ 0)$SHAPE(J,AGE)) = 0;
 

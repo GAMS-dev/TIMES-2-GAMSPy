@@ -42,7 +42,6 @@ class FilshapeGms(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.comp1()
         self.tc.add_gams_code(module=self, phase="init", code=r"SET AGEFIL(AGE);")
         self.tc.enqueue(
             self.filshape_exec,
@@ -53,7 +52,7 @@ class FilshapeGms(GamsClass):
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf""""
+            code=rf"""
 $ EOLCOM !
  LOOP(J, Z = 0; MY_FYEAR = 9999;
 * do interpolate

@@ -43,11 +43,10 @@ class PpQafsMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.comp1()
         self.tc.add_gams_code(
             module=self,
             phase="init",
-            code=r""""
+            code=r"""
 * Eliminate redundant / inconsistent shares due to careless modelling
  SET RTPGIG(R,ALLYEAR,P,CG,IO,CG) //;
  SET RTP_CG(R,ALLYEAR,P,CG,IO)    //;
@@ -63,18 +62,14 @@ class PpQafsMod(GamsClass):
             rl=self.env.rl,
             pl=self.env.pl,
             sharetol=self.env.sharetol,
+            notsharerelaxno=self.env.notsharerelaxno,
         )
-
-    def comp1(
-        self: PpQafsMod,
-    ):
-        pass
 
     def pp_qafs_exec1(self: PpQafsMod, rl: str, pl: str):
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf""""
+            code=rf"""
 * Collect the Groups involved
  OPTION RP_CCG <= FLO_SHAR; PUTGRP=0;
  LOOP(RP_CCG(R,P,C,CG)$(NOT RPC(R,P,C)$COM_GMAP(R,CG,C)),
@@ -113,7 +108,7 @@ class PpQafsMod(GamsClass):
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf""""
+            code=rf"""
  FLO_SHAR(RTP(R,V,P),C,CG,S(TSL),BD('UP'))$((FLO_SHAR(RTP,C,CG,S,BD)$COM_GMAP(R,CG,C) GE 1)$FLO_SHAR(RTP,C,CG,S,BD)) = 0;
  FLO_SHAR(R,V,P,C,CG,S,BDUPX(BD))$((FLO_SHAR(R,V,P,C,CG,S,BD) LT {sharetol})$FLO_SHAR(R,V,P,C,CG,S,BD)) = EPS;
  FLO_SHAR(R,V,P,C,CG,S,BDLOX(BD))$((ABS(FLO_SHAR(R,V,P,C,CG,S,BD)-1) LT {sharetol})$FLO_SHAR(R,V,P,C,CG,S,BD)) = 1;

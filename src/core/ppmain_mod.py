@@ -19,9 +19,11 @@ from typing import TYPE_CHECKING
 from gamspy import Alias
 
 from core.filparam_gms import FilparamGms
+from core.filshape_gms import FilshapeGms
 from core.main_ext_mod import include_extension
 from core.pp_off_mod import pp_off
 from core.pp_prelv_vda import PpPrelvVda
+from core.pp_qafs_mod import PpQafsMod
 from core.pp_qaput_mod import pp_qaput
 from core.preppm_mod import PreppmMod
 from core.timslice_mod import TimsliceMod
@@ -220,20 +222,19 @@ class PpmainMod(GamsClass):
             source="ppmain",
         )
 
-        raise EscapeStack(self.module_name)
-
         # Make various QA checks for FLO_SHAR
-        self.include(pp_qafs_mod.PpQafsMod(tc=tc, env=self.env))  # noqa: F821
+        self.include(PpQafsMod(tc=self.tc, env=self.env))
 
         # *-----------------------------------------------------------------------------
         # * setup and apply (some) SHAPE/MULTI
         # *-----------------------------------------------------------------------------
-        tc.add_gams_code(module=self, phase=phase, code="SCALAR MAXLIFE;")
+        self.tc.add_gams_code(module=self, phase=phase, code="SCALAR MAXLIFE;")
 
-        tc.enqueue(self.phase_nine, tc=tc)
+        self.tc.enqueue(self.phase_nine)
 
         # Call the SHAPE inter-/extrapolation routine
-        self.include(filshape_gms.FilshapeGms(tc=tc, env=self.env, arg1="STARTOFF"))  # noqa: F821
+        self.include(FilshapeGms(tc=self.tc, env=self.env, arg1="STARTOFF"))  # noqa: F821
+        raise EscapeStack(self.module_name)
 
         tc.enqueue(self.adjust_shape, tc=tc)
 
