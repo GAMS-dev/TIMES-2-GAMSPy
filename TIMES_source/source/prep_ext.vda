@@ -40,9 +40,6 @@ $onlisting
 display "prep_ext_vda_prio_equcrtp";
 $show
 $offlisting
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop
 $BATINCLUDE equcrtp.vda PREP_EXT
 $onlisting
 display "prep_ext_vda_after_equcrtp";

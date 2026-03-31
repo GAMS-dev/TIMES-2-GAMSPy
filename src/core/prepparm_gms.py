@@ -178,40 +178,6 @@ ELSE OPTION CLEAR=UNCD7; CNT = ({def_iebd}+(3-{def_iebd})$IE_DEFAULT('{arg1}'))$
 IF(CNT=0, UNCD7({arg2}{ll},{arg3}{arg4})$({arg1}({arg2},'{dflbl}',{arg3})>0) = YES;
 """
 
-    # 16365  IF(G_NOINTERP, INT_DEFAULT('PRC_DYNUC')=NO;
-    # 16366    ELSE OPTION CLEAR=UNCD7; CNT = (10+(3-10)$IE_DEFAULT('PRC_DYNUC'))$1;
-    # 16367     IF(CNT=0, UNCD7(UC_N,SIDE,R,'0',P,UC_GRPTYPE,BD)$(PRC_DYNUC(UC_N,SIDE,R,'0',P,UC_GRPTYPE,BD)>0) = YES;
-    # 16368    ELSE UNCD7(UC_N,SIDE,R,T,P,UC_GRPTYPE,BD)$(PRC_DYNUC(UC_N,SIDE,R,'0',P,UC_GRPTYPE,BD)=-13) $= PRC_DYNUC(UC_N,SIDE,R,T,P,UC_GRPTYPE,BD);
-    # 16369      IF(CARD(UNCD7),PRC_DYNUC(UC_N,SIDE,R,T,P,UC_GRPTYPE,BD)$UNCD7(UC_N,SIDE,R,T,P,UC_GRPTYPE,BD)=0; OPTION CLEAR=UNCD7);
-    # 16370      UNCD7(UC_N,SIDE,R,LL--ORD(LL),P,UC_GRPTYPE,BD)$(((PRC_DYNUC(UC_N,SIDE,R,'0',P,UC_GRPTYPE,BD))>-.5)$PRC_DYNUC(UC_N,SIDE,R,LL,P,UC_GRPTYPE,BD))=YES;
-    # 16371     );
-    # 16372     LOOP(UNCD7(UC_N,SIDE,R,'0',P,UC_GRPTYPE,BD), DFUNC = CNT; DFUNC $= ROUND(PRC_DYNUC(UC_N,SIDE,R,'0',P,UC_GRPTYPE,BD));
-    # 16373        MY_ARRAY(DM_YEAR) = PRC_DYNUC(UC_N,SIDE,R,DM_YEAR,P,UC_GRPTYPE,BD); OPTION CLEAR=MY_FIL2;
-    # 16374  * do interpolate
-    # 16375        IF(DFUNC NE 10, LAST_VAL=0; F = 0; Z = 0;
-    # 16376          LOOP(DM_YEAR$MY_ARRAY(DM_YEAR),          ! check for nonzero (including EPS)
-    # 16377             MY_F = MY_ARRAY(DM_YEAR); Z = YEARVAL(DM_YEAR);
-    # 16378             IF(LAST_VAL,
-    # 16379               IF((Z GT DFUNC)$(DFUNC GT 999),     ! exponential function
-    # 16380                  MY_FIL2(T)$((Z>YEARVAL(T))$(YEARVAL(T)>MY_FYEAR))
-    # 16381                          = LAST_VAL*POWER(1+MY_F,YEARVAL(T)-MY_FYEAR)+EPS;
-    # 16382                  MY_F = LAST_VAL*POWER(1+MY_F,Z-MY_FYEAR)+EPS;
-    # 16383                  MY_FIL2(DM_YEAR) = MY_F;         ! overwrite old data
-    # 16384               ELSE                                ! linear interpolation
-    # 16385                  MY_FIL2(T)$((Z>YEARVAL(T))$(YEARVAL(T)>MY_FYEAR))
-    # 16386                          = LAST_VAL + (MY_F-LAST_VAL)/(Z-MY_FYEAR)*(YEARVAL(T)-MY_FYEAR);
-    # 16387               );
-    # 16388             ELSE F = Z; FIRST_VAL = MY_F);
-    # 16389             LAST_VAL = MY_F; MY_FYEAR=Z;);        ! remember the value and year
-    # 16390   ELSE FIRST_VAL = 0; MY_FYEAR = 0;          ! intra-period I/E
-    # 16391     LOOP(MY_FIL(LL)$MY_ARRAY(MY_FIL),        ! check for data values
-    # 16392       MY_F = MY_ARRAY(LL); Z = YEARVAL(LL); F = FIL2(LL);
-    # 16393       IF(MY_FYEAR < F, IF(F > MIN(FIRST_VAL,Z), LAST_VAL = MY_F; FIRST_VAL = F);
-    # 16394         MY_FIL2(T(LL+(F-YEARVAL(LL))))$(NOT MY_ARRAY(T)) = LAST_VAL+(MY_F-LAST_VAL)/(Z-MY_FYEAR)*(F-MY_FYEAR));
-    # 16395         LAST_VAL = MY_F; MY_FYEAR=Z;);       ! remember the value and year
-    # 16396     DFUNC = 1;
-    # 16397        );
-
     if opt:
         code += f"""
 ELSE UNCD7({arg2},{arg5},{arg3}{arg4})$({arg1}({arg2},'{dflbl}',{arg3})=-13) $= {arg1}({arg2},{arg5},{arg3});

@@ -464,30 +464,28 @@ class PreppmMod(GamsClass):
         self.tc.enqueue(self.exec6, dflbl=self.env.dflbl)
 
         # * Optional weighting of vintaged attributes
-        if self.env.vintopt != "1":
-            return
+        if self.env.vintopt == "1":
+            fillvints = [
+                ("FLO_FUNC", "R", "P,CG1,CG2,TS", "X_RPGGS"),
+                ("FLO_SUM", "R", "P,CG1,C,CG2,TS", "X_RPGCGS"),
+                ("NCAP_CDME", "R", "P", "X_RP"),
+                ("NCAP_CHPR", "R", "P,BD", "X_RPB"),
+                ("FLO_SHAR", "R", "P,C,CG,TS,BD", "X_RPCGSB"),
+            ]
 
-        fillvints = [
-            ("FLO_FUNC", "R", "P,CG1,CG2,TS", "X_RPGGS"),
-            ("FLO_SUM", "R", "P,CG1,C,CG2,TS", "X_RPGCGS"),
-            ("NCAP_CDME", "R", "P", "X_RP"),
-            ("NCAP_CHPR", "R", "P,BD", "X_RPB"),
-            ("FLO_SHAR", "R", "P,C,CG,TS,BD", "X_RPCGSB"),
-        ]
-
-        for arg in fillvints:
-            self.include(
-                FillvintGms(
-                    self.tc,
-                    self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
+            for arg in fillvints:
+                self.include(
+                    FillvintGms(
+                        self.tc,
+                        self.env,
+                        arg1=arg[0],
+                        arg2=arg[1],
+                        arg3=arg[2],
+                        arg4=arg[3],
+                    )
                 )
-            )
 
-        self.tc.enqueue(self.exec7)
+            self.tc.enqueue(self.exec7)
 
     def exec1(self, dflbl: str) -> None:
         self.tc.add_gams_code(

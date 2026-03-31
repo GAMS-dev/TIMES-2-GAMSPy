@@ -13,7 +13,7 @@
 # *      arg6 - temporary table of control tuples
 # *      arg7 - P/C
 # *******************************************************************************
-# *$ONLISTING
+
 
 from __future__ import annotations
 
@@ -125,23 +125,22 @@ OPTION CLEAR = {arg6};
             module=self,
             phase="run",
             code=rf"""
-$EOLCOM !
 LOOP({arg6}({arg2},'{dflbl}'{tail}{arg4}),
   DFUNC={DEF}; DFUNC $= MOD(ROUND({arg1}({arg2},'{dflbl}'{tail})),1000);
   MY_ARRAY(DM_YEAR) = {arg1}({arg2},DM_YEAR{tail});
   IF(DFUNC NE 10, F=0; LAST_VAL=0;
 * do interpolate
-   LOOP(DM_YEAR$MY_ARRAY(DM_YEAR),          ! check for nonzero (including EPS)
+   LOOP(DM_YEAR$MY_ARRAY(DM_YEAR),          {"! check for nonzero (including EPS)" if False else ""}
      MY_F = MY_ARRAY(DM_YEAR); Z = YEARVAL(DM_YEAR);
      IF(LAST_VAL, {arg1}({arg2},{arg5}{tail})$((Z>YEARVAL({arg5}))$(YEARVAL({arg5})>MY_FYEAR)) = LAST_VAL;
      ELSE F = Z; FIRST_VAL = MY_F);
-     LAST_VAL = ROUND(MY_F); MY_FYEAR=Z;);  ! remember the value and year
-  ELSE FIRST_VAL = 0; MY_FYEAR = 0;         ! intra-period I/E
-   LOOP(MY_FIL(LL)$MY_ARRAY(MY_FIL),        ! check for data values
+     LAST_VAL = ROUND(MY_F); MY_FYEAR=Z;);  {"! remember the value and year" if False else ""}
+  ELSE FIRST_VAL = 0; MY_FYEAR = 0;         {"! intra-period I/E" if False else ""}
+   LOOP(MY_FIL(LL)$MY_ARRAY(MY_FIL),        {"! check for data values" if False else ""}
      MY_F = MY_ARRAY(LL); Z = YEARVAL(MY_FIL); F = FIL2(MY_FIL);
      IF(MY_FYEAR<F, IF(F>MIN(FIRST_VAL,Z), LAST_VAL = MY_F; FIRST_VAL = F;);
      {arg1}({arg2},{arg5}(LL+(F-YEARVAL(LL))){tail})$(NOT MY_ARRAY({arg5})) = LAST_VAL);
-     LAST_VAL = MY_F; MY_FYEAR=Z;);         ! remember the value and year
+     LAST_VAL = MY_F; MY_FYEAR=Z;);         {"! remember the value and year" if False else ""}
      DFUNC=0;
    );
    IF(ROUND(DFUNC-5,-1)=10,
@@ -153,6 +152,6 @@ LOOP({arg6}({arg2},'{dflbl}'{tail}{arg4}),
      {arg1}({arg2},{arg5}{tail})${arg7} $= FIRST_VAL$(YEARVAL({arg5})<F) + LAST_VAL$(YEARVAL({arg5})>Z);
    );
   );
-$OFFLISTING
+
 """,
         )

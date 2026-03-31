@@ -20,7 +20,6 @@ from core.fillparm_gms import FillparmGms
 from core.fillvint_gms import FillvintGms
 from core.powerflo_vda import PowerfloVda
 from core.resloadc_vda import ResloadcVda
-from core.utils import EscapeStack
 
 from .base_class import GamsClass
 
@@ -109,7 +108,6 @@ class PrepExtVda(GamsClass):
                 env=self.env, checkpoint="prep_ext_vda_prio_equcrtp"
             )
 
-        raise EscapeStack(self.module_name)
         self.include(EqucrtpVda(self.tc, self.env, arg1="PREP_EXT"))
 
         if self.env.vintopt == "1":
