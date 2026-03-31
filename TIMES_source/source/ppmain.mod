@@ -659,9 +659,6 @@ $  BATINCLUDE pp_qafs.mod mod
     STARTOFF = CEIL(MAX(MAXLIFE,SMAX(RTC_SHED(R,T,C,BD,J),COM_VOC(R,T,C,BD))*100))+1;
 * Call the SHAPE inter-/extrapolation routine
 $   BATINCLUDE filshape 'STARTOFF'
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop
     SHAPE('1',AGE)$(ORD(AGE) LE STARTOFF) = 1.;
     SHAPE(J,AGE)$((SHAPE(J,AGE) EQ 0)$SHAPE(J,AGE)) = 0;
 
@@ -714,7 +711,6 @@ $   BATINCLUDE filparam MULTI 'J,' '' ",'','','','',''" LL EOHYEARS 'NO$' ''
     IF(NOT Z, RPC_NOFLO(R,P,C) = NO);
   );
   OPTION CLEAR=TRACKPC;
-
 *-----------------------------------------------------------------------------
 * do the basic initializations that are TS-based, including aggregate/inherit
 *-----------------------------------------------------------------------------
@@ -781,6 +777,7 @@ $IF NOT PARTYPE RTCS_FRMX  PARAMETER RTCS_FR(R,T,C,S,S) //;
 * Elastic demands
 *-----------------------------------------------------------------------------
    OPTION DEM < COM_PROJ;
+
 *  Preprocess TIMES-Micro
 $IF %TIMESED%==YES $BATINCLUDE pp_micro.mod PRE
 * check sign of COM_ELAST and set RCJ after assigning default COM_STEPs
@@ -853,6 +850,7 @@ $   BATINCLUDE pp_lvlfc.mod ACT_FLO   'P'   RPS_S1   '' ",'0','0','0'" ALL_TS V 
     FLO_PKCOI(RTP(R,T,P),C,S)$(RPCS_VAR(R,P,C,S)$TRACKPC(R,P,C))  = 1.0
     OPTION CLEAR=TRACKPC;
 
+$show
 * derive the CHP flow control attributes
 $   BATINCLUDE pp_chp.%1 %1
 
@@ -876,6 +874,9 @@ $   BATINCLUDE pp_lvlfs.mod
 $ BATINCLUDE pp_lvlbr.%1 FLO_SHAR ',C,CG' RPCS_VAR "" 1 0 C,
 * preprocessing of FLO_MARK/PRC_MARK
 $ BATINCLUDE eqflomrk.%1
+$gdxUnload %COMPILE_GDX%
+execute_unload "%EXECUTE_GDX%";
+$stop
   RPC_NOFLO(RMKC(RPC)) = NO;
 
 *-----------------------------------------------------------------------------

@@ -148,4 +148,4 @@ class MainDrvMod(GamsClass):
                 source="maindrv",
             )
 
-        self.include(PpmainMod(tc=self.tc, env=self.env))
+        self.include(PpmainMod(tc=self.tc, env=self.env, arg1=self.arg1))

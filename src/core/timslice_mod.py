@@ -77,7 +77,7 @@ class TimsliceMod(GamsClass):
 
         if self.env.obmac == "YES":
             self.tc.add_gams_code(
-                module=self, phase="init", code=f"$MACRO RTS(S) {self.env.RTS}"
+                module=self, phase="init", code=f"$MACRO RTS(S) {self.env.rts}"
             )
         else:
             self.tc.add_gams_code(module=self, phase="init", code="ALIAS(ALL_TS,RTS);")

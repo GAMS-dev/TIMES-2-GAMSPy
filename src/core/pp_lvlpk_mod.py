@@ -45,11 +45,10 @@ class PpLvlpkMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.comp1()
         self.tc.add_gams_code(
             module=self,
             phase="init",
-            code=r""""
+            code=r"""
   SET RPC_PKC(R,P,C);
   PARAMETER RPC_PKF(R,P,C) //;
 """,
@@ -60,7 +59,7 @@ class PpLvlpkMod(GamsClass):
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf""""
+            code=rf"""
 *-----------------------------------------------------------------------------
 * Collect PKTS for all COM_PEAK commodities
   LOOP(COM_PKTS(R,CG,S), RCS(COM_TS(R,C,TS))$(RS_TREE(R,S,TS)$COM_GMAP(R,CG,C)) = YES);

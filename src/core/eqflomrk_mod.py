@@ -77,13 +77,11 @@ class EqflomrkMod(GamsClass):
                 sigi=self.env.sigi,
             )
 
-    def comp1(
-        self: EqflomrkMod,
-    ):
+    def comp1(self: EqflomrkMod):
         self.tc.add_gams_code(
             module=self,
             phase="init",
-            code=r""""
+            code=r"""
 SET RTX_MARK(R,T,ITEM,C,BD,S) //;
 SET RX_MARK(R,YEAR,ITEM,C,BD) //;
 SET RTP_MRK(REG,T,P,ITEM,COM,BD);
@@ -109,7 +107,7 @@ SET RMKC(REG,ITEM,COM) //;
         self.tc.add_gams_code(
             module=self,
             phase="init",
-            code=rf""""
+            code=rf"""
 {eq}{arg1}_FLOMRK({r_t},ITEM,COM,S {swt})$RTX_MARK(R,T,ITEM,COM,'{arg2}',S)..
 
 * Sum over all processes with PRC_MARK(COM) (not just capacity-related)
@@ -156,13 +154,11 @@ SET RMKC(REG,ITEM,COM) //;
 """,
         )
 
-    def exec1(
-        self: EqflomrkMod,
-    ):
+    def exec1(self: EqflomrkMod):
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r""""
+            code=r"""
 * Remove superfluous data points
  PRC_MARK(R,LL,P,ITEM,C,BDNEQ)$PRC_MARK(R,LL,P,ITEM,C,'FX') = NO;
  PRC_MARK(R,LL,P,ITEM,C,BD)$((NOT RTP_VARA(R,LL,P))$(NOT SAMEAS(P,ITEM))$PRC_MARK(R,LL,P,ITEM,C,BD)) = NO;

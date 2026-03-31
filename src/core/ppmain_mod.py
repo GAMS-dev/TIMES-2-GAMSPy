@@ -18,9 +18,18 @@ from typing import TYPE_CHECKING
 
 from gamspy import Alias
 
+from core.eqflomrk_mod import EqflomrkMod
 from core.filparam_gms import FilparamGms
 from core.filshape_gms import FilshapeGms
 from core.main_ext_mod import include_extension
+from core.pp_chp_ier import PpChpIer
+from core.pp_chp_mod import PpChpMod
+from core.pp_lvlbr_mod import PpLvlbrMod
+from core.pp_lvlfc_mod import PpLvlfcMod
+from core.pp_lvlff_mod import PpLvlffMod
+from core.pp_lvlfs_mod import PpLvlfsMod
+from core.pp_lvlpk_mod import PpLvlpkMod
+from core.pp_micro_mod import PpMicroMod
 from core.pp_off_mod import pp_off
 from core.pp_prelv_vda import PpPrelvVda
 from core.pp_qafs_mod import PpQafsMod
@@ -45,13 +54,10 @@ class PpmainMod(GamsClass):
     module_name: str = "ppmain_mod"
     gams_source: str = "ppmain.mod"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment, arg1: str):
         self.env = env.fork()
         self.tc = tc
+        self.arg1 = arg1
         self._sub_modules = {}
         self.compile()
 
@@ -234,15 +240,14 @@ class PpmainMod(GamsClass):
 
         # Call the SHAPE inter-/extrapolation routine
         self.include(FilshapeGms(tc=self.tc, env=self.env, arg1="STARTOFF"))  # noqa: F821
-        raise EscapeStack(self.module_name)
 
-        tc.enqueue(self.adjust_shape, tc=tc)
+        self.tc.enqueue(self.adjust_shape)
 
         # *GG* note that multi will take additional parameter NO/YES to do 2nd assignment or not
         # * Call the inter-/extrapolation routine for MULTI
         self.include(
-            filparam_gms.FilparamGms(
-                tc=tc,
+            FilparamGms(
+                tc=self.tc,
                 env=self.env,
                 arg1="MULTI",
                 arg2="J,",
@@ -253,15 +258,15 @@ class PpmainMod(GamsClass):
                 arg7="NO$",
                 arg8="",
             )
-        )  # noqa: F821
+        )
 
-        tc.enqueue(self.phase_ten, tc=tc)
+        self.tc.enqueue(self.establish_basic_defaults_for_non_ts_attribute)
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self, phase=phase, code="SET UC_CAPFLO(UC_N,SIDE,R,P,C);"
         )
 
-        tc.enqueue(self.phase_eleven, tc=tc)
+        self.tc.enqueue(self.phase_eleven)
 
         # *-----------------------------------------------------------------------------
         # * do the basic initializations that are TS-based, including aggregate/inherit
@@ -274,142 +279,58 @@ class PpmainMod(GamsClass):
         # * commodity based costs, subsidies and taxes
         # * elastic demands base price, quantity, elasticity and steps
 
-        tc.enqueue(self.activate_rtc_net, tc=tc)
+        self.tc.enqueue(self.activate_rtc_net)
+        # fmt: off
+        batincludes = [
+            ("COM_IE",     "C", "COM_TS", '',               ",'0','0','0','0'",     "ALL_TS", "T",        "RTC(R,T,C)"),
+            ("COM_FR",     "C", "COM_TS", '',               ",'0','0','0','0'",     "ALL_TS", "T",        "RTC_NET(R,T,C)", "1"),
+            ("COM_PKFLX",  "C", "COM_TS", '',               ",'0','0','0','0'",     "ALL_TS", "T",        "YES"),
+            ("OBJ_COMNT",  "C", "COM_TS", ',COSTYPE,CUR',   ",'0','0'",             "ALL_TS", "DATAYEAR", "RC(R,C)"),
+            ("OBJ_COMPD",  "C", "COM_TS", ',COSTYPE,CUR',   ",'0','0'",             "ALL_TS", "DATAYEAR", "RC(R,C)"),
+            ("COM_ELAST",  "C", "COM_TS", ',BD',            ",'0','0','0'",         "ALL_TS", "DATAYEAR", "RC(R,C)"),
+            ("COM_BPRICE", "C", "COM_TS", ',CUR',           ",'0','0','0'",         "ALL_TS", "DATAYEAR", "RC(R,C)"),
+            ("COM_BQTY",   "C", "COM_TS", '',               ",'0','0','0','0','0'", "ALL_TS", '',         "RC(R,C)",       "1"),
+        ]
+        # fmt: on
+        for arg in batincludes:
+            self.include(
+                PpLvlfcMod(
+                    tc=self.tc,
+                    env=self.env,
+                    arg1=arg[0],
+                    arg2=arg[1],
+                    arg3=arg[2],
+                    arg4=arg[3],
+                    arg5=arg[4],
+                    arg6=arg[5],
+                    arg7=arg[6],
+                    arg8=arg[7],
+                    arg9=arg[8] if len(arg) > 8 else "",
+                    arg10=arg[9] if len(arg) > 9 else "",
+                    arg11=arg[10] if len(arg) > 10 else "",
+                    arg12=arg[11] if len(arg) > 11 else "",
+                )
+            )
 
-        self.include(
-            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="COM_IE",
-                arg2="C",
-                arg3="COM_TS",
-                arg4="",
-                arg5=",'0','0','0','0'",
-                arg6="ALL_TS",
-                arg7="T",
-                arg8="RTC(R,T,C)",
-            )  # noqa: F821
-        )
-        self.include(
-            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="COM_FR",
-                arg2="C",
-                arg3="COM_TS",
-                arg4="",
-                arg5=",'0','0','0','0'",
-                arg6="ALL_TS",
-                arg7="T",
-                arg8="RTC_NET(R,T,C)",
-                arg9="1",
-            )
-        )
-        self.include(
-            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="COM_PKFLX",
-                arg2="C",
-                arg3="COM_TS",
-                arg4="",
-                arg5=",'0','0','0','0'",
-                arg6="ALL_TS",
-                arg7="T",
-                arg8="YES",
-            )
-        )
-        self.include(
-            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="OBJ_COMNT",
-                arg2="C",
-                arg3="COM_TS",
-                arg4=",COSTYPE,CUR",
-                arg5=",'0','0'",
-                arg6="ALL_TS",
-                arg7="DATAYEAR",
-                arg8="RC(R,C)",
-            )
-        )
-        self.include(
-            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="OBJ_COMPD",
-                arg2="C",
-                arg3="COM_TS",
-                arg4=",COSTYPE,CUR",
-                arg5=",'0','0'",
-                arg6="ALL_TS",
-                arg7="DATAYEAR",
-                arg8="RC(R,C)",
-            )
-        )
-        self.include(
-            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="COM_ELAST",
-                arg2="C",
-                arg3="COM_TS",
-                arg4=",BD",
-                arg5=",'0','0','0'",
-                arg6="ALL_TS",
-                arg7="DATAYEAR",
-                arg8="RC(R,C)",
-            )
-        )
-        self.include(
-            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="COM_BPRICE",
-                arg2="C",
-                arg3="COM_TS",
-                arg4=",CUR",
-                arg5=",'0','0','0'",
-                arg6="ALL_TS",
-                arg7="DATAYEAR",
-                arg8="RC(R,C)",
-            )
-        )
-        self.include(
-            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="COM_BQTY",
-                arg2="C",
-                arg3="COM_TS",
-                arg4="",
-                arg5=",'0','0','0','0','0'",
-                arg6="ALL_TS",
-                arg7="",
-                arg8="RC(R,C)",
-                arg9="1",
-            )
-        )
-
-        tc.enqueue(self.phase_twelve, tc=tc)
+        self.tc.enqueue(self.phase_twelve, rl=self.env.rl, cl=self.env.cl)
 
         # Split of timeslice based upon level and commodity profile
         if "RTCS_FRMX" not in m.listParameters():
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self, phase=phase, code="PARAMETER RTCS_FR(R,T,C,S,S) //;"
             )
 
-        tc.enqueue(self.phase_thirteen, tc=tc)
+        self.tc.enqueue(self.phase_thirteen, mx=self.env.mx)
 
         # Preprocess TIMES-Micro
         if self.env.timesed == "YES":
-            self.include(pp_micro_mod.PpMicroMod(tc=tc, env=self.env, arg1="PRE"))  # noqa: F821
+            self.include(PpMicroMod(tc=self.tc, env=self.env, arg1="PRE"))  # noqa: F821
 
-        tc.enqueue(self.phase_fourteen, tc=tc)
+        self.tc.enqueue(self.phase_fourteen)
 
         self.include(
-            pp_lvlbr_mod.PpLvlbrMod(  # noqa: F821
-                tc=tc,
+            PpLvlbrMod(
+                tc=self.tc,
                 env=self.env,
                 arg1="NCAP_AF",
                 arg2="",
@@ -420,158 +341,53 @@ class PpmainMod(GamsClass):
             )
         )
 
-        tc.enqueue(self.phase_fiveteen, tc=tc)
+        self.tc.enqueue(self.phase_fiveteen)
 
-        self.include(pp_lvlpk_mod.PpLvlpkMod(tc=tc, env=self.env, arg1="1.0"))  # noqa: F821
+        self.include(PpLvlpkMod(tc=self.tc, env=self.env, arg1="1.0"))
 
         # *-----------------------------------------------------------------------------
         # * flow related attributes
         # *-----------------------------------------------------------------------------
         # * costs, subsidy, taxes, & flow rates
-        self.include(
-            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="FLO_COST",
-                arg2="P,C",
-                arg3="RPCS_VAR",
-                arg4=",CUR",
-                arg5=",'0','0'",
-                arg6="ALL_TS",
-                arg7="DATAYEAR",
-                arg8="RPC(R,P,C)",
-                arg9="",
-                arg10="",
-                arg11="N",
+        # fmt: off
+        batincludes = [
+            ("FLO_COST",  'P,C', "RPCS_VAR", ',CUR', ",'0','0'", "ALL_TS", "DATAYEAR", "RPC(R,P,C)", '', '', "N"),
+            ("FLO_DELIV", 'P,C', "RPCS_VAR", ',CUR', ",'0','0'", "ALL_TS", "DATAYEAR", "RPC(R,P,C)", '', '', "N"),
+            ("FLO_SUB",   'P,C', "RPCS_VAR", ',CUR', ",'0','0'", "ALL_TS", "DATAYEAR", "RPC(R,P,C)", '', '', "N"),
+            ("FLO_TAX",   'P,C', "RPCS_VAR", ',CUR', ",'0','0'", "ALL_TS", "DATAYEAR", "RPC(R,P,C)", '', '', "N"),
+            ("FLO_PKCOI", 'P,C', "RPCS_VAR", '', ",'0','0','0'", "ALL_TS", "T", "RTP(R,T,P)"),
+            ("FLO_BDLVL", 'P',   "PRC_TS",   ',BD', ",'0','0'",  "ALL_TS", "T", "RTP(R,T,P)", "0", ',CG', "1", "$(C(CG)->ACTCG(CG))"),
+            ("FLO_BDLVL", 'P,C', "RPCS_VAR", ',BD', ",'0','0'",  "ALL_TS", "T", "RTP(R,T,P)", "0", '',    "1", "$RPC(R,P,C)"),
+            ("ACT_FLO",   'P',   "RPS_S1",   '', ",'0','0','0'", "ALL_TS", "V", "RTP(R,V,P)", "0", ',C',  "0", "$STOA(S)"),
+        ]
+        # fmt: on
+        for arg in batincludes:
+            self.include(
+                PpLvlfcMod(
+                    tc=self.tc,
+                    env=self.env,
+                    arg1=arg[0],
+                    arg2=arg[1],
+                    arg3=arg[2],
+                    arg4=arg[3],
+                    arg5=arg[4],
+                    arg6=arg[5],
+                    arg7=arg[6],
+                    arg8=arg[7],
+                    arg9=arg[8] if len(arg) > 8 else "",
+                    arg10=arg[9] if len(arg) > 9 else "",
+                    arg11=arg[10] if len(arg) > 10 else "",
+                    arg12=arg[11] if len(arg) > 11 else "",
+                )
             )
-        )
-        self.include(
-            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="FLO_DELIV",
-                arg2="P,C",
-                arg3="RPCS_VAR",
-                arg4=",CUR",
-                arg5=",'0','0'",
-                arg6="ALL_TS",
-                arg7="DATAYEAR",
-                arg8="RPC(R,P,C)",
-                arg9="",
-                arg10="",
-                arg11="N",
-            )
-        )
-        self.include(
-            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="FLO_SUB",
-                arg2="P,C",
-                arg3="RPCS_VAR",
-                arg4=",CUR",
-                arg5=",'0','0'",
-                arg6="ALL_TS",
-                arg7="DATAYEAR",
-                arg8="RPC(R,P,C)",
-                arg9="",
-                arg10="",
-                arg11="N",
-            )
-        )
-        self.include(
-            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="FLO_TAX",
-                arg2="P,C",
-                arg3="RPCS_VAR",
-                arg4=",CUR",
-                arg5=",'0','0'",
-                arg6="ALL_TS",
-                arg7="DATAYEAR",
-                arg8="RPC(R,P,C)",
-                arg9="",
-                arg10="",
-                arg11="N",
-            )
-        )
-        self.include(
-            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="FLO_PKCOI",
-                arg2="P,C",
-                arg3="RPCS_VAR",
-                arg4="",
-                arg5=",'0','0','0'",
-                arg6="ALL_TS",
-                arg7="T",
-                arg8="RTP(R,T,P)",
-            )
-        )
-        self.include(
-            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="FLO_BDLVL",
-                arg2="P",
-                arg3="PRC_TS",
-                arg4=",BD",
-                arg5=",'0','0'",
-                arg6="ALL_TS",
-                arg7="T",
-                arg8="RTP(R,T,P)",
-                arg9="0",
-                arg10=",CG",
-                arg11="1",
-                arg12="$(C(CG)->ACTCG(CG))",
-            )
-        )
-        self.include(
-            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="FLO_BDLVL",
-                arg2="P,C",
-                arg3="RPCS_VAR",
-                arg4=",BD",
-                arg5=",'0','0'",
-                arg6="ALL_TS",
-                arg7="T",
-                arg8="RTP(R,T,P)",
-                arg9="0",
-                arg10="",
-                arg11="1",
-                arg12="$RPC(R,P,C)",
-            )
-        )
-        self.include(
-            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="ACT_FLO",
-                arg2="P",
-                arg3="RPS_S1",
-                arg4="",
-                arg5=",'0','0','0'",
-                arg6="ALL_TS",
-                arg7="V",
-                arg8="RTP(R,V,P)",
-                arg9="0",
-                arg10=",C",
-                arg11="0",
-                arg12="$STOA(S)",
-            )
-        )
 
-        tc.enqueue(self.phase_sixteen, tc=tc)
+        self.tc.enqueue(self.phase_sixteen)
 
         # derive the CHP flow control attributes
         if self.arg1.upper() == "IER":
-            self.include(pp_chp_ier.PpChpIer(tc=tc, env=self.env, arg1=self.arg1))  # noqa: F821
+            self.include(PpChpIer(tc=self.tc, env=self.env, arg1=self.arg1))
         elif self.arg1.upper() == "MOD":
-            self.include(pp_chp_mod.PpChpMod(tc=tc, env=self.env, arg1=self.arg1))  # noqa: F821
+            self.include(PpChpMod(tc=self.tc, env=self.env, arg1=self.arg1))
         else:
             raise FileNotFoundError("No matching pp_chp file found.")
 
@@ -581,15 +397,15 @@ class PpmainMod(GamsClass):
         # * FLO_ attributes
 
         # * handle FLO_FUNC and FLO_SUM aggregation/inheritance
-        self.include(pp_lvlff_mod.PpLvlffMod(tc=tc, env=self.env))  # noqa: F821
-        self.include(pp_lvlfs_mod.PpLvlfsMod(tc=tc, env=self.env))  # noqa: F821
+        self.include(PpLvlffMod(tc=self.tc, env=self.env))
+        self.include(PpLvlfsMod(tc=self.tc, env=self.env))
 
-        tc.enqueue(self.phase_seventeen, tc=tc)
+        self.tc.enqueue(self.phase_seventeen)
 
         # handle FLO_SHAR aggregation/inheritance
         self.include(
-            pp_lvlbr_mod.PpLvlbrMod(  # noqa: F821
-                tc=tc,
+            PpLvlbrMod(
+                tc=self.tc,
                 env=self.env,
                 arg1="FLO_SHAR",
                 arg2=",C,CG",
@@ -601,7 +417,8 @@ class PpmainMod(GamsClass):
             )
         )
         # preprocessing of FLO_MARK/PRC_MARK
-        self.include(eqflomrk_mod.EqflomrkMod(tc=tc, env=self.env))  # noqa: F821
+        self.include(EqflomrkMod(tc=self.tc, env=self.env))
+        raise EscapeStack(self.module_name)
 
         tc.enqueue(self.deactivate_rpc_noflo, tc=tc)
 
@@ -938,15 +755,15 @@ PARAMETER BLE_BAL(R,YEAR,C,C) //;
         """,
         )
 
-    def activate_rtc_net(self, tc):
-        tc.add_gams_code(
+    def activate_rtc_net(self: PpmainMod):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code="RTC_NET(RTC(R,T,C))$(NOT COM_TSL(R,C,'ANNUAL')) = YES;",
         )
 
-    def adjust_shape(self, tc):
-        tc.add_gams_code(
+    def adjust_shape(self: PpmainMod):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
@@ -1680,8 +1497,8 @@ $IF DEFINED PRC_SIMV LOOP(T,NO_RVP(R,TT-1,P)$(RTP_CPTYR(R,TT,T,P)$PRC_SIMV(R,P))
 """,
         )
 
-    def phase_ten(self, tc):
-        tc.add_gams_code(
+    def establish_basic_defaults_for_non_ts_attribute(self: PpmainMod):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
@@ -1709,8 +1526,8 @@ $IF DEFINED PRC_SIMV LOOP(T,NO_RVP(R,TT-1,P)$(RTP_CPTYR(R,TT,T,P)$PRC_SIMV(R,P))
 """,
         )
 
-    def phase_eleven(self, tc):
-        tc.add_gams_code(
+    def phase_eleven(self: PpmainMod):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
@@ -1741,11 +1558,11 @@ $IF DEFINED PRC_SIMV LOOP(T,NO_RVP(R,TT-1,P)$(RTP_CPTYR(R,TT,T,P)$PRC_SIMV(R,P))
 """,
         )
 
-    def phase_twelve(self, tc):
-        tc.add_gams_code(
+    def phase_twelve(self: PpmainMod, rl: str, cl: str):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
+            code=rf"""
 * Defaults for infrastructure efficiency and seasonal fraction
     OPTION RCS < COM_IE, CLEAR=RTC_NET,CLEAR=RP_PGFLO;
     COM_IE(RTCS_VARC(R,T,C,S))$(NOT RCS(R,C,S)) = 1;
@@ -1765,20 +1582,18 @@ $IF DEFINED PRC_SIMV LOOP(T,NO_RVP(R,TT-1,P)$(RTP_CPTYR(R,TT,T,P)$PRC_SIMV(R,P))
     COM_FR(R,T,C,TS)$(TRACKC(R,C)$TS_GROUP(R,'SEASON',TS)) $= SUM(RS_BELOW1(R,TS,S),COM_FR(R,T,C,S));
     COM_FR(R,T,C,S)$NORTS(R,T,S)=0;
     COM_FR(R,T,C,ANNUAL)$TRACKC(R,C) = SUM(RS_BELOW1(R,ANNUAL,S),COM_FR(R,T,C,S));
+
+* Normalize COM_FR:
+PUTGRP = 0;
+LOOP(TRACKC(R,C), Z=1;
+LOOP(RTC(R,T,C)$((COM_FR(R,T,C,'ANNUAL') NE 1)$Z),
+IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
+{pp_qaput("PUTOUT", "PUTGRP", "01", "COM_FR does not sum to unity (T=first year)")}
+    PUT QLOG ' WARNING       - Normalized to 1,   R=',{rl},' C=',{cl},' (T=',T.TL:0,')';)));
 """,
         )
 
-        """TODO
-        * Normalize COM_FR:
-        PUTGRP = 0;
-        LOOP(TRACKC(R,C), Z=1;
-        LOOP(RTC(R,T,C)$((COM_FR(R,T,C,'ANNUAL') NE 1)$Z),
-        IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
-    $        BATINCLUDE pp_qaput.%1 PUTOUT PUTGRP 01 'COM_FR does not sum to unity (T=first year)'
-            PUT QLOG ' WARNING       - Normalized to 1,   R=',%RL%,' C=',%CL%,' (T=',T.TL:0,')';)));
-        """
-
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
@@ -1789,13 +1604,13 @@ $IF DEFINED PRC_SIMV LOOP(T,NO_RVP(R,TT-1,P)$(RTP_CPTYR(R,TT,T,P)$PRC_SIMV(R,P))
 """,
         )
 
-    def phase_thirteen(self, tc):
-        tc.add_gams_code(
+    def phase_thirteen(self: PpmainMod, mx: str):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
+            code=rf"""
     RS_FR(RS_TREE(R,S,TS)) = 1$TS_MAP(R,S,TS) + (G_YRFR(R,S)/G_YRFR(R,TS))$RS_BELOW(R,TS,S);
-    RTCS_FR%MX%(RTC(R,T,C),S,TS)$(RS_BELOW(R,TS,S)$COM_FR(RTC,TS)) =
+    RTCS_FR{mx}(RTC(R,T,C),S,TS)$(RS_BELOW(R,TS,S)$COM_FR(RTC,TS)) =
                                  ((COM_FR(RTC,S)/COM_FR(RTC,TS))$(COM_FR(RTC,TS)>0))/RS_FR(R,S,TS)-1;
     COM_FR(RTC(R,T,C),RTS(S))$((NOT COM_FR(RTC,S))$RCS_COMTS(R,C,S)) = G_YRFR(R,S);
 
@@ -1806,8 +1621,8 @@ $IF DEFINED PRC_SIMV LOOP(T,NO_RVP(R,TT-1,P)$(RTP_CPTYR(R,TT,T,P)$PRC_SIMV(R,P))
 """,
         )
 
-    def phase_fourteen(self, tc):
-        tc.add_gams_code(
+    def phase_fourteen(self: PpmainMod):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
@@ -1831,8 +1646,8 @@ $IF DEFINED PRC_SIMV LOOP(T,NO_RVP(R,TT-1,P)$(RTP_CPTYR(R,TT,T,P)$PRC_SIMV(R,P))
 """,
         )
 
-    def phase_fiveteen(self, tc):
-        tc.add_gams_code(
+    def phase_fiveteen(self: PpmainMod):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
@@ -1857,8 +1672,8 @@ $IF DEFINED PRC_SIMV LOOP(T,NO_RVP(R,TT-1,P)$(RTP_CPTYR(R,TT,T,P)$PRC_SIMV(R,P))
 """,
         )
 
-    def phase_sixteen(self, tc):
-        tc.add_gams_code(
+    def phase_sixteen(self: PpmainMod):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
@@ -1871,8 +1686,8 @@ $IF DEFINED PRC_SIMV LOOP(T,NO_RVP(R,TT-1,P)$(RTP_CPTYR(R,TT,T,P)$PRC_SIMV(R,P))
 """,
         )
 
-    def phase_seventeen(self, tc):
-        tc.add_gams_code(
+    def phase_seventeen(self: PpmainMod):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""

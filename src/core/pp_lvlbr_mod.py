@@ -76,7 +76,7 @@ class PpLvlbrMod(GamsClass):
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf""""
+            code=rf"""
 OPTION CLEAR=UNCD7;
 *-----------------------------------------------------------------------------
 LOOP((RTP(R,V,P){arg2},S,BD)$((NOT {arg3}(R,P,{arg7}S))${arg1}(R,V,P{arg2},S,BD)),

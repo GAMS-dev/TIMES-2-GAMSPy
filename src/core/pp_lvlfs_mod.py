@@ -45,19 +45,14 @@ class PpLvlfsMod(GamsClass):  # FilenameExt
         self.compile()
 
     def compile(self) -> None:
-        self.comp1()
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=r"SET FSTSL(TSLVL,R,P,CG,CG,CG,S) //;",
         )
-        self.tc.enqueue(
-            self.pp_lvlfs_exec,
-        )
+        self.tc.enqueue(self.pp_lvlfs_exec)
 
-    def pp_lvlfs_exec(
-        self: PpLvlfsMod,
-    ):
+    def pp_lvlfs_exec(self: PpLvlfsMod):
         self.tc.add_gams_code(
             module=self,
             phase="run",

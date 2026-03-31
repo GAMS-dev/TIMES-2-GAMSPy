@@ -31,14 +31,11 @@ class PpChpMod(GamsClass):
     module_name: str = "pp_chp_mod"
     gams_source: str = "pp_chp.mod"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment, arg1: str):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
+        self.arg1 = arg1
         self.compile()
 
     def compile(self) -> None:
@@ -57,7 +54,7 @@ class PpChpMod(GamsClass):
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf""""
+            code=rf"""
 * Back-pressure point should correspond to the maximum HEAT/POWER ratio
   NCAP_CHPR(RTP,BDNEQ)$NCAP_CHPR(RTP,'FX') = 0;
   COEF_RTP(RTP(R,V,P))$CHP(R,P) = MAX(0,SMAX(BD,NCAP_CHPR(RTP,BD)));
