@@ -39,7 +39,8 @@ class TimesModelClass:
         self.output_execute = output_execute
         self.test_run = test
         self.compile_states = {}
-        self.container = Container(debugging_level="keep")
+        # self.container = Container(debugging_level="keep")
+        self.container = Container()
         self.logger = logging.getLogger("TimesModel")
 
         # Ordered list of registered modules
@@ -105,7 +106,8 @@ class TimesModelClass:
     # -----------------------
     def initialization(self) -> None:
         """Modules are initialized / compiled within their __init__ method. Only used to write GDX state after compilation."""
-        self.container.write(self.output_compile, eps_to_zero=False)
+        # self.container.write(self.output_compile, eps_to_zero=False)
+        self.container.addGamsCode(f"execute_unload '{self.output_compile}';")
 
     def enqueue(self, func, *args, **kwargs):
         """Adds a function call to the end of the execution queue."""
@@ -116,7 +118,8 @@ class TimesModelClass:
         self.logger.info("Phase: run")
         for func, args, kwargs in self.execution_list:
             func(*args, **kwargs)
-        self.container.write(self.output_execute, eps_to_zero=False)
+        # self.container.write(self.output_execute, eps_to_zero=False)
+        self.container.addGamsCode(f"execute_unload '{self.output_execute}';")
 
     # -----------------------
     # Utils

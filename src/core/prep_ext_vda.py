@@ -109,8 +109,8 @@ class PrepExtVda(GamsClass):
                 env=self.env, checkpoint="prep_ext_vda_prio_equcrtp"
             )
 
-        self.include(EqucrtpVda(self.tc, self.env, arg1="PREP_EXT"))
         raise EscapeStack(self.module_name)
+        self.include(EqucrtpVda(self.tc, self.env, arg1="PREP_EXT"))
 
         if self.env.vintopt == "1":
             self.include(

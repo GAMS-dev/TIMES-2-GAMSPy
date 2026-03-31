@@ -72,8 +72,6 @@ $IFI %WAVER%==YES INT_DEFAULT('PASTI')=1;
 $IF NOT %OBMAC%==YES PARAMETER VAR_SIFT(LL,S,L) //;
 *-----------------------------------------------------------------------------
 * Clean up some parameters
-* Add empty str "" to the universe
-Set ITEMADD /""/;
   LOOP(LASTLL(YEAR),
    OPTION CLEAR=UNCD7; UNCD7(R,LL--ORD(LL),C,COM,'','','') $= (VDA_EMCB(R,LL,C,COM) NE 0);
    VDA_EMCB(R,DATAYEAR,C,COM)$(NOT UNCD7(R,YEAR,C,COM,'','','')) = 0;

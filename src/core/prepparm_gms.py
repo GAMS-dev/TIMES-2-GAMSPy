@@ -89,7 +89,7 @@ class PrepparmGms(GamsClass):
             )
 
         # Universe set workaround
-        self.add_records_to_universe_item(tc=self.tc, records=[self.arg1])
+        self.add_records_to_universe_item(records=[self.arg1])
 
         if self.tc.test_run:
             self.tc.save_test_state(env=self.env, checkpoint="prepparm_gms")
@@ -160,6 +160,7 @@ def prepparm(
     def_iebd: str,
     reset: str,
 ) -> str:
+    # TODO: put into function that depends on the environment given
     data = f"MY_FIL2({arg5})"
     opt = False
     ll = ""

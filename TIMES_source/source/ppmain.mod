@@ -132,7 +132,6 @@ $ IF WARNINGS $BATINCLUDE pp_qaput.%1 PUTOUT 0 * 'GAMS Warnings Detected%TMP%'
     NCAP_PASTI(R,LL,P)$PASTSUM(R,LL,P) = NCAP_PASTI(R,LL,P) + PASTSUM(R,LL,P);
 * extend the list of past years
     OPTION PASTYEAR < NCAP_PASTI;
-    Set ITEMADD /'PASTI'/;
     INT_DEFAULT('PASTI')$PYR('0')=1; PYR('0')=NO;
     OPTION CLEAR=PRC_CAP, CLEAR=PASTSUM;
 *-----------------------------------------------------------------------------

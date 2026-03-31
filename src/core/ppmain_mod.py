@@ -101,7 +101,7 @@ class PpmainMod(GamsClass):
         )
 
         self.tc.enqueue(self.phase_two)
-        self.add_records_to_universe_item(tc=self.tc, records=["PASTI"])
+        self.add_records_to_universe_item(records=["PASTI"])
         self.tc.enqueue(self.phase_two_two)
 
         if self.env.obj.upper() == "MOD":

@@ -128,6 +128,8 @@ def fillparm(
         raise Exception(
             f" {arg8} <> {arg9} requires parameter declaration and can't be used during execution only"
         )
+
+    # TODO: Add setlocal as local Python variables
     module.tc.add_gams_code(
         module=module,
         phase="run",

@@ -442,8 +442,6 @@ $IFI %STAGES%==YES $BATINCLUDE initmty.stc
 *------------------------------------------------------------------------------
 * Stepped extensions etc.
   SET ITEM / "%FIXBOH%", "%TIMESTEP%", "%SPOINT%" /;
-* Add ITEMADD to mirror GAMSPy
-  SET ITEMADD / "%FIXBOH%", "%TIMESTEP%", "%SPOINT%" /;
 
 $SETGLOBAL RPOINT NO
 $IF SET SPOINT IF((NOT J('%SPOINT%'))$(NOT SAMEAS('%SPOINT%','YES')), ABORT 'Invalid Control: SPOINT');

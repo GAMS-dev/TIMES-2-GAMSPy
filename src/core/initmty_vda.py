@@ -7,6 +7,7 @@
 # * INITMTY.VDA has all the EMPTY declarations for system & user data           *
 # *=============================================================================*
 
+from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
@@ -29,19 +30,20 @@ class InitmtyVda(GamsClass):
 
     def __init__(
         self,
-        tc: "TimesModelClass",
-        env: "CompileEnvironment",
+        tc: TimesModelClass,
+        env: CompileEnvironment,
         arg1: str = "",
         arg2: str = "",
     ):
         self.env = env.fork()
+        self.tc = tc
         self._sub_modules = {}
-        self.compile(tc)
+        self.compile()
 
-    def compile(self, tc: "TimesModelClass") -> None:
+    def compile(self) -> None:
         phase = "init"
         self.env.set_global("vda", "YES")
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=r"""
@@ -62,7 +64,7 @@ class InitmtyVda(GamsClass):
         # $ SET MX ,SEASON, WEEKLY, DAYNITE
         self.env.set_scoped("mx", ",SEASON, WEEKLY, DAYNITE")
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=rf"""
@@ -124,9 +126,9 @@ $onMulti
         # SET ITEM / OBJ /;
         # Remember: ITEM is a UniverseSet
         item_records = set(["OBJ"])
-        self.add_records_to_universe_item(tc=tc, records=item_records)
+        self.add_records_to_universe_item(records=item_records)
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=rf"""

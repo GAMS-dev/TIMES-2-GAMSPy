@@ -22,9 +22,6 @@ $IF NOT %7 == 0 $SETLOCAL LL ",'%DFLBL%'" SETLOCAL OPT
 $IF NOT %8.== . $SETLOCAL DEF_IEBD %8
 $IF NOT %9.==. PARAMETER %9(%2,%3,ALLYEAR);
 
-* Universe set workaround
-ITEMADD('%1') = yes;
-
 * conditional interpolation flag
 IF(G_NOINTERP, INT_DEFAULT('%1')=NO;
   ELSE OPTION CLEAR=UNCD7; CNT = (%DEF_IEBD%+(3-%DEF_IEBD%)$IE_DEFAULT('%1'))$%7;

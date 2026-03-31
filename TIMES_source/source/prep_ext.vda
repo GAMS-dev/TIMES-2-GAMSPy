@@ -40,14 +40,14 @@ $onlisting
 display "prep_ext_vda_prio_equcrtp";
 $show
 $offlisting
+$gdxUnload %COMPILE_GDX%
+execute_unload "%EXECUTE_GDX%";
+$stop
 $BATINCLUDE equcrtp.vda PREP_EXT
 $onlisting
 display "prep_ext_vda_after_equcrtp";
 $show
 $offlisting
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop
 *------------------------------------------------------------------------------
 * Special vintaging options
 $IF %VINTOPT%==1 $BATINCLUDE fillvint VDA_FLOP R 'P,CG,TS' X_RPGS

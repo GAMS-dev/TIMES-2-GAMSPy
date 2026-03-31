@@ -17,6 +17,8 @@
 # *   - HAVE THE USER *.DD files OMIT the declarations to ease maintenance changes
 # *-----------------------------------------------------------------------------
 
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -53,8 +55,8 @@ class InitmtyMod(GamsClass):
 
     def __init__(
         self,
-        tc: "TimesModelClass",
-        env: "CompileEnvironment",
+        tc: TimesModelClass,
+        env: CompileEnvironment,
         arg1: str = "",
         arg2: str = "",
         arg3: str = "",
@@ -63,6 +65,7 @@ class InitmtyMod(GamsClass):
         arg6: str = "",
     ):
         self.env = env.fork()
+        self.tc = tc
         self._sub_modules = {}
         self.arg1 = arg1
         self.arg2 = arg2
@@ -70,21 +73,21 @@ class InitmtyMod(GamsClass):
         self.arg4 = arg4
         self.arg5 = arg5
         self.arg6 = arg6
-        self.compile(tc)
+        self.compile()
 
-    def compile(self, tc: "TimesModelClass") -> None:
+    def compile(self) -> None:
         phase = "init"
         self.version_control()
 
         # Easy access gamspy.Container
-        m = tc.container
+        m = self.tc.container
 
         def set_section():
             """
             SET SECTION
             Note: the *-out user SETs are declared in INITSYS.MOD
             """
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase=phase,
                 code=r"""
@@ -157,7 +160,7 @@ class InitmtyMod(GamsClass):
             Alias(m, "SL", alias_with=all_ts)
             Alias(m, "S2", alias_with=all_ts)
 
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase="init",
                 code="""
@@ -173,7 +176,7 @@ class InitmtyMod(GamsClass):
             Alias(m, "T", alias_with=milestonyr)
             Alias(m, "TT", alias_with=milestonyr)
 
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase=phase,
                 code=r"""
@@ -186,7 +189,7 @@ class InitmtyMod(GamsClass):
             tslvl = m["TSLVL"]
             Alias(m, "TSL", alias_with=tslvl)
 
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase=phase,
                 code=r"""
@@ -219,10 +222,10 @@ class InitmtyMod(GamsClass):
 """,
             )
             # ALIAS(UC_N,UCN);
-            uc_n = tc.container["UC_n"]
-            Alias(container=tc.container, name="UCN", alias_with=uc_n)
+            uc_n = self.tc.container["UC_n"]
+            Alias(container=self.tc.container, name="UCN", alias_with=uc_n)
 
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase=phase,
                 code=r"""
@@ -241,7 +244,7 @@ class InitmtyMod(GamsClass):
             # * Predefined system CGs and one COM:
             # $IF NOT SET PGPRIM $SETGLOBAL PGPRIM "'ACT'"
             self.env.set_if_not_exists("pgprim", "ACT", scope="global")
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase=phase,
                 code=rf"""
@@ -254,7 +257,7 @@ $onMulti
 
         def parameters_section():
             """Parameters section"""
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase=phase,
                 code="""
@@ -455,7 +458,7 @@ $onMulti
 
         def extensions_and_system_scalars():
             """Extensions & System scalars"""
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase=phase,
                 code="""
@@ -490,18 +493,18 @@ $onMulti
             # $ SETGLOBAL DFLBL '0'
             self.env.set_global("dflbl", "0")
             dflbl = self.env.dflbl
-            tc.enqueue(self.assign_yearval, tc=tc, dflbl=dflbl)
+            self.tc.enqueue(self.assign_yearval, dflbl=dflbl)
 
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase=phase,
                 code=rf"""
 SET LASTLL(LL) /{self.env.dflbl}/;
 """,
             )
-            tc.enqueue(self.assign_z, tc=tc)
+            self.tc.enqueue(self.assign_z)
 
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase=phase,
                 code=r"""
@@ -514,7 +517,7 @@ PARAMETER IE_DEFAULT(*) //;
 
         def initializations_for_blending():
             """*GG* V07_2 Initializations for BLENDing"""
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase=phase,
                 code="""
@@ -564,12 +567,12 @@ PARAMETER IE_DEFAULT(*) //;
             # Alternative objective controls
             Parameter(container=m, name="ALTOBJ", records=1)
             objective = self.env.obj
-            tc.enqueue(self.assign_alternative_objective, tc=tc, objective=objective)
+            self.tc.enqueue(self.assign_alternative_objective, objective=objective)
 
             if self.env.macro == "YES":
-                tc.enqueue(self.check_macro, tc=tc)
+                self.tc.enqueue(self.check_macro)
             if self.env.validate == "YES":
-                tc.enqueue(self.validate, tc=tc)
+                self.tc.enqueue(self.validate)
 
             # $SETGLOBAL CTST
             self.env.set_global("ctst", "")
@@ -589,7 +592,7 @@ PARAMETER IE_DEFAULT(*) //;
             if self.env.objlong == "YES":
                 if self.env.obj == "ALT":
                     self.env.set_global("varcost", "LIN")
-                    tc.enqueue(self.assign_alternative_objective_long, tc=tc)
+                    self.tc.enqueue(self.assign_alternative_objective_long)
 
             # Stochastic extension
             # $IFI %SENSIS%==YES $SETLOCAL STAGES yes
@@ -599,42 +602,32 @@ PARAMETER IE_DEFAULT(*) //;
             if self.env.spines == "YES":
                 self.env.set_local("stages", "YES")
             # $IFI %STAGES%==YES $BATINCLUDE initmty.stc
-            if tc.test_run:
-                tc.save_test_state(
+            if self.tc.test_run:
+                self.tc.save_test_state(
                     env=self.env, checkpoint="initmty_mod_prior_initmty_stc"
                 )
             if self.env.stages == "YES":
-                self.include(InitmtyStc(tc, self.env))
+                self.include(InitmtyStc(self.tc, self.env))
 
             # * Stepped extensions etc.
             # SET ITEM / "%FIXBOH%", "%TIMESTEP%", "%SPOINT%" /;
             # Remember: ITEM is a UniverseSet
             itemadd_records = set([self.env.fixboh, self.env.timestep, self.env.spoint])
-            self.add_records_to_universe_item(tc=tc, records=itemadd_records)
+            self.add_records_to_universe_item(records=itemadd_records)
 
             self.env.set_global("rpoint", "NO")
 
             if self.env.is_set("spoint"):
                 spoint = self.env.spoint
-                tc.enqueue(
-                    self.catch_invalid_spoint_control,
-                    tc=tc,
-                    spoint=spoint,
-                )
+                self.tc.enqueue(self.catch_invalid_spoint_control, spoint=spoint)
 
             if self.env.is_set("timestep"):
                 timestep = self.env.timestep
-                tc.enqueue(
-                    self.catch_invalid_timestep_control, tc=tc, timestep=timestep
-                )
+                self.tc.enqueue(self.catch_invalid_timestep_control, timestep=timestep)
 
             if self.env.is_set("fixboh"):
                 fixboh = self.env.fixboh
-                tc.enqueue(
-                    self.catch_invalid_fixboh_control,
-                    tc=tc,
-                    fixboh=fixboh,
-                )
+                self.tc.enqueue(self.catch_invalid_fixboh_control, fixboh=fixboh)
 
             # $IF SET FIXBOH $SETGLOBAL STEPPED -
             if self.env.is_set("fixboh"):
@@ -659,7 +652,7 @@ PARAMETER IE_DEFAULT(*) //;
                 self.env.set_global("dscauto", "Yes")
             # $IFI %DSC%==YES    $KILL RCAP_BLK
             if self.env.dsc == "YES":
-                tc.add_gams_code(module=self, phase=phase, code="$KILL RCAP_BLK")
+                self.tc.add_gams_code(module=self, phase=phase, code="$KILL RCAP_BLK")
 
             # Initialize list of standard extensions to be loaded
             # $SET VDA 'YES' SETGLOBAL EXTEND
@@ -720,8 +713,8 @@ PARAMETER IE_DEFAULT(*) //;
 
             collect_active_extensions()
 
-            if tc.test_run:
-                tc.save_test_state(
+            if self.tc.test_run:
+                self.tc.save_test_state(
                     env=self.env, checkpoint="initmty_mod_prior_main_ext_mod"
                 )
 
@@ -740,7 +733,7 @@ PARAMETER IE_DEFAULT(*) //;
             for ext in self.env.extend.split(" "):
                 self.include(
                     extensions[ext](
-                        tc=tc,
+                        tc=self.tc,
                         env=self.env,
                         arg1=ext,
                         arg2="initmty",
@@ -756,7 +749,7 @@ PARAMETER IE_DEFAULT(*) //;
             # $IF ERRORFREE $BATINCLUDE err_stat.mod '$IF NOT ERRORFREE' ABORT 'Errors in Compile' '%VAR%' ': Required _TIMES.g00 Restart File Missing'
             self.include(
                 ErrStatMod(
-                    tc=tc,
+                    tc=self.tc,
                     env=self.env,
                     arg1="$IF NOT ERRORFREE",
                     arg2="ABORT",
@@ -767,14 +760,14 @@ PARAMETER IE_DEFAULT(*) //;
             )
 
         def call_macro_initmty_tm():
-            if tc.test_run:
-                tc.save_test_state(
+            if self.tc.test_run:
+                self.tc.save_test_state(
                     env=self.env, checkpoint="initmty_mod_prior_initmty_tm"
                 )
             if not self.env.is_set("macro"):
                 self.env.set_global("macro", "N")
             if self.env.macro == "YES":
-                self.include(InitmtyTm(tc=tc, env=self.env))
+                self.include(InitmtyTm(tc=self.tc, env=self.env))
             if self.env.datagdxi == "YES":
                 self.env.set_global("datagdx", "YES")
                 if self.env.intext_only == "YES":
@@ -811,7 +804,7 @@ PARAMETER IE_DEFAULT(*) //;
             if self.env.tmp == 0:
                 return
 
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase=phase,
                 code=rf"""
@@ -825,8 +818,8 @@ $ GDXIN
             )
 
             if self.env.var == "*":
-                self.include(MainDrvMod(tc, self.env, extensions="mod"))
-                tc.add_gams_code(module=self, phase=phase, code="$stop")
+                self.include(MainDrvMod(self.tc, self.env, extensions="mod"))
+                self.tc.add_gams_code(module=self, phase=phase, code="$stop")
 
         set_section()
         parameters_section()
@@ -841,25 +834,25 @@ $ GDXIN
         self.env.set_global("g2x6", "YES")
         self.env.set_global("obmac", "YES")
 
-    def assign_yearval(self, tc, dflbl):
+    def assign_yearval(self, dflbl):
         phase = "run"
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=f"YEARVAL('{dflbl}') = 0;",
         )
 
-    def assign_z(self, tc):
+    def assign_z(self):
         phase = "run"
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code="Z=SUM(LASTLL(LL),ORD(LL)); ABORT$(Z NE CARD(LL)) 'FATAL';",
         )
 
-    def assign_alternative_objective(self, tc, objective):
+    def assign_alternative_objective(self, objective):
         # Alternative objective controls
-        alt_obj = tc.container["ALTOBJ"]
+        alt_obj = self.tc.container["ALTOBJ"]
         if objective == "STD":
             alt_obj[...] = 0
         elif objective == "ALT":
@@ -867,45 +860,47 @@ $ GDXIN
         elif objective == "LIN":
             alt_obj[...] = 3
 
-    def check_macro(self, tc):
+    def check_macro(self):
         phase = "run"
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code="IF(ALTOBJ>1,ABORT 'MACRO Cannot be used with Alternative Objective');",
         )
 
-    def validate(self, tc):
+    def validate(self):
         phase = "run"
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code="IF(ALTOBJ>1,ABORT 'VALIDATE Cancels Alternative Objective'); ALTOBJ=0;",
         )
 
-    def assign_alternative_objective_long(self, tc):
-        alt_obj = tc.container["ALTOBJ"]
+    def assign_alternative_objective_long(
+        self,
+    ):
+        alt_obj = self.tc.container["ALTOBJ"]
         alt_obj[...] = -2
 
-    def catch_invalid_spoint_control(self, tc, spoint):
+    def catch_invalid_spoint_control(self, spoint):
         phase = "run"
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=f"IF((NOT J('{spoint}'))$(NOT SAMEAS('{spoint}','YES')), ABORT 'Invalid Control: SPOINT');",
         )
 
-    def catch_invalid_timestep_control(self, tc, timestep):
+    def catch_invalid_timestep_control(self, timestep):
         phase = "run"
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=f"IIF(NOT AGE('{timestep}'), ABORT 'Invalid Control: TIMESTEP');",
         )
 
-    def catch_invalid_fixboh_control(self, tc, fixboh):
+    def catch_invalid_fixboh_control(self, fixboh):
         phase = "run"
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=f"IF(NOT ALLYEAR('{fixboh}'), ABORT 'Invalid Control: FIXBOH');",

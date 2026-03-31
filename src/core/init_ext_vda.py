@@ -110,15 +110,11 @@ class InitExtVda(GamsClass):
                 code="PARAMETER VAR_SIFT(LL,S,L) //;",
             )
 
-        self.add_records_to_universe_item(self.tc, records=[""])
+        self.add_records_to_universe_item(records=[""])
 
-        self.tc.enqueue(
-            self.clean_up_some_parameters,
-        )
+        self.tc.enqueue(self.clean_up_some_parameters)
 
-        self.tc.enqueue(
-            self.identify_and_initial_preprocessing,
-        )
+        self.tc.enqueue(self.identify_and_initial_preprocessing)
 
         self.tc.enqueue(
             self.initial_preprocessing_of_com_agg,

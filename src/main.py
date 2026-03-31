@@ -153,7 +153,7 @@ def main(
         model.run()
 
         # Debug: dump generated GAMS
-        model.dump_generated_gams("generated_times.gms")
+        # model.dump_generated_gams("generated_times.gms")
 
     return model
 
