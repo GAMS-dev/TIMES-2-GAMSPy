@@ -6,7 +6,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from core.fillparm_gms import fillparm
-from core.pp_qaput_mod import pp_qaput_mod
+from core.pp_qaput_mod import pp_qaput
 
 from .base_class import GamsClass
 
@@ -112,7 +112,7 @@ class DynsliteVda(GamsClass):  # FilenameExt
   PUTGRP=0;
   LOOP(RT_PP(R,T), Z=SUM((RS_BELOW1(R,ANNUAL,TS),S(TS--RS_STG(R,TS)))$((NOT NORTS(R,T,TS))$NORTS(R,T,S)),1);
     IF(Z,
-{pp_qaput_mod("PUTOUT", "PUTGRP", "99", "Unsupported dynamic timeslice trees with overlap -- Fatal")}
+{pp_qaput("PUTOUT", "PUTGRP", "99", "Unsupported dynamic timeslice trees with overlap -- Fatal")}
      PUT QLOG ' FATAL ERROR   - Timeslice trees have shared branches (R.T)=',RT_PP.TE(RT_PP)));
 *------------------------------
 * Remove timeslices turned off

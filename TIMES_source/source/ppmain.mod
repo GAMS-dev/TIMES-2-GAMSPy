@@ -269,9 +269,6 @@ display "pp_main_mod_after_preppm";
 $show
 $offlisting
 
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop
 $ IFI %INTEXT_ONLY% == YES $EXIT
 *-----------------------------------------------
 
@@ -541,6 +538,12 @@ $      BATINCLUDE pp_qaput.%1 PUTOUT PUTGRP 01 'NCAP_TLIFE out of feasible range
     );
    OPTION CLEAR=YKVAL,CLEAR=COEF_RTP;
 * override the lead delay on capacity if M2T, if viable period
+
+$onlisting
+display "pp_main_mod_prior_phase_eight";
+$show
+$offlisting
+
 $IF %VALIDATE% == YES    RTP_CPTYR(R,T,T,P)$RTP(R,T,P) = YES;
    RTP_CPTYR(R,MIYR_1(T),T,P)$(RTP(R,T,P)$PRC_MAP(R,'STK',P)) = YES;
 *-----------------------------------------------------------------------------
@@ -636,9 +639,16 @@ $IF DEFINED PRC_SIMV LOOP(T,NO_RVP(R,TT-1,P)$(RTP_CPTYR(R,TT,T,P)$PRC_SIMV(R,P))
    RP_PGACT(RP_FLO(R,P))$(SUM(RPC_PG(R,P,C),1) EQ 1) = YES;
    RP_PGACT(RP_IRE(R,P))$(SUM(RPC_IRE(RPC_PG(R,P,C),IE),1) EQ 1) = YES;
 
+$onlisting
+display "pp_main_mod_prior_main_ext_mod";
+$show
+$offlisting
 *-----------------------------------------------------------------------------
 * Extensions after establishing RPCS_VAR and PRC_CAPACT but before levelising
 $  BATINCLUDE main_ext.mod pp_prelv %EXTEND%
+$gdxUnload %COMPILE_GDX%
+execute_unload "%EXECUTE_GDX%";
+$stop
 * Make various QA checks for FLO_SHAR
 $  BATINCLUDE pp_qafs.mod mod
 

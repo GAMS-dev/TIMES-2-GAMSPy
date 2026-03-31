@@ -16,6 +16,7 @@ from core.curex_gms import CurexGms
 from core.fillparm_gms import FillparmGms
 from core.fillvint_gms import FillvintGms
 from core.filparam_gms import FilparamGms
+from core.main_ext_mod import include_extension
 from core.prep_ext_abs import PrepExtAbs
 from core.prep_ext_dsc import PrepExtDsc
 from core.prep_ext_ier import PrepExtIer
@@ -414,15 +415,13 @@ class PreppmMod(GamsClass):
             "STC": PrepExtStc,
             "VDA": PrepExtVda,
         }
-        for ext in self.env.extend.split(" "):
-            self.include(
-                extensions[ext](
-                    tc=self.tc,
-                    env=self.env,
-                    arg1=ext,
-                    arg2="prep_ext",
-                )
-            )
+        requested_exts = set(self.env.extend.split())
+        include_extension(
+            module=self,
+            extensions=extensions,
+            requested_exts=requested_exts,
+            source="prep_ext",
+        )
 
         if self.env.intext_only.upper() == "YES":
             self.include(PrepxtraMod(self.tc, self.env, arg1="XTIE"))

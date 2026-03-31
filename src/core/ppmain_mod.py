@@ -19,7 +19,9 @@ from typing import TYPE_CHECKING
 from gamspy import Alias
 
 from core.filparam_gms import FilparamGms
+from core.main_ext_mod import include_extension
 from core.pp_off_mod import pp_off
+from core.pp_prelv_vda import PpPrelvVda
 from core.pp_qaput_mod import pp_qaput
 from core.preppm_mod import PreppmMod
 from core.timslice_mod import TimsliceMod
@@ -170,36 +172,55 @@ class PpmainMod(GamsClass):
         if self.tc.test_run:
             self.tc.save_test_state(env=self.env, checkpoint="pp_main_mod_after_preppm")
 
-        raise EscapeStack(self.module_name)
-
         if self.env.intext_only.upper() == "YES":
             return
 
         # initialize timestep control
-        tc.add_gams_code(module=self, phase=phase, code="SET SUBT(T) / SET.T /;")
+        self.tc.add_gams_code(module=self, phase=phase, code="SET SUBT(T) / SET.T /;")
 
-        tc.enqueue(self.phase_six, tc=tc)
+        self.tc.enqueue(
+            self.phase_six, rl=self.env.rl, pl=self.env.pl, ctst=self.env.ctst
+        )
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self, phase=phase, code="SET PRC_RCAP //; PARAMETER PRC_REFIT //;"
         )
 
-        tc.enqueue(self.phase_seven, tc=tc)
+        self.tc.enqueue(self.phase_seven, ctst=self.env.ctst)
+
+        if self.tc.test_run:
+            self.tc.save_test_state(
+                env=self.env, checkpoint="pp_main_mod_prior_phase_eight"
+            )
 
         # override the lead delay on capacity if M2T, if viable period
         if self.env.validate == "YES":
-            tc.enqueue(self.activate_rtp_cptyr, tc=tc)
+            self.tc.enqueue(self.activate_rtp_cptyr)
 
-        tc.enqueue(self.phase_eight, tc=tc)
+        self.tc.enqueue(
+            self.phase_eight,
+            pl=self.env.pl,
+            rl=self.env.rl,
+            cl=self.env.cl,
+            pgprim=self.env.pgprim,
+        )
+
+        if self.tc.test_run:
+            self.tc.save_test_state(
+                env=self.env, checkpoint="pp_main_mod_prior_main_ext_mod"
+            )
 
         # Extensions after establishing RPCS_VAR and PRC_CAPACT but before levelising
-        extensions = {"VDA": pp_prelvl_vda.PpPrelvVda}  # noqa: F821
-        active_extensions = [extensions[ext] for ext in self.env.extend]
-        self.include(
-            main_ext_mod.MainExtMod(  # noqa: F821
-                tc=tc, env=self.env, source="ppmain", extensions=active_extensions
-            )
+        extensions = {"VDA": PpPrelvVda}
+        requested_exts = set(self.env.extend.split())
+        include_extension(
+            module=self,
+            extensions=extensions,
+            requested_exts=requested_exts,
+            source="ppmain",
         )
+
+        raise EscapeStack(self.module_name)
 
         # Make various QA checks for FLO_SHAR
         self.include(pp_qafs_mod.PpQafsMod(tc=tc, env=self.env))  # noqa: F821
@@ -933,8 +954,8 @@ PARAMETER BLE_BAL(R,YEAR,C,C) //;
 """,
         )
 
-    def activate_rtp_cptyr(self, tc):
-        tc.add_gams_code(
+    def activate_rtp_cptyr(self: PpmainMod):
+        self.tc.add_gams_code(
             module=self, phase="run", code=r"RTP_CPTYR(R,T,T,P)$RTP(R,T,P) = YES;"
         )
 
@@ -1193,11 +1214,8 @@ PARAMETER BLE_BAL(R,YEAR,C,C) //;
         """,
         )
 
-    def phase_six(self, tc):
-        tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
+    def phase_six(self: PpmainMod, rl: str, pl: str, ctst: str):
+        code = rf"""
 RT_PP(R,T) = YES;
 
 * maximum NCAP_ILED+NCAP_TLIFE+NCAP_DLAG+NCAP_DLIFE+NCAP_DELIF
@@ -1217,21 +1235,16 @@ RT_PP(R,T) = YES;
 *-----------------------------------------------------------------------------
 * expand individual commodities in own CG
     MI_DMAS(COM_GMAP(RC,C)) = YES; MI_DMAS(R,C,C) = NO;
-""",
-        )
 
-        """ TODO:
-            IF(CARD(MI_DMAS),OPTION DEM<TOP; PUTGRP=0;
-            LOOP(MI_DMAS(DEM(R,C),COM),
-        $       BATINCLUDE pp_qaput.%1 PUTOUT PUTGRP 09 'Commodity group found in topology violating its integrity'
-                PUT QLOG ' SEVERE ERROR  - Group removed from topology:   R=',%RL%,' CG=',C.TL);
-            OPTION DEM<=MI_DMAS; RC(DEM)=NO; RPC(R,P,C)$DEM(R,C)=NO; OPTION CLEAR=MI_DMAS,CLEAR=DEM);
-        """
 
-        tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
+
+    IF(CARD(MI_DMAS),OPTION DEM<TOP; PUTGRP=0;
+    LOOP(MI_DMAS(DEM(R,C),COM),
+    {pp_qaput("PUTOUT", "PUTGRP", "09", "Commodity group found in topology violating its integrity")}
+        PUT QLOG ' SEVERE ERROR  - Group removed from topology:   R=',{rl},' CG=',C.TL);
+    OPTION DEM<=MI_DMAS; RC(DEM)=NO; RPC(R,P,C)$DEM(R,C)=NO; OPTION CLEAR=MI_DMAS,CLEAR=DEM);
+
+
     COM_GMAP(RC(R,C),C) = YES;
     NRG_GMAP(R,NRG_GRID(NRG_TYPE),C) $= NRG_TMAP(R,NRG_TYPE,C);
 
@@ -1282,35 +1295,24 @@ RT_PP(R,T) = YES;
     LOOP((PRC_SPG(R,P,CG),IO)$(NOT RP_INOUT(R,P,IO)),RPC_SPG(R,P,C)$(TOP(R,P,C,IO)$COM_GMAP(R,CG,C)) = YES);
     PRC_CG(PRC_SPG) = YES;
     OPTION CLEAR=TRACKP;
-""",
-        )
+"""
+        self.tc.add_gams_code(module=self, phase="run", code=code)
 
         # *-----------------------------------------------------------------------------
         # * set level and timeslices for each commodity
         # *   - if individual TS provided and no TSL then use TSs to set TSL
         # *     else set the TS from TSL if none provided
         # *-----------------------------------------------------------------------------
-        tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
+        code = rf"""
 * remove invalid levels
     OPTION CLEAR=RXX; RXX(R,TSL,R)$(NOT SUM(RJLVL(J,R,TSL),1))=YES; F=CARD(COM_TSL); Z=CARD(PRC_TSL);
     COM_TSL(R,C,TSL-1)$RXX(R,TSL,R)$=COM_TSL(R,C,TSL); F=CARD(COM_TSL)-F; COM_TSL(R,C,TSL)$(RXX(R,TSL,R)$F)=NO;
     PRC_TSL(R,P,TSL-1)$RXX(R,TSL,R)$=PRC_TSL(R,P,TSL); Z=CARD(PRC_TSL)-Z; PRC_TSL(R,P,TSL)$(RXX(R,TSL,R)$Z)=NO;
-""",
-        )
 
-        """ TODO:
-        IF(F+Z, PUTGRP=0;
-            $BATINCLUDE pp_qaput.%1 PUTOUT PUTGRP 01 'Commodities/processes defined at non-existing TSLVL'
-            PUT QLOG ' WARNING       - Number of COM/PRC resetted to coarser level: ',F:0:0 '/' Z:0:0/);
-        """
+    IF(F+Z, PUTGRP=0;
+        {pp_qaput("PUTOUT", "PUTGRP", "01", "Commodities/processes defined at non-existing TSLVL")}
+        PUT QLOG ' WARNING       - Number of COM/PRC resetted to coarser level: ',F:0:0 '/' Z:0:0/);
 
-        tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
 * check for individual TS provided
     TRACKC(RC) $= SUM(COM_TS(RC,S),1);
     LOOP(COM_TS(RC(R,C),S)$(NOT SUM(COM_TSL(RC,TSL),1)),COM_TSL(RC,TSL)$TS_GROUP(R,TSL,S) = YES);
@@ -1328,26 +1330,19 @@ RT_PP(R,T) = YES;
     OPTION CLEAR=TRACKC;
     LOOP(COM_OFF(RC,BOHYEAR,EOHYEAR),TRACKC(RC) = YES);
     RTC(R,T,C)$RC(R,C) = YES;
-""",
-        )
 
-        """TODO:
-            LOOP(TRACKC(R,C),
-            * set the OFF range
-            $     BATINCLUDE pp_off.%1 COM_OFF C "" "RTC(R,T,C)$(" NO
-            * create a variable for VAR_COM for desired timeslices unless period turned off
-                COM_BNDPRD(R,T,C,S,'FX')$(COM_TS(R,C,S)$(NOT RTC(R,T,C))) = EPS;
-                );
-        """
+LOOP(TRACKC(R,C),
+* set the OFF range
+{pp_off("COM_OFF", "C", "", "RTC(R,T,C)$(", "NO")}
+* create a variable for VAR_COM for desired timeslices unless period turned off
+    COM_BNDPRD(R,T,C,S,'FX')$(COM_TS(R,C,S)$(NOT RTC(R,T,C))) = EPS;
+    );
 
-        tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
 RTCS_VARC(RTC(R,T,C),S)$COM_TS(R,C,S) = YES;
 OPTION CLEAR=TRACKC;
-""",
-        )
+"""
+
+        self.tc.add_gams_code(module=self, phase="run", code=code)
 
         """
         * Peaking
@@ -1361,7 +1356,7 @@ OPTION CLEAR=TRACKC;
         *      3) if com_peak but no com_pkts           => com_pkts for all com_ts
         """
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
@@ -1380,7 +1375,7 @@ OPTION CLEAR=TRACKC;
 """,
         )
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
@@ -1404,7 +1399,7 @@ OPTION CLEAR=TRACKC;
         # *   - RPS_S2 corresponds to non-PG flo variables
         # *   - RPS_S1 corresponds to level of EQ_PTRANS
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
@@ -1442,10 +1437,10 @@ OPTION CLEAR=TRACKC;
   """,
         )
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
+            code=rf"""
 *-----------------------------------------------------------------------------
 * Establish the main control set for generation or not of a VAR_FLO/IRE for
 *   each commodity involved in a process, and for viable commodity/process timeslices
@@ -1467,33 +1462,32 @@ OPTION CLEAR=TRACKC;
 * Remove timeslices turned off by COM_TS
   RPCS_VAR(R,P,C,S)$RCS(R,C,S) = NO;
   OPTION CLEAR=PRC_YMAX,CLEAR=RCS,CLEAR=PRC_ACT,CLEAR=TRACKP,CLEAR=TRACKPC;
+
+*-----------------------------------------------------------------------------
+* adjustment of life and construction lead if below threshold
+*-----------------------------------------------------------------------------
+
+* NCAP_TLIFE duration check
+LOOP(SAMEAS(AGE,'1'), OPTION CLEAR=RXX; PUTGRP = 0;
+LOOP(RTP(R,T,P)$((NOT LIFE(AGE+(NCAP_TLIFE(RTP)-.999)))$NCAP_TLIFE(RTP)),
+    {pp_qaput("PUTOUT", "PUTGRP", "01", "NCAP_TLIFE out of feasible range")}
+    IF(NCAP_TLIFE(RTP) < 1, RXX(RTP) = YES;
+        PUT QLOG ' WARNING       - Too short, set to 1,   R=',{rl},' P=',{pl},' V=',T.TL;
+    ELSE
+        PUT QLOG ' WARNING       - No FOM beyond year ',CARD(AGE):<3:0,',  R=',{rl},' P=',{pl},' V=',T.TL;
+    ));
+NCAP_TLIFE(RXX(R,V,P)) = 1);
 """,
         )
 
-        # *-----------------------------------------------------------------------------
-        # * adjustment of life and construction lead if below threshold
-        # *-----------------------------------------------------------------------------
-        """ TODO
-        * NCAP_TLIFE duration check
-        LOOP(SAMEAS(AGE,'1'), OPTION CLEAR=RXX; PUTGRP = 0;
-        LOOP(RTP(R,T,P)$((NOT LIFE(AGE+(NCAP_TLIFE(RTP)-.999)))$NCAP_TLIFE(RTP)),
-        $      BATINCLUDE pp_qaput.%1 PUTOUT PUTGRP 01 'NCAP_TLIFE out of feasible range'
-            IF(NCAP_TLIFE(RTP) < 1, RXX(RTP) = YES;
-                PUT QLOG ' WARNING       - Too short, set to 1,   R=',%RL%,' P=',%PL%,' V=',T.TL;
-            ELSE
-                PUT QLOG ' WARNING       - No FOM beyond year ',CARD(AGE):<3:0,',  R=',%RL%,' P=',%PL%,' V=',T.TL;
-            ));
-        NCAP_TLIFE(RXX(R,V,P)) = 1);
-        """
-
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
+            code=rf"""
 * set the technical lifetime if none set
    NCAP_TLIFE(RTP)$(NOT NCAP_TLIFE(RTP)) = G_TLIFE;
 *-----------------------------------------------------------------------------
-   G_ILEDNO = (G_ILEDNO+2)%CTST%-2;
+   G_ILEDNO = (G_ILEDNO+2){ctst}-2;
 * Adjust fractional and negative ILED if such exist (only integral ILED can be fully consistent)
    COEF_ILED(RTP)$NCAP_ILED(RTP) = MAX(ABS(NCAP_ILED(RTP)),COEF_ILED(RTP));
    NCAP_ILED(RTP(R,V,P))$NCAP_ILED(RTP) = MAX(EPS,CEIL(NCAP_ILED(RTP)-0.5))$(COEF_ILED(RTP) > MIN(D(V),NCAP_TLIFE(RTP))/G_ILEDNO);
@@ -1501,11 +1495,11 @@ OPTION CLEAR=TRACKC;
 """,
         )
 
-    def phase_seven(self, tc):
-        tc.add_gams_code(
+    def phase_seven(self: PpmainMod, ctst: str):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
+            code=rf"""
    PRC_REFIT(R,P,PRC)$PRC_REFIT(R,P,PRC)=MAX(ABS(ROUND(PRC_REFIT(R,P,PRC))),MIN(6,ABS(MAX(ROUND(PRC_REFIT(R,P,P)),-1)*2)))*MOD(ROUND(PRC_REFIT(R,P,PRC)),2);
    LOOP((RP(R,PRC),P)$PRC_REFIT(RP,P),IF(NOT PRC_RCAP(RP),RTP_OFF(R,T,P)=YES);
      IF(PRC_REFIT(RP,P)<-4,NCAP_ELIFE(RTP(R,T,P))$(NCAP_ELIFE(RTP)<1)=NCAP_TLIFE(RTP);
@@ -1521,7 +1515,7 @@ OPTION CLEAR=TRACKC;
 * If alternate objective, differentiate OBJ1 cases where TLIFE > IPD lead but TLIFE < D
     IF(ALTOBJ,COEF_RPTI(RTP(R,T,P))$NCAP_ILED(R,T,P) =
                 MAX(1,CEIL((D(T)-NCAP_ILED(R,T,P))/NCAP_TLIFE(R,T,P)));
-              COEF_RPTI(RTP(R,T,P))$(((ROUND(NCAP_TLIFE(R,T,P))-IPD(T)%CTST%) > 0)$(NOT NCAP_ILED(R,T,P))) =
+              COEF_RPTI(RTP(R,T,P))$(((ROUND(NCAP_TLIFE(R,T,P))-IPD(T){ctst}) > 0)$(NOT NCAP_ILED(R,T,P))) =
                 MAX(1,CEIL(MAX(D(T),IPD(T))/NCAP_TLIFE(R,T,P)));
               COEF_RPTI(RTP(R,T,P))$(NOT COEF_RPTI(R,T,P)) = MAX(1,MAX(D(T),IPD(T))/NCAP_TLIFE(R,T,P));
     ELSE COEF_RPTI(RTP(R,T,P)) = MAX(1,CEIL((D(T)-NCAP_ILED(R,T,P))/NCAP_TLIFE(R,T,P))));
@@ -1541,11 +1535,11 @@ OPTION CLEAR=TRACKC;
 """,
         )
 
-    def phase_eight(self, tc, pgprim):
-        tc.add_gams_code(
+    def phase_eight(self: PpmainMod, rl: str, pl: str, cl: str, pgprim: str):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
+            code=rf"""
    RTP_CPTYR(R,MIYR_1(T),T,P)$(RTP(R,T,P)$PRC_MAP(R,'STK',P)) = YES;
 *-----------------------------------------------------------------------------
 * Preprocess capacity bounds
@@ -1553,21 +1547,20 @@ OPTION CLEAR=TRACKC;
 * Migrate CAP_BND + QA check
    OPTION CLEAR=RVP; PUTGRP=0;
    CAP_BND(RTP,BDNEQ) $= CAP_BND(RTP,'FX');
+
+    LOOP((RTP(R,T,P),L('UP'))$((CAP_BND(RTP,L)<=PRC_RESID(RTP))$CAP_BND(RTP,L)),
+        IF(PRC_RCAP(R,P), Z=0; ELSE Z=PRC_RESID(RTP));
+        IF(Z, F=CAP_BND(RTP,L); CAP_BND(RTP,L)$(IFQ<10)=EPS; F$(0**(IFQ+F+1$RP_FLO(R,P)))=Z;
+        IF(F<Z, RCAP_BND(RTP,'N')=Z;
+        {pp_qaput("PUTOUT", "PUTGRP", "IFQ", "Inconsistent CAP_BND(UP/FX) defined for process capacity")}
+        PUT ' WARNING       - Bound converted to NCAP_BND,   R.T.P= ',RTP.TE(RTP); PUT$(IFQ>9)@28 'infeasibility detected,')));
 """,
         )
-        """TODO:
-        LOOP((RTP(R,T,P),L('UP'))$((CAP_BND(RTP,L)<=PRC_RESID(RTP))$CAP_BND(RTP,L)),
-            IF(PRC_RCAP(R,P), Z=0; ELSE Z=PRC_RESID(RTP));
-            IF(Z, F=CAP_BND(RTP,L); CAP_BND(RTP,L)$(IFQ<10)=EPS; F$(0**(IFQ+F+1$RP_FLO(R,P)))=Z;
-            IF(F<Z, RCAP_BND(RTP,'N')=Z;
-            $BATINCLUDE pp_qaput.mod PUTOUT PUTGRP IFQ 'Inconsistent CAP_BND(UP/FX) defined for process capacity'
-            PUT ' WARNING       - Bound converted to NCAP_BND,   R.T.P= ',RTP.TE(RTP); PUT$(IFQ>9)@28 'infeasibility detected,')));
-        """
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
+            code=rf"""
 * clear zero / INF CAP_BNDs
    RVP(RTP)$((CAP_BND(RTP,'UP')=0)$CAP_BND(RTP,'UP')) = YES;
    LOOP(T, NCAP_BND(R,TT,P,'UP')$(RTP_CPTYR(R,TT,T,P)$RVP(R,T,P)) = EPS);
@@ -1576,19 +1569,17 @@ OPTION CLEAR=TRACKC;
 * Check whether both UP and LO bounds (then it pays to have VAR_CAP)
    RTP_VARP(RTP(R,T,P))$(CAP_BND(RTP,'UP')*CAP_BND(RTP,'LO')) = YES;
    PUTGRP=0;
+
+    LOOP(RTP(RTP_VARP)$((CAP_BND(RTP,'LO')>CAP_BND(RTP,'UP'))$CAP_BND(RTP,'UP')),
+    {pp_qaput("PUTOUT", "PUTGRP", "1", "Inconsistent CAP_BND(UP/LO/FX) defined for process capacity")}
+    PUT ' WARNING       - Lower bound set equal to upper bound,   R.T.P= ',RTP.TE(RTP));
 """,
         )
 
-        """TODO
-           LOOP(RTP(RTP_VARP)$((CAP_BND(RTP,'LO')>CAP_BND(RTP,'UP'))$CAP_BND(RTP,'UP')),
-        $    BATINCLUDE pp_qaput.mod PUTOUT PUTGRP 1 'Inconsistent CAP_BND(UP/LO/FX) defined for process capacity'
-            PUT ' WARNING       - Lower bound set equal to upper bound,   R.T.P= ',RTP.TE(RTP));
-        """
-
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
+            code=rf"""
 *-----------------------------------------------------------------------------
 * turn off RTP/CPTYR if no new investment & installed capacity no longer available
     LOOP(BDUPX(BD),RTP_OFF(RTP)$((NCAP_BND(RTP,BD)=0)$NCAP_BND(RTP,BD)) = YES);
@@ -1605,22 +1596,20 @@ OPTION CLEAR=TRACKC;
 *-- Speed up by first tracking RPs with PRC_AOFF
     LOOP(PRC_AOFF(RP(R,P),BOHYEAR,EOHYEAR),TRACKP(R,P) = YES);
     RTP_VARA(RTP(R,T,P))$(NOT TRACKP(R,P)) = YES;
+
+LOOP(TRACKP(R,P), MY_FIL(T) = YES;
+* set the OFF range
+{pp_off("PRC_AOFF", "P", "", "MY_FIL(T)$(", "NO")}
+* set the periods for which VAR_ACT is OK
+    RTP_VARA(RTP(R,MY_FIL(T),P)) = YES;
+    );
 """,
         )
 
-        """TODO
-        LOOP(TRACKP(R,P), MY_FIL(T) = YES;
-        * set the OFF range
-        $     BATINCLUDE pp_off.%1 PRC_AOFF P "" "MY_FIL(T)$(" NO
-        * set the periods for which VAR_ACT is OK
-            RTP_VARA(RTP(R,MY_FIL(T),P)) = YES;
-            );
-        """
-
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
+            code=rf"""
 OPTION CLEAR=TRACKP;
 
 *-----------------------------------------------------------------------------
@@ -1631,26 +1620,24 @@ OPTION CLEAR=TRACKP;
     PUTGRP = 0;
 *-- track all RPCs with PRC_FOFF:
     LOOP(PRC_FOFF(R,P,C,TS,BOHYEAR,EOHYEAR),TRACKPC(R,P,C) = YES);
+
+LOOP(RPCS_VAR(TRACKPC(R,P,C),S), MY_FIL(T) = NO;
+* check for shut-off here or timeslice above
+{pp_off("PRC_FOFF", "P,C,TS", "$TS_MAP(R,TS,S)", "MY_FIL(T)$(", "YES")}
+* QC check that shut-off not specified below the VAR level
+    RTPCS_OUT(RTP_VARA(R,MY_FIL(T),P),C,S) = YES;
+    );
+    LOOP(PRC_FOFF(RPC(R,P,C),TS,BOHYEAR,EOHYEAR)$SUM(RPCS_VAR(R,P,C,S)$RS_BELOW(R,S,TS),1),
+        {pp_qaput("PUTOUT", "PUTGRP", "01", "Flow OFF TS level below VARiable TS level")}
+        PUT QLOG ' WARNING       - OFF is ignored:  R=',{rl},' P=',{pl},' C=',{cl},' S=',TS.TL ;
+    );
 """,
         )
 
-        """TODO
-        LOOP(RPCS_VAR(TRACKPC(R,P,C),S), MY_FIL(T) = NO;
-        * check for shut-off here or timeslice above
-        $     BATINCLUDE pp_off.%1 PRC_FOFF 'P,C,TS' '$TS_MAP(R,TS,S)' "MY_FIL(T)$(" YES
-        * QC check that shut-off not specified below the VAR level
-            RTPCS_OUT(RTP_VARA(R,MY_FIL(T),P),C,S) = YES;
-            );
-            LOOP(PRC_FOFF(RPC(R,P,C),TS,BOHYEAR,EOHYEAR)$SUM(RPCS_VAR(R,P,C,S)$RS_BELOW(R,S,TS),1),
-        $        BATINCLUDE pp_qaput.%1 PUTOUT PUTGRP 01 'Flow OFF TS level below VARiable TS level'
-                PUT QLOG ' WARNING       - OFF is ignored:  R=',%RL%,' P=',%PL%,' C=',%CL%,' S=',TS.TL ;
-            );
-        """
-
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
+            code=rf"""
 OPTION CLEAR=TRACKP;
 
 *-----------------------------------------------------------------------------
@@ -1670,19 +1657,18 @@ $IF DEFINED PRC_SIMV LOOP(T,NO_RVP(R,TT-1,P)$(RTP_CPTYR(R,TT,T,P)$PRC_SIMV(R,P))
 * establishment PRC_CAPACT/ACTFLO from PRC_CAPUNT/ACTUNT/COM_UNIT & determine INOUT(r,p)
 *-----------------------------------------------------------------------------
    PRC_CAPACT(RP)$(NOT PRC_CAPACT(RP)) = 1;
-* Copy PRC_ACTFLO from PG to individual commodities in PG, allowing reserved word %PGPRIM%
+* Copy PRC_ACTFLO from PG to individual commodities in PG, allowing reserved word {pgprim}
    PRC_ACTFLO(RTP(R,V,P),C)$((NOT PRC_ACTFLO(RTP,C))$RPC_PG(R,P,C)) $= SUM(RP_PG(R,P,CG),PRC_ACTFLO(R,V,P,CG));
-   PRC_ACTFLO(RTP(R,V,P),C)$((NOT PRC_ACTFLO(RTP,C))$RPC_PG(R,P,C)) $= PRC_ACTFLO(RTP,{pgprim});
+   PRC_ACTFLO(RTP(R,V,P),C)$((NOT PRC_ACTFLO(RTP,C))$RPC_PG(R,P,C)) $= PRC_ACTFLO(RTP,"{pgprim}");
    PRC_ACTFLO(RTP(R,V,P),C)$((NOT PRC_ACTFLO(RTP,C))$RPC_PG(R,P,C)) = 1;
 * RP_PGACT signifies that activity can be substituted for the primary flow
    RP_PGACT(RP_FLO(R,P))$(SUM(RPC_PG(R,P,C),1) EQ 1) = YES;
    RP_PGACT(RP_IRE(R,P))$(SUM(RPC_IRE(RPC_PG(R,P,C),IE),1) EQ 1) = YES;
-
 """,
         )
 
-    def phase_nine(self, tc):
-        tc.add_gams_code(
+    def phase_nine(self: PpmainMod):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""

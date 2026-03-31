@@ -35,6 +35,7 @@ from core.initmty_msa import InitmtyMsa
 from core.initmty_stc import InitmtyStc
 from core.initmty_tm import InitmtyTm
 from core.initmty_vda import InitmtyVda
+from core.main_ext_mod import include_extension
 from core.maindrv_mod import MainDrvMod
 
 from .base_class import GamsClass
@@ -730,15 +731,13 @@ PARAMETER IE_DEFAULT(*) //;
                 "TM": InitmtyTm,
                 "VDA": InitmtyVda,
             }
-            for ext in self.env.extend.split(" "):
-                self.include(
-                    extensions[ext](
-                        tc=self.tc,
-                        env=self.env,
-                        arg1=ext,
-                        arg2="initmty",
-                    )
-                )
+            requested_exts = set(self.env.extend.split())
+            include_extension(
+                module=self,
+                extensions=extensions,
+                requested_exts=requested_exts,
+                source="initmty",
+            )
 
             # $SET VAR VARIABLE OBJZ
             self.env.set_scoped("var", "VARIABLE OBJZ")

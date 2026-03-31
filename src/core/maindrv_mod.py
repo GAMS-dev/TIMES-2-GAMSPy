@@ -20,15 +20,14 @@ import logging
 import os
 from typing import TYPE_CHECKING
 
-from core import (
-    err_stat_mod,
-    init_ext_abs,
-    init_ext_dsc,
-    init_ext_vda,
-    ppmain_mod,
-    readbprice_mod,
-    setglobs_gms,
-)
+from core.err_stat_mod import ErrStatMod
+from core.init_ext_abs import InitExtAbs
+from core.init_ext_dsc import InitExtDsc
+from core.init_ext_vda import InitExtVda
+from core.main_ext_mod import include_extension
+from core.ppmain_mod import PpmainMod
+from core.readbprice_mod import ReadbpriceMod
+from core.setglobs_gms import SetglobsGms
 
 from .base_class import GamsClass
 
@@ -60,7 +59,7 @@ class MainDrvMod(GamsClass):
 
         if self.tc.test_run:
             self.tc.save_test_state(env=self.env, checkpoint="setglobs_gms_start")
-        self.include(setglobs_gms.SetglobsGms(tc=self.tc, env=self.env, arg1=1))
+        self.include(SetglobsGms(tc=self.tc, env=self.env, arg1=1))
         if self.tc.test_run:
             self.tc.save_test_state(env=self.env, checkpoint="setglobs_gms_end")
 
@@ -79,7 +78,7 @@ class MainDrvMod(GamsClass):
 
         if self.env.timesed.upper() != "NO":
             if self.env.timesed != "0":
-                self.include(readbprice_mod.ReadpriceMod(tc=self.tc, env=self.env))
+                self.include(ReadbpriceMod(tc=self.tc, env=self.env))
 
         # TODO: $   %MX% SETGLOBAL MX --> How to handle %MX% here?
         self.env.set_global("mx", "")
@@ -131,26 +130,22 @@ class MainDrvMod(GamsClass):
         arg2 = "ABORT"
         arg3 = "*** ERRORS IN INPUT DATA/COMPILE ***"
         self.include(
-            err_stat_mod.ErrStatMod(
-                tc=self.tc, env=self.env, arg1=arg1, arg2=arg2, arg3=arg3
-            )
+            ErrStatMod(tc=self.tc, env=self.env, arg1=arg1, arg2=arg2, arg3=arg3)
         )
 
         # perform preprocessor tasks
         if self.env.extend != "":
             extensions = {
-                "ABS": init_ext_abs.InitExtAbs,
-                "DSC": init_ext_dsc.InitExtDsc,
-                "VDA": init_ext_vda.InitExtVda,
+                "ABS": InitExtAbs,
+                "DSC": InitExtDsc,
+                "VDA": InitExtVda,
             }
-            for ext in self.env.extend.split(" "):
-                self.include(
-                    extensions[ext](
-                        tc=self.tc,
-                        env=self.env,
-                        arg1=ext,
-                        arg2="maindrv",
-                    )
-                )
+            requested_exts = set(self.env.extend.split())
+            include_extension(
+                module=self,
+                extensions=extensions,
+                requested_exts=requested_exts,
+                source="maindrv",
+            )
 
-        self.include(ppmain_mod.PpmainMod(tc=self.tc, env=self.env))
+        self.include(PpmainMod(tc=self.tc, env=self.env))

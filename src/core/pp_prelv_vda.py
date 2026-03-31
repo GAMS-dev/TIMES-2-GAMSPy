@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 from core.dynslite_vda import DynsliteVda
 from core.powerflo_vda import PowerfloVda
-from core.pplvlfc_mod import PplvlfcMod
+from core.pp_lvlfc_mod import PpLvlfcMod
 
 from .base_class import GamsClass
 from .pp_qaput_mod import pp_qaput
@@ -36,24 +36,18 @@ class PpPrelvVda(GamsClass):
     gams_source: str = "pp_prelvl.vda"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
+        self, tc: TimesModelClass, env: CompileEnvironment, arg1: str, arg2: str
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
+        self.arg1 = arg1
+        self.arg2 = arg2
         self.compile()
 
     def compile(self) -> None:
-        self.tc.enqueue(
-            self.restore_ncap_tlife,
-            dflbl=self.env.dflbl,
-        )
-        self.tc.enqueue(
-            self.filter_vda_flop,
-            pgprim=self.env.pgprim,
-        )
+        self.tc.enqueue(self.restore_ncap_tlife, dflbl=self.env.dflbl)
+        self.tc.enqueue(self.filter_vda_flop, pgprim=self.env.pgprim)
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -61,53 +55,27 @@ class PpPrelvVda(GamsClass):
 {"PRC_ACTFLO(R,V,P,C)$((NOT KEEP_FLOF(R,P,C))$TRACKPC(R,P,C)) = 0;" if self.env.shell.upper() == "ANSWER" else ""}
 """,
         )
-        self.tc.enqueue(
-            self.exec1,
-        )
-        self.tc.enqueue(
-            self.preprocess_vda_flop,
-        )
-        self.tc.enqueue(
-            self.partition_groups,
-        )
+        self.tc.enqueue(self.exec1)
+        self.tc.enqueue(self.preprocess_vda_flop)
+        self.tc.enqueue(self.partition_groups)
 
-        self.tc.enqueue(
-            self.process_trackp,
-        )
-        self.tc.enqueue(
-            self.update_trackp,
-        )
-        self.tc.enqueue(
-            self.vda_flop_direction,
-        )
-        self.tc.enqueue(
-            self.set_flo_sum,
-        )
-        self.tc.enqueue(
-            self.distribute_ire_flosum,
-            pgprim=self.env.pgprim,
-        )
-        self.tc.enqueue(
-            self.preprocess_flo_emis,
-        )
-        self.tc.enqueue(
-            self.update_src_commodities,
-        )
+        self.tc.enqueue(self.process_trackp)
+        self.tc.enqueue(self.update_trackp)
+        self.tc.enqueue(self.vda_flop_direction)
+        self.tc.enqueue(self.set_flo_sum)
+        self.tc.enqueue(self.distribute_ire_flosum, pgprim=self.env.pgprim)
+        self.tc.enqueue(self.preprocess_flo_emis)
+        self.tc.enqueue(self.update_src_commodities)
         self.tc.enqueue(
             self.add_activity_src,
             pgprim=self.env.pgprim,
             rl=self.env.rl,
             pl=self.env.pl,
         )
-        self.tc.enqueue(
-            self.add_single_src_commodity,
-            pgprim=self.env.pgprim,
-        )
-        self.tc.enqueue(
-            self.preprocessing_for_veda_interface_before_include,
-        )
+        self.tc.enqueue(self.add_single_src_commodity, pgprim=self.env.pgprim)
+        self.tc.enqueue(self.preprocessing_for_veda_interface_before_include)
         self.include(
-            PplvlfcMod(
+            PpLvlfcMod(
                 self.tc,
                 self.env,
                 arg1="FLO_FR",
@@ -121,26 +89,14 @@ class PpPrelvVda(GamsClass):
             )
         )
 
-        self.tc.enqueue(
-            self.preprocessing_for_veda_interface_after_include,
-        )
+        self.tc.enqueue(self.preprocessing_for_veda_interface_after_include)
         if self.env.powerflo.upper() == "YES":
-            self.include(
-                PowerfloVda(
-                    self.tc,
-                    self.env,
-                )
-            )
-        self.tc.enqueue(
-            self.set_com_var_def_bounds,
-        )
+            self.include(PowerfloVda(self.tc, self.env))
+        self.tc.enqueue(self.set_com_var_def_bounds)
         if not self.env.rts == "S":
             self.include(DynsliteVda(self.tc, self.env, arg1="PRELEV"))
 
-    def restore_ncap_tlife(
-        self: PpPrelvVda,
-        dflbl: str,
-    ):
+    def restore_ncap_tlife(self: PpPrelvVda, dflbl: str):
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -156,7 +112,7 @@ LOOP(PYR_S(V),NCAP_TLIFE(R,V,P)$PRC_RESID(R,'{dflbl}',P) = PRC_RESID(R,'{dflbl}'
             phase="run",
             code=rf"""
 * For filtering VDA_FLOP, check ACT_EFF groups
-TRACKPC(RPC_SPG(R,P,C))$((NOT RPG_1ACE(R,P,C,C))$RPC_ACE(R,P,{pgprim})) = YES;
+TRACKPC(RPC_SPG(R,P,C))$((NOT RPG_1ACE(R,P,C,C))$RPC_ACE(R,P,'{pgprim}')) = YES;
   Z = CARD(VDA_FLOP);
   VDA_FLOP(R,LL,P,C,S)$((NOT KEEP_FLOF(R,P,C))$TRACKPC(R,P,C)) = 0;
 """,
@@ -265,7 +221,7 @@ FLO_SUM(RTP(R,V,P),CG2,C,CG,S)$(RPC_PG(R,P,C)$RPCC_FFUNC(R,P,CG2,CG)) = VDA_FLOP
             phase="run",
             code=rf"""
 * Distribute IRE_FLOSUM for ACT; Ignore possible overwriting for now
-  PRC_ACTFLO(R,V,P,C) $= FLO_EMIS(R,V,P,{pgprim},C,'ANNUAL')$PRC_MAP(R,'STG',P);
+  PRC_ACTFLO(R,V,P,C) $= FLO_EMIS(R,V,P,'{pgprim}',C,'ANNUAL')$PRC_MAP(R,'STG',P);
   IRE_FLOSUM(R,V,P,C(ACTCG),S,IE,COM,'OUT') $= FLO_EMIS(R,V,P,C,COM,S)$RP_AIRE(R,P,IE);
 """,
         )
@@ -303,8 +259,8 @@ FLO_SUM(RTP(R,V,P),CG2,C,CG,S)$(RPC_PG(R,P,C)$RPCC_FFUNC(R,P,CG2,CG)) = VDA_FLOP
             phase="run",
             code=rf"""
 * Add activity sources
-  FLO_SUM(RTP(R,V,P),COM,C,COM,S)$(RPC_PG(R,P,C)$RP_CGC(R,P,{pgprim},COM)) = FLO_EMIS(RTP,{pgprim},COM,S)/PRC_ACTFLO(RTP,C);
-  RP_CGC(R,P,{pgprim},C) = NO; PUTGRP=0;
+  FLO_SUM(RTP(R,V,P),COM,C,COM,S)$(RPC_PG(R,P,C)$RP_CGC(R,P,'{pgprim}',COM)) = FLO_EMIS(RTP,'{pgprim}',COM,S)/PRC_ACTFLO(RTP,C);
+  RP_CGC(R,P,'{pgprim}',C) = NO; PUTGRP=0;
   LOOP(RP_CGC(R,P,CG,COM)$RPC_EMIS(R,P,COM),
   {pp_qaput("PUTOUT", "PUTGRP", "01", "FLO_EMIS with no members of source group in process - ignored")}
     PUT QLOG ' WARNING       -     R=',{rl},' P=',{pl},' CG=',CG.TL,' COM=',COM.TL;
@@ -321,7 +277,7 @@ FLO_SUM(RTP(R,V,P),CG2,C,CG,S)$(RPC_PG(R,P,C)$RPCC_FFUNC(R,P,CG2,CG)) = VDA_FLOP
 * Add single source commodities
   OPTION CLEAR=RP_CGC, CLEAR=FSCK, CLEAR=RPC_EMIS, CG_GRP < RPCC_FFUNC;
   FLO_SUM(RTP(R,V,P),C,COM,C,S)$CG_GRP(R,P,C,COM) = FLO_EMIS(RTP,COM,C,S);
-  FLO_EFF(RTP(R,V,P),C,COM,S)$((NOT CG_GRP(R,P,C,COM))$RPC_PG(R,P,COM)$CHP(R,P)) $= FLO_EMIS(RTP,{pgprim},C,S);
+  FLO_EFF(RTP(R,V,P),C,COM,S)$((NOT CG_GRP(R,P,C,COM))$RPC_PG(R,P,COM)$CHP(R,P)) $= FLO_EMIS(RTP,'{pgprim}',C,S);
   OPTION NE<IRE_BND,CLEAR=CG_GRP,CLEAR=RPCC_FFUNC,CLEAR=FLO_EMIS;
 """,
         )
