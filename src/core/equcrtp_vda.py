@@ -159,20 +159,6 @@ class EqucrtpVda(GamsClass):
             code=r"LOOP(UC_DYNBND(UCN,BD),UC_T_SUCC(R,UCN,'0') = YES);",
         )
 
-    def disable_growth(self: EqucrtpVda):
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-*  Disable growth/decay equation in first period of availability if no constant specified
-   PRC_DYNUC(UCN,RHS,RTP(R,TT(T+1),P),UC_GRPTYPE,BD)$((RTP(R,T,P)->MIYR_1(TT))$(NOT UC_GMAP_P(R,UCN,UC_GRPTYPE,P))$PRC_DYNUC(UCN,'LHS',R,'0',P,UC_GRPTYPE,BD)) = 0;
-*  Set final UC_GMAPs for REDUCE
-   LOOP(BD,UC_JMAP('1',UCN,RHS,R,T(MIYR_1),P,UC_GRPTYPE)$PRC_DYNUC(UCN,RHS,R,'0',P,UC_GRPTYPE,BD) = YES);
-  );
-  LOOP(UC_DYNBND(UCN,BD),UC_T_SUCC(R,UCN,'0') = YES);
-""",
-        )
-
     def ppm_ext(self: EqucrtpVda):
         self.tc.add_gams_code(
             module=self,
