@@ -9,7 +9,7 @@
 # *   table information, however some set members are explicitly tested for in
 # *   the code and should not be removed/re-defined.
 # *==============================================================================*
-
+from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
@@ -30,15 +30,15 @@ class Maplists(GamsClass):
     module_name: str = "maplists"
     gams_source: str = "maplists.def"
 
-    def __init__(self, tc: "TimesModelClass", env: "CompileEnvironment"):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
         self.env = env.fork()
-        self.snapshot = None
+        self.tc = tc
         self._sub_modules = {}
-        self.compile(tc)
+        self.compile()
 
-    def compile(self, tc: "TimesModelClass") -> None:
+    def compile(self) -> None:
         phase = "init"
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code="""

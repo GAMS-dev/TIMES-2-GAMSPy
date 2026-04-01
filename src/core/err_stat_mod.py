@@ -13,6 +13,7 @@
 # *  - for %system.filesys% == UNIX file /dev/tty
 # *  - does not affect stopping BAT
 # *------------------------------------------------------------------------------
+from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
@@ -35,8 +36,8 @@ class ErrStatMod(GamsClass):
 
     def __init__(
         self,
-        tc: "TimesModelClass",
-        env: "CompileEnvironment",
+        tc: TimesModelClass,
+        env: CompileEnvironment,
         arg1: str = "",
         arg2: str = "",
         arg3: str = "",
@@ -44,15 +45,16 @@ class ErrStatMod(GamsClass):
         arg5: str = "",
     ):
         self.env = env.fork()
+        self.tc = tc
         self.arg1 = arg1
         self.arg2 = arg2
         self.arg3 = arg3
         self.arg4 = arg4
         self.arg5 = arg5
         self._sub_modules = {}
-        self.compile(tc)
+        self.compile()
 
-    def compile(self, tc: "TimesModelClass") -> None:
+    def compile(self) -> None:
         phase = "init"
         # $ IFI %SHELL%==ANSWER     $SET TMP END_GAMS.STA
         if self.env.shell == "ANSWER":
@@ -64,16 +66,16 @@ class ErrStatMod(GamsClass):
         done = False
         # $  IF "%1" == SOLVE        $GOTO SOLVE
         if self.arg1 == "SOLVE":
-            done = self.queue_solve(tc=tc)
+            done = self.queue_solve(tc=self.tc)
 
         # $ IF DEFINED SOLVESTAT    $GOTO ACTION
-        elif "SOLVESTAT" in tc.container.listSymbols():
-            solvestat = tc.container["SOLVESTAT"]
+        elif "SOLVESTAT" in self.tc.container.listSymbols():
+            solvestat = self.tc.container["SOLVESTAT"]
             if solvestat.number_records:
-                done = self.queue_action(tc=tc)
+                done = self.queue_action(tc=self.tc)
 
         if not done:
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase=phase,
                 code=r"""
@@ -101,11 +103,11 @@ SET SOLVESTAT(J) /
 """,
             )
             tmp = self.env.tmp
-            self.prep_file(tc, tmp)
+            self.prep_file(self.tc, tmp)
 
     def queue_solve(self, tc):
         "No relevance to compilation"
-        tc.enqueue(self.solve, tc=tc)
+        tc.enqueue(self.solve, tc=self.tc)
         return True  # Signal done
 
     def queue_action(self, tc):

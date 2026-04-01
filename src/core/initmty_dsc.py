@@ -6,6 +6,7 @@
 # *=============================================================================
 # * INIT DECLARATIONS FOR THE DSC EXTENSION
 # *=============================================================================
+from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
@@ -28,22 +29,23 @@ class InitmtyDsc(GamsClass):
 
     def __init__(
         self,
-        tc: "TimesModelClass",
-        env: "CompileEnvironment",
+        tc: TimesModelClass,
+        env: CompileEnvironment,
         arg1: str = "",
         arg2: str = "",
     ):
         self.env = env.fork()
+        self.tc = tc
         self._sub_modules = {}
-        self.compile(tc)
+        self.compile()
 
-    def compile(self, tc: "TimesModelClass") -> None:
+    def compile(self) -> None:
         phase = "init"
         self.env.set_global("dsc", "YES")
         if not self.env.dsc == "YES":
             raise Exception("Activation of DSC extension failed")
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=r"""

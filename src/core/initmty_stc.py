@@ -8,6 +8,7 @@
 # *-----------------------------------------------------------------------------
 # * Questions/Comments:
 # *-----------------------------------------------------------------------------
+from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
@@ -32,21 +33,22 @@ class InitmtyStc(GamsClass):
 
     def __init__(
         self,
-        tc: "TimesModelClass",
-        env: "CompileEnvironment",
+        tc: TimesModelClass,
+        env: CompileEnvironment,
         arg1: str = "",
         arg2: str = "",
     ):
         self.env = env.fork()
+        self.tc = tc
         self._sub_modules = {}
-        self.compile(tc)
+        self.compile()
 
-    def compile(self, tc: "TimesModelClass") -> None:
+    def compile(self) -> None:
         phase = "init"
         self.env.set_global("stages", "YES")
 
         def input_control_parameters():
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase=phase,
                 code=r"""
@@ -62,11 +64,11 @@ $onMulti
             )
 
         def internal_sets_and_parameters():
-            m = tc.container
+            m = self.tc.container
             # ALIAS (ALLSOW,WW);
             allsow = m["ALLSOW"]
             Alias(m, "WW", alias_with=allsow)
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase=phase,
                 code=r"""
@@ -84,7 +86,7 @@ $onMulti
             )
 
         def available_sows_per_period():
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase=phase,
                 code=r"""
@@ -97,7 +99,7 @@ $onMulti
             )
 
         def stochastic_input_parameters():
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase=phase,
                 code=r"""
@@ -126,7 +128,7 @@ $onMulti
             )
 
         def internal_work_sets_and_parameters():
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase=phase,
                 code=r"""
@@ -147,7 +149,7 @@ $onMulti
             )
 
         def reporting():
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase=phase,
                 code=r"""
