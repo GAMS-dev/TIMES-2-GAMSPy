@@ -119,7 +119,7 @@ class EqcumfloMod(GamsClass):
             equation += f"SUM({SWSW} ("
 
         equation += rf"""
-$                        {cal_red_func("C", "COM", "TS", "P", "T")}
+{cal_red_func("C", "COM", "TS", "P", "T")}
                          $RP_STD(R,P) +
                          (SUM(RPC_IRE(R,P,C,IE),{VAR}_IRE(R,V,T,P,C,TS,IE{SOW}))$(NOT RPC_AIRE(R,P,C)) +
                           ({VAR}_ACT(R,V,T,P,TS{SOW})*PRC_ACTFLO(R,V,P,C))$RPC_AIRE(R,P,C))$RP_IRE(R,P)
