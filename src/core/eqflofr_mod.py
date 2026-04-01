@@ -86,13 +86,13 @@ class EqflofrMod(GamsClass):
    SUM(RTP_VINTYR(R,V,T,P),{VAR}_FLO(R,V,T,P,C,S{SOW})$IPS(L) +
      SUM(RS_BELOW1(R,SL,S),SUM(TS_ANN(SL,TS),{VAR}_FLO(R,V,T,P,C,TS{SOW})*(FLO_FR(RTPC,TS,'N')>0))$FLO_FR(RTPC,SL,'N') +
        SUM(RTPCS_VARF(RTPC,TS)$(FLO_FR(RTPC,S,L)>-INF$RS_FR(R,SL,TS)),
-$          {cal_red_func("C", "COM", "TS", "P", "T")}
+{cal_red_func("C", "COM", "TS", "P", "T")}
           )$(NOT FLO_FR(RTPC,SL,'N')))$BD(L)) * ABS(FLO_FR(RTPC,S,L))
 
    ={arg1}=
 
    SUM((RTP_VINTYR(R,V,T,P),RTPCS_VARF(RTPC,TS))$(STOA(TS)$TS_MAP(R,S,TS)),
-$      {cal_red_func("C", "COM", "TS", "P", "T")}
+{cal_red_func("C", "COM", "TS", "P", "T")}
       )$(MIN(0,FLO_FR(RTPC,S,L))->BD(L));
 """,
         )
