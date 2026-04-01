@@ -39,10 +39,18 @@ class EqcptMod(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
+        arg1: str,
+        arg2: str,
+        arg3: str,
+        arg4: str,
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
+        self.arg1 = arg1
+        self.arg2 = arg2
+        self.arg3 = arg3
+        self.arg4 = arg4
         self.compile()
 
     def compile(self) -> None:
