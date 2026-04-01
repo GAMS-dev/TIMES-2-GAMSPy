@@ -95,9 +95,8 @@ class PpmainMod(GamsClass):
         )
 
         self.env.set_scoped("tmp", ".")
-        if self.env.datagdx == "YES":
-            if self.env.g2x6 == "YES":
-                self.env.set_scoped("tmp", "; Input Data have been filtered via GDX")
+        if self.env.datagdx == "YES" and self.env.g2x6 == "YES":
+            self.env.set_scoped("tmp", "; Input Data have been filtered via GDX")
 
         # TODO: $ IF WARNINGS $BATINCLUDE pp_qaput.%1 PUTOUT 0 * 'GAMS Warnings Detected%TMP%'
 
@@ -134,7 +133,7 @@ class PpmainMod(GamsClass):
             )
 
         # Inter/Extrapolate G_OFFTHD if specified
-        if m["G_OFFTHD"].number_records:
+        if self.tc.defined("G_OFFTHD"):
             self.include(
                 FilparamGms(
                     tc=self.tc,
