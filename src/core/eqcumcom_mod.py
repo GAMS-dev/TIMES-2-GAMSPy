@@ -4,14 +4,13 @@
 # * This file is part of the IEA-ETSAP TIMES model generator, licensed
 # * under the GNU General Public License v3.0 (see file NOTICE-GPLv3.txt).
 # *=============================================================================*
-# * EQcumcom.MOD capacity transfer equation
-# *  - %1 = equation type when VALIDATE
-# *  - %2 = equation name adj (L) when VALIDATE (for DMDs in MARKAL)
-# *  - %3 = control qualifier
-# *  - %4 = RHS constant or VAR_CAP
+# * EQCUMCOM sets the cumulative limit on a commodity
+# *   %1 - equation declaration type
+# *   %2 - NET/PRD indicator
 # *=============================================================================*
 # *GaG Questions/Comments:
-# *  - COEF_cumcom established in COEF_cumcom.MOD
+# * - scale both sides!!!
+# * [AL] Changed to support arbitrary year range
 # *-----------------------------------------------------------------------------
 
 from __future__ import annotations
@@ -39,10 +38,14 @@ class EqcumcomMod(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
+        arg1: str,
+        arg2: str,
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
+        self.arg1 = arg1
+        self.arg2 = arg2
         self.compile()
 
     def compile(self) -> None:
@@ -50,47 +53,60 @@ class EqcumcomMod(GamsClass):
             self.exec1,
             self.env.EQ,
             self.arg2,
-            self.env.SWT,
-            self.arg3,
-            self.env.sow,
-            self.arg4,
-            self.arg1,
-            self.env.VARV,
+            self.env.SOW,
+            self.env.OBJ,
+            self.env.VARTT,
             self.env.SWS,
-            self.env.RCAPSUB,
+            self.env.CUCSCAL,
+            self.env.VAR,
+            self.arg1,
         )
 
     def exec1(
         self,
         EQ: str,
         arg2: str,
-        SWT: str,
-        arg3: str,
-        sow: str,
-        arg4: str,
-        arg1: str,
-        VARV: str,
+        SOW: str,
+        OBJ: str,
+        VARTT: str,
         SWS: str,
-        RCAPSUB: str,
+        CUCSCAL: str,
+        VAR: str,
+        arg1: str,
     ):
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-*GG*V0.6a_3+ check whether used in UserConstraint
-*$onlisting
+        equation = rf"""
+*$ONLISTING
+    {EQ}_CUM{arg2}(RC(R,C),ALLYEAR,LL {SOW})$RC_CUMCOM(R,'{arg2}',ALLYEAR,LL,C)..
 
-  {EQ}{arg2}_CPT(RTP(R,T,P) {SWT})$({arg3}) ..
+* all commodity flows within period range
+               SUM(RTC_{arg2}(R,TT(T),C)$
+"""
+        if OBJ.upper() != "LIN":
+            equation += "((E(T) >= YEARVAL(ALLYEAR))$(B(T) <= YEARVAL(LL))),"
+        else:
+            equation += (
+                "((M(T)+LAGT(T) > YEARVAL(ALLYEAR))$(M(T)-LEAD(T) < YEARVAL(LL))),"
+            )
 
-*  VAR_CAP(r,t,p {sow}) or CAP_BND(r,t,p,bd):
-       {arg4}
+        equation += "SUM(RTCS_VARC(R,T,C,S),"
 
-  ={arg1}=
+        if OBJ.upper() != "LIN":
+            equation += "MAX(0,MIN(E(T),YEARVAL(LL))-MAX(B(T),YEARVAL(ALLYEAR))+1)"
+        else:
+            equation += "SUM(TPULSEYR(T,YEAR)$((ORD(YEAR) >= ORD(ALLYEAR))$(ORD(YEAR) <= ORD(LL))),TPULSE(T,YEAR))"
 
-      SUM(V$COEF_CPT(R,V,T,P), COEF_CPT(R,V,T,P) *
-          ({VARV}_NCAP(R,V,P {SWS})$MILESTONYR(V) + NCAP_PASTI(R,V,P)$PASTYEAR(V){RCAPSUB}))
-  ;
-*$offlisting
+        equation += rf"""
+* {VARTT}_COM{arg2}(R,T,C,S {SWS})
+                   )
+               ) / {CUCSCAL}
 
-""",
-        )
+    ={arg1}=
+
+* bound range working on
+    {VAR}_CUMCOM(R,C,'{arg2}',ALLYEAR,LL {SOW})
+    ;
+
+$OFFLISTING
+
+"""
+        self.tc.add_gams_code(module=self, phase="run", code=equation)
