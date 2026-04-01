@@ -44,38 +44,36 @@ class InitExtDsc(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        m = self.tc.container
-
         # Handle automatic activation of discrete extension
-        if "PRC_DSCNCAP" in m.listSymbols() and m["PRC_DSCNCAP"].number_records:
+        if self.tc.defined("PRC_DSCNCAP"):
             self.tc.enqueue(self.assign_ncap_disc)
 
         self.tc.enqueue(
             self.project_ncap_semi,
         )
 
-        if "NCAP_SEMI" in m.listSymbols() and m["NCAP_SEMI"].number_records:
+        if self.tc.defined("NCAP_SEMI"):
             self.tc.enqueue(self.assign_prc_semi)
 
         self.env.set_scoped("dsc", "NO")
 
         if self.env.dscauto.upper() == "YES":
-            if "NCAP_DISC" in m.listSymbols() and m["NCAP_DISC"].number_records:
+            if self.tc.defined("NCAP_DISC"):
                 self.tc.enqueue(self.project_prc_dsncap)
 
-        if "PRC_DSCNCAP" in m.listSymbols() and m["PRC_DSCNCAP"].number_records:
+        if self.tc.defined("PRC_DSCNCAP"):
             self.env.set_scoped("dsc", "YES")
 
-        if "RCAP_BLK" in m.listSymbols() and m["RCAP_BLK"].number_records:
+        if self.tc.defined("RCAP_BLK"):
             self.env.set_global("solmip", "YES")
 
         if self.env.dsc == "YES":
             self.env.set_global("solmip", "YES")
 
-        if "NCAP_DISC" in m.listSymbols() and not m["NCAP_DISC"].number_records:
+        if not self.tc.defined("NCAP_DISC"):
             self.tc.add_gams_code(module=self, phase="init", code="$CLEAR NCAP_DISC")
 
-        if "RCAP_BLK" in m.listSymbols() and not m["RCAP_BLK"].number_records:
+        if not self.tc.defined("RCAP_BLK"):
             self.tc.add_gams_code(module=self, phase="init", code="$CLEAR RCAP_BLK")
 
         self.env.set_global("dsc", self.env.dsc)
@@ -105,4 +103,6 @@ class InitExtDsc(GamsClass):
         )
 
     def project_prc_dsncap(self) -> None:
-        self.tc.add_gams_code(module=self, phase="run", code="PRC_DSCNCAP < NCAP_DISC;")
+        self.tc.add_gams_code(
+            module=self, phase="run", code="OPTION PRC_DSCNCAP < NCAP_DISC;"
+        )

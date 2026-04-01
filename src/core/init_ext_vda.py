@@ -138,11 +138,7 @@ class InitExtVda(GamsClass):
             )
         )
 
-        uc_actbet_defined = (
-            True
-            if "UC_ACTBET" in m.listSymbols() and m["UC_ACTBET"].number_records
-            else False
-        )
+        uc_actbet_defined = True if self.tc.defined("UC_ACTBET") else False
         self.tc.enqueue(
             self.prepare_uc_cli_uc_dynbnd_uc_actbet_cont,
             cli=self.env.cli,
@@ -157,7 +153,7 @@ class InitExtVda(GamsClass):
                 code="$CLEAR GG_KGF",
             )
 
-        if "PRC_REACT" in m.listSymbols() and m["PRC_REACT"].number_records:
+        if self.tc.defined("PRC_REACT"):
             self.env.set_global("powerflo", "YES")
 
         if m["GR_PTDF"].number_records + m["GG_KGF"].number_records:
