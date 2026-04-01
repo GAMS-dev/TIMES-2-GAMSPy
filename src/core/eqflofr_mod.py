@@ -1,18 +1,16 @@
 # eqflofr_mod.py
 # *++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# * Copyright (C) 2000-2024 Energy Technology Systems Analysis Programme (ETSAP)
+# * Copyright (C) 2000-2025 Energy Technology Systems Analysis Programme (ETSAP)
 # * This file is part of the IEA-ETSAP TIMES model generator, licensed
 # * under the GNU General Public License v3.0 (see file NOTICE-GPLv3.txt).
 # *=============================================================================*
-# * EQIREBND limits the activity of inter-regional exchange process
+# * EQFLOFR relationship between total flow and the flow in a specific timeslice
 # *   %1 - equation declaration type
-# *   %2 - bound type for %1
-# *   %3 - qualifier that bound exists
+# *   %2 - LIM type of FLO_FR
 # *=============================================================================*
-# *GaG Questions/Comments:
-# *  - BND ts restricted to the PRC_TS level or above?
-# *UR* /12/09/99 commodity names can be different in the two regions
-# *-----------------------------------------------------------------------------
+# * Questions/Comments:
+# *  - FLO_FR must be specified on TS-level of the flow or above; value below will be ignored
+# *  - fraction of flows under parent timelice supported by a parent N (or negative) FLO_FR
 
 from __future__ import annotations
 
