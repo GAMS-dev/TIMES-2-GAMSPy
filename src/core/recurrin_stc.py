@@ -275,7 +275,7 @@ $macro Z_CLIBOX VAS_CLIBOX
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r""""
+            code=r"""
   OBJSW1('OBJINV')=YES;
   OBJSW1('OBJFIX')=YES;
   OBJSW1('OBJSAL')=YES;

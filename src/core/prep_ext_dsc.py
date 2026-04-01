@@ -70,7 +70,7 @@ class PrepExtDsc(GamsClass):
         self.tc.add_gams_code(
             module=self,
             phase="init",
-            code=r""""
+            code=r"""
 * Process semicontinuous requests
   NCAP_SEMI(RTP(R,T,P))$PRC_DSCNCAP(R,P) = (NCAP_DISC(RTP,'0')+1)-1;
   NCAP_SEMI(RTP)$SUM(UNIT(J)$NCAP_DISC(RTP,UNIT),1) = 0;

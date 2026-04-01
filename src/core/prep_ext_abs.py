@@ -79,7 +79,7 @@ class PrepExtAbs(GamsClass):
         self.tc.add_gams_code(
             module=self,
             phase="init",
-            code=r""""
+            code=r"""
 * Add reserve commodities to RC
   RC(R,C) $= BS_RTYPE(R,C);
   LOOP((RP,ITEM)$GR_GENMAP(RP,ITEM),BS_K(ITEM)=YES);
@@ -98,7 +98,7 @@ class PrepExtAbs(GamsClass):
         self.tc.add_gams_code(
             module=self,
             phase="init",
-            code=r""""
+            code=r"""
 * Intermediate QA clean-up
   BS_RTCS(RSP('OMEGA'),R,T,C,S)$BS_RTCS(RSP,R,T,C,S) = ROUND(BS_RTCS(RSP,R,T,C,S));
   BS_SIGMA(R,T,C,BS_K,S)$(BS_LAMBDA(R,T,C)=0)=0;

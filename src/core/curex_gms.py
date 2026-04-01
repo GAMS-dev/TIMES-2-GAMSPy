@@ -67,7 +67,7 @@ class CurexGms(GamsClass):
                     self.tc.add_gams_code(
                         module=self,
                         phase="init",
-                        code=rf""""
+                        code=rf"""
 PARAMETER {self.arg2}({self.arg3},CUR);
 """,
                     )

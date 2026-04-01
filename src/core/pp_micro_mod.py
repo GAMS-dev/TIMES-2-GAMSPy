@@ -44,7 +44,7 @@ class PpMicroMod(GamsClass):
         self.tc.add_gams_code(
             module=self,
             phase="init",
-            code=r""""
+            code=r"""
   PARAMETERS DDF_QREF(R,T,C), DDF_PREF(R,T,C);
   PARAMETERS
     MI_AGC(R,T,C,C,J,L) integral demand prices //
@@ -61,7 +61,7 @@ class PpMicroMod(GamsClass):
             self.tc.add_gams_code(
                 module=self,
                 phase="init",
-                code=r""""
+                code=r"""
   PARAMETERS
     MI_ELASP(R,T,C) consumer surplus elasticity     //
     MI_CCONS(R,T,C) constant of the demand function //;
@@ -75,7 +75,7 @@ class PpMicroMod(GamsClass):
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r""""
+            code=r"""
 * Identify aggregation groups
   OPTION MI_DMAS<COM_AGG, OBJ_PVT<SOL_BPRICE;
   RD_AGG(RC(R,C))$(DEM(RC)+COM_TMAP(R,'DEM',C))=YES;
@@ -119,7 +119,7 @@ class PpMicroMod(GamsClass):
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r""""
+            code=r"""
 * Take NLP elasticities from the FX type COM_ELAST
   MI_DOPE(R,T,C)$DEM(R,C) = ABS(COM_ELAST(R,T,C,'ANNUAL','FX'));
 

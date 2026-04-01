@@ -138,7 +138,7 @@ class PrepExtStc(GamsClass):
         self.tc.add_gams_code(
             module=self,
             phase="init",
-            code=rf""""
+            code=rf"""
 * commodities involved in CUM constraints
   S_COM_CUM(R,'NET',ALLYEAR(BOHYEAR+BEOH(BOHYEAR)),LL(EOHYEAR+BEOH(EOHYEAR)),C,BD,J,WW) $= S_COM_CUMNET(R,BOHYEAR,EOHYEAR,C,BD,J,WW);
   S_COM_CUM(R,'PRD',ALLYEAR(BOHYEAR+BEOH(BOHYEAR)),LL(EOHYEAR+BEOH(EOHYEAR)),C,BD,J,WW) $= S_COM_CUMPRD(R,BOHYEAR,EOHYEAR,C,BD,J,WW);
