@@ -216,6 +216,7 @@ class PpmainMod(GamsClass):
             rl=self.env.rl,
             cl=self.env.cl,
             pgprim=self.env.pgprim,
+            prc_simv_defined=self.tc.defined("PRC_SIMV"),
         )
 
         if self.tc.test_run:
@@ -1282,7 +1283,9 @@ NCAP_TLIFE(RXX(R,V,P)) = 1);
 """,
         )
 
-    def phase_eight(self: PpmainMod, rl: str, pl: str, cl: str, pgprim: str):
+    def phase_eight(
+        self: PpmainMod, rl: str, pl: str, cl: str, pgprim: str, prc_simv_defined: bool
+    ):
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -1389,7 +1392,7 @@ OPTION CLEAR=TRACKP;
 
 *-----------------------------------------------------------------------------
 * Add leading milestones into RTP if/when simulated vintages
-$IF DEFINED PRC_SIMV LOOP(T,NO_RVP(R,TT-1,P)$(RTP_CPTYR(R,TT,T,P)$PRC_SIMV(R,P))=YES); NO_RVP(RTP(R,T,P))=NO; RTP(NO_RVP)=YES;
+{"PRC_SIMV LOOP(T,NO_RVP(R,TT-1,P)$(RTP_CPTYR(R,TT,T,P)$PRC_SIMV(R,P))=YES); NO_RVP(RTP(R,T,P))=NO; RTP(NO_RVP)=YES;" if prc_simv_defined else ""}
 *-----------------------------------------------------------------------------
 * Remove commodity from PG if PRC_ACTFLO flagged non-interpolated, as bad
    RPC_PG(R,P,C)$((NOT RP_PG(R,P,C))$(ROUND(PRC_ACTFLO(R,'0',P,C)<0))) = NO;
