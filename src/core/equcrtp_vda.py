@@ -97,6 +97,7 @@ class EqucrtpVda(GamsClass):
 
     def label_prep_ext(self: EqucrtpVda):
         self.env.set_scoped("reset", 1)
+        self.add_records_to_universe_item(records=["PRC_DYNUC"])
         self.tc.enqueue(
             self.manipulate_lhs_and_rhs,
             dflbl=self.env.dflbl,
@@ -105,8 +106,12 @@ class EqucrtpVda(GamsClass):
         )
 
     def manipulate_lhs_and_rhs(self: EqucrtpVda, dflbl: str, def_iebd: str, reset: str):
-        code = rf"""
-IF(CARD(PRC_DYNUC),
+        prc_dynuc = self.tc.container["PRC_DYNUC"]
+        if prc_dynuc.number_records:
+            self.tc.add_gams_code(
+                module=self,
+                phase="run",
+                code=r"""
 *  Set LHS default IE to 5 and RHS default to 10
    PRC_DYNUC(UC_N,'LHS',R,LL--ORD(LL),P,UC_GRPTYPE,BD)$((NOT PRC_DYNUC(UC_N,'LHS',R,'0',P,UC_GRPTYPE,BD))$PRC_DYNUC(UC_N,'LHS',R,LL,P,UC_GRPTYPE,BD))=5;
    PRC_DYNUC(UC_N,'RHS',R,LL--ORD(LL),P,UC_GRPTYPE,BD)$((NOT PRC_DYNUC(UC_N,'RHS',R,'0',P,UC_GRPTYPE,BD))$PRC_DYNUC(UC_N,'RHS',R,LL,P,UC_GRPTYPE,BD))=
@@ -118,8 +123,9 @@ IF(CARD(PRC_DYNUC),
 *  If no LHS defined, set LHS to 1 for all RHS years except for the IE option according to RHS
    PRC_DYNUC(UC_N,'LHS',R,LL,P,UC_GRPTYPE,BD)$((NOT PRC_DYNUC(UC_N,'LHS',R,'0',P,UC_GRPTYPE,BD))$PRC_DYNUC(UC_N,'RHS',R,LL,P,UC_GRPTYPE,BD))=
      (1+(PRC_DYNUC(UC_N,'RHS',R,LL,P,UC_GRPTYPE,BD)-1)$LASTLL(LL))$(NOT SAMEAS('NCAP',UC_GRPTYPE));
+""",
+            )
 
-     {
             prepparm(
                 arg1="PRC_DYNUC",
                 arg2="UC_N,SIDE,R",
@@ -135,18 +141,23 @@ IF(CARD(PRC_DYNUC),
                 def_iebd=def_iebd,
                 reset=reset,
             )
-        }
 
+            self.tc.add_gams_code(
+                module=self,
+                phase="run",
+                code=r"""
 *  Disable growth/decay equation in first period of availability if no constant specified
    PRC_DYNUC(UCN,RHS,RTP(R,TT(T+1),P),UC_GRPTYPE,BD)$((RTP(R,T,P)->MIYR_1(TT))$(NOT UC_GMAP_P(R,UCN,UC_GRPTYPE,P))$PRC_DYNUC(UCN,'LHS',R,'0',P,UC_GRPTYPE,BD)) = 0;
 *  Set final UC_GMAPs for REDUCE
    LOOP(BD,UC_JMAP('1',UCN,RHS,R,T(MIYR_1),P,UC_GRPTYPE)$PRC_DYNUC(UCN,RHS,R,'0',P,UC_GRPTYPE,BD) = YES);
-  );
-  LOOP(UC_DYNBND(UCN,BD),UC_T_SUCC(R,UCN,'0') = YES);
+""",
+            )
 
-"""
-
-        self.tc.add_gams_code(module=self, phase="run", code=code)
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=r"LOOP(UC_DYNBND(UCN,BD),UC_T_SUCC(R,UCN,'0') = YES);",
+        )
 
     def disable_growth(self: EqucrtpVda):
         self.tc.add_gams_code(

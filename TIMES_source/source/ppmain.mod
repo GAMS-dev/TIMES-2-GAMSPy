@@ -1025,9 +1025,6 @@ $  BATINCLUDE pp_lvlbd.%1 FLO_FR     P C, '' ",''"       RPCS_VAR RPCS_VAR UNCD7
 $  BATINCLUDE pp_lvlbd.%1 COM_BNDNET C '' '' ",'',''"    COM_TS RCS_COMTS UNCD7
 $  BATINCLUDE pp_lvlbd.%1 COM_BNDPRD C '' '' ",'',''"    COM_TS RCS_COMTS UNCD7
 $  BATINCLUDE pp_lvlbd.%1 IRE_BND    C '' 'ALL_R,IE,' '' COM_TS RCS_COMTS UNCD7 EPS
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop
 
 * Add bounds based on rate levels
   FLO_BDLVL(RTP,CG,S,BD)$FLO_BND(RTP,CG,S,BD) = 0;
@@ -1246,12 +1243,16 @@ $ BATINCLUDE prepxtra.mod UCINT
   RXX(R,'PRD',C)$(NOT COM_LIM(R,C,'LO'))=NO;
   LOOP(COM_VAR,RHS_COMBAL(RTCS_VARC(R,T,C,S))$RXX(R,COM_VAR,C) = YES);
 
+$onlisting
+display "pp_main_mod_prior_pp_lvlus_mod";
+$show
+$offlisting
+
 *...Handle UC_FLO/IRE/ACT/COM leveling by aggregation/inheritance
 $   BATINCLUDE pp_lvlus.mod UC_ACT 'P'   PRC_TS ",'0','0'" "" "" P RC
 $   BATINCLUDE pp_lvlus.mod UC_FLO 'P,C' RPCS_VAR ",'0'" "" "" P RC PRC_SGL(R,P) ,C
 $   BATINCLUDE pp_lvlus.mod UC_IRE 'P,C' PRC_TS "" ',IE' "" P RC
 $   BATINCLUDE pp_lvlus.mod UC_COM 'C'   COM_TS "" ,UC_GRPTYPE ,COM_VAR C OM
-
 *-----------------------------------------------------------------------------
 * Control set for balance/production equations based on TS-resolution and RHS
 *-----------------------------------------------------------------------------

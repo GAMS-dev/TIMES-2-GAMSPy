@@ -31,14 +31,17 @@ from core.pp_lvlff_mod import PpLvlffMod
 from core.pp_lvlfs_mod import PpLvlfsMod
 from core.pp_lvlif_mod import PplvlifMod
 from core.pp_lvlpk_mod import PpLvlpkMod
+from core.pp_lvlus_mod import PpLvlusMod
 from core.pp_micro_mod import PpMicroMod
 from core.pp_off_mod import pp_off
 from core.pp_prelv_vda import PpPrelvVda
 from core.pp_qafs_mod import PpQafsMod
 from core.pp_qaput_mod import pp_qaput
+from core.pp_reduce_red import PpReduceRed
+from core.ppmain_tm import PpmainTm
 from core.preppm_mod import PreppmMod
+from core.prepxtra_mod import PrepxtraMod
 from core.timslice_mod import TimsliceMod
-from core.utils import EscapeStack
 
 from .base_class import GamsClass
 
@@ -492,19 +495,22 @@ class PpmainMod(GamsClass):
                     arg9=arg[8] if len(arg) > 8 else "",
                 )
             )
-        raise EscapeStack(self.module_name)
 
-        tc.enqueue(self.phase_nineteen, tc=tc)
+        self.tc.enqueue(self.phase_nineteen, pgprim=self.env.pgprim)
 
-        if m["DAM_ELAST"].number_records:
-            tc.enqueue(self.commodities_in_dam_comprod, tc=tc)
-
-        tc.enqueue(self.phase_twenty, tc=tc, obj=self.env.obj)
+        dam_elast_defined = self.tc.defined("DAM_ELAST")
+        obj_eq_lin = self.env.obj.upper() == "LIN"
+        self.tc.enqueue(
+            self.phase_twenty,
+            dam_elast_defined=dam_elast_defined,
+            obj_eq_lin=obj_eq_lin,
+            pgprim=self.env.pgprim,
+        )
 
         # Levelization of STG_LOSS and STG_SIFT
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
-                tc=tc,
+            PpLvlfcMod(
+                tc=self.tc,
                 env=self.env,
                 arg1="STG_LOSS",
                 arg2="P",
@@ -517,8 +523,8 @@ class PpmainMod(GamsClass):
             )
         )
         self.include(
-            pp_lvlfc_mod.PpLvlfcMod(  # noqa: F821
-                tc=tc,
+            PpLvlfcMod(
+                tc=self.tc,
                 env=self.env,
                 arg1="STG_SIFT",
                 arg2="P,C",
@@ -531,16 +537,16 @@ class PpmainMod(GamsClass):
             )
         )
 
-        tc.enqueue(self.convert_equilibrium_losses_to_standard_losses, tc=tc)
+        self.tc.enqueue(self.convert_equilibrium_losses_to_standard_losses)
 
         # User constraints
         # Default values
-        self.include(prepxtra_mod.PrepxtraMod(tc=tc, env=self.env, arg1="UCINT"))  # noqa: F821
+        self.include(PrepxtraMod(tc=self.tc, env=self.env, arg1="UCINT"))
 
-        tc.enqueue(self.phase_twentyone, tc=tc)
+        self.tc.enqueue(self.phase_twentyone)
 
         # Assigning commodities and processes to UC group map sets
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code="""
@@ -549,71 +555,51 @@ class PpmainMod(GamsClass):
 """,
         )
 
-        tc.enqueue(self.phase_twentytwo, tc=tc)
+        self.tc.enqueue(self.phase_twentytwo)
+
+        if self.tc.test_run:
+            self.tc.save_test_state(
+                env=self.env, checkpoint="pp_main_mod_prior_pp_lvlus_mod"
+            )
 
         # ...Handle UC_FLO/IRE/ACT/COM leveling by aggregation/inheritance
-        self.include(
-            pp_lvlus_mod.PpLvlusMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="UC_ACT",
-                arg2="P",
-                arg3="PRC_TS",
-                arg4=",'0','0'",
-                arg5="",
-                arg6="",
-                arg7="P",
-                arg8="RC",
+        batincludes = [
+            ("UC_ACT", "P", "PRC_TS", ",'0','0'", "", "", "P", "RC"),
+            (
+                "UC_FLO",
+                "P,C",
+                "RPCS_VAR",
+                ",'0'",
+                "",
+                "",
+                "P",
+                "RC",
+                "PRC_SGL(R,P)",
+                ",C",
+            ),
+            ("UC_IRE", "P,C", "PRC_TS", "", ",IE", "", "P", "RC"),
+            ("UC_COM", "C", "COM_TS", "", ",UC_GRPTYPE", ",COM_VAR", "C", "OM"),
+        ]
+        for arg in batincludes:
+            self.include(
+                PpLvlusMod(
+                    tc=self.tc,
+                    env=self.env,
+                    arg1=arg[0],
+                    arg2=arg[1],
+                    arg3=arg[2],
+                    arg4=arg[3],
+                    arg5=arg[4],
+                    arg6=arg[5],
+                    arg7=arg[6],
+                    arg8=arg[7],
+                    arg9=arg[8] if len(arg) > 8 else "",
+                    arg10=arg[9] if len(arg) > 9 else "",
+                )
             )
-        )
-        self.include(
-            pp_lvlus_mod.PpLvlusMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="UC_FLO",
-                arg2="P,C",
-                arg3="RPCS_VAR",
-                arg4=",'0'",
-                arg5="",
-                arg6="",
-                arg7="P",
-                arg8="RC",
-                arg9="PRC_SGL(R,P)",
-                arg10=",C",
-            )
-        )
-        self.include(
-            pp_lvlus_mod.PpLvlusMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="UC_IRE",
-                arg2="P,C",
-                arg3="PRC_TS",
-                arg4="",
-                arg5=",IE",
-                arg6="",
-                arg7="P",
-                arg8="RC",
-            )
-        )
-        self.include(
-            pp_lvlus_mod.PpLvlusMod(  # noqa: F821
-                tc=tc,
-                env=self.env,
-                arg1="UC_COM",
-                arg2="C",
-                arg3="COM_TS",
-                arg4="",
-                arg5=",UC_GRPTYPE",
-                arg6=",COM_VAR",
-                arg7="C",
-                arg8="OM",
-            )
-        )
 
-        tc.enqueue(
+        self.tc.enqueue(
             self.control_set_for_balance_production_equations,
-            tc=tc,
             validate=self.env.validate,
         )
 
@@ -623,7 +609,7 @@ class PpmainMod(GamsClass):
         # *******************************************************************************
         # *GG* V07_2  Create any Combined & Control Sets Needed for BLENDing Execution
         # *******************************************************************************
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code="""
@@ -638,52 +624,43 @@ PARAMETER BLE_BAL(R,YEAR,C,C) //;
 """,
         )
 
-        tc.enqueue(self.phase_twentythree, tc=tc)
+        self.tc.enqueue(self.phase_twentythree)
 
         # Coefficients for BLENDing
         opr = m["OPR"]
         Alias(m, name="OPR2", alias_with=opr)
 
-        tc.enqueue(self.phase_twentyfour, tc=tc)
+        self.tc.enqueue(self.phase_twentyfour)
 
-        self.include(pp_reduce_red.PpReduceRed(tc=tc, env=self.env))  # noqa: F821
+        self.include(PpReduceRed(tc=self.tc, env=self.env))
 
-        tc.enqueue(self.phase_twentyfive, tc=tc)
+        self.tc.enqueue(self.phase_twentyfive)
 
         # *----------------------------------------------------------------
         # * MACRO
         # *----------------------------------------------------------------
         if self.env.macro == "YES":
-            self.include(pp_main_tm.PpmainTm(tc=tc, env=self.env))  # noqa: F821
+            self.include(PpmainTm(tc=self.tc, env=self.env))
 
-        # TODO:
-        # PUTCLOSE QLOG;
-        # IF(PUTOUT, QLOG.AP = 1);
+        self.tc.enqueue(self.phase_twenty_six)
 
-    def control_set_for_balance_production_equations(self, tc, validate):
-        tc.add_gams_code(
+    def control_set_for_balance_production_equations(self: PpmainMod, validate: str):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
+            code=rf"""
 *-----------------------------------------------------------------------------
 * Control set for balance/production equations based on TS-resolution and RHS
 *-----------------------------------------------------------------------------
   RCS_COMBAL(RTCS_VARC(R,T,C,S),LIM)$(COM_LIM(R,C,LIM) * (NOT RHS_COMBAL(R,T,C,S))) = YES;
   RCS_COMBAL(RHS_COMBAL,'FX') = YES;
+{"RHS_COMPRD(RTCS_VARC) = YES;" if validate == "YES" else ""}
+  RCS_COMPRD(RHS_COMPRD,'FX') = YES;
 """,
         )
 
-        if validate == "YES":
-            tc.add_gams_code(
-                module=self,
-                phase="run",
-                code=r"""
-  RCS_COMPRD(RHS_COMPRD,'FX') = YES;
-""",
-            )
-
-    def convert_equilibrium_losses_to_standard_losses(self, tc):
-        tc.add_gams_code(
+    def convert_equilibrium_losses_to_standard_losses(self: PpmainMod):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code="""
@@ -692,13 +669,6 @@ PARAMETER BLE_BAL(R,YEAR,C,C) //;
   STG_LOSS(RTP(R,V,P),S)$(STOA(S)$STG_LOSS(RTP,S)) = LOG(EXP(STG_LOSS(RTP,S)*G_YRFR(R,S)/RS_STGPRD(R,S)));
   OPTION CLEAR=TRACKP,CLEAR=TRACKPC;
 """,
-        )
-
-    def commodities_in_dam_comprod(self: PpmainMod):
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="RHS_COMPRD(RTCS_VARC(R,T,C,S))$DAM_ELAST(R,C,'N') = YES;",
         )
 
     def deactivate_rpc_noflo(self: PpmainMod):
@@ -1874,29 +1844,23 @@ LOOP(RPC_MARKET(R,P,C,IE)$(NOT SUM(TOP_IRE(R,C,R,COM,P),1)),
 """,
         )
 
-    def phase_twenty(self: PpmainMod, obj: str, pgprim: str):
-        conditional = "RTC_NET(R,T,C)$((M(T)+LAGT(T) > YEARVAL(ALLYEAR)) * (M(T)-LEAD(T) < YEARVAL(LL))) = YES;"
-
+    def phase_twenty(
+        self: PpmainMod, dam_elast_defined: bool, obj_eq_lin: bool, pgprim: str
+    ):
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"""
+{"RHS_COMPRD(RTCS_VARC(R,T,C,S))$DAM_ELAST(R,C,'N') = YES;" if dam_elast_defined else ""}
 * commodities involved in CUM constraints
     LOOP(RC_CUMCOM(R,'NET',ALLYEAR,LL,C),
       RTC_NET(R,T,C)$((E(T) >= YEARVAL(ALLYEAR)) * (B(T) <= YEARVAL(LL))) = YES;
-        {conditional if obj.upper() == "LIN" else ""}
+{"RTC_NET(R,T,C)$((M(T)+LAGT(T) > YEARVAL(ALLYEAR)) * (M(T)-LEAD(T) < YEARVAL(LL))) = YES;" if obj_eq_lin else ""}
     );
     LOOP(RC_CUMCOM(R,'PRD',ALLYEAR,LL,C),
       RTC_PRD(R,T,C)$((E(T) >= YEARVAL(ALLYEAR)) * (B(T) <= YEARVAL(LL))) = YES;
-        {conditional if obj.upper() == "LIN" else ""}
+{"RTC_PRD(R,T,C)$((M(T)+LAGT(T) > YEARVAL(ALLYEAR)) * (M(T)-LEAD(T) < YEARVAL(LL))) = YES;" if obj_eq_lin else ""}
     );
-""",
-        )
-
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
 * check all TS at/above COM_TSL for bounds
     RHS_COMBAL(RTCS_VARC(RTC_NET,S)) = YES;
     COM_CSTNET(R,LL--ORD(LL),C,S--ORD(S),CUR)$(COM_CSTNET(R,LL,C,S,CUR)+COM_SUBNET(R,LL,C,S,CUR)+COM_TAXNET(R,LL,C,S,CUR)) = EPS;
@@ -1947,8 +1911,8 @@ LOOP(RPC_MARKET(R,P,C,IE)$(NOT SUM(TOP_IRE(R,C,R,COM,P),1)),
   """,
         )
 
-    def phase_twentyone(self, tc):
-        tc.add_gams_code(
+    def phase_twentyone(self: PpmainMod):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
@@ -2028,8 +1992,8 @@ LOOP(RPC_MARKET(R,P,C,IE)$(NOT SUM(TOP_IRE(R,C,R,COM,P),1)),
 """,
         )
 
-    def phase_twentytwo(self, tc):
-        tc.add_gams_code(
+    def phase_twentytwo(self: PpmainMod):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code="""
@@ -2063,8 +2027,8 @@ LOOP(RPC_MARKET(R,P,C,IE)$(NOT SUM(TOP_IRE(R,C,R,COM,P),1)),
 """,
         )
 
-    def phase_twentythree(self, tc):
-        tc.add_gams_code(
+    def phase_twentythree(self: PpmainMod):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code="""
@@ -2123,8 +2087,8 @@ PEAKDA_BL(R,BLE,T)$((NOT PEAKDA_BL(R,BLE,T))$SUM(COM_PEAK(R,C)$BLE_INP(R,BLE,C),
 """,
         )
 
-    def phase_twentyfour(self, tc):
-        tc.add_gams_code(
+    def phase_twentyfour(self: PpmainMod):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code="""
@@ -2170,8 +2134,8 @@ RU_FEQ(R,OPR,T)$(NOT RU_FEQ(R,OPR,T)) = 1;
 """,
         )
 
-    def phase_twentyfive(self, tc):
-        tc.add_gams_code(
+    def phase_twentyfive(self: PpmainMod):
+        self.tc.add_gams_code(
             module=self,
             phase="run",
             code="""
@@ -2184,5 +2148,15 @@ RU_FEQ(R,OPR,T)$(NOT RU_FEQ(R,OPR,T)) = 1;
    RTP_VINTYR(R,T,T,P)$((NOT PRC_VINT(R,P))*RTP(R,T,P)$RVP(R,T,P)) = YES;
 
    OPTION CLEAR=R_UC,CLEAR=RVP,CLEAR=RTPCS_OUT;
+""",
+        )
+
+    def phase_twenty_six(self: PpmainMod):
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code="""
+    PUTCLOSE QLOG;
+    IF(PUTOUT, QLOG.AP = 1);
 """,
         )

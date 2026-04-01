@@ -42,16 +42,12 @@ class PpReduceRed(GamsClass):
         self.tc.enqueue(self.reduction_of_model_size)
         self.env.set_global("cal_red", "cal_nored.red")
         if self.env.reduce == "NO":  # L15: GOTO reddone
-            self.tc.enqueue(
-                self.reddone,
-            )
+            self.tc.enqueue(self.reddone)
         else:
             self.tc.enqueue(self.determine_capacity_variables)
             self.tc.enqueue(self.determine_emission_flow_variables)
             if not self.env.reduce == "YES":  # L58: GOTO reddone
-                self.tc.enqueue(
-                    self.reddone,
-                )
+                self.tc.enqueue(self.reddone)
             else:
                 self.env.set_global("cal_red", "cal_red.red")
                 self.tc.enqueue(self.update_rpc_act, pgprim=self.env.pgprim)
@@ -74,13 +70,7 @@ class PpReduceRed(GamsClass):
                 )
 
         if not self.env.rts == "S":
-            self.include(
-                DynsliteVda(
-                    self.tc,
-                    self.env,
-                    arg1="REDUCE",
-                )
-            )
+            self.include(DynsliteVda(self.tc, self.env, arg1="REDUCE"))
 
     def reduction_of_model_size(self: PpReduceRed):
         self.tc.add_gams_code(
@@ -189,7 +179,7 @@ class PpReduceRed(GamsClass):
   LOOP((RTP(R,T,P),S,BD)$((ACT_BND(RTP,S,BD)>-INF$BDUPX(BD))$ACT_BND(RTP,S,BD)), NO_ACT(R,P) = NO);
   LOOP((R,DM_YEAR,P,CUR)$ACT_COST(R,DM_YEAR,P,CUR), NO_ACT(R,P) = NO);
   LOOP((R,UC_N,P)$UC_GMAP_P(R,UC_N,'ACT',P), NO_ACT(R,P) = NO);
-  NO_ACT(R,P)$SUM(RPC_CUMFLO(R,P,{pgprim},YEAR,LL),1) = NO;
+  NO_ACT(R,P)$SUM(RPC_CUMFLO(R,P,'{pgprim}',YEAR,LL),1) = NO;
 
 * Remove activity equation from processes that didn't have activity attributes
   PRC_ACT(NO_ACT) = NO;
@@ -240,7 +230,7 @@ class PpReduceRed(GamsClass):
   OPTION RP_CGG < FSCK;
   RPCG_PTRAN(RP_CGG(RPC_ACT(R,P,COM),C,CG),C)$(RP_PG(R,P,CG)+RPC_ACT(R,P,CG)) = YES;
   RPCG_PTRAN(RP_CGG(RPC(R,P,COM),C,COM),C)$RPC_ACT(R,P,C) = YES;
-  RPCG_PTRAN(RPC_ACT(RP,{pgprim}),C,CG,C)$(RP_PG(RP,CG)$RPC_AFLO(RP,C)) = YES;
+  RPCG_PTRAN(RPC_ACT(RP,'{pgprim}'),C,CG,C)$(RP_PG(RP,CG)$RPC_AFLO(RP,C)) = YES;
 """,
         )
 

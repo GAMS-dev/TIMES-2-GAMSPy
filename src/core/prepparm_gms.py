@@ -127,7 +127,8 @@ class PrepparmGms(GamsClass):
         def_iebd: str,
         reset: str,
     ):
-        code = prepparm(
+        prepparm(
+            module=self,
             arg1=arg1,
             arg2=arg2,
             arg3=arg3,
@@ -142,10 +143,10 @@ class PrepparmGms(GamsClass):
             def_iebd=def_iebd,
             reset=reset,
         )
-        self.tc.add_gams_code(module=self, phase="run", code=code)
 
 
 def prepparm(
+    module: GamsClass,
     arg1: str,
     arg2: str,
     arg3: str,
@@ -159,7 +160,7 @@ def prepparm(
     dflbl: str,
     def_iebd: str,
     reset: str,
-) -> str:
+) -> None:
     # TODO: put into function that depends on the environment given
     data = f"MY_FIL2({arg5})"
     opt = False
@@ -247,4 +248,4 @@ LOOP(UNCD7({arg2}{ll},{arg3}{arg4}), DFUNC = CNT; DFUNC $= ROUND({arg1}({arg2},'
         code += f"{arg1}({arg2},{arg5},{arg3}) $= {arg9}({arg2},{arg3},{arg5}); OPTION KILL={arg9};"
     code += f"  ); {arg1}({arg2},'EMPTY',{arg3})=0;"
 
-    return code
+    module.tc.add_gams_code(module=module, phase="run", code=code)

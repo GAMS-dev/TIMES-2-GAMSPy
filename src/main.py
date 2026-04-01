@@ -146,14 +146,15 @@ def main(
         model.register_module(maindrv_mod.MainDrvMod(tc=model, env=env, arg1="mod"))
     except EscapeStack as e:
         print("Escape Stack", e)
-        # write GDX
-        model.initialization()
 
-        # execution code blocks
-        model.run()
+    # write GDX
+    model.initialization()
 
-        # Debug: dump generated GAMS
-        # model.dump_generated_gams("generated_times.gms")
+    # execution code blocks
+    model.run()
+
+    # Debug: dump generated GAMS
+    # model.dump_generated_gams("generated_times.gms")
 
     return model
 
