@@ -74,12 +74,16 @@ $   BATINCLUDE err_stat.mod '$IF NOT ERRORFREE' ABORT '*** ERRORS IN INPUT DATA/
 $   IF NOT '%EXTEND%' == '' $BATINCLUDE main_ext.mod init_ext %EXTEND%
 $   BATINCLUDE ppmain.%1 %1
 
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop
 
 $   IFI %INTEXT_ONLY% ==YES $GOTO SKIPTOEND
 $   IF NOT '%EXTEND%' == '' $BATINCLUDE main_ext.mod ppm_ext %EXTEND%
+
+$onlisting
+display "justine";
+$offlisting
+$gdxUnload %COMPILE_GDX%
+execute_unload "%EXECUTE_GDX%";
+$stop
 *-----------------------------------------------------------------------------
 * dump out the user/system data structures
 *-----------------------------------------------------------------------------
