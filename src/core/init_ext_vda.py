@@ -110,15 +110,11 @@ class InitExtVda(GamsClass):
                 code="PARAMETER VAR_SIFT(LL,S,L) //;",
             )
 
-        self.add_records_to_universe_item(self.tc, records=[""])
+        self.add_records_to_universe_item(records=[""])
 
-        self.tc.enqueue(
-            self.clean_up_some_parameters,
-        )
+        self.tc.enqueue(self.clean_up_some_parameters)
 
-        self.tc.enqueue(
-            self.identify_and_initial_preprocessing,
-        )
+        self.tc.enqueue(self.identify_and_initial_preprocessing)
 
         self.tc.enqueue(
             self.initial_preprocessing_of_com_agg,
@@ -142,11 +138,7 @@ class InitExtVda(GamsClass):
             )
         )
 
-        uc_actbet_defined = (
-            True
-            if "UC_ACTBET" in m.listSymbols() and m["UC_ACTBET"].number_records
-            else False
-        )
+        uc_actbet_defined = True if self.tc.defined("UC_ACTBET") else False
         self.tc.enqueue(
             self.prepare_uc_cli_uc_dynbnd_uc_actbet_cont,
             cli=self.env.cli,
@@ -161,7 +153,7 @@ class InitExtVda(GamsClass):
                 code="$CLEAR GG_KGF",
             )
 
-        if "PRC_REACT" in m.listSymbols() and m["PRC_REACT"].number_records:
+        if self.tc.defined("PRC_REACT"):
             self.env.set_global("powerflo", "YES")
 
         if m["GR_PTDF"].number_records + m["GG_KGF"].number_records:
@@ -180,7 +172,7 @@ $KILL PAR_IRE PAR_IPRIC
         if not self.env.is_set("gdx_irebnd"):
             self.label_ifprice()
         else:
-            if not os.exists(f"{self.env.gdxpath}{self.env.gdx_irebnd}.gdx"):
+            if not os.path.exists(f"{self.env.gdxpath}{self.env.gdx_irebnd}.gdx"):
                 self.label_ifprice()
             else:
                 self.tc.add_gams_code(
@@ -191,8 +183,10 @@ $GDXIN {self.env.gdxpath}{self.env.gdx_irebnd}
 $LOAD RPC_IREIN=RPC_IREIO PREMILE=MILESTONYR PAR_IRE
 """,
                 )
-                if self.env.GDX_IREBND.upper() == self.env.GDX_IPRIC:
-                    self.load2()
+
+                if self.env.gdx_irebnd.upper() == self.env.gdx_ipric:
+                    self.label_load2()
+
                 else:
                     self.tc.add_gams_code(
                         module=self,

@@ -28,6 +28,19 @@ class CompileEnvironment:
     def set_local(self, key, value):
         self._local[str(key)] = value
 
+    def drop_local(self, key: str) -> bool:
+        """
+        Removes a local compile-time variable ($setlocal).
+
+        Returns True if the local variable existed and was removed,
+        otherwise False.
+        """
+        key = str(key)
+        if key in self._local:
+            del self._local[key]
+            return True
+        return False
+
     def get(self, key):
         key = str(key)
         # GAMS Priority: Local -> Scoped -> Global

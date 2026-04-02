@@ -7,9 +7,12 @@
 # * Setglobs initializes System Declarations and Global Controls
 # * %1 - optional variable label to jump
 # *=========================================================================
+from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
+
+from gamspy import Alias
 
 from .base_class import GamsClass
 
@@ -29,23 +32,24 @@ class SetglobsGms(GamsClass):
 
     def __init__(
         self,
-        tc: "TimesModelClass",
-        env: "CompileEnvironment",
+        tc: TimesModelClass,
+        env: CompileEnvironment,
         arg1: str = "",
         arg2: str = "",
     ):
         self.env = env.fork()
+        self.tc = tc
         self.x1 = arg1
         self.x2 = arg2
         self._sub_modules = {}
-        self.compile(tc)
+        self.compile()
 
-    def compile(self, tc: "TimesModelClass") -> None:
+    def compile(self) -> None:
         # TODO: Do we need any of this?
         # $ SETARGS X1 X2
         # * --- FIXT Dump ---
         if not self.env.is_set("fixboh"):
-            tc.add_gams_code(module=self, phase="init", code="$KILL REG_FIXT")
+            self.tc.add_gams_code(module=self, phase="init", code="$KILL REG_FIXT")
         # $ IF NOT SET FIXBOH $KILL REG_FIXT
         # * --- DATA Dump ---
         # $ IF NOT %DATAGDX%==YES $GOTO SYSD
@@ -61,7 +65,7 @@ class SetglobsGms(GamsClass):
         # $ IF NOT ERRORFREE $ABORT GAMS cannot filter domain violations
         # $ IF %G2X6%==YES $BATINCLUDE gdxfilter MAIN
 
-        self.label_sysd(tc=tc)
+        self.label_sysd(tc=self.tc)
 
     def label_sysd(self, tc):
         """SYSTEM (Internal) Declarations"""
@@ -188,9 +192,18 @@ $onMulti
     PASTMILE(ALLYEAR)        'PAST years that are not MILESYONYR'  //
     EACHYEAR(ALLYEAR)        'Each year from 1st PASTYEAR to last MILESTONYR + DUR_MAX' //
     EOHYEARS(ALLYEAR)        'Each year from 1st PASTYEAR to last MILESTONYR' //;
-  ALIAS(PASTYEAR,PYR);
-  ALIAS(MODLYEAR,V);
+""",
+        )
 
+        pastyear = tc.container["PASTYEAR"]
+        Alias(container=tc.container, name="PYR", alias_with=pastyear)
+        modlyear = tc.container["MODLYEAR"]
+        Alias(container=tc.container, name="V", alias_with=modlyear)
+
+        tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=r"""
 * identifiers for beginning/end of model horizon
   SET MIYR_1(ALLYEAR) 'First T'   //;
   SET MIYR_L(ALLYEAR) 'Last year' //;

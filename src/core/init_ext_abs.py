@@ -39,7 +39,7 @@ class InitExtAbs(GamsClass):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.compile(tc)
+        self.compile()
 
     def compile(self) -> None:
         self.tc.add_gams_code(

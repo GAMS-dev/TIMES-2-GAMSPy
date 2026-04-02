@@ -6,6 +6,7 @@
 # *=============================================================================*
 # * UNITS.DEF has complete list of unit types                                   *
 # *=============================================================================*
+from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
@@ -25,21 +26,21 @@ class Units(GamsClass):
     """Translation unit for units.def."""
 
     # Instance attributes
-    module_name: str = "units"
+    module_name: str = "units_def"
     gams_source: str = "units.def"
 
-    def __init__(self, tc: "TimesModelClass", env: "CompileEnvironment"):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
         self.env = env.fork()
-        self.snapshot = None
         self._sub_modules = {}
-        self.compile(tc)
+        self.tc = tc
+        self.compile()
 
-    def compile(self, tc: "TimesModelClass") -> None:
+    def compile(self) -> None:
         phase = "init"
         # Easy container access
-        m = tc.container
+        m = self.tc.container
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code="""
@@ -51,7 +52,7 @@ class Units(GamsClass):
         units = m["UNITS"]
         Alias(container=m, name="U", alias_with=units)
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code="""

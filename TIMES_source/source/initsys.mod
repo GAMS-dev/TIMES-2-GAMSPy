@@ -42,10 +42,7 @@ $IF NOT SET BOTIME $SETGLOBAL BOTIME 1850
 $IF NOT SET EOTIME $SETGLOBAL EOTIME 2200
 $IF NOT %SHELL%==ANSWER
 
-*$IF SET MAXSOW SET ITEM /BOH, 1*%EOTIME%/; adds elements to the universe
-* We cannot just add uels to the universe in GAMSPy
-* Therefore, we add an auxiliary set ITEMADD
-$IF SET MAXSOW SET ITEM /BOH, 1*%EOTIME%/; SET ITEMADD /BOH, 1*%EOTIME%/;
+$IF SET MAXSOW SET ITEM /BOH, 1*%EOTIME%/;
 
   SET BOHYEAR                        'BOH + years'                  / BOH, %BOTIME%*%EOTIME% /
   SET ALLYEAR                        'All Years'                    / %BOTIME%*%EOTIME% /

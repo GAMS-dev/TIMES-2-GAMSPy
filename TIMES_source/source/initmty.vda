@@ -72,7 +72,6 @@ $ SET MX ,SEASON, WEEKLY, DAYNITE
   SET COM_GRP / IMP, EXP /;
 * GAMSPy Workaround: Adding to UniverseSet ITEM
   SET ITEM / OBJ /;
-  SET ITEMADD / OBJ /;
   SET UC_NAME / ANNUAL %MX% /;
   SET UNIT 'Numbers of different units' /0/;
   SET UC_N /%SYSPREFIX%SOLVE_STATUS 'Model solution status code'/;

@@ -1,4 +1,5 @@
 # initmty_msa.py
+from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
@@ -21,15 +22,16 @@ class InitmtyMsa(GamsClass):
 
     def __init__(
         self,
-        tc: "TimesModelClass",
-        env: "CompileEnvironment",
+        tc: TimesModelClass,
+        env: CompileEnvironment,
         arg1: str = "",
         arg2: str = "",
     ):
         self.env = env.fork()
+        self.tc = tc
         self._sub_modules = {}
-        self.compile(tc)
+        self.compile()
 
-    def compile(self, tc: "TimesModelClass") -> None:
+    def compile(self) -> None:
         phase = "init"
         print(phase)

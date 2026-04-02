@@ -11,6 +11,7 @@
 # *  without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 # *===========================================================================================
 
+from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
@@ -36,16 +37,16 @@ class InitsysMod(GamsClass):
     module_name: str = "initsys_mod"
     gams_source: str = "inisys.mod"
 
-    def __init__(self, tc: "TimesModelClass", env: "CompileEnvironment"):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
         self.env = env.fork()
-        self.snapshot = None
+        self.tc = tc
         self._sub_modules = {}
-        self.compile(tc)
+        self.compile()
 
-    def compile(self, tc: "TimesModelClass") -> None:
+    def compile(self) -> None:
         phase = "init"
         # Easy access gamspy.Container
-        m = tc.container
+        m = self.tc.container
 
         self.env.set_scoped("tmp", "restart")
         # TODO: $ IF %SYSTEM.LICENSELEVEL%==2 $SET TMP Runtime
@@ -54,17 +55,17 @@ class InitsysMod(GamsClass):
         # $ PHANTOM EMPTY
         Set(m, "PHANTOM", records=["EMPTY"])
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code="""
+$ PHANTOM EMPTY
 $ ONEMPTY
 $ ONMULTI
 """,
         )
 
-        # TODO: item is an UniverseAlias that can't get elements assigned in GAMSPy. Correct workaround?
-        tc.item = UniverseAlias(m, name="ITEM")
+        self.tc.item = UniverseAlias(m, name="ITEM")
 
         # $IF NOT SET BOTIME $SETGLOBAL BOTIME 1850
         self.env.set_if_not_exists("botime", "1850", "global")
@@ -79,9 +80,9 @@ $ ONMULTI
                 if self.env.is_set("maxsow"):
                     # Expand the universe alias item
                     item_records = ["BOH"] + [i for i in range(1, self.env.eotime + 1)]
-                    self.add_records_to_universe_item(tc=tc, records=item_records)
+                    self.add_records_to_universe_item(records=item_records)
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=rf"""
@@ -93,9 +94,9 @@ $ ONMULTI
 
         # catch botime now and store with queue
         botime = self.env.botime
-        tc.enqueue(self.assign_yearval, tc=tc, botime=botime)
+        self.tc.enqueue(self.assign_yearval, botime=botime)
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=r"""
@@ -108,7 +109,7 @@ $ ONMULTI
         # SET ALL_TS                         'The universe for time-slices' / ANNUAL /
         expand_set(m["ALL_TS"], ["ANNUAL"])
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=r"""
@@ -124,11 +125,11 @@ $ ONMULTI
 *  SET DAYNITE(REG,ALL_TS)            'Daily Sub-divisions'         //;
 """,
         )
-        tc.allyear = tc.container["ALLYEAR"]
-        tc.year = Alias(m, name="YEAR", alias_with=tc.allyear)
-        tc.ll = Alias(m, name="LL", alias_with=tc.allyear)
+        self.tc.allyear = m["ALLYEAR"]
+        self.tc.year = Alias(m, name="YEAR", alias_with=self.tc.allyear)
+        self.tc.ll = Alias(m, name="LL", alias_with=self.tc.allyear)
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=r"""
@@ -141,12 +142,12 @@ $ ONMULTI
 """,
         )
 
-        tc.impexp = tc.container["IMPEXP"]
-        tc.in_out = tc.container["IN_OUT"]
-        tc.ie = Alias(m, name="IE", alias_with=tc.impexp)
-        tc.io = Alias(m, name="IO", alias_with=tc.in_out)
+        self.tc.impexp = m["IMPEXP"]
+        self.tc.in_out = m["IN_OUT"]
+        self.tc.ie = Alias(m, name="IE", alias_with=self.tc.impexp)
+        self.tc.io = Alias(m, name="IO", alias_with=self.tc.in_out)
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=r"""
@@ -157,13 +158,13 @@ $ ONMULTI
 """,
         )
 
-        tc.lim = tc.container["LIM"]
-        tc.bnd_type = tc.container["BND_TYPE"]
-        tc.l = Alias(m, name="L", alias_with=tc.lim)
-        tc.lim_type = Alias(m, name="LIM_TYPE", alias_with=tc.lim)
-        tc.bd = Alias(m, name="BD", alias_with=tc.bnd_type)
+        self.tc.lim = m["LIM"]
+        self.tc.bnd_type = m["BND_TYPE"]
+        self.tc.l = Alias(m, name="L", alias_with=self.tc.lim)
+        self.tc.lim_type = Alias(m, name="LIM_TYPE", alias_with=self.tc.lim)
+        self.tc.bd = Alias(m, name="BD", alias_with=self.tc.bnd_type)
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=r"""
@@ -175,9 +176,9 @@ $ ONMULTI
 
         # * Numbered sets
         # SET ALLYEAR                                                       / 0 /;
-        expand_set(symbol=tc.allyear, elements=[0])
+        expand_set(symbol=self.tc.allyear, elements=[0])
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=r"""
@@ -186,10 +187,10 @@ $ ONMULTI
 """,
         )
 
-        tc.j = tc.container["J"]
-        tc.jj = Alias(m, name="JJ", alias_with=tc.j)
+        self.tc.j = m["J"]
+        self.tc.jj = Alias(m, name="JJ", alias_with=self.tc.j)
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=r"""
@@ -200,12 +201,12 @@ $ ONMULTI
 """,
         )
 
-        tc.all_reg = tc.container["ALL_REG"]
-        tc.reg = tc.container["REG"]
-        tc.all_r = Alias(m, name="ALL_R", alias_with=tc.all_reg)
-        tc.r = Alias(m, name="R", alias_with=tc.reg)
+        self.tc.all_reg = m["ALL_REG"]
+        self.tc.reg = m["REG"]
+        self.tc.all_r = Alias(m, name="ALL_R", alias_with=self.tc.all_reg)
+        self.tc.r = Alias(m, name="R", alias_with=self.tc.reg)
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=r"""
@@ -219,12 +220,12 @@ $ ONMULTI
 """,
         )
 
-        tc.com_grp = tc.container["COM_GRP"]
-        tc.cg = Alias(m, name="CG", alias_with=tc.com_grp)
-        tc.cg1 = Alias(m, name="CG1", alias_with=tc.com_grp)
-        tc.cg2 = Alias(m, name="CG2", alias_with=tc.com_grp)
+        self.tc.com_grp = m["COM_GRP"]
+        self.tc.cg = Alias(m, name="CG", alias_with=self.tc.com_grp)
+        self.tc.cg1 = Alias(m, name="CG1", alias_with=self.tc.com_grp)
+        self.tc.cg2 = Alias(m, name="CG2", alias_with=self.tc.com_grp)
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=r"""
@@ -233,12 +234,12 @@ $ ONMULTI
 """,
         )
 
-        tc.com = tc.container["COM"]
-        tc.c = Alias(m, name="C", alias_with=tc.com)
-        tc.com1 = Alias(m, name="COM1", alias_with=tc.com)
-        tc.com2 = Alias(m, name="COM2", alias_with=tc.com)
+        self.tc.com = m["COM"]
+        self.tc.c = Alias(m, name="C", alias_with=self.tc.com)
+        self.tc.com1 = Alias(m, name="COM1", alias_with=self.tc.com)
+        self.tc.com2 = Alias(m, name="COM2", alias_with=self.tc.com)
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=r"""
@@ -247,10 +248,10 @@ $ ONMULTI
 """,
         )
 
-        tc.prc = tc.container["PRC"]
-        tc.p = Alias(m, name="P", alias_with=tc.prc)
+        self.tc.prc = m["PRC"]
+        self.tc.p = Alias(m, name="P", alias_with=self.tc.prc)
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=r"""
@@ -258,13 +259,13 @@ $ ONMULTI
 """,
         )
 
-        tc.cur = tc.container["CUR"]
-        tc.curr = Alias(m, name="CURR", alias_with=tc.cur)
+        self.tc.cur = m["CUR"]
+        self.tc.curr = Alias(m, name="CURR", alias_with=self.tc.cur)
 
         # Stochastics
         # $ SETGLOBAL MAXSOW 96
         self.env.set_global("maxsow", "96")
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=rf"""
@@ -274,10 +275,10 @@ $ ONMULTI
 """,
         )
 
-        tc.sow = tc.container["SOW"]
-        tc.w = Alias(m, name="W", alias_with=tc.sow)
+        self.tc.sow = m["SOW"]
+        self.tc.w = Alias(m, name="W", alias_with=self.tc.sow)
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=r"""
@@ -330,10 +331,10 @@ $ ONMULTI
 """,
         )
 
-        tc.costagg = tc.container["COSTAGG"]
-        tc.uc_cost = tc.container["UC_COST"]
-        tc.costcat = Alias(m, name="COSTCAT", alias_with=tc.costagg)
-        tc.costype = Alias(m, name="COSTYPE", alias_with=tc.uc_cost)
+        self.tc.costagg = m["COSTAGG"]
+        self.tc.uc_cost = m["UC_COST"]
+        self.tc.costcat = Alias(m, name="COSTCAT", alias_with=self.tc.costagg)
+        self.tc.costype = Alias(m, name="COSTYPE", alias_with=self.tc.uc_cost)
 
         # *-------------------------------------------------------------------------------
         # * control sets
@@ -344,7 +345,7 @@ $ ONMULTI
         self.env.set_scoped("model_name", "TIMES")
         self.env.set_scoped("run_name", "TEST")
         # * control of whether all 0 lines are dumped in *.PUT files; user provides 0 to NOT print lines with all 0s (or empty)
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self, phase=phase, code="SCALAR DUMP0 /1/, OPTFILEID /1/;"
         )
 
@@ -361,17 +362,17 @@ $ ONMULTI
         self.env.set_scoped("solve_now", "YES")
 
         # get list of default units
-        self.include(units_def.Units(tc=tc, env=self.env))
+        self.include(units_def.Units(tc=self.tc, env=self.env))
 
         # get list of default mapping group lists
-        self.include(maplists_def.Maplists(tc, env=self.env))
+        self.include(maplists_def.Maplists(tc=self.tc, env=self.env))
 
         # # get default global scalars and parameters
-        self.include(globals_def.Globals(tc=tc, env=self.env))
+        self.include(globals_def.Globals(tc=self.tc, env=self.env))
 
-    def assign_yearval(self, tc, botime):
+    def assign_yearval(self, botime):
         phase = "run"
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=rf"""YEARVAL(ALLYEAR) = {botime} + ORD(ALLYEAR)-1;""",

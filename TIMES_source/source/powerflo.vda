@@ -384,14 +384,15 @@ $EXIT
 *------------------------------------------------------------------------
 $ LABEL OBJBAL
 $ SET TPULSE TT$OBJ_LINT(R,T,TT,CUR),OBJ_LINT(R,T,TT,CUR)
+$set SOWPRE %SOW%
+$IF %STAGES%==YES $SET SOW ,WW
 
   POSITIVE VARIABLES %VAR%_GRIDIO(R,YEAR,C,C,S,IO%SWD%);
   EQUATION EQ_OBJBAL(R,CUR,ALLSOW);
   EQ_OBJBAL(RDCUR(R,CUR)%SWX%)..
 
-   %VAR%_OBJ(R,'OBJBAL',CUR %SOW%) =E=
+   %VAR%_OBJ(R,'OBJBAL',CUR %SOWPRE%) =E=
 
-$IF %STAGES%==YES $SET SOW ,WW
 $IF %STAGES%==YES SUM(%SWSW%
 * Costs on commodity production
    SUM(RHS_COMPRD(R,T,C,S),%VAR%_COMPRD(R,T,C,S %SOW%) * SUM(%TPULSE% * OBJ_COMBAL(R,TT,C,S,'PRD',CUR))) +

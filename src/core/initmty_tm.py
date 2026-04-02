@@ -7,6 +7,7 @@
 # * INIT DECLARATIONS FOR THE MACRO EXTENSION
 # *=============================================================================
 
+from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
@@ -29,26 +30,27 @@ class InitmtyTm(GamsClass):
 
     def __init__(
         self,
-        tc: "TimesModelClass",
-        env: "CompileEnvironment",
+        tc: TimesModelClass,
+        env: CompileEnvironment,
         arg1: str = "",
         arg2: str = "",
     ):
         self.env = env.fork()
+        self.tc = tc
         self._sub_modules = {}
-        self.compile(tc)
+        self.compile()
 
-    def compile(self, tc: "TimesModelClass") -> None:
+    def compile(self) -> None:
         phase = "init"
         print(self.module_name, phase)
         self.env.set_global("spoint", 3)
 
         # * As in original IER implementation, disable warm start in MACRO
         # * This may be overridden in the RUN file after the INITMTY call
-        tc.add_gams_code(module=self, phase=phase, code="OPTION BRATIO=1;")
+        self.tc.add_gams_code(module=self, phase=phase, code="OPTION BRATIO=1;")
 
         def input_parameters():
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase=phase,
                 code=r"""
@@ -71,7 +73,7 @@ PARAMETER TM_EXPF(R,ALLYEAR)           'Annual percent expansion factor'        
             )
 
         def calibration_parameters():
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase=phase,
                 code=r"""
@@ -83,7 +85,7 @@ PARAMETER TM_DDF(R,ALLYEAR,C)          'Demand decoupling factor'               
             )
 
         def internal_parameters():
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase=phase,
                 code=r"""

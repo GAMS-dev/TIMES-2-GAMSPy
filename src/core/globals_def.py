@@ -6,7 +6,7 @@
 # *==============================================================================*
 # * GLOBALS.DEF has all the declaration & defaults for SCALARS & Parameters      *
 # *==============================================================================*
-
+from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
@@ -27,15 +27,15 @@ class Globals(GamsClass):
     module_name: str = "globals"
     gams_source: str = "globals.def"
 
-    def __init__(self, tc: "TimesModelClass", env: "CompileEnvironment"):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
         self.env = env.fork()
-        self.snapshot = None
+        self.tc = tc
         self._sub_modules = {}
-        self.compile(tc)
+        self.compile()
 
-    def compile(self, tc: "TimesModelClass") -> None:
+    def compile(self) -> None:
         phase = "init"
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code="""

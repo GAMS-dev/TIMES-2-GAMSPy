@@ -142,6 +142,7 @@ $ IF WARNINGS $BATINCLUDE pp_qaput.%1 PUTOUT 0 * 'GAMS Warnings Detected%TMP%'
 * [UR]: duration of period moved from *.dd to ppmain.mod
     D(MILESTONYR)=E(MILESTONYR)-B(MILESTONYR)+1;
     M(MILESTONYR)=FLOOR(B(MILESTONYR)+(D(MILESTONYR)-1)/2);
+
 $IFI %OBJ%==MOD M(T) = 0;
     IF(ALTOBJ=1,ALTOBJ=1$SUM(T,M(T) NE YEARVAL(T)));
 
@@ -185,15 +186,32 @@ $IFI '%OBLONG%'==YES IF(MIYR_V1+SUM(T,E(T)+1-B(T))-MIYR_VL NE 1,ABORT "Inconsist
 * create list of all years in each period
     PERIODYR(T,EOHYEARS)$((YEARVAL(EOHYEARS) >= B(T)) * (YEARVAL(EOHYEARS) <= E(T))) = YES;
 
+$onlisting
+display "pp_main_mod_prior_filparam";
+$show
+$offlisting
+
+
 * Inter/Extrapolate G_OFFTHD if specified
 $IF DEFINED G_OFFTHD $BATINCLUDE filparam G_OFFTHD '' '' ",'','','','','',''" YEAR T '' '' 5
     G_OFFTHD('0') = 0;
+
+$onlisting
+display "pp_main_mod_after_filparam";
+$show
+$offlisting
+
 
 *-----------------------------------------------------------------------------
 * complete timeslice declarations
 *-----------------------------------------------------------------------------
 * Include preprocessing of timeslice attributes
 $ INCLUDE timslice.mod
+
+$onlisting
+display "pp_main_mod_after_timslice";
+$show
+$offlisting
 
 *-----------------------------------------------------------------------------
 * Migrate PASTIs defined on Milestonyr if requested
@@ -240,12 +258,17 @@ $     BATINCLUDE pp_off.%1 PRC_NOFF P "" "RTP_OFF(R,T,P)$(" YES
     RTP(R,PYR,P)$(RP(R,P)$(NCAP_PASTI(R,PYR,P)>0)$NCAP_PASTI(R,PYR,P)) = YES;
     RVP(RTP(R,T,P)) = YES;
     OPTION CLEAR=TRACKP;
-
 *-----------------------------------------------
 * interpolation/extrapolation
 *-----------------------------------------------
 * Call interpolation subsystem
 $ INCLUDE preppm.mod
+
+$onlisting
+display "pp_main_mod_after_preppm";
+$show
+$offlisting
+
 $ IFI %INTEXT_ONLY% == YES $EXIT
 *-----------------------------------------------
 
@@ -515,6 +538,12 @@ $      BATINCLUDE pp_qaput.%1 PUTOUT PUTGRP 01 'NCAP_TLIFE out of feasible range
     );
    OPTION CLEAR=YKVAL,CLEAR=COEF_RTP;
 * override the lead delay on capacity if M2T, if viable period
+
+$onlisting
+display "pp_main_mod_prior_phase_eight";
+$show
+$offlisting
+
 $IF %VALIDATE% == YES    RTP_CPTYR(R,T,T,P)$RTP(R,T,P) = YES;
    RTP_CPTYR(R,MIYR_1(T),T,P)$(RTP(R,T,P)$PRC_MAP(R,'STK',P)) = YES;
 *-----------------------------------------------------------------------------
@@ -610,6 +639,10 @@ $IF DEFINED PRC_SIMV LOOP(T,NO_RVP(R,TT-1,P)$(RTP_CPTYR(R,TT,T,P)$PRC_SIMV(R,P))
    RP_PGACT(RP_FLO(R,P))$(SUM(RPC_PG(R,P,C),1) EQ 1) = YES;
    RP_PGACT(RP_IRE(R,P))$(SUM(RPC_IRE(RPC_PG(R,P,C),IE),1) EQ 1) = YES;
 
+$onlisting
+display "pp_main_mod_prior_main_ext_mod";
+$show
+$offlisting
 *-----------------------------------------------------------------------------
 * Extensions after establishing RPCS_VAR and PRC_CAPACT but before levelising
 $  BATINCLUDE main_ext.mod pp_prelv %EXTEND%
@@ -678,7 +711,6 @@ $   BATINCLUDE filparam MULTI 'J,' '' ",'','','','',''" LL EOHYEARS 'NO$' ''
     IF(NOT Z, RPC_NOFLO(R,P,C) = NO);
   );
   OPTION CLEAR=TRACKPC;
-
 *-----------------------------------------------------------------------------
 * do the basic initializations that are TS-based, including aggregate/inherit
 *-----------------------------------------------------------------------------
@@ -745,6 +777,7 @@ $IF NOT PARTYPE RTCS_FRMX  PARAMETER RTCS_FR(R,T,C,S,S) //;
 * Elastic demands
 *-----------------------------------------------------------------------------
    OPTION DEM < COM_PROJ;
+
 *  Preprocess TIMES-Micro
 $IF %TIMESED%==YES $BATINCLUDE pp_micro.mod PRE
 * check sign of COM_ELAST and set RCJ after assigning default COM_STEPs
@@ -816,7 +849,6 @@ $   BATINCLUDE pp_lvlfc.mod ACT_FLO   'P'   RPS_S1   '' ",'0','0','0'" ALL_TS V 
     TRACKPC(PRC_PKNO(R,P),C)=NO;
     FLO_PKCOI(RTP(R,T,P),C,S)$(RPCS_VAR(R,P,C,S)$TRACKPC(R,P,C))  = 1.0
     OPTION CLEAR=TRACKPC;
-
 * derive the CHP flow control attributes
 $   BATINCLUDE pp_chp.%1 %1
 
@@ -1211,12 +1243,16 @@ $ BATINCLUDE prepxtra.mod UCINT
   RXX(R,'PRD',C)$(NOT COM_LIM(R,C,'LO'))=NO;
   LOOP(COM_VAR,RHS_COMBAL(RTCS_VARC(R,T,C,S))$RXX(R,COM_VAR,C) = YES);
 
+$onlisting
+display "pp_main_mod_prior_pp_lvlus_mod";
+$show
+$offlisting
+
 *...Handle UC_FLO/IRE/ACT/COM leveling by aggregation/inheritance
 $   BATINCLUDE pp_lvlus.mod UC_ACT 'P'   PRC_TS ",'0','0'" "" "" P RC
 $   BATINCLUDE pp_lvlus.mod UC_FLO 'P,C' RPCS_VAR ",'0'" "" "" P RC PRC_SGL(R,P) ,C
 $   BATINCLUDE pp_lvlus.mod UC_IRE 'P,C' PRC_TS "" ',IE' "" P RC
 $   BATINCLUDE pp_lvlus.mod UC_COM 'C'   COM_TS "" ,UC_GRPTYPE ,COM_VAR C OM
-
 *-----------------------------------------------------------------------------
 * Control set for balance/production equations based on TS-resolution and RHS
 *-----------------------------------------------------------------------------
