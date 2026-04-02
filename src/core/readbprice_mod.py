@@ -73,7 +73,7 @@ $KILL DAM_TVOC
             module=self,
             phase="run",
             code=r"""
-$GDXIN %TMP%
+$GDXIN {self.env.tmp}
 $LOAD sol_bprice
 """,
         )

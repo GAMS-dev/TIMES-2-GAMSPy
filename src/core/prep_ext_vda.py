@@ -71,10 +71,10 @@ class PrepExtVda(GamsClass):
         # fmt: on
 
         if self.tc.defined("UC_FLOBET"):
-            batincludes.append("UC_FLOBET", "UC_N,R", "P,C", ",'0','0','0'", "T", "1", "GE 0", "")  # fmt: skip
+            batincludes.append(("UC_FLOBET", "UC_N,R", "P,C", ",'0','0','0'", "T", "1", "GE 0", ""))  # fmt: skip
 
         if self.tc.defined("COM_CSTBAL"):
-            batincludes.append("COM_CSTBAL", "R", "C,S,ITEM,CUR", ",'0','0'", "T", "1", "GE 0", "")  # fmt: skip
+            batincludes.append(("COM_CSTBAL", "R", "C,S,ITEM,CUR", ",'0','0'", "T", "1", "GE 0", ""))  # fmt: skip
 
         for arg in batincludes:
             self.include(

@@ -57,9 +57,9 @@ class PowerfloVda(GamsClass):
         self.compile()
 
     def compile(self):
-        self.env.set("mx", f"{self.arg3}")
-        self.env.set("pdtol", "1E-5")
-        self.env.set("bigm", "10")
+        self.env.set_scoped("mx", f"{self.arg3}")
+        self.env.set_scoped("pdtol", "1E-5")
+        self.env.set_scoped("bigm", "10")
 
         if self.arg1 == "":
             # this ends with a $EXIT so we flip the if to keep the layout
