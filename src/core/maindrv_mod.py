@@ -25,6 +25,11 @@ from core.init_ext_abs import InitExtAbs
 from core.init_ext_dsc import InitExtDsc
 from core.init_ext_vda import InitExtVda
 from core.main_ext_mod import include_extension
+from core.ppm_ext_cli import PpmEctCli
+from core.ppm_ext_dsc import PpmExtDsc
+from core.ppm_ext_ecb import PpmExtEcb
+from core.ppm_ext_mlf import PpmExtMlf
+from core.ppm_ext_vda import PpmExtVda
 from core.ppmain_mod import PpmainMod
 from core.readbprice_mod import ReadbpriceMod
 from core.setglobs_gms import SetglobsGms
@@ -146,5 +151,24 @@ class MainDrvMod(GamsClass):
             )
 
         self.include(PpmainMod(tc=self.tc, env=self.env, arg1=self.arg1))
+
+        if self.env.intext_only.upper() == "YES":  # SKIP TO END
+            return
+
+        if self.env.extend != "":
+            extensions = {
+                "CLI": PpmEctCli,
+                "DSC": PpmExtDsc,
+                "ECB": PpmExtEcb,
+                "MLF": PpmExtMlf,
+                "VDA": PpmExtVda,
+            }
+            requested_exts = set(self.env.extend.split())
+            include_extension(
+                module=self,
+                extensions=extensions,
+                requested_exts=requested_exts,
+                source="maindrv",
+            )
 
         # TODO: Keep translating
