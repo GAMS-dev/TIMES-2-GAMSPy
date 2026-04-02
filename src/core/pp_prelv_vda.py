@@ -1,4 +1,4 @@
-# pp_prelvl_vda.py
+# pp_prelv_vda.py
 # *++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # * Copyright (C) 2000-2025 Energy Technology Systems Analysis Programme (ETSAP)
 # * This file is part of the IEA-ETSAP TIMES model generator, licensed
@@ -29,11 +29,11 @@ logger = logging.getLogger(__name__)
 
 
 class PpPrelvVda(GamsClass):
-    """Translation unit for pp_prelvl.vda."""
+    """Translation unit for pp_prelv.vda."""
 
     # Instance attributes
-    module_name: str = "pp_prelvl_vda"
-    gams_source: str = "pp_prelvl.vda"
+    module_name: str = "pp_prelv_vda"
+    gams_source: str = "pp_prelv.vda"
 
     def __init__(
         self, tc: TimesModelClass, env: CompileEnvironment, arg1: str, arg2: str
