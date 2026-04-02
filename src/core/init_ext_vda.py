@@ -183,8 +183,10 @@ $GDXIN {self.env.gdxpath}{self.env.gdx_irebnd}
 $LOAD RPC_IREIN=RPC_IREIO PREMILE=MILESTONYR PAR_IRE
 """,
                 )
-                if self.env.GDX_IREBND.upper() == self.env.GDX_IPRIC:
+
+                if self.env.gdx_irebnd.upper() == self.env.gdx_ipric:
                     self.label_load2()
+
                 else:
                     self.tc.add_gams_code(
                         module=self,

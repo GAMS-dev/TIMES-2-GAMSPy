@@ -57,7 +57,7 @@ class CurexGms(GamsClass):
 
     def compile(self) -> None:
         if self.env.intext_only == "YES":
-            pass  # $EXIT
+            return  # $EXIT
         else:
             if not (self.arg1 == ""):  # SUBR
                 if self.arg6 == "":

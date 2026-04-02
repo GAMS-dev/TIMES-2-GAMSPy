@@ -26,7 +26,7 @@ class Units(GamsClass):
     """Translation unit for units.def."""
 
     # Instance attributes
-    module_name: str = "units"
+    module_name: str = "units_def"
     gams_source: str = "units.def"
 
     def __init__(self, tc: TimesModelClass, env: CompileEnvironment):

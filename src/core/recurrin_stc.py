@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class RecurrinStc(GamsClass):  # FilenameExt
-    """Translation unit for recurrin.stcension."""
+    """Translation unit for recurrin.stc."""
 
     # Instance attributes
     module_name: str = "recurrin_stc"
@@ -78,7 +78,8 @@ class RecurrinStc(GamsClass):  # FilenameExt
                     self.tc.add_gams_code(
                         module=self,
                         phase="init",
-                        code=r"$MACRO RTCS_FRMX RTCS_FR\n$MACRO COM_FRMX  COM_FR",
+                        code=r"""$MACRO RTCS_FRMX RTCS_FR
+$MACRO COM_FRMX COM_FR""",
                     )
                 if not self.env.spines.upper() == "YES":
                     self.tc.add_gams_code(
@@ -261,7 +262,7 @@ $macro Z_CUMCST(r,y1,y2,cg,m,w) VAS_CUMCST(r,y1,y2,cg,m,'1')
                 self.tc.add_gams_code(
                     module=self,
                     phase="init",
-                    code=r"""
+                    code=rf"""
 $macro Z_CLITOT VAS_CLITOT
 $macro Z_CLIBOX VAS_CLIBOX
 
