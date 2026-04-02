@@ -29,7 +29,7 @@ from core.pp_lvlbr_mod import PpLvlbrMod
 from core.pp_lvlfc_mod import PpLvlfcMod
 from core.pp_lvlff_mod import PpLvlffMod
 from core.pp_lvlfs_mod import PpLvlfsMod
-from core.pp_lvlif_mod import PplvlifMod
+from core.pp_lvlif_mod import PpLvlifMod
 from core.pp_lvlpk_mod import PpLvlpkMod
 from core.pp_lvlus_mod import PpLvlusMod
 from core.pp_micro_mod import PpMicroMod
@@ -458,7 +458,7 @@ class PpmainMod(GamsClass):
             )
         )
         # this routine only handles IRE_FLO
-        self.include(PplvlifMod(tc=self.tc, env=self.env, arg1=self.arg1))
+        self.include(PpLvlifMod(tc=self.tc, env=self.env, arg1=self.arg1))
 
         self.tc.enqueue(
             self.phase_eightteen,

@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class PplvlifMod(GamsClass):
+class PpLvlifMod(GamsClass):
     """Translation unit for pp_lvlif.mod."""
 
     # Instance attributes
@@ -49,7 +49,7 @@ class PplvlifMod(GamsClass):
     def compile(self) -> None:
         self.tc.enqueue(self.exec1, rl=self.env.rl, pl=self.env.pl)
 
-    def exec1(self: PplvlifMod, rl: str, pl: str):
+    def exec1(self: PpLvlifMod, rl: str, pl: str):
         include_pp_qaput = pp_qaput(
             "PUTOUT", "PUTGRP", "02", "IRE_FLO import commodity not in TOP_IRE"
         )
