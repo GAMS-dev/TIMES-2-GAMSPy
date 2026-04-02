@@ -123,8 +123,7 @@ class ResloadcVda(GamsClass):
                     arg3="TS",
                     arg4="P",
                     arg5="T",
-                    def_rtp_ffcs="RTP_FFCS" in self.tc.container.listSymbols()
-                    and self.tc.container["RTP_FFCS"].number_records,
+                    def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
                     shff=self.env.shff,
                     sow=self.env.sow,
                     var=self.env.var,
@@ -137,8 +136,7 @@ class ResloadcVda(GamsClass):
                     arg4="P",
                     arg5="T",
                     pgprim=self.env.pgprim,
-                    def_rtp_ffcs="RTP_FFCS" in self.tc.container.listSymbols()
-                    and self.tc.container["RTP_FFCS"].number_records,
+                    def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
                     shff=self.env.shff,
                     sow=self.env.sow,
                     var=self.env.var,

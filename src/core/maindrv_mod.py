@@ -111,10 +111,7 @@ class MainDrvMod(GamsClass):
             self.env.set_scoped("tx", "SUBT(T)")
             self.env.set_scoped("r_v_t", "R,V,SUBT(T)")
 
-        if (
-            "REG_FIXT" in self.tc.container.listSymbols()
-            and self.tc.container["REG_FIXT"].number_records
-        ):
+        if self.tc.defined("REG_FIXT"):
             r_t = self.env.r_t
             r_v_t = self.env.r_v_t
             self.env.set_scoped("r_t", f"RT_PP({r_t})")
