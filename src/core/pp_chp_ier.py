@@ -28,32 +28,19 @@ class PpChpIer(GamsClass):
     module_name: str = "pp_chp_ier"
     gams_source: str = "pp_chp.ier"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment, arg1: str):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
+        self.arg1 = arg1
         self.compile()
 
     def compile(self) -> None:
-        self.tc.enqueue(
-            self.electricity_commodity_pg,
-        )
-        self.tc.enqueue(
-            self.commodity_group,
-        )
-        self.tc.enqueue(
-            self.calculate_electricity_heat_ratio,
-        )
-        self.tc.enqueue(
-            self.convert_input_capacity,
-        )
-        self.tc.enqueue(
-            self.extrapolate_past_years,
-        )
+        self.tc.enqueue(self.electricity_commodity_pg)
+        self.tc.enqueue(self.commodity_group)
+        self.tc.enqueue(self.calculate_electricity_heat_ratio)
+        self.tc.enqueue(self.convert_input_capacity)
+        self.tc.enqueue(self.extrapolate_past_years)
 
     def electricity_commodity_pg(self: PpChpIer):
         self.tc.add_gams_code(

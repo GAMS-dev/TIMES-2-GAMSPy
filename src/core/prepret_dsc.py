@@ -205,7 +205,7 @@ class PrepretDsc(GamsClass):
 """,
         )
 
-        self.tc.enqueue(self.exec_decl1, tst=self.env.tst, arg2=self.arg2)
+        self.tc.enqueue(self.exec_decl1, sow=self.env.sow, var=self.env.str)
 
     def exec_decl1(self: PrepretDsc, sow: str, var: str):
         self.tc.add_gams_code(

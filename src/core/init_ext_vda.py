@@ -172,7 +172,7 @@ $KILL PAR_IRE PAR_IPRIC
         if not self.env.is_set("gdx_irebnd"):
             self.label_ifprice()
         else:
-            if not os.exists(f"{self.env.gdxpath}{self.env.gdx_irebnd}.gdx"):
+            if not os.path.exists(f"{self.env.gdxpath}{self.env.gdx_irebnd}.gdx"):
                 self.label_ifprice()
             else:
                 self.tc.add_gams_code(
@@ -184,7 +184,7 @@ $LOAD RPC_IREIN=RPC_IREIO PREMILE=MILESTONYR PAR_IRE
 """,
                 )
                 if self.env.GDX_IREBND.upper() == self.env.GDX_IPRIC:
-                    self.load2()
+                    self.label_load2()
                 else:
                     self.tc.add_gams_code(
                         module=self,

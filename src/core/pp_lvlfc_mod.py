@@ -101,6 +101,15 @@ class PpLvlfcMod(GamsClass):
             ts=self.env.ts,
             awgt=self.env.awgt,
             iwgt=self.env.iwgt,
+            arg1=self.arg1,
+            arg2=self.arg2,
+            arg3=self.arg3,
+            arg4=self.arg4,
+            arg5=self.arg5,
+            arg6=self.arg6,
+            arg8=self.arg8,
+            arg10=self.arg10,
+            arg11=self.arg11,
         )
 
     def clear_uncd7(self: PpLvlfcMod):
@@ -113,13 +122,22 @@ class PpLvlfcMod(GamsClass):
         ts: str,
         awgt: str,
         iwgt: str,
+        arg1: str,
+        arg2: str,
+        arg3: str,
+        arg4: str,
+        arg5: str,
+        arg6: str,
+        arg8: str,
+        arg10: str,
+        arg11: str,
     ):
-        if self.arg11 == "N":
+        if arg11 == "N":
             self.tc.add_gams_code(
                 module=self,
                 phase="run",
                 code=rf"""
-{self.arg1}(R,LL--ORD(LL),{self.arg2}{self.arg10},S+STOA(S){self.arg4})$(STOAL(R,S)${self.arg1}(R,LL,{self.arg2}{self.arg10},S{self.arg4})) = 1;
+{arg1}(R,LL--ORD(LL),{arg2}{arg10},S+STOA(S){arg4})$(STOAL(R,S)${arg1}(R,LL,{arg2}{arg10},S{arg4})) = 1;
 """,
             )
         self.tc.add_gams_code(
@@ -127,36 +145,36 @@ class PpLvlfcMod(GamsClass):
             phase="run",
             code=rf"""
 * Mark to be levelized if inheritance is allowed or S is not ANNUAL:
-LOOP(({regy},{self.arg2}{self.arg10},S{self.arg4})$({ts}{self.arg1}({regy},{self.arg2}{self.arg10},S{self.arg4})), UNCD7({regy},{self.arg2}{self.arg10}{self.arg4}{self.arg5})$({self.arg8}{take}) = YES);
+LOOP(({regy},{arg2}{arg10},S{arg4})$({ts}{arg1}({regy},{arg2}{arg10},S{arg4})), UNCD7({regy},{arg2}{arg10}{arg4}{arg5})$({arg8}{take}) = YES);
 *-----------------------------------------------------------------------------
 * Aggregation/inheritance to target timeslices
 *-----------------------------------------------------------------------------
-LOOP(UNCD7({regy},{self.arg2}{self.arg10}{self.arg4}{self.arg5}), TS_ARRAY(S) = {self.arg1}({regy},{self.arg2}{self.arg10},S{self.arg4});
+LOOP(UNCD7({regy},{arg2}{arg10}{arg4}{arg5}), TS_ARRAY(S) = {arg1}({regy},{arg2}{arg10},S{arg4});
  IF((NOT SUM(RS_BELOW(R,'ANNUAL',S)$TS_ARRAY(S),1))$TS_ARRAY('ANNUAL'),
-   {self.arg1}({regy},{self.arg2}{self.arg10},S{self.arg4})${self.arg3}(R,{self.arg2},S) = SUM(ANNUAL({self.arg6}),TS_ARRAY({self.arg6}){iwgt});
+   {arg1}({regy},{arg2}{arg10},S{arg4})${arg3}(R,{arg2},S) = SUM(ANNUAL({arg6}),TS_ARRAY({arg6}){iwgt});
  ELSE
 * Leveling by simultaneous aggregation/inheritance; but only if target level value is not present
-   LOOP({self.arg3}(R,{self.arg2},TS)$(NOT TS_ARRAY(TS)),
-    {self.arg1}({regy},{self.arg2}{self.arg10},TS{self.arg4}) $=
+   LOOP({arg3}(R,{arg2},TS)$(NOT TS_ARRAY(TS)),
+    {arg1}({regy},{arg2}{arg10},TS{arg4}) $=
      SUM(TS_MAP(R,TS,S)$FINEST(R,S), {awgt} * (TS_ARRAY(S) +
-            SUM(RS_BELOW(R,{self.arg6},S)$(TS_ARRAY({self.arg6}) AND NOT SUM(SL$RS_BELOW(R,{self.arg6},SL),TS_MAP(R,SL,S)*TS_ARRAY(SL))),
-                       TS_ARRAY({self.arg6}){iwgt})));)));
+            SUM(RS_BELOW(R,{arg6},S)$(TS_ARRAY({arg6}) AND NOT SUM(SL$RS_BELOW(R,{arg6},SL),TS_MAP(R,SL,S)*TS_ARRAY(SL))),
+                       TS_ARRAY({arg6}){iwgt})));)));
 *-----------------------------------------------------------------------------
 """,
         )
-        if self.arg11 == "0":
+        if arg11 == "0":
             self.tc.add_gams_code(
                 module=self,
                 phase="run",
                 code=rf"""
-{self.arg1}({regy},{self.arg2}{self.arg10},S{self.arg4})$((NOT {self.arg1}({regy},{self.arg2}{self.arg10},S{self.arg4}))${self.arg3}(R,{self.arg2},S)) $= {self.arg1}({regy},{self.arg2}{self.arg10},'ANNUAL'{self.arg4});
+{arg1}({regy},{arg2}{arg10},S{arg4})$((NOT {arg1}({regy},{arg2}{arg10},S{arg4}))${arg3}(R,{arg2},S)) $= {arg1}({regy},{arg2}{arg10},'ANNUAL'{arg4});
 """,
             )
-        if len(self.arg11):
+        if len(arg11):
             self.tc.add_gams_code(
                 module=self,
                 phase="run",
                 code=rf"""
-{self.arg1}(R,LL,{self.arg2}{self.arg10},S{self.arg4})$((NOT {self.arg3}(R,{self.arg2},S)){take}) = 0;
+{arg1}(R,LL,{arg2}{arg10},S{arg4})$((NOT {arg3}(R,{arg2},S)){take}) = 0;
 """,
             )
