@@ -46,7 +46,6 @@ class PrepExtStc(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.enqueue(self.add_reserve_commodities)
         # fmt: off
         batincludes = [
             ("fp", "S_COM_PROJ",  "R",          "C,J,WW",               ",'0','0','0'", "MILESTONYR", "1",                   "GE 0", ""),
@@ -65,10 +64,7 @@ class PrepExtStc(GamsClass):
         # fmt: on
         for arg in batincludes:
             if arg[1] in ["S_DAM_COST", "S_FLO_FUNC", "S_NCAP_AFS", "S_COM_FR"]:
-                if (
-                    arg[1] not in self.tc.container.listSymbols()
-                    or not self.tc.container[arg[1]].number_records()
-                ):
+                if not self.tc.defined(arg[1]):
                     continue
             if arg[0] == "fp":
                 self.include(
@@ -108,15 +104,9 @@ class PrepExtStc(GamsClass):
             )
         )
         code = ""
-        if (
-            "S_DAM_COST" in self.tc.container.listSymbols()
-            and self.tc.container["S_DAM_COST"].number_records()
-        ):
+        if self.tc.defined("S_DAM_COST"):
             code += "PARAMETER DAM_COST //;\n"
-        if (
-            "DAM_COST" in self.tc.container.listSymbols()
-            and self.tc.container["DAM_COST"].number_records()
-        ):
+        if self.tc.defined("DAM_COST"):
             code += "PARAMETER S_DAM_COST //;\n"
         if len(code):
             self.tc.add_gams_code(
@@ -127,8 +117,7 @@ class PrepExtStc(GamsClass):
 
         self.tc.enqueue(
             self.prep_ext_stc_exec,
-            have_s_flo_func="S_FLO_FUNC" in self.tc.container.listSymbols()
-            and self.tc.container["S_FLO_FUNC"].number_records(),
+            have_s_flo_func=self.tc.defined("S_FLO_FUNC"),
         )
 
     def prep_ext_stc_exec(

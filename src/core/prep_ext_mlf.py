@@ -107,7 +107,7 @@ class PrepExtMlf(GamsClass):
     ):
         self.tc.add_gams_code(
             module=self,
-            phase="init",
+            phase="run",
             code=r"MINYR = MIYR_V1;",
         )
 
@@ -116,7 +116,7 @@ class PrepExtMlf(GamsClass):
     ):
         self.tc.add_gams_code(
             module=self,
-            phase="init",
+            phase="run",
             code=r"""
 * Periods stuff
   PP(T+1) = YES;

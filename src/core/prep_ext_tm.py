@@ -47,6 +47,7 @@ class PrepExtTm(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        # TODO:
         # hard to translate there is no msaddf.dd
         # GAMS "exist" looks in idir
         # the last statement makes no sense in GAMSPy because a symbols is always defined. So if not defined we define it by clearing
@@ -94,8 +95,8 @@ $IF NOT DEFINED TM_EC0 OPTION CLEAR=TM_EC0;
 
         m = self.tc.container
         # ALIAS (MIYR_1,T_1);
-        miry_1 = m["MIYR_1"]
-        Alias(m, "T_1", alias_with=miry_1)
+        miyr_1 = m["MIYR_1"]
+        Alias(m, "T_1", alias_with=miyr_1)
 
         self.tc.add_gams_code(
             module=self,
@@ -111,7 +112,7 @@ $IF NOT DEFINED TM_EC0 OPTION CLEAR=TM_EC0;
     ):
         self.tc.add_gams_code(
             module=self,
-            phase="init",
+            phase="run",
             code=r"""
   PP(T+1) = YES;
   TLAST(T)$(ORD(T) EQ CARD(T)) = YES;
