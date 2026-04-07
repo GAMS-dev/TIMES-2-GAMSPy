@@ -53,14 +53,14 @@ class EqfloshrMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        if self.env.CAL_RED == "cal_red.red":
+        if self.env.cal_red == "cal_red.red":
             from core.cal_red_red import cal_red as cal_red_func
         else:
             from core.cal_nored_red import cal_nored as cal_red_func
 
         self.tc.add_gams_code(
             module=self,
-            phase="run",
+            phase="init",
             code=rf"""
     {self.env.EQ}{self.arg1}_{self.arg3}SHR(RTP_VINTYR({self.env.R_V_T},P),C,CG,S {self.env.swt})$((RP_STD(R,P)*TOP(R,P,C,'{self.arg3}')*RTPCS_VARF(R,T,P,C,S))$FLO_SHAR(R,V,P,C,CG,S,'{self.arg2}'))..
 

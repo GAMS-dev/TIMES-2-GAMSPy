@@ -48,14 +48,14 @@ class EqflofrMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        if self.env.CAL_RED == "cal_red.red":
+        if self.env.cal_red == "cal_red.red":
             from core.cal_red_red import cal_red as cal_red_func
         else:
             from core.cal_nored_red import cal_nored as cal_red_func
 
         self.tc.add_gams_code(
             module=self,
-            phase="run",
+            phase="init",
             code=rf"""
   {self.env.eq}{self.arg1}_FLOFR(RTPC({self.env.r_t},P,C),S,L({self.arg2}){self.env.SWT})$(SUM(RPCS_VAR(RP_FLO(R,P),C,TS)$TS_MAP(R,S,TS),1)$FLO_FR(R,T,P,C,S,L))..
 

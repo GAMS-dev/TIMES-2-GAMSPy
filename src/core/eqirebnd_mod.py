@@ -54,7 +54,7 @@ class EqirebndMod(GamsClass):
     def compile(self) -> None:
         self.tc.add_gams_code(
             module=self,
-            phase="run",
+            phase="init",
             code=rf"""
 *$ONLISTING
 *V0.5b 980902 - avoid equations if LO=0/UP=INF
