@@ -52,12 +52,12 @@ class EqcapactMod(GamsClass):
         self.arg3 = arg3
         self.compile()
 
-    # TODO: original model uses 'pass' as name, which is not valid python
     def compile(self) -> None:
-        self.env.set_local("pass_", "")
+        self.env.set_local("pass", "")
         if self.tc.defined("RPS_CAFLAC"):
             self.env.set_local(
-                "pass_", f"{self.env.pass_}*(NOT RPS_CAFLAC(R,P,S,'{self.arg2}'))"
+                "pass",
+                f"{self.env.__getattr__('pass')}*(NOT RPS_CAFLAC(R,P,S,'{self.arg2}'))",
             )
 
         self.tc.add_gams_code(module=self, phase="init", code="SET AFS(R,T,P,S,BD) //;")
@@ -79,7 +79,7 @@ class EqcapactMod(GamsClass):
             code=rf"""
 * COEF_AFs are always at PRC_TS or above, can be directly used for testing:
 {"LOOP(V,AFS(RTP_VARA(R,T,P),S,BD)$COEF_AF(R,V,T,P,S,BD)=YES); AFS(RTPS_OFF,BD) = NO;" if self.arg1 == "L" else ""}
-{self.env.eq}{self.arg1}_CAPACT(RTP_VINTYR({self.env.r_v_t},P),S {self.env.swt})$(AFS(R,T,P,S,'{self.arg2}') {self.env.pass_}) ..
+{self.env.eq}{self.arg1}_CAPACT(RTP_VINTYR({self.env.r_v_t},P),S {self.env.swt})$(AFS(R,T,P,S,'{self.arg2}') {self.env.__getattr__("pass")}) ..
 
 * normal processes
       SUM(PRC_TS(R,P,TS)$TS_MAP(R,S,TS),{self.env.var}_ACT(R,V,T,P,TS {self.env.sow}))$(NOT RP_STG(R,P))
