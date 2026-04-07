@@ -15,6 +15,12 @@
 *   - apply RS_FR/RTCS_FR whenever process has a COM_TS commodity but the variable is not at that level
 *-----------------------------------------------------------------------------
 *$ONLISTING
+
+* need to set the variable outside of the equation definition
+* %SWS% is only used after the change
+$IF '%4' == BAL
+  $IFI %STAGES% == YES $SETLOCAL SWS 'PROD(SW_MAP(T,SOW,J,WW)$S_COM_PROJ(R,T,C,J,WW),S_COM_PROJ(R,T,C,J,WW))*'
+
 *
     %EQ%%2_COM%4(%R_T%,C,S %SWT%)$(RCS_COM%4(R,T,C,S,'%3') %5) ..
 *
@@ -106,7 +112,7 @@ $LABEL BALEQ
 $    IF '%4%3' == BALFX  %VAR%_COMNET(R,T,C,S %SOW%)$RHS_COMBAL(R,T,C,S) +
 
 *    demand projection
-$IFI %STAGES% == YES $SETLOCAL SWS 'PROD(SW_MAP(T,SOW,J,WW)$S_COM_PROJ(R,T,C,J,WW),S_COM_PROJ(R,T,C,J,WW))*'
+*$IFI %STAGES% == YES $SETLOCAL SWS 'PROD(SW_MAP(T,SOW,J,WW)$S_COM_PROJ(R,T,C,J,WW),S_COM_PROJ(R,T,C,J,WW))*'
       ((%SWS% COM_PROJ(R,T,C)$(NOT RD_NLP(R,C)) +%VAR%_DEM(R,T,C%SOW%)$RD_NLP(R,C) +SUM(MI_DMAS(RD_AGG(R,COM),C),RD_SHAR(R,T,COM,C)*%VAR%_COMPRD(R,T,COM,'ANNUAL'%SOW%))) * COM_FR%MX%(R,T,C,S))$DEM(R,C)
 
 $LABEL DONE
