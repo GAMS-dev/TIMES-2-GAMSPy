@@ -18,7 +18,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from .base_class import GamsClass
@@ -59,60 +58,35 @@ class EqfloshrMod(GamsClass):
         else:
             from core.cal_nored_red import cal_nored as cal_red_func
 
-        self.tc.enqueue(
-            self.exec1,
-            self.env.EQ,
-            self.arg2,
-            self.env.SWT,
-            self.env.VAR,
-            self.env.SOW,
-            cal_red_func,
-            self.arg1,
-            self.arg3,
-            self.env.R_V_T,
-        )
-
-    def exec1(
-        self,
-        EQ: str,
-        arg2: str,
-        SWT: str,
-        VAR: str,
-        SOW: str,
-        cal_red_func: Callable,
-        arg1: str,
-        arg3: str,
-        R_V_T: str,
-    ):
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"""
-    {EQ}{arg1}_{arg3}SHR(RTP_VINTYR({R_V_T},P),C,CG,S {SWT})$((RP_STD(R,P)*TOP(R,P,C,'{arg3}')*RTPCS_VARF(R,T,P,C,S))$FLO_SHAR(R,V,P,C,CG,S,'{arg2}'))..
+    {self.env.EQ}{self.arg1}_{self.arg3}SHR(RTP_VINTYR({self.env.R_V_T},P),C,CG,S {self.env.SWT})$((RP_STD(R,P)*TOP(R,P,C,'{self.arg3}')*RTPCS_VARF(R,T,P,C,S))$FLO_SHAR(R,V,P,C,CG,S,'{self.arg2}'))..
 
 * all flows in the group
-        FLO_SHAR(R,V,P,C,CG,S,'{arg2}') *
+        FLO_SHAR(R,V,P,C,CG,S,'{self.arg2}') *
 *V0.5a 980729 - RPCS_VAR: com not c
 * [AL] Handle reduced/non-reduced groups separately
-        (SUM((TOP(R,P,COM,'{arg3}'),RTPCS_VARF(R,T,P,COM,TS))$COM_GMAP(R,CG,COM),
-             {VAR}_FLO(R,V,T,P,COM,TS {SOW})*RS_FR(R,S,TS)*(1+RTCS_FR(R,T,COM,S,TS))
-            )$(NOT RPG_RED(R,P,CG,'{arg3}')) +
+        (SUM((TOP(R,P,COM,'{self.arg3}'),RTPCS_VARF(R,T,P,COM,TS))$COM_GMAP(R,CG,COM),
+             {self.env.VAR}_FLO(R,V,T,P,COM,TS {self.env.SOW})*RS_FR(R,S,TS)*(1+RTCS_FR(R,T,COM,S,TS))
+            )$(NOT RPG_RED(R,P,CG,'{self.arg3}')) +
 
-         SUM((TOP(R,P,COM,'{arg3}'),RTPCS_VARF(R,T,P,COM,TS))$COM_GMAP(R,CG,COM),
+         SUM((TOP(R,P,COM,'{self.arg3}'),RTPCS_VARF(R,T,P,COM,TS))$COM_GMAP(R,CG,COM),
 {cal_red_func("COM", "COM1", "TS", "P", "T")}
                       *
 * share-ts coarser than variable or share finer than variable
              RS_FR(R,S,TS)*(1+RTCS_FR(R,T,COM,S,TS))
-            )$RPG_RED(R,P,CG,'{arg3}')
-        )$(FLO_SHAR(R,V,P,C,CG,S,'{arg2}') > 0)
+            )$RPG_RED(R,P,CG,'{self.arg3}')
+        )$(FLO_SHAR(R,V,P,C,CG,S,'{self.arg2}') > 0)
 
-    ={arg1}=
+    ={self.arg1}=
 
 * commodity working on, summed for all
-        {VAR}_FLO(R,V,T,P,C,S {SOW})$(NOT RPG_RED(R,P,CG,'{arg3}')) +
+        {self.env.VAR}_FLO(R,V,T,P,C,S {self.env.SOW})$(NOT RPG_RED(R,P,CG,'{self.arg3}')) +
         (
 {cal_red_func("C", "COM", "S", "P", "T")}
-        )$RPG_RED(R,P,CG,'{arg3}')
+        )$RPG_RED(R,P,CG,'{self.arg3}')
     ;
 """,
         )
