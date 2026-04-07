@@ -49,39 +49,14 @@ class EqcumcomMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.enqueue(
-            self.exec1,
-            self.env.EQ,
-            self.arg2,
-            self.env.SOW,
-            self.env.OBJ,
-            self.env.VARTT,
-            self.env.SWS,
-            self.env.CUCSCAL,
-            self.env.VAR,
-            self.arg1,
-        )
-
-    def exec1(
-        self,
-        EQ: str,
-        arg2: str,
-        SOW: str,
-        OBJ: str,
-        VARTT: str,
-        SWS: str,
-        CUCSCAL: str,
-        VAR: str,
-        arg1: str,
-    ):
         equation = rf"""
 *$ONLISTING
-    {EQ}_CUM{arg2}(RC(R,C),ALLYEAR,LL {SOW})$RC_CUMCOM(R,'{arg2}',ALLYEAR,LL,C)..
+    {self.env.EQ}_CUM{self.arg2}(RC(R,C),ALLYEAR,LL {self.env.SOW})$RC_CUMCOM(R,'{self.arg2}',ALLYEAR,LL,C)..
 
 * all commodity flows within period range
-               SUM(RTC_{arg2}(R,TT(T),C)$
+               SUM(RTC_{self.arg2}(R,TT(T),C)$
 """
-        if OBJ.upper() != "LIN":
+        if self.env.OBJ.upper() != "LIN":
             equation += "((E(T) >= YEARVAL(ALLYEAR))$(B(T) <= YEARVAL(LL))),"
         else:
             equation += (
@@ -90,20 +65,20 @@ class EqcumcomMod(GamsClass):
 
         equation += "SUM(RTCS_VARC(R,T,C,S),"
 
-        if OBJ.upper() != "LIN":
+        if self.env.OBJ.upper() != "LIN":
             equation += "MAX(0,MIN(E(T),YEARVAL(LL))-MAX(B(T),YEARVAL(ALLYEAR))+1)"
         else:
             equation += "SUM(TPULSEYR(T,YEAR)$((ORD(YEAR) >= ORD(ALLYEAR))$(ORD(YEAR) <= ORD(LL))),TPULSE(T,YEAR))"
 
         equation += rf"""
-* {VARTT}_COM{arg2}(R,T,C,S {SWS})
+* {self.env.VARTT}_COM{self.arg2}(R,T,C,S {self.env.SWS})
                    )
-               ) / {CUCSCAL}
+               ) / {self.env.CUCSCAL}
 
-    ={arg1}=
+    ={self.arg1}=
 
 * bound range working on
-    {VAR}_CUMCOM(R,C,'{arg2}',ALLYEAR,LL {SOW})
+    {self.env.VAR}_CUMCOM(R,C,'{self.arg2}',ALLYEAR,LL {self.env.SOW})
     ;
 
 $OFFLISTING
