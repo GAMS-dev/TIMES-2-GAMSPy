@@ -61,13 +61,11 @@ class CoefCsvMod(GamsClass):
 """,
         )
 
-        if not self.env.is_set("TRIVINT"):
-            self.env.set_scoped("TRIVINT", "6")
+        if not self.env.is_set("trivint"):
+            self.env.set_scoped("trivint", "6")
 
         self.tc.enqueue(self.average_vintage_year)
-
-        TRIVINT = self.env.TRIVINT
-        self.tc.enqueue(self.simplified_vintaging_processes, TRIVINT)
+        self.tc.enqueue(self.simplified_vintaging_processes, self.env.trivint)
         self.tc.enqueue(self.initialize_capacity_transfer)
         self.tc.enqueue(self.calculate_capacity_transfer)
 
@@ -80,11 +78,12 @@ class CoefCsvMod(GamsClass):
             module=self, phase="run", code="MY_ARRAY(T) = YEARVAL(T)-LEAD(T);"
         )
 
-    def simplified_vintaging_processes(self, TRIVINT: str):
+    def simplified_vintaging_processes(self, trivint: str):
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"""
+* Set vintages for simplified vintaging processes:
 OPTION CLEAR=PRC_YMIN;
 PRC_SIMV(RP)$RP_UPL(RP,'FX')=NO;
 LOOP(T(LL), MY_F = YEARVAL(T); Z = MIN(B(T),YEARVAL(T)-FLOOR(LEAD(T)/2));
@@ -92,7 +91,7 @@ LOOP(T(LL), MY_F = YEARVAL(T); Z = MIN(B(T),YEARVAL(T)-FLOOR(LEAD(T)/2));
   PRC_YMIN(PRC_SIMV(R,P))$RTP_VARA(R,T,P) = SMIN(RTP_CPTYR(R,TT,T,P)$(MY_ARRAY(TT)+NCAP_TLIFE(R,TT,P)>Z),MY_ARRAY(TT));
   LOOP(PRC_SIMV(R,P)$RTP_VARA(R,T,P), MY_FYEAR = PRC_YMIN(R,P);
    IF(MY_FYEAR NE INF, F = MY_FYEAR-0.5; Z = MY_F-0.5;
-     FIRST_VAL = ({TRIVINT}-0.5)*({TRIVINT}+0.5);
+     FIRST_VAL = ({trivint}-0.5)*({trivint}+0.5);
 * Find the vintage maximizing the distance to first and last
      MY_FIL2(TT)= (YEARVAL(TT)-F)*(Z-YEARVAL(TT))$RTP(R,TT,P); Z = SMAX(TT,MY_FIL2(TT));
      IF(Z > FIRST_VAL, Z = SMIN(TT$(MY_FIL2(TT) EQ Z),YEARVAL(TT));
@@ -132,7 +131,7 @@ IF(CARD(PRC_SIMV),
             module=self,
             phase="run",
             code="""
- Calculate capacity transfer for each simulated vintage:
+* Calculate capacity transfer for each simulated vintage:
 LOOP(YK1(LL,FIL), Z = YEARVAL(LL); F = YEARVAL(FIL);
  COEF_CSV(RTP_CPTYR(R,TT,T,P),FIL)$((COEF_CAP(R,LL,T,P)*COEF_CAP(R,FIL,T,P) < 0)$VTV(LL,FIL,TT))
 	= (PASTSUM(R,TT,P)-Z)/(F-Z)

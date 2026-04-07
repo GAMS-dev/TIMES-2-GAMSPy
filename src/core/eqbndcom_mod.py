@@ -55,24 +55,14 @@ class EqbndcomMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        EQ, R_T, SWT, VAR, SOW = (
-            self.env.EQ,
-            self.env.R_T,
-            self.env.SWT,
-            self.env.VAR,
-            self.env.SOW,
-        )
-        self.tc.enqueue(self.exec1, EQ, R_T, SWT, VAR, SOW)
-
-    def exec1(self, EQ: str, R_T: str, SWT: str, VAR: str, SOW: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"""
 *$ONLISTING
-  {EQ}{self.arg1}_BND{self.arg4}(RTC({R_T},C),S {SWT})$((RCS_COMTS(R,C,S)$(NOT COM_TS(R,C,S))${self.arg3})$COM_BND{self.arg4}(R,T,C,S,'{self.arg2}'))..
+  {self.env.eq}{self.arg1}_BND{self.arg4}(RTC({self.env.r_t},C),S {self.env.swt})$((RCS_COMTS(R,C,S)$(NOT COM_TS(R,C,S))${self.arg3})$COM_BND{self.arg4}(R,T,C,S,'{self.arg2}'))..
 * sum over all possible commodity flow at/below TS-level
-       SUM(RTCS_VARC(R,T,C,TS)$TS_MAP(R,S,TS), {VAR}_COM{self.arg4}(R,T,C,TS {SOW}))
+       SUM(RTCS_VARC(R,T,C,TS)$TS_MAP(R,S,TS), {self.env.var}_COM{self.arg4}(R,T,C,TS {self.env.sow}))
 
   ={self.arg1}=
 

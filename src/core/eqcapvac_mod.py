@@ -51,36 +51,24 @@ class EqcapvacMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        R_V_T, SWX, SWTX, VAR, SOW, VARM, SWS = (
-            self.env.R_V_T,
-            self.env.SWX,
-            self.env.SWTX,
-            self.env.VAR,
-            self.env.SOW,
-            self.env.VARM,
-            self.env.SWS,
-        )
-        self.tc.enqueue(self.exec1, R_V_T, SWX, SWTX, VAR, SOW, VARM, SWS)
-
-    def exec1(self, R_V_T, SWX, SWTX, VAR, SOW, VARM, SWS) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"""
- EQ{self.arg1}_CAPVAC(RTP_VINTYR({R_V_T},P),S{SWX})$({SWTX}AFSV(R,T,P,S,'{self.arg2}'))..
+ EQ{self.arg1}_CAPVAC(RTP_VINTYR({self.env.r_v_t},P),S{self.env.swx})$({self.env.swtx}AFSV(R,T,P,S,'{self.arg2}'))..
 
 * Activity level at timeslice S
-    SUM(PRC_TS(R,P,TS)$TS_MAP(R,S,TS),{VAR}_ACT(R,V,T,P,TS {SOW}))$(NOT RPS_CAFLAC(R,P,S,'{self.arg2}')) +
+    SUM(PRC_TS(R,P,TS)$TS_MAP(R,S,TS),{self.env.var}_ACT(R,V,T,P,TS {self.env.sow}))$(NOT RPS_CAFLAC(R,P,S,'{self.arg2}')) +
 * Flow levels when commodity-specific availabilities
     SUM((RPC_PG(R,P,C),COM_TMAP(R,COM_TYPE(CG),C)), (1/PRC_ACTFLO(R,V,P,C)) /
         (NCAP_AFCS(R,V,P,C,S)+PROD(XPT$NCAP_AFCS(R,V,P,CG,S),NCAP_AFCS(R,V,P,CG,S))$(NOT NCAP_AFCS(R,V,P,C,S))) *
-        SUM(RPCS_VAR(R,P,C,TS)$TS_MAP(R,S,TS),{VAR}_FLO(R,V,T,P,C,TS {SOW})$RP_STD(R,P) +
-          SUM(RPC_IRE(R,P,C,IE),{VAR}_IRE(R,V,T,P,C,TS,IE {SOW}))))$RPS_CAFLAC(R,P,S,'{self.arg2}')
+        SUM(RPCS_VAR(R,P,C,TS)$TS_MAP(R,S,TS),{self.env.var}_FLO(R,V,T,P,C,TS {self.env.sow})$RP_STD(R,P) +
+          SUM(RPC_IRE(R,P,C,IE),{self.env.var}_IRE(R,V,T,P,C,TS,IE {self.env.sow}))))$RPS_CAFLAC(R,P,S,'{self.arg2}')
 
   ={self.arg1}=
 
 * process is vintaged
-    SUM(MODLYEAR(K)$COEF_CSV(R,K,T,P,V),COEF_CSV(R,K,T,P,V)*COEF_AF(R,K,T,P,S,'{self.arg2}')*{VARM}_NCAP(R,K,P{SWS})$T(K)+NCAP_PASTI(R,K,P))*PRC_CAPACT(R,P)*G_YRFR(R,S)
+    SUM(MODLYEAR(K)$COEF_CSV(R,K,T,P,V),COEF_CSV(R,K,T,P,V)*COEF_AF(R,K,T,P,S,'{self.arg2}')*{self.env.varm}_NCAP(R,K,P{self.env.sws})$T(K)+NCAP_PASTI(R,K,P))*PRC_CAPACT(R,P)*G_YRFR(R,S)
   ;
 
 """,
