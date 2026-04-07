@@ -54,33 +54,6 @@ class EqcptMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.enqueue(
-            self.exec1,
-            self.env.EQ,
-            self.arg2,
-            self.env.SWT,
-            self.arg3,
-            self.env.sow,
-            self.arg4,
-            self.arg1,
-            self.env.VARV,
-            self.env.SWS,
-            self.env.RCAPSUB,
-        )
-
-    def exec1(
-        self,
-        EQ: str,
-        arg2: str,
-        SWT: str,
-        arg3: str,
-        sow: str,
-        arg4: str,
-        arg1: str,
-        VARV: str,
-        SWS: str,
-        RCAPSUB: str,
-    ):
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -88,15 +61,15 @@ class EqcptMod(GamsClass):
 *GG*V0.6a_3+ check whether used in UserConstraint
 *$onlisting
 
-  {EQ}{arg2}_CPT(RTP(R,T,P) {SWT})$({arg3}) ..
+  {self.env.EQ}{self.arg2}_CPT(RTP(R,T,P) {self.env.SWT})$({self.arg3}) ..
 
-*  VAR_CAP(r,t,p {sow}) or CAP_BND(r,t,p,bd):
-       {arg4}
+*  VAR_CAP(r,t,p {self.env.sow}) or CAP_BND(r,t,p,bd):
+       {self.arg4}
 
-  ={arg1}=
+  ={self.arg1}=
 
       SUM(V$COEF_CPT(R,V,T,P), COEF_CPT(R,V,T,P) *
-          ({VARV}_NCAP(R,V,P {SWS})$MILESTONYR(V) + NCAP_PASTI(R,V,P)$PASTYEAR(V){RCAPSUB}))
+          ({self.env.VARV}_NCAP(R,V,P {self.env.SWS})$MILESTONYR(V) + NCAP_PASTI(R,V,P)$PASTYEAR(V){self.env.RCAPSUB}))
   ;
 *$offlisting
 
