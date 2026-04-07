@@ -62,14 +62,14 @@ class EqfloshrMod(GamsClass):
             module=self,
             phase="run",
             code=rf"""
-    {self.env.EQ}{self.arg1}_{self.arg3}SHR(RTP_VINTYR({self.env.R_V_T},P),C,CG,S {self.env.SWT})$((RP_STD(R,P)*TOP(R,P,C,'{self.arg3}')*RTPCS_VARF(R,T,P,C,S))$FLO_SHAR(R,V,P,C,CG,S,'{self.arg2}'))..
+    {self.env.EQ}{self.arg1}_{self.arg3}SHR(RTP_VINTYR({self.env.R_V_T},P),C,CG,S {self.env.swt})$((RP_STD(R,P)*TOP(R,P,C,'{self.arg3}')*RTPCS_VARF(R,T,P,C,S))$FLO_SHAR(R,V,P,C,CG,S,'{self.arg2}'))..
 
 * all flows in the group
         FLO_SHAR(R,V,P,C,CG,S,'{self.arg2}') *
 *V0.5a 980729 - RPCS_VAR: com not c
 * [AL] Handle reduced/non-reduced groups separately
         (SUM((TOP(R,P,COM,'{self.arg3}'),RTPCS_VARF(R,T,P,COM,TS))$COM_GMAP(R,CG,COM),
-             {self.env.VAR}_FLO(R,V,T,P,COM,TS {self.env.SOW})*RS_FR(R,S,TS)*(1+RTCS_FR(R,T,COM,S,TS))
+             {self.env.var}_FLO(R,V,T,P,COM,TS {self.env.sow})*RS_FR(R,S,TS)*(1+RTCS_FR(R,T,COM,S,TS))
             )$(NOT RPG_RED(R,P,CG,'{self.arg3}')) +
 
          SUM((TOP(R,P,COM,'{self.arg3}'),RTPCS_VARF(R,T,P,COM,TS))$COM_GMAP(R,CG,COM),
@@ -83,7 +83,7 @@ class EqfloshrMod(GamsClass):
     ={self.arg1}=
 
 * commodity working on, summed for all
-        {self.env.VAR}_FLO(R,V,T,P,C,S {self.env.SOW})$(NOT RPG_RED(R,P,CG,'{self.arg3}')) +
+        {self.env.var}_FLO(R,V,T,P,C,S {self.env.sow})$(NOT RPG_RED(R,P,CG,'{self.arg3}')) +
         (
 {cal_red_func("C", "COM", "S", "P", "T")}
         )$RPG_RED(R,P,CG,'{self.arg3}')
