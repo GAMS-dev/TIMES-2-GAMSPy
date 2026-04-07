@@ -6,7 +6,7 @@
 # *=============================================================================*
 # * EQIREBND limits the activity of inter-regional exchange process
 # *   %1 - equation declaration type
-# *   %2 - bound type for {arg1}
+# *   %2 - bound type for {%1}
 # *   %3 - qualifier that bound exists
 # *=============================================================================*
 # *GaG Questions/Comments:
@@ -52,29 +52,6 @@ class EqirebndMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.enqueue(
-            self.exec1,
-            self.env.EQ,
-            self.env.TX,
-            self.env.SWT,
-            self.arg3,
-            self.arg2,
-            self.env.VAR,
-            self.env.SOW,
-            self.arg1,
-        )
-
-    def exec1(
-        self,
-        EQ: str,
-        TX: str,
-        SWT: str,
-        arg3: str,
-        arg2: str,
-        VAR: str,
-        SOW: str,
-        arg1: str,
-    ):
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -82,15 +59,15 @@ class EqirebndMod(GamsClass):
 *$ONLISTING
 *V0.5b 980902 - avoid equations if LO=0/UP=INF
 *V0.6a 990301
-  {EQ}{arg1}_IREBND(R,{TX},C,S,ALL_REG,IE {SWT})$((RCS_COMTS(R,C,S) * SUM(RPC_IRE(R,P,C,IE),1) AND {arg3}
-                              )$IRE_BND(R,T,C,S,ALL_REG,IE,'{arg2}')) ..
+  {self.env.eq}{self.arg1}_IREBND(R,{self.env.tx},C,S,ALL_REG,IE {self.env.swt})$((RCS_COMTS(R,C,S) * SUM(RPC_IRE(R,P,C,IE),1) AND {self.arg3}
+                              )$IRE_BND(R,T,C,S,ALL_REG,IE,'{self.arg2}')) ..
 
   (
 * For imports from internal non-marketplace region, sum the associated exports
    SUM(TOP_IRE(REG(ALL_REG),COM,R,C,P)$RPC_EQIRE(R,P,C,'IMP'),
      SUM(SL$(RTPCS_VARF(R,T,P,C,SL)*RS_TREE(R,S,SL)),
        SUM((RTP_VNTBYR(REG,T,P,V),RTPCS_VARF(REG,T,P,COM,TS),RS_TREE(REG,ALL_TS,TS))$IRE_TSCVT(REG,ALL_TS,R,SL),
-         ({VAR}_IRE(REG,V,T,P,COM,TS,'EXP'{SOW})$(NOT RPC_AIRE(REG,P,COM))+({VAR}_ACT(REG,V,T,P,TS{SOW})*PRC_ACTFLO(REG,V,P,COM))$RPC_AIRE(REG,P,COM))
+         ({self.env.eq}_IRE(REG,V,T,P,COM,TS,'EXP'{self.env.sow})$(NOT RPC_AIRE(REG,P,COM))+({self.env.var}_ACT(REG,V,T,P,TS{self.env.sow})*PRC_ACTFLO(REG,V,P,COM))$RPC_AIRE(REG,P,COM))
               * IRE_FLO(REG,V,P,COM,R,C,SL) * IRE_CCVT(REG,COM,R,C) * IRE_TSCVT(REG,ALL_TS,R,SL)
               * RS_FR(REG,ALL_TS,TS)*(1+RTCS_FR(REG,T,COM,ALL_TS,TS))
 * bound coarser than variable or bound finer than variable
@@ -101,7 +78,7 @@ class EqirebndMod(GamsClass):
 * For imports from external regions or marketplace, sum the flows directly in region R
    SUM(RPC_IRE(R,P,C,IE)$((NOT RPC_EQIRE(R,P,C,'IMP'))*SUM(TOP_IRE(ALL_REG,COM,R,C,P),1)),
      SUM((RTP_VNTBYR(R,T,P,V),RTPCS_VARF(R,T,P,C,TS))$RS_TREE(R,S,TS),
-       ({VAR}_IRE(R,V,T,P,C,TS,IE{SOW})$(NOT RPC_AIRE(R,P,C))+({VAR}_ACT(R,V,T,P,TS{SOW})*PRC_ACTFLO(R,V,P,C))$RPC_AIRE(R,P,C))
+       ({self.env.var}_IRE(R,V,T,P,C,TS,IE{self.env.sow})$(NOT RPC_AIRE(R,P,C))+({self.env.var}_ACT(R,V,T,P,TS{self.env.sow})*PRC_ACTFLO(R,V,P,C))$RPC_AIRE(R,P,C))
 * bound coarser than variable or bound finer than variable
               * (1$TS_MAP(R,S,TS) + (G_YRFR(R,S)/G_YRFR(R,TS))$RS_BELOW(R,TS,S))
         )
@@ -112,7 +89,7 @@ class EqirebndMod(GamsClass):
 * For exports from market region to internal region REG, sum the associated imports into REG
    SUM((RPC_MARKET(R,P,C,'EXP'),TOP_IRE(R,C,REG(ALL_REG),COM,P)),
      SUM((RTP_VNTBYR(REG,T,P,V),RTPCS_VARF(REG,T,P,COM,TS),RS_TREE(REG,ALL_TS,TS))$IRE_TSCVT(REG,ALL_TS,R,S),
-       ({VAR}_IRE(REG,V,T,P,COM,TS,'IMP'{SOW})$(NOT RPC_AIRE(REG,P,COM))+({VAR}_ACT(REG,V,T,P,TS{SOW})*PRC_ACTFLO(REG,V,P,COM))$RPC_AIRE(REG,P,COM))
+       ({self.env.var}_IRE(REG,V,T,P,COM,TS,'IMP'{self.env.sow})$(NOT RPC_AIRE(REG,P,COM))+({self.env.var}_ACT(REG,V,T,P,TS{self.env.sow})*PRC_ACTFLO(REG,V,P,COM))$RPC_AIRE(REG,P,COM))
               * IRE_CCVT(REG,COM,R,C) * IRE_TSCVT(REG,ALL_TS,R,S)
               * RS_FR(REG,ALL_TS,TS)*(1+RTCS_FR(REG,T,COM,ALL_TS,TS))
           )
@@ -122,7 +99,7 @@ class EqirebndMod(GamsClass):
 *UR* /12/09/99 commodity names can be different in the two regions
    SUM(RPC_IRE(R,P,C,IE)$((NOT RPC_MARKET(R,P,C,'EXP'))*SUM(TOP_IRE(R,C,ALL_REG,COM,P),1)),
      SUM((RTP_VNTBYR(R,T,P,V),RTPCS_VARF(R,T,P,C,TS))$RS_TREE(R,S,TS),
-       ({VAR}_IRE(R,V,T,P,C,TS,IE{SOW})$(NOT RPC_AIRE(R,P,C))+({VAR}_ACT(R,V,T,P,TS{SOW})*PRC_ACTFLO(R,V,P,C))$RPC_AIRE(R,P,C))
+       ({self.env.var}_IRE(R,V,T,P,C,TS,IE{self.env.sow})$(NOT RPC_AIRE(R,P,C))+({self.env.var}_ACT(R,V,T,P,TS{self.env.sow})*PRC_ACTFLO(R,V,P,C))$RPC_AIRE(R,P,C))
 * bound coarser than variable or bound finer than variable
               * (1$TS_MAP(R,S,TS) + (G_YRFR(R,S)/G_YRFR(R,TS))$RS_BELOW(R,TS,S))
         )
@@ -130,9 +107,9 @@ class EqirebndMod(GamsClass):
   )$XPT(IE)
 
 
-  ={arg1}=
+  ={self.arg1}=
 
-       IRE_BND(R,T,C,S,ALL_REG,IE,'{arg2}')
+       IRE_BND(R,T,C,S,ALL_REG,IE,'{self.arg2}')
   ;
 *$OFFLISTING
 
