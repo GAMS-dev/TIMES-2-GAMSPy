@@ -48,7 +48,7 @@ class EqstgipsMod(GamsClass):
             code=rf"""
 *$ONLISTING
 
-  {self.env.EQ}_STGIPS(RTP_VINTYR({self.env.R_V_T},P),IPS {self.env.swt})$(((MIYR_1(V)*MIYR_1(T)+LIM(IPS))*SUM(PRC_STGIPS(R,P,C),1))$PRC_MAP(R,'STK',P)) ..
+  {self.env.eq}_STGIPS(RTP_VINTYR({self.env.r_v_t},P),IPS {self.env.swt})$(((MIYR_1(V)*MIYR_1(T)+LIM(IPS))*SUM(PRC_STGIPS(R,P,C),1))$PRC_MAP(R,'STK',P)) ..
 
 * storage level in the end of period T
      {self.env.var}_ACT(R,V,T,P,'ANNUAL' {self.env.sow})$LIM(IPS) +
