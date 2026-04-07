@@ -57,10 +57,10 @@ class EqflofrMod(GamsClass):
             module=self,
             phase="run",
             code=rf"""
-  {self.env.EQ}{self.arg1}_FLOFR(RTPC({self.env.R_T},P,C),S,L({self.arg2}){self.env.SWT})$(SUM(RPCS_VAR(RP_FLO(R,P),C,TS)$TS_MAP(R,S,TS),1)$FLO_FR(R,T,P,C,S,L))..
+  {self.env.eq}{self.arg1}_FLOFR(RTPC({self.env.r_t},P,C),S,L({self.arg2}){self.env.SWT})$(SUM(RPCS_VAR(RP_FLO(R,P),C,TS)$TS_MAP(R,S,TS),1)$FLO_FR(R,T,P,C,S,L))..
 
-   SUM(RTP_VINTYR(R,V,T,P),{self.env.VAR}_FLO(R,V,T,P,C,S{self.env.SOW})$IPS(L) +
-     SUM(RS_BELOW1(R,SL,S),SUM(TS_ANN(SL,TS),{self.env.VAR}_FLO(R,V,T,P,C,TS{self.env.SOW})*(FLO_FR(RTPC,TS,'N')>0))$FLO_FR(RTPC,SL,'N') +
+   SUM(RTP_VINTYR(R,V,T,P),{self.env.var}_FLO(R,V,T,P,C,S{self.env.sow})$IPS(L) +
+     SUM(RS_BELOW1(R,SL,S),SUM(TS_ANN(SL,TS),{self.env.var}_FLO(R,V,T,P,C,TS{self.env.sow})*(FLO_FR(RTPC,TS,'N')>0))$FLO_FR(RTPC,SL,'N') +
        SUM(RTPCS_VARF(RTPC,TS)$(FLO_FR(RTPC,S,L)>-INF$RS_FR(R,SL,TS)),
 {cal_red_func("C", "COM", "TS", "P", "T")}
           )$(NOT FLO_FR(RTPC,SL,'N')))$BD(L)) * ABS(FLO_FR(RTPC,S,L))
