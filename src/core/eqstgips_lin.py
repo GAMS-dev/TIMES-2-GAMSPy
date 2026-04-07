@@ -42,27 +42,6 @@ class EqstgipsLin(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.enqueue(
-            self.exec1,
-            self.env.EQ,
-            self.env.R_V_T,
-            self.env.VARTT,
-            self.env.SWS,
-            self.env.SWT,
-            self.env.VAR,
-            self.env.SOW,
-        )
-
-    def exec1(
-        self,
-        EQ: str,
-        R_V_T: str,
-        VARTT: str,
-        SWS: str,
-        SWT: str,
-        VAR: str,
-        SOW: str,
-    ):
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -77,12 +56,12 @@ class EqstgipsLin(GamsClass):
    RTP_EQSTK(RTP_VINTYR(R,V,T,P),'1')$((E(T) GT M(T))$PRC_MAP(R,'STK',P)) = YES;
 *------------------------------------------------------------------------------
 
-  {EQ}_STGIPS(RTP_EQSTK({R_V_T},P,ITEM) {SWT})$(SUM(PRC_STGIPS(R,P,C),1)$PRC_MAP(R,'STK',P)) ..
+  {self.env.eq}_STGIPS(RTP_EQSTK({self.env.r_v_t},P,ITEM) {self.env.swt})$(SUM(PRC_STGIPS(R,P,C),1)$PRC_MAP(R,'STK',P)) ..
 
 * storage level at the milestone year T
-     {VAR}_ACT(R,V,T,P,'ANNUAL' {SOW})$LIM(ITEM) +
+     {self.env.var}_ACT(R,V,T,P,'ANNUAL' {self.env.sow})$LIM(ITEM) +
      SUM((IO(ITEM),MODLYEAR,MIYR_1(LL))$RTP_VINTYR(R,MODLYEAR,T,P),
-       {VAR}_ACT(R,MODLYEAR,LL-LEAD(LL),P,'ANNUAL' {SOW}))
+       {self.env.var}_ACT(R,MODLYEAR,LL-LEAD(LL),P,'ANNUAL' {self.env.sow}))
 
     =E=
 
@@ -90,38 +69,38 @@ class EqstgipsLin(GamsClass):
 
          SUM(TT(T-1),
 * storage level at the milestone year TT, corrected with storage losses
-           ({VARTT}_ACT(R,V,TT,P,'ANNUAL'{SWS})*POWER(1-STG_LOSS(R,V,P,'ANNUAL'),LEAD(T))$IPS(IO) +
+           ({self.env.vartt}_ACT(R,V,TT,P,'ANNUAL'{self.env.sws})*POWER(1-STG_LOSS(R,V,P,'ANNUAL'),LEAD(T))$IPS(IO) +
 * Add in- and output flows to/from storage related to period TT
             SUM(PERDINV(T,Y_EOH),TPULSE(TT,Y_EOH)*((1-STG_LOSS(R,V,P,'ANNUAL'))**(M(T)-YEARVAL(Y_EOH)+0.5)))/PRC_ACTFLO(R,V,P,C) *
-            ({VARTT}_SIN(R,V,TT,P,C,'ANNUAL'{SWS})$IPS(IO) - {VARTT}_SOUT(R,V,TT,P,C,'ANNUAL'{SWS})$(NOT IPS(IO))))$(RTP_VINTYR(R,V,TT,P)$PRC_VINT(R,P)) +
+            ({self.env.vartt}_SIN(R,V,TT,P,C,'ANNUAL'{self.env.sws})$IPS(IO) - {self.env.vartt}_SOUT(R,V,TT,P,C,'ANNUAL'{self.env.sws})$(NOT IPS(IO))))$(RTP_VINTYR(R,V,TT,P)$PRC_VINT(R,P)) +
 * storage level at the milestone year TT, corrected with storage losses
-           ({VARTT}_ACT(R,TT,TT,P,'ANNUAL'{SWS})*POWER(1-STG_LOSS(R,V,P,'ANNUAL'),LEAD(T))$IPS(IO) +
+           ({self.env.vartt}_ACT(R,TT,TT,P,'ANNUAL'{self.env.sws})*POWER(1-STG_LOSS(R,V,P,'ANNUAL'),LEAD(T))$IPS(IO) +
 * Add in- and output flows to/from storage related to period TT
             SUM(PERDINV(T,Y_EOH),TPULSE(TT,Y_EOH)*((1-STG_LOSS(R,V,P,'ANNUAL'))**(M(T)-YEARVAL(Y_EOH)+0.5)))/PRC_ACTFLO(R,TT,P,C) *
-            ({VARTT}_SIN(R,TT,TT,P,C,'ANNUAL'{SWS})$IPS(IO) - {VARTT}_SOUT(R,TT,TT,P,C,'ANNUAL'{SWS})$(NOT IPS(IO))))$(RTP_VINTYR(R,TT,TT,P)$(NOT PRC_VINT(R,P)))) +
+            ({self.env.vartt}_SIN(R,TT,TT,P,C,'ANNUAL'{self.env.sws})$IPS(IO) - {self.env.vartt}_SOUT(R,TT,TT,P,C,'ANNUAL'{self.env.sws})$(NOT IPS(IO))))$(RTP_VINTYR(R,TT,TT,P)$(NOT PRC_VINT(R,P)))) +
 
 * in- and output flows to/from storage related to period T
 * [AL] Summing over PERDINV years, as the activity is measured at M(T)
 * [AL] Inflows and outflows occur, on average, at the mid-point of each year
          SUM(PERDINV(T,Y_EOH),TPULSE(T,Y_EOH)*((1-STG_LOSS(R,V,P,'ANNUAL'))**(M(T)-YEARVAL(Y_EOH)+0.5)))$RTP_VINTYR(R,V,T,P) *
-         ({VAR}_SIN(R,V,T,P,C,'ANNUAL' {SOW})$IPS(IO) - {VAR}_SOUT(R,V,T,P,C,'ANNUAL' {SOW})$(NOT IPS(IO))) / PRC_ACTFLO(R,V,P,C)
+         ({self.env.var}_SIN(R,V,T,P,C,'ANNUAL' {self.env.sow})$IPS(IO) - {self.env.var}_SOUT(R,V,T,P,C,'ANNUAL' {self.env.sow})$(NOT IPS(IO))) / PRC_ACTFLO(R,V,P,C)
      )$LIM(ITEM) +
 
 * [AL] In the first period VAR_ACT is not available, but exogenous charge can be used
-     SUM(VNT(T,MIYR_1(LL)),{VAR}_ACT(R,V,LL-LEAD(LL),P,'ANNUAL' {SOW}) *
+     SUM(VNT(T,MIYR_1(LL)),{self.env.var}_ACT(R,V,LL-LEAD(LL),P,'ANNUAL' {self.env.sow}) *
          POWER(1-STG_LOSS(R,V,P,'ANNUAL'),LEAD(T)))$LIM(ITEM) +
 
 * Exogenous charge at BOH
      SUM((IO(ITEM),MIYR_1(LL)),STG_CHRG(R,LL-LEAD(LL),P,'ANNUAL')) +
 * Minimum storage balance at end-of-period
-     ({VAR}_ACT(R,V,T,P,'ANNUAL'{SOW}) * POWER(1-STG_LOSS(R,V,P,'ANNUAL'),E(T)-M(T)) -
-      SUM((MIYR_1(LL),Y_EOH(LL+(E(T)-YEARVAL(LL)))),{VAR}_ACT(R,V,Y_EOH,P,'ANNUAL'{SOW})) +
+     ({self.env.var}_ACT(R,V,T,P,'ANNUAL'{self.env.sow}) * POWER(1-STG_LOSS(R,V,P,'ANNUAL'),E(T)-M(T)) -
+      SUM((MIYR_1(LL),Y_EOH(LL+(E(T)-YEARVAL(LL)))),{self.env.var}_ACT(R,V,Y_EOH,P,'ANNUAL'{self.env.sow})) +
 * in- and output flows to/from storage
       SUM(TOP(PRC_STGIPS(R,P,C),IO),
        SUM(PERIODYR(T,Y_EOH)$(YEARVAL(Y_EOH) GT M(T)),((1-STG_LOSS(R,V,P,'ANNUAL'))**(E(T)-YEARVAL(Y_EOH)+0.5))) *
 * half year's correction if LAGT is even
        (1+((LAGT(T)-1)/2/(E(T)-M(T))-1)$(E(T) < MIYR_VL)) / PRC_ACTFLO(R,V,P,C) *
-       ({VAR}_SIN(R,V,T,P,C,'ANNUAL' {SOW})$IPS(IO) - {VAR}_SOUT(R,V,T,P,C,'ANNUAL' {SOW})$(NOT IPS(IO)))))$J(ITEM)
+       ({self.env.var}_SIN(R,V,T,P,C,'ANNUAL' {self.env.sow})$IPS(IO) - {self.env.var}_SOUT(R,V,T,P,C,'ANNUAL' {self.env.sow})$(NOT IPS(IO)))))$J(ITEM)
 ;
 $OFFLISTING
 """,
