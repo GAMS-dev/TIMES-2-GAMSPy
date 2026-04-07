@@ -44,7 +44,7 @@ class EqstgipsLin(GamsClass):
     def compile(self) -> None:
         self.tc.add_gams_code(
             module=self,
-            phase="run",
+            phase="init",
             code=rf"""
 *$ONLISTING
    SET RTP_EQSTK(R,ALLYEAR,T,P,ITEM);

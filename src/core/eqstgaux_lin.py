@@ -19,7 +19,7 @@ from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from .compile_environment import CompileEnvironment
-    from .times_linel_class import TimesModelClass
+    from .times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
 
@@ -37,14 +37,14 @@ class EqstgauxLin(GamsClass):
         env: CompileEnvironment,
     ):
         self.env = env.fork()
-        self._sub_linules = {}
+        self._sub_modules = {}
         self.tc = tc
         self.compile()
 
     def compile(self) -> None:
         self.tc.add_gams_code(
             module=self,
-            phase="run",
+            phase="init",
             code=rf"""
 *$ONLISTING
 
