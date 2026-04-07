@@ -15,7 +15,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from .base_class import GamsClass
@@ -45,61 +44,26 @@ class EqcumfloMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.env.set_local("SW1", "")
-        self.env.set_local("SW2", "")
+        self.env.set_local("sw1", "")
+        self.env.set_local("sw2", "")
         if self.env.STAGES + self.env.SCUM == "YES":
-            self.env.set_scoped("SOW", "',WW'")
-            self.env.set_scoped("SWT", "',SOW'")
-            self.env.set_scoped("SW1", "'S_'")
-            self.env.set_scoped("SW2", ",'1',SOW")
+            self.env.set_scoped("sow", "',WW'")
+            self.env.set_scoped("swt", "',SOW'")
+            self.env.set_scoped("sw1", "'S_'")
+            self.env.set_scoped("sw2", ",'1',SOW")
 
         if self.env.CAL_RED == "cal_red.red":
             from core.cal_red_red import cal_red as cal_red_func
         else:
             from core.cal_nored_red import cal_nored as cal_red_func
 
-        self.tc.enqueue(
-            self.exec1,
-            self.env.EQ,
-            self.env.SOW,
-            self.env.OBJ,
-            self.env.STAGES,
-            self.env.SWSW,
-            cal_red_func,
-            self.env.VAR,
-            self.env.VARTT,
-            self.env.SWS,
-            self.env.PGPRIM,
-            self.env.CUFSCAL,
-            self.env.SWT,
-            self.env.SW1,
-            self.env.SW2,
-        )
-
-    def exec1(
-        self,
-        EQ: str,
-        SOW: str,
-        OBJ: str,
-        STAGES: str,
-        SWSW: str,
-        cal_red_func: Callable,
-        VAR: str,
-        VARTT: str,
-        SWS: str,
-        PGPRIM: str,
-        CUFSCAL: str,
-        SWT: str,
-        SW1: str,
-        SW2: str,
-    ):
         equation = rf"""
 *$ONLISTING
-    {EQ}_CUMFLO(RPC_CUMFLO(RP(R,P),C,ALLYEAR,LL) {SOW}) ..
+    {self.env.EQ}_CUMFLO(RPC_CUMFLO(RP(R,P),C,ALLYEAR,LL) {self.env.SOW}) ..
 * all commodity/activity flows within period range
                  SUM(TT(T)$
 """
-        if OBJ.upper() != "LIN":
+        if self.env.OBJ.upper() != "LIN":
             equation += "((E(T) >= YEARVAL(ALLYEAR))$(B(T) <= YEARVAL(LL))),"
         else:
             equation += (
@@ -108,24 +72,24 @@ class EqcumfloMod(GamsClass):
 
         equation += "SUM((RTP_VINTYR(R,V,T,P),RTPCS_VARF(R,T,P,C,TS)),"
 
-        if OBJ.upper() != "LIN":
+        if self.env.OBJ.upper() != "LIN":
             equation += "MAX(0,MIN(E(T),YEARVAL(LL))-MAX(B(T),YEARVAL(ALLYEAR))+1)"
         else:
             equation += "SUM(TPULSEYR(T,YEAR)$((ORD(YEAR) >= ORD(ALLYEAR))$(ORD(YEAR) <= ORD(LL))),TPULSE(T,YEAR))"
 
         equation += "* ("
 
-        if STAGES == "YES":
-            equation += f"SUM({SWSW} ("
+        if self.env.STAGES == "YES":
+            equation += f"SUM({self.env.SWSW} ("
 
         equation += rf"""
 {cal_red_func("C", "COM", "TS", "P", "T")}
                          $RP_STD(R,P) +
-                         (SUM(RPC_IRE(R,P,C,IE),{VAR}_IRE(R,V,T,P,C,TS,IE{SOW}))$(NOT RPC_AIRE(R,P,C)) +
-                          ({VAR}_ACT(R,V,T,P,TS{SOW})*PRC_ACTFLO(R,V,P,C))$RPC_AIRE(R,P,C))$RP_IRE(R,P)
+                         (SUM(RPC_IRE(R,P,C,IE),{self.env.VAR}_IRE(R,V,T,P,C,TS,IE{self.env.SOW}))$(NOT RPC_AIRE(R,P,C)) +
+                          ({self.env.VAR}_ACT(R,V,T,P,TS{self.env.SOW})*PRC_ACTFLO(R,V,P,C))$RPC_AIRE(R,P,C))$RP_IRE(R,P)
 """
 
-        if STAGES == "YES":
+        if self.env.STAGES == "YES":
             equation += "))"
 
         equation += """
@@ -133,21 +97,21 @@ class EqcumfloMod(GamsClass):
                     SUM((RTP_VINTYR(R,V,T,P),RTP_VARA(R,T,P),PRC_TS(R,P,TS)),
 """
 
-        if OBJ.upper() != "LIN":
+        if self.env.OBJ.upper() != "LIN":
             equation += "MAX(0,MIN(E(T),YEARVAL(LL))-MAX(B(T),YEARVAL(ALLYEAR))+1)"
         else:
             equation += "SUM(TPULSEYR(T,YEAR)$((ORD(YEAR) >= ORD(ALLYEAR))$(ORD(YEAR) <= ORD(LL))),TPULSE(T,YEAR))"
 
         equation += rf"""
-                      * {VARTT}_ACT(R,V,T,P,TS {SWS})
-                    )$SAMEAS({PGPRIM},C)
+                      * {self.env.VARTT}_ACT(R,V,T,P,TS {self.env.SWS})
+                    )$SAMEAS({self.env.PGPRIM},C)
 
-                 ) / {CUFSCAL}
+                 ) / {self.env.CUFSCAL}
 
     =E=
 
 * bound range working on
-    {VAR}_CUMFLO(R,P,C,ALLYEAR,LL {SWT})$(MAPVAL({SW1}FLO_CUM(R,P,C,ALLYEAR,LL,'UP'{SW2})) NE 8);
+    {self.env.VAR}_CUMFLO(R,P,C,ALLYEAR,LL {self.env.SWT})$(MAPVAL({self.env.SW1}FLO_CUM(R,P,C,ALLYEAR,LL,'UP'{self.env.SW2})) NE 8);
     ;
 
 $OFFLISTING
