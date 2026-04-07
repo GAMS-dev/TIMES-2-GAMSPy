@@ -42,23 +42,6 @@ class EqstgauxLin(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.enqueue(
-            self.exec1,
-            self.env.EQ,
-            self.env.R_V_T,
-            self.env.SWT,
-            self.env.VAR,
-            self.env.SOW,
-        )
-
-    def exec1(
-        self,
-        EQ: str,
-        R_V_T: str,
-        SWT: str,
-        VAR: str,
-        SOW: str,
-    ):
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -66,20 +49,20 @@ class EqstgauxLin(GamsClass):
 *$ONLISTING
 
 
-  {EQ}_STGAUX(RTP_VINTYR({R_V_T},P),C,RTS(S){SWT})$((RPCS_VAR(R,P,C,S)*(NOT RPC_STG(R,P,C)+RPC_EMIS(R,P,C)))$RP_STG(R,P))..
+  {self.env.eq}_STGAUX(RTP_VINTYR({self.env.r_v_t},P),C,RTS(S){self.env.swt})$((RPCS_VAR(R,P,C,S)*(NOT RPC_STG(R,P,C)+RPC_EMIS(R,P,C)))$RP_STG(R,P))..
 
 * Auxiliary flow variable
-    {VAR}_FLO(R,V,T,P,C,S {SOW})
+    {self.env.var}_FLO(R,V,T,P,C,S {self.env.sow})
 
     =E=
 
 * flow depends on storage level in period T
     SUM(ANNUAL(SL),PRC_ACTFLO(R,V,P,C) *
         (
-         SUM(PRC_TS(R,P,TS)$TS_MAP(R,TS,S),{VAR}_ACT(R,V,T,P,TS {SOW})/RS_STGPRD(R,TS)) * G_YRFR(R,S) -
+         SUM(PRC_TS(R,P,TS)$TS_MAP(R,TS,S),{self.env.var}_ACT(R,V,T,P,TS {self.env.sow})/RS_STGPRD(R,TS)) * G_YRFR(R,S) -
 * subtract in- and output flows to/from storage during latter half of milestone year
          SUM(TOP(PRC_STGIPS(R,P,COM),IO), 0.5 *
-           ({VAR}_SIN(R,V,T,P,COM,SL{SOW})$IPS(IO) - {VAR}_SOUT(R,V,T,P,COM,SL{SOW})$(NOT IPS(IO))) / PRC_ACTFLO(R,V,P,COM) *
+           ({self.env.var}_SIN(R,V,T,P,COM,SL{self.env.sow})$IPS(IO) - {self.env.var}_SOUT(R,V,T,P,COM,SL{self.env.sow})$(NOT IPS(IO))) / PRC_ACTFLO(R,V,P,COM) *
 * storage losses (assume that Inflows and outflows occur at the mid-point of each year)
            ((1-STG_LOSS(R,V,P,SL))**0.5))
 * For IPS, MID storage level is (1-LOSS)**(0.5) higher
@@ -87,10 +70,10 @@ class EqstgauxLin(GamsClass):
 
 * flow depends on storage in- or outflow in period T
     SUM((COM_GMAP(R,CG,COM),TOP(RPC_STG(R,P,COM),'IN'),RPCS_VAR(R,P,COM,TS))$COEF_PTRAN(R,V,P,CG,COM,C,TS),
-        ({VAR}_SIN(R,V,T,P,COM,TS {SOW}) * COEF_PTRAN(R,V,P,CG,COM,C,TS))$((NOT PRC_MAP(R,'NST',P))+PRC_NSTTS(R,P,TS)) *
+        ({self.env.var}_SIN(R,V,T,P,COM,TS {self.env.sow}) * COEF_PTRAN(R,V,P,CG,COM,C,TS))$((NOT PRC_MAP(R,'NST',P))+PRC_NSTTS(R,P,TS)) *
          RS_FR(R,S,TS) * (1+RTCS_FR(R,T,C,S,TS))) +
     SUM((COM_GMAP(R,CG,C),TOP(RPC_STG(R,P,COM),'OUT'),RPCS_VAR(R,P,COM,TS))$COEF_PTRAN(R,V,P,CG,C,COM,S),
-        ({VAR}_SOUT(R,V,T,P,COM,TS {SOW}) * (1/COEF_PTRAN(R,V,P,CG,C,COM,S)))$(PRC_NSTTS(R,P,TS) EQV RPC_STGN(R,P,COM,'OUT')) *
+        ({self.env.var}_SOUT(R,V,T,P,COM,TS {self.env.sow}) * (1/COEF_PTRAN(R,V,P,CG,C,COM,S)))$(PRC_NSTTS(R,P,TS) EQV RPC_STGN(R,P,COM,'OUT')) *
          RS_FR(R,S,TS) * (1+RTCS_FR(R,T,C,S,TS)))
 
 ;
