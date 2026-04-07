@@ -56,12 +56,12 @@ class EqcptMod(GamsClass):
     def compile(self) -> None:
         self.tc.add_gams_code(
             module=self,
-            phase="run",
+            phase="init",
             code=rf"""
 *GG*V0.6a_3+ check whether used in UserConstraint
 *$onlisting
 
-  {self.env.EQ}{self.arg2}_CPT(RTP(R,T,P) {self.env.SWT})$({self.arg3}) ..
+  {self.env.eq}{self.arg2}_CPT(RTP(R,T,P) {self.env.swt})$({self.arg3}) ..
 
 *  VAR_CAP(r,t,p {self.env.sow}) or CAP_BND(r,t,p,bd):
        {self.arg4}
@@ -69,7 +69,7 @@ class EqcptMod(GamsClass):
   ={self.arg1}=
 
       SUM(V$COEF_CPT(R,V,T,P), COEF_CPT(R,V,T,P) *
-          ({self.env.VARV}_NCAP(R,V,P {self.env.SWS})$MILESTONYR(V) + NCAP_PASTI(R,V,P)$PASTYEAR(V){self.env.RCAPSUB}))
+          ({self.env.varv}_NCAP(R,V,P {self.env.sws})$MILESTONYR(V) + NCAP_PASTI(R,V,P)$PASTYEAR(V){self.env.rcapsub}))
   ;
 *$offlisting
 
