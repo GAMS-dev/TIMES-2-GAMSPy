@@ -78,48 +78,42 @@ class EqdamageMod(GamsClass):
             FilparamGms(
                 self.tc,
                 self.env,
-                "DAM_TQTY",
-                "'R",
-                "' C \"",
-                "'0'",
-                "'0'",
-                "'0'",
-                "'0'\" DATAYEAR T '' '' '' \"YEAR",
-                '"',
+                arg1="DAM_TQTY",
+                arg2="R,",
+                arg3="C",
+                arg4=",'0','0','0','0'",
+                arg5="DATAYEAR",
+                arg6="T",
+                arg7="",
+                arg8="",
+                arg9="",
+                arg10="YEAR,",
             )
         )
 
-        self.tc.enqueue(self.exec2)
+        self.tc.enqueue(
+            self.exec2,
+            cli=self.env.cli,
+            stages=self.env.stages,
+            swx=self.env.swx,
+            swtx=self.env.swtx,
+        )
 
-        if self.env.CLI == "YES":
+        self.tc.add_gams_code(module=self, phase="init", code="SET OBV / OBJDAM /;")
+        if self.env.damage == "NO":
             self.tc.enqueue(self.exec3)
 
-        self.tc.enqueue(self.exec4, self.env.STAGES, self.env.SWX, self.env.SWTX)
+        # TODO: correct check? $IF %VARMAC% $SET VAR %VAS%
+        if self.env.varmac:
+            self.env.set_scoped("var", self.env.vas)
 
-        self.tc.add_gams_code(module=self, phase="run", code="SET OBV / OBJDAM /;")
-        if self.env.DAMAGE == "NO":
-            self.tc.enqueue(self.exec5)
-
-        if self.env.VARMAC:
-            self.env.set_scoped("VAR", self.env.VAS)
-
-        if self.env.DAMAGE == "NO":
+        if self.env.damage == "NO":
             self._label_finish()
             return
 
-        self.tc.enqueue(
-            self.emission_balance_equation,
-            self.env.EQ,
-            self.env.R_T,
-            self.env.SOW,
-            self.env.VART,
-            self.env.SWX,
-            self.env.VAR,
-            self.env.CLI,
-            self.env.SWS,
-        )
+        self.emission_balance_equation()
 
-        if self.env.DAMAGE == "NLP":
+        if self.env.damage == "NLP":
             self._label_nlpdam()
             return
 
@@ -128,28 +122,23 @@ class EqdamageMod(GamsClass):
     def exec1(self):
         self.tc.add_gams_code(module=self, phase="run", code="OPTION CLEAR=RXX;")
 
-    def exec2(self):
+    def exec2(
+        self: EqdamageMod,
+        cli: str,
+        stages: str,
+        swx: str,
+        swtx: str,
+    ):
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code="DAM_TQTY(R,T,C)$(NOT DAM_TQTY(R,T,C)) $= DAM_BQTY(R,C);",
+            code=rf"""
+DAM_TQTY(R,T,C)$(NOT DAM_TQTY(R,T,C)) $= DAM_BQTY(R,C);
+{"RTC(R,T,C(CG(CM_VAR)))$((NOT RC(R,C))$DAM_TQTY(R,T,C)) = YES;" if cli == "YES" else ""}
+DAM_COST(R,T,C,CUR)$((DAM_COST(R,T,C,CUR) EQ 0)$DAM_COST(R,T,C,CUR)) = 0;
+""",
         )
-
-    def exec3(self):
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="RTC(R,T,C(CG(CM_VAR)))$((NOT RC(R,C))$DAM_TQTY(R,T,C)) = YES;",
-        )
-
-    def exec4(self, STAGES: str, SWX: str, SWTX: str):
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="DAM_COST(R,T,C,CUR)$((DAM_COST(R,T,C,CUR) EQ 0)$DAM_COST(R,T,C,CUR)) = 0;",
-        )
-
-        if STAGES.upper() == "YES":
+        if stages.upper() == "YES":
             self.tc.add_gams_code(
                 module=self,
                 phase="run",
@@ -199,92 +188,68 @@ LOOP(RDCUR(R,CUR), RXX(RTC)$DAM_COST(RTC,CUR) = YES);
 * Set number of FX steps (any non-zero DAM_STEP(R,C,'N') disables endogenous damage)
   DAM_STEP(TRACKC(R,C),'FX')$(DAM_STEP(R,C,'N') EQ 0) = 1+1$SUM(T$(DAM_SIZE(R,T,C,'N') GT 0),YES);
   IF(CARD(DAM_COST)=0,SUM_OBJ('OBJDAM',ITEM)=0);
-  RTDAM(RXX(R,T,C){SWX})$({SWTX}YES+WWDAM(C)) = YES;
+  RTDAM(RXX(R,T,C){swx})$({swtx}YES+WWDAM(C)) = YES;
 """,
         )
 
-    def exec5(self):
+    def exec3(self):
         self.tc.add_gams_code(
             module=self, phase="run", code="SUM_OBJ('OBJDAM',ITEM)=0;"
         )
 
     def emission_balance_equation(
-        self,
-        EQ: str,
-        R_T: str,
-        SOW: str,
-        VART: str,
-        SWX: str,
-        VAR: str,
-        CLI: str,
-        SWS: str,
+        self: EqdamageMod,
     ):
         equation = rf"""
 * Emission balance equation
 
-  {EQ}_DAMAGE(RTC({R_T},C) {SOW})$(SUM(RDCUR(R,CUR)$DAM_COST(R,T,C,CUR),1)$RTDAM(RTC{SWX}))..
+  {self.env.eq}_DAMAGE(RTC({self.env.r_t},C) {self.env.sow})$(SUM(RDCUR(R,CUR)$DAM_COST(R,T,C,CUR),1)$RTDAM(RTC{self.env.swx}))..
 
-   SUM(DAM_NUM(R,C,JJ,BD),SUM(JSUBJ(JJ,J),{VAR}_DAM(R,T,C,BD,J {SOW})))
+   SUM(DAM_NUM(R,C,JJ,BD),SUM(JSUBJ(JJ,J),{self.env.var}_DAM(R,T,C,BD,J {self.env.sow})))
 
    =E= (
 """
-        if CLI == "YES":
+        if self.env.cli == "YES":
             equation += rf"""
-SUM(CM_VAR(C),{VART}_CLITOT(CM_VAR,T{SWS})$CM_KIND(CM_VAR)+{VAR}_CLIBOX(CM_VAR,'ATM',T{SOW})$(NOT CM_KIND(CM_VAR)))$(NOT RC(R,C)) +
-   SUM(COM_TS(RC(R,C),S),DAM_COEF(R,T,C,S)*{VAR}_COMNET(R,T,C,S {SOW})$(NOT DAM_ELAST(R,C,'N')) +
-                         DAM_COEF(R,T,C,S)*{VAR}_COMPRD(R,T,C,S {SOW})$DAM_ELAST(R,C,'N'))
+SUM(CM_VAR(C),{self.env.vart}_CLITOT(CM_VAR,T{self.env.sws})$CM_KIND(CM_VAR)+{self.env.var}_CLIBOX(CM_VAR,'ATM',T{self.env.sow})$(NOT CM_KIND(CM_VAR)))$(NOT RC(R,C)) +
+"""
+        equation += rf"""
+   SUM(COM_TS(RC(R,C),S),DAM_COEF(R,T,C,S)*{self.env.var}_COMNET(R,T,C,S {self.env.sow})$(NOT DAM_ELAST(R,C,'N')) +
+                         DAM_COEF(R,T,C,S)*{self.env.var}_COMPRD(R,T,C,S {self.env.sow})$DAM_ELAST(R,C,'N'))
        )$DAM_STEP(R,C,'FX');
 """
-        self.tc.add_gams_code(module=self, phase="run", code=equation)
+        self.tc.add_gams_code(module=self, phase="init", code=equation)
 
     def _label_lpdam(self):
-        self.tc.enqueue(
-            self.damage_cost_equation,
-            self.arg2,
-            self.arg3,
-            self.env.EQ,
-            self.env.SOW,
-            self.env.STAGES,
-            self.env.VAR,
-            self.env.SWD,
-        )
+        self.damage_cost_equation()
 
         self._label_bound()
 
     def _label_nlpdam(self):
-        self.tc.enqueue(
-            self.damage_cost_equation_nlp,
-            self.arg2,
-            self.arg3,
-            self.env.EQ,
-            self.env.SOW,
-            self.env.STAGES,
-            self.env.VAR,
-            self.env.SWD,
-        )
+        self.damage_cost_equation_nlp()
         self._label_bound()
 
     def _label_bound(self):
-        if self.env.DAMAGE == "NLP":
+        if self.env.damage == "NLP":
             self._label_bdnlp()
             return
 
         self.tc.enqueue(
             self.damage_var_bounds,
-            self.env.VAR,
-            self.env.SWD,
-            self.env.SOW,
-            self.env.SWX,
+            var=self.env.var,
+            swd=self.env.swd,
+            sow=self.env.sow,
+            swx=self.env.swx,
         )
         self._label_finish()
 
     def _label_bdnlp(self):
         self.tc.enqueue(
             self.damage_var_bounds_bdnlp,
-            self.env.VAR,
-            self.env.SWD,
-            self.env.SOW,
-            self.env.SWX,
+            var=self.env.var,
+            swd=self.env.swd,
+            sow=self.env.sow,
+            swx=self.env.swx,
         )
         self._label_finish()
 
@@ -301,104 +266,133 @@ SUM(CM_VAR(C),{VART}_CLITOT(CM_VAR,T{SWS})$CM_KIND(CM_VAR)+{VAR}_CLIBOX(CM_VAR,'
 """,
         )
 
-    def damage_var_bounds(self, VAR: str, SWD: str, SOW: str, SWX: str):
+    def damage_var_bounds(self, var: str, swd: str, sow: str, swx: str):
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"""
 LOOP(SAMEAS(J,'1'),DAM_NUM(TRACKC(R,C),J+(DAM_STEP(R,C,BD)-1),BD) = YES);
-  {VAR}_DAM.UP(R,T,C,BD,J {SWD}) = INF;
-  {VAR}_DAM.UP(RTC(R,T,C),'LO',J{SOW})$((ORD(J) LE DAM_STEP(R,C,'LO'))$RTDAM(RTC{SWX})) = DAM_SIZE(RTC,'LO');
-  {VAR}_DAM.UP(RTC(R,T,C),'LO','1'{SOW})$(DAM_ELAST(R,C,'N')$RTDAM(RTC{SWX})) = DAM_SIZE(RTC,'LO')+DAM_TQTY(RTC)-DAM_TVOC(RTC,'LO');
-  {VAR}_DAM.UP(RTC(R,T,C),'UP',J{SOW})$((ORD(J) LT DAM_STEP(R,C,'UP'))$RTDAM(RTC{SWX})) = DAM_SIZE(RTC,'UP');
-  {VAR}_DAM.UP(RTC(R,T,C),'FX','1'{SOW})$(DAM_TVOC(RTC,'UP')$RTDAM(RTC{SWX})) = DAM_SIZE(RTC,'FX');
-  {VAR}_DAM.UP(RTC(R,T,C),'FX','2'{SOW})$RTDAM(RTC{SWX}) = DAM_SIZE(RTC,'N')$(NOT DAM_ELAST(R,C,'N'));
+  {var}_DAM.UP(R,T,C,BD,J {swd}) = INF;
+  {var}_DAM.UP(RTC(R,T,C),'LO',J{sow})$((ORD(J) LE DAM_STEP(R,C,'LO'))$RTDAM(RTC{swx})) = DAM_SIZE(RTC,'LO');
+  {var}_DAM.UP(RTC(R,T,C),'LO','1'{sow})$(DAM_ELAST(R,C,'N')$RTDAM(RTC{swx})) = DAM_SIZE(RTC,'LO')+DAM_TQTY(RTC)-DAM_TVOC(RTC,'LO');
+  {var}_DAM.UP(RTC(R,T,C),'UP',J{sow})$((ORD(J) LT DAM_STEP(R,C,'UP'))$RTDAM(RTC{swx})) = DAM_SIZE(RTC,'UP');
+  {var}_DAM.UP(RTC(R,T,C),'FX','1'{sow})$(DAM_TVOC(RTC,'UP')$RTDAM(RTC{swx})) = DAM_SIZE(RTC,'FX');
+  {var}_DAM.UP(RTC(R,T,C),'FX','2'{sow})$RTDAM(RTC{swx}) = DAM_SIZE(RTC,'N')$(NOT DAM_ELAST(R,C,'N'));
 """,
         )
 
-    def damage_var_bounds_bdnlp(self, VAR: str, SWD: str, SOW: str, SWX: str):
+    def damage_var_bounds_bdnlp(self, var: str, swd: str, sow: str, swx: str):
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"""
   DAM_STEP(TRACKC,BDNEQ) = 1;
   LOOP(SAMEAS(J,'1'),DAM_NUM(TRACKC(R,C),J+(DAM_STEP(R,C,BD)-1),BD) = YES);
-  {VAR}_DAM.UP(R,T,C,BD,J {SWD}) = INF;
-  {VAR}_DAM.UP(RTC(R,T,C),'LO','1'{SOW})$RTDAM(RTC{SWX}) = (DAM_TQTY(RTC)-DAM_SIZE(RTC,'N'))$DAM_STEP(R,C,'LO');
-  {VAR}_DAM.UP(RTC(R,T,C),'FX','1'{SOW})$RTDAM(RTC{SWX}) = EPS;
-  {VAR}_DAM.UP(RTC(R,T,C),'FX','2'{SOW})$RTDAM(RTC{SWX}) = DAM_SIZE(RTC,'N');
+  {var}_DAM.UP(R,T,C,BD,J {swd}) = INF;
+  {var}_DAM.UP(RTC(R,T,C),'LO','1'{sow})$RTDAM(RTC{swx}) = (DAM_TQTY(RTC)-DAM_SIZE(RTC,'N'))$DAM_STEP(R,C,'LO');
+  {var}_DAM.UP(RTC(R,T,C),'FX','1'{sow})$RTDAM(RTC{swx}) = EPS;
+  {var}_DAM.UP(RTC(R,T,C),'FX','2'{sow})$RTDAM(RTC{swx}) = DAM_SIZE(RTC,'N');
 """,
         )
 
-    def damage_cost_equation(
-        self, arg2: str, arg3: str, EQ: str, SOW: str, STAGES: str, VAR: str, SWD: str
-    ):
+    def damage_cost_equation(self: EqdamageMod):
         equation = rf"""
-{arg2}  {EQ}_OBJDAM(RDCUR(R,CUR){SOW})..
+{self.arg2}  {self.env.eq}_OBJDAM(RDCUR(R,CUR){self.env.sow})..
     SUM(RTC(R,T,C)$(DAM_STEP(R,C,'FX')$DAM_COST(R,T,C,CUR)),
 """
-        if STAGES.upper() == "YES":
+        if self.env.stages.upper() == "YES":
             equation += """
 SUM(SWW(SOW,WW)$(SW_TSW(SOW,T,WW)$(NOT WWDAM(C))+SWW(WW,SOW)$WWDAM(C)),
 """
-
         equation += rf"""
       (SUM((DAM_NUM(R,C,JJ,'LO'),JSUBJ(JJ,J)),
-         ({VAR}_DAM(R,T,C,'LO',J{SWD}) + DAM_ELAST(R,C,'N')*{VAR}_DAM.UP(R,T,C,'LO',J{SWD}))*
+         ({self.env.var}_DAM(R,T,C,'LO',J{self.env.swd}) + DAM_ELAST(R,C,'N')*{self.env.var}_DAM.UP(R,T,C,'LO',J{self.env.swd}))*
          ((DAM_TQTY(R,T,C)-DAM_SIZE(R,T,C,'FX')/2-DAM_SIZE(R,T,C,'LO')*(ORD(JJ)-ORD(J)+.5))**DAM_ELAST(R,C,'LO') /
           DAM_TQTY(R,T,C)**DAM_ELAST(R,C,'LO') + DAM_ELAST(R,C,'N')))$DAM_TQTY(R,T,C) +
-       {VAR}_DAM(R,T,C,'FX','1'{SWD}) * (1 + DAM_ELAST(R,C,'N')) +
+       {self.env.var}_DAM(R,T,C,'FX','1'{self.env.swd}) * (1 + DAM_ELAST(R,C,'N')) +
        SUM((DAM_NUM(R,C,JJ,'UP'),JSUBJ(JJ,J)),
-         {VAR}_DAM(R,T,C,'UP',J{SWD}) *
+         {self.env.var}_DAM(R,T,C,'UP',J{self.env.swd}) *
          ((DAM_TQTY(R,T,C)+DAM_SIZE(R,T,C,'FX')/2+DAM_SIZE(R,T,C,'UP')*(ORD(J)-.5))**DAM_ELAST(R,C,'UP') /
           DAM_TQTY(R,T,C)**DAM_ELAST(R,C,'UP') + DAM_ELAST(R,C,'N')))$DAM_TQTY(R,T,C)
-      ) * OBJ_PVT(R,T,CUR) * S_DAM_COST(R,T,C,CUR,'1',WW))
+      ) * OBJ_PVT(R,T,CUR) *
 """
 
-        if STAGES.upper() != "YES":
+        if self.env.stages.upper() != "YES":
             equation += "DAM_COST(R,T,C,CUR)"
         else:
             equation += "  S_DAM_COST(R,T,C,CUR,'1',WW))"
 
         equation += rf"""
-{arg3}  =E=  SUM(OBV,SUM_OBJ('OBJDAM',OBV)*{VAR}_OBJ(R,OBV,CUR {SOW}));
+    )
+
+{self.arg3}  =E=  SUM(OBV,SUM_OBJ('OBJDAM',OBV)*{self.env.var}_OBJ(R,OBV,CUR {self.env.sow}));
 """
 
-        self.tc.add_gams_code(module=self, phase="run", code=equation)
+        self.tc.add_gams_code(module=self, phase="init", code=equation)
 
-    def damage_cost_equation_nlp(
-        self, EQ: str, SOW: str, STAGES: str, VAR: str, SWD: str
-    ):
+    def damage_cost_equation_nlp(self: EqdamageMod):
         equation = rf"""
 * Damage cost equation
-  {EQ}_OBJDAM(RDCUR(R,CUR){SOW})..
+  {self.env.eq}_OBJDAM(RDCUR(R,CUR){self.env.sow})..
     SUM(RTC(R,T,C)$(DAM_STEP(R,C,'FX')$DAM_COST(R,T,C,CUR)),
 """
-        if STAGES.upper() == "YES":
+        if self.env.stages.upper() == "YES":
             equation += """
 SUM(SWW(SOW,WW)$(SW_TSW(SOW,T,WW)$(NOT WWDAM(C))+SWW(WW,SOW)$WWDAM(C)),
 """
         equation += rf"""
-      (DAM_TVOC(R,T,C,'N')*({VAR}_DAM(R,T,C,'FX','2'{SWD})+DAM_SIZE(R,T,C,'N')*DAM_ELAST(R,C,'N')) +
-       ((({VAR}_DAM(R,T,C,'LO','1'{SWD})+DAM_SIZE(R,T,C,'N'))**(DAM_ELAST(R,C,'LO')+1) +
+      (DAM_TVOC(R,T,C,'N')*({self.env.var}_DAM(R,T,C,'FX','2'{self.env.swd})+DAM_SIZE(R,T,C,'N')*DAM_ELAST(R,C,'N')) +
+       ((({self.env.var}_DAM(R,T,C,'LO','1'{self.env.swd})+DAM_SIZE(R,T,C,'N'))**(DAM_ELAST(R,C,'LO')+1) +
 * Subtract full LO costs if DAM_ELAST(N) = -1 (constant term)
          DAM_ELAST(R,C,'N')*DAM_TQTY(R,T,C)**(DAM_ELAST(R,C,'LO')+1) -
          DAM_SIZE(R,T,C,'N')**(DAM_ELAST(R,C,'LO')+1)) /
         (DAM_TQTY(R,T,C)**DAM_ELAST(R,C,'LO')*(DAM_ELAST(R,C,'LO')+1)))$DAM_STEP(R,C,'LO') +
-       ((({VAR}_DAM(R,T,C,'UP','1'{SWD})+DAM_TQTY(R,T,C))**(DAM_ELAST(R,C,'UP')+1) -
+       ((({self.env.var}_DAM(R,T,C,'UP','1'{self.env.swd})+DAM_TQTY(R,T,C))**(DAM_ELAST(R,C,'UP')+1) -
          DAM_TQTY(R,T,C)**(DAM_ELAST(R,C,'UP')+1)) /
         (DAM_TQTY(R,T,C)**DAM_ELAST(R,C,'UP')*(DAM_ELAST(R,C,'UP')+1))) +
 * Shift cost curve by DAM_ELAST(N) if applicable
-       DAM_ELAST(R,C,'N')*(SUM(BDNEQ(BD),{VAR}_DAM(R,T,C,BD,'1'{SWD}))+DAM_ELAST(R,C,'N')*DAM_TQTY(R,T,C))
+       DAM_ELAST(R,C,'N')*(SUM(BDNEQ(BD),{self.env.var}_DAM(R,T,C,BD,'1'{self.env.swd}))+DAM_ELAST(R,C,'N')*DAM_TQTY(R,T,C))
       ) * OBJ_PVT(R,T,CUR) *
 """
-        if STAGES.upper() != "YES":
+        if self.env.stages.upper() != "YES":
             equation += "DAM_COST(R,T,C,CUR)"
         else:
             equation += "  S_DAM_COST(R,T,C,CUR,'1',WW))"
 
         equation += rf"""
- =E=  SUM(OBV,SUM_OBJ('OBJDAM',OBV)*{VAR}_OBJ(R,OBV,CUR {SOW}));
+ =E=  SUM(OBV,SUM_OBJ('OBJDAM',OBV)*{self.env.var}_OBJ(R,OBV,CUR {self.env.sow}));
 """
 
-        self.tc.add_gams_code(module=self, phase="run", code=equation)
+        self.tc.add_gams_code(module=self, phase="init", code=equation)
+
+
+def eq_damage_mod(var: str, swd: str, stages: str) -> str:
+    equation = """
+    SUM(RTC(R,T,C)$(DAM_STEP(R,C,'FX')$DAM_COST(R,T,C,CUR)),
+"""
+    if stages.upper() == "YES":
+        equation += """
+SUM(SWW(SOW,WW)$(SW_TSW(SOW,T,WW)$(NOT WWDAM(C))+SWW(WW,SOW)$WWDAM(C)),
+"""
+    equation += rf"""
+  (SUM((DAM_NUM(R,C,JJ,'LO'),JSUBJ(JJ,J)),
+     ({var}_DAM(R,T,C,'LO',J{swd}) + DAM_ELAST(R,C,'N')*{var}_DAM.UP(R,T,C,'LO',J{swd}))*
+     ((DAM_TQTY(R,T,C)-DAM_SIZE(R,T,C,'FX')/2-DAM_SIZE(R,T,C,'LO')*(ORD(JJ)-ORD(J)+.5))**DAM_ELAST(R,C,'LO') /
+      DAM_TQTY(R,T,C)**DAM_ELAST(R,C,'LO') + DAM_ELAST(R,C,'N')))$DAM_TQTY(R,T,C) +
+   {var}_DAM(R,T,C,'FX','1'{swd}) * (1 + DAM_ELAST(R,C,'N')) +
+   SUM((DAM_NUM(R,C,JJ,'UP'),JSUBJ(JJ,J)),
+     {var}_DAM(R,T,C,'UP',J{swd}) *
+     ((DAM_TQTY(R,T,C)+DAM_SIZE(R,T,C,'FX')/2+DAM_SIZE(R,T,C,'UP')*(ORD(J)-.5))**DAM_ELAST(R,C,'UP') /
+      DAM_TQTY(R,T,C)**DAM_ELAST(R,C,'UP') + DAM_ELAST(R,C,'N')))$DAM_TQTY(R,T,C)
+  ) * OBJ_PVT(R,T,CUR) *
+"""
+
+    if stages.upper() != "YES":
+        equation += "DAM_COST(R,T,C,CUR)"
+    else:
+        equation += "  S_DAM_COST(R,T,C,CUR,'1',WW))"
+
+    equation += """
+)
+"""
+    return equation

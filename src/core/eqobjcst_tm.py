@@ -17,8 +17,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.eqdamage_mod import EqdamageMod
+from core.eqdamage_mod import eq_damage_mod
 from core.eqobjvar_mod import eqobjvar
+from core.prepret_dsc import PrepretDsc
 
 from .base_class import GamsClass
 
@@ -47,27 +48,19 @@ class EqobjcstTm(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.enqueue(self.investment_equation)
-        self.tc.enqueue(self.fixed_cost_equation)
-
-        if self.tc.defined("DAM_COST"):
-            is_dam_cost_defined = True
-        else:
-            is_dam_cost_defined = False
-
-        self.tc.enqueue(
-            self.variable_cost_equation,
-            is_dam_cost_defined,
-            self.env.TIMESED,
-            self.env.VART,
-            self.env.SWS,
-        )
+        self.investment_equation()
+        self.fixed_cost_equation()
+        self.variable_cost_equation()
 
     def investment_equation(self):
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code="""
+*===============================================================================
+* Generate Investment equation summing over all active indexes by region and currency
+*===============================================================================
+
    EQ_ANNINV(R,T,CUR)$RDCUR(R,CUR)..
 
    VAR_ANNCST('OBJINV',R,T,CUR)  =E=
@@ -82,10 +75,15 @@ class EqobjcstTm(GamsClass):
         )
 
     def fixed_cost_equation(self):
+        include_prepret = self.include(PrepretDsc(self.tc, self.env, arg1="OBJFIX"))
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code="""
+            code=rf"""
+*===============================================================================
+* Generate Fixed Cost equation summing over all active indexes by region and currency
+*===============================================================================
+
    EQ_ANNFIX(R,T,CUR)$RDCUR(R,CUR) ..
 
    VAR_ANNCST('OBJFIX',R,T,CUR)*OBJ_PVT(R,T,CUR) =E=
@@ -93,7 +91,7 @@ class EqobjcstTm(GamsClass):
 * Revised accounting for MACRO: Calculate annualized cost from discounted
 * lump-sum fixed costs undiscounted back to the lump-sum commissioning year K
 
-$IF DEFINED VNRET $BATINCLUDE prepret.dsc OBJFIX
+{include_prepret if self.tc.defined("VNRET") else ""}
 
    SUM(RTP_CPTYR(R,V,T,P)$COEF_OBFIX(R,V,P,CUR), COEF_CPT(R,V,T,P) * OBJ_PVT(R,T,CUR) *
        COEF_OBFIX(R,V,P,CUR) * (VAR_NCAP(R,V,P)$TT(V)+NCAP_PASTI(R,V,P)))
@@ -101,10 +99,12 @@ $IF DEFINED VNRET $BATINCLUDE prepret.dsc OBJFIX
 """,
         )
 
-    def variable_cost_equation(
-        self, is_dam_cost_defined: bool, TIMESED: str, VART: str, SWS: str
-    ):
+    def variable_cost_equation(self: EqobjcstTm):
         equation = rf"""
+*===============================================================================
+* Generate Variable cost equation summing over all active indexes by region and currency
+*===============================================================================
+
    EQ_ANNVAR(R,T,CUR)$RDCUR(R,CUR) ..
 
 {eqobjvar("mod", "*")}
@@ -112,18 +112,22 @@ $IF DEFINED VNRET $BATINCLUDE prepret.dsc OBJFIX
    OBJ_PVT(R,T,CUR) * VAR_ANNCST('OBJVAR',R,T,CUR)
 """
 
-        if is_dam_cost_defined:
+        if self.tc.defined("DAM_COST"):
             equation += "-"
-            equation += f"{EqdamageMod(self.tc, self.env, 'E', '*', '$EXIT')}"
 
-        if TIMESED != "YES":
+            damage_code = eq_damage_mod(
+                var=self.env.var, swd=self.env.swd, stages=self.env.stages
+            )
+            equation += damage_code
+
+        if self.env.timesed != "YES":
             equation += ";"
         else:
             equation += rf"""
     -
    SUM((MI_DMAS(R,COM,C),BDNEQ(BD))$MI_ESUB(R,T,COM), BDSIG(BD) *
      SUM(RTCS_VARC(R,T,C,S)$COM_STEP(R,C,BD), COEF_PVT(R,T) * COM_BPRICE(R,T,C,S,CUR) *
-       SUM(RCJ(R,C,J,BD),{VART}_ELAST(R,T,C,S,J,BD {SWS}) * MI_AGC(R,T,COM,C,J,BD))));
+       SUM(RCJ(R,C,J,BD),{self.env.vart}_ELAST(R,T,C,S,J,BD {self.env.sws}) * MI_AGC(R,T,COM,C,J,BD))));
 """
 
-        self.tc.add_gams_code(module=self, phase="run", code=equation)
+        self.tc.add_gams_code(module=self, phase="init", code=equation)
