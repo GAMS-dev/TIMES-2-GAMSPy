@@ -106,7 +106,18 @@ class EqobjcstTm(GamsClass):
 
    EQ_ANNVAR(R,T,CUR)$RDCUR(R,CUR) ..
 
-{eqobjvar("mod", "*")}
+{
+            eqobjvar(
+                arg1="mod",
+                var=self.env.var,
+                eq=self.env.eq,
+                stages=self.env.stages,
+                sow=self.env.sow,
+                sws=self.env.sws,
+                obj=self.env.obj,
+                varcost=self.env.varcost,
+            )
+        }
 
    OBJ_PVT(R,T,CUR) * VAR_ANNCST('OBJVAR',R,T,CUR)
 """
