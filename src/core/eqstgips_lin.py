@@ -45,17 +45,18 @@ class EqstgipsLin(GamsClass):
         self.tc.add_gams_code(
             module=self,
             phase="init",
-            code=rf"""
+            code=r"""
 *$ONLISTING
    SET RTP_EQSTK(R,ALLYEAR,T,P,ITEM);
-* Charge at beginning of horizon (BOH)
-   RTP_EQSTK(R,MIYR_1(T),T,P,'IN')$(RTP(R,T,P)$PRC_MAP(R,'STK',P)) = YES;
-* Normal storage balance in each period (N)
-   RTP_EQSTK(RTP_VINTYR(R,V,T,P),'N')$PRC_MAP(R,'STK',P) = YES;
-* We must ensure that the storage level is non-negative at end of each period (1)
-   RTP_EQSTK(RTP_VINTYR(R,V,T,P),'1')$((E(T) GT M(T))$PRC_MAP(R,'STK',P)) = YES;
-*------------------------------------------------------------------------------
+""",
+        )
 
+        self.tc.enqueue(self.exec1)
+
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=rf"""
   {self.env.eq}_STGIPS(RTP_EQSTK({self.env.r_v_t},P,ITEM) {self.env.swt})$(SUM(PRC_STGIPS(R,P,C),1)$PRC_MAP(R,'STK',P)) ..
 
 * storage level at the milestone year T
@@ -103,5 +104,20 @@ class EqstgipsLin(GamsClass):
        ({self.env.var}_SIN(R,V,T,P,C,'ANNUAL' {self.env.sow})$IPS(IO) - {self.env.var}_SOUT(R,V,T,P,C,'ANNUAL' {self.env.sow})$(NOT IPS(IO)))))$J(ITEM)
 ;
 $OFFLISTING
+""",
+        )
+
+    def exec1(self: EqstgipsLin):
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=r"""
+* Charge at beginning of horizon (BOH)
+   RTP_EQSTK(R,MIYR_1(T),T,P,'IN')$(RTP(R,T,P)$PRC_MAP(R,'STK',P)) = YES;
+* Normal storage balance in each period (N)
+   RTP_EQSTK(RTP_VINTYR(R,V,T,P),'N')$PRC_MAP(R,'STK',P) = YES;
+* We must ensure that the storage level is non-negative at end of each period (1)
+   RTP_EQSTK(RTP_VINTYR(R,V,T,P),'1')$((E(T) GT M(T))$PRC_MAP(R,'STK',P)) = YES;
+*------------------------------------------------------------------------------
 """,
         )
