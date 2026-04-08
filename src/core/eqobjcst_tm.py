@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 
 from core.eqdamage_mod import eq_damage_mod
 from core.eqobjvar_mod import eqobjvar
-from core.prepret_dsc import PrepretDsc
+from core.prepret_dsc import objfix
 
 from .base_class import GamsClass
 
@@ -75,7 +75,6 @@ class EqobjcstTm(GamsClass):
         )
 
     def fixed_cost_equation(self):
-        include_prepret = self.include(PrepretDsc(self.tc, self.env, arg1="OBJFIX"))
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -91,7 +90,7 @@ class EqobjcstTm(GamsClass):
 * Revised accounting for MACRO: Calculate annualized cost from discounted
 * lump-sum fixed costs undiscounted back to the lump-sum commissioning year K
 
-{include_prepret if self.tc.defined("VNRET") else ""}
+{objfix(capwd=self.env.capwd, vart=self.env.vart, sws=self.env.sws) if self.tc.defined("VNRET") else ""}
 
    SUM(RTP_CPTYR(R,V,T,P)$COEF_OBFIX(R,V,P,CUR), COEF_CPT(R,V,T,P) * OBJ_PVT(R,T,CUR) *
        COEF_OBFIX(R,V,P,CUR) * (VAR_NCAP(R,V,P)$TT(V)+NCAP_PASTI(R,V,P)))
