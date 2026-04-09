@@ -52,47 +52,24 @@ class EqactbndMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.enqueue(
-            self.exec1,
-            self.arg1,
-            self.arg2,
-            self.arg3,
-            self.env.EQ,
-            self.env.R_T,
-            self.env.SWT,
-            self.env.SOW,
-            self.env.VAR,
-        )
-
-    def exec1(
-        self,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-        EQ: str,
-        R_T: str,
-        SWT: str,
-        SOW: str,
-        VAR: str,
-    ):
         self.tc.add_gams_code(
             module=self,
-            phase="run",
+            phase="init",
             code=rf"""
 *V0.5b 980902 - avoid equations if LO=0/UP=INF
 *$ONLISTING
 * [UR] 21.07.2003 tightended control for generation of equation to RTP_VARA
-  {EQ}{arg1}_ACTBND(RTP_VARA({R_T},P),S {SWT})$((RPS_PRCTS(R,P,S)*(PRC_VINT(R,P)+(NOT PRC_TS(R,P,S)))${arg3})$ACT_BND(R,T,P,S,'{arg2}'))..
+  {self.env.eq}{self.arg1}_ACTBND(RTP_VARA({self.env.r_t},P),S {self.env.swt})$((RPS_PRCTS(R,P,S)*(PRC_VINT(R,P)+(NOT PRC_TS(R,P,S)))${self.arg3})$ACT_BND(R,T,P,S,'{self.arg2}'))..
 
 * sum over all possible at process TS-level
        SUM(PRC_TS(R,P,TS)$TS_MAP(R,S,TS),
 * sum all the existing activities
-           SUM(RTP_VINTYR(R,V,T,P), {VAR}_ACT(R,V,T,P,TS{SOW}))
+           SUM(RTP_VINTYR(R,V,T,P), {self.env.var}_ACT(R,V,T,P,TS{self.env.sow}))
        )
 
-  ={arg1}=
+  ={self.arg1}=
 
-       ACT_BND(R,T,P,S,'{arg2}')
+       ACT_BND(R,T,P,S,'{self.arg2}')
   ;
 *$OFFLISTING
 

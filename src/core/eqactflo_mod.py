@@ -44,42 +44,29 @@ class EqactfloMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.enqueue(
-            self.exec1,
-            self.env.EQ,
-            self.env.R_V_T,
-            self.env.SWT,
-            self.env.SOW,
-            self.env.VAR,
-            self.env.REDUCE,
-        )
-
-    def exec1(self, EQ: str, R_V_T: str, SWT: str, SOW: str, VAR: str, REDUCE: str):
-        equation = rf"""
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=rf"""
 *$ONLISTING
 * adjust so VAR_FLO only when not IRE (or STG)
-*  EQ_ACTFLO(RTP_VINTYR(R,V,T,P),S)$((RP_FLO(R,P) + RP_IRE(R,P)) * PRC_TS(R,P,S)
-   {EQ}_ACTFLO(RTP_VINTYR({R_V_T},P),S {SWT})$(PRC_TS(R,P,S) *
-"""
-        if REDUCE == "YES":
-            equation += "(NOT RTPS_OFF(R,T,P,S)) *"
+* EQ_ACTFLO(RTP_VINTYR(R,V,T,P),S)$((RP_FLO(R,P) + RP_IRE(R,P)) * PRC_TS(R,P,S)
+    {self.env.eq}_ACTFLO(RTP_VINTYR({self.env.r_v_t},P),S {self.env.swt})$(PRC_TS(R,P,S) *
+{"(NOT RTPS_OFF(R,T,P,S)) *" if self.env.reduce == "YES" else ""}
+                                                    PRC_ACT(R,P)) ..
 
-        equation += rf"""
-PRC_ACT(R,P)) ..
-
-      {VAR}_ACT(R,V,T,P,S {SOW})$RTP_VARA(R,T,P)
+      {self.env.var}_ACT(R,V,T,P,S {self.env.sow})$RTP_VARA(R,T,P)
 
   =E=
 
 * handle both regular and IRE processes
 * need to ensure that said commodity handled in current timeslice
-       SUM(RPC_PG(R,P,C)$RTPCS_VARF(R,T,P,C,S),
-                         ({VAR}_FLO(R,V,T,P,C,S {SOW})$RP_FLO(R,P) +
-                          SUM(RPC_IRE(R,P,C,IE)$RP_AIRE(R,P,IE),
-                            {VAR}_IRE(R,V,T,P,C,S,IE {SOW}))$RP_IRE(R,P)
-                         ) / PRC_ACTFLO(R,V,P,C)
-       );
+        SUM(RPC_PG(R,P,C)$RTPCS_VARF(R,T,P,C,S),
+                           ({self.env.var}_FLO(R,V,T,P,C,S {self.env.sow})$RP_FLO(R,P) +
+                           SUM(RPC_IRE(R,P,C,IE)$RP_AIRE(R,P,IE),
+                             {self.env.var}_IRE(R,V,T,P,C,S,IE {self.env.sow}))$RP_IRE(R,P)
+                           ) / PRC_ACTFLO(R,V,P,C)
+        );
 *$OFFLISTING
-"""
-
-        self.tc.add_gams_code(module=self, phase="run", code=equation)
+""",
+        )

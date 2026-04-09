@@ -84,10 +84,29 @@ class EqobjTm(GamsClass):
         self.include(EqobjannTm(self.tc, self.env))
 
         # Elastic Demand costs: only when MLF
-        if self.env.MACRO == "Yes":
+        if self.env.macro == "Yes":
             self.include(EqobjelsMod(self.tc, self.env))
 
-        self.tc.enqueue(self.actual_obj)
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code="""
+    EQ_OBJ(R,T) ..
+
+      SUM(RDCUR(R,CUR),
+
+* Investment Costs, Fixed Costs and Variable Costs (elastic demand costs excluded)
+
+         SUM(OBVANN,VAR_ANNCST(OBVANN,R,T,CUR))
+
+         )
+
+    =E=
+
+    VAR_OBJCOST(R,T);
+
+""",
+        )
 
     def exec1(self):
         self.tc.add_gams_code(
@@ -105,27 +124,5 @@ class EqobjTm(GamsClass):
             phase="run",
             code="""
   LOOP(SAMEAS('1',AGE),KTYAGE(K(LL),PERIODYR(T,Y_EOH(YEAR)),AGE+(ORD(YEAR)-ORD(LL)))$YK(YEAR,LL)=YES);
-""",
-        )
-
-    def actual_obj(self):
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""
-    EQ_OBJ(R,T) ..
-
-      SUM(RDCUR(R,CUR),
-
-* Investment Costs, Fixed Costs and Variable Costs (elastic demand costs excluded)
-
-         SUM(OBVANN,VAR_ANNCST(OBVANN,R,T,CUR))
-
-         )
-
-    =E=
-
-    VAR_OBJCOST(R,T);
-
 """,
         )
