@@ -18,10 +18,16 @@ $IFI %VARCOST%==LIN $SET TPULSE Y_EOH$OBJ_LINT(R,T,Y_EOH,CUR),OBJ_LINT(R,T,Y_EOH
 *===============================================================================
 * Generate Variable cost equation summing over all active indexes by region and currency
 *===============================================================================
-
-%2   %EQ%_OBJVAR(RDCUR(R,CUR) %SOW%) ..
-
+$SET SOWTMP %SOW%
 $IF %STAGES% == YES $SETLOCAL SWTD 'SUM(SW_TSW(SOW,T,WW),' SET SOW ',WW'
+$IF DEFINED RTP_FFCS $SET MX "*(%SHFF%S(R,V,P,C,C%SOW%))"
+
+$IF %STAGES% == YES $SET SOWTMPEND ',SOW'
+
+
+%2   %EQ%_OBJVAR(RDCUR(R,CUR) %SOWTMP%) ..
+
+*$IF %STAGES% == YES $SETLOCAL SWTD 'SUM(SW_TSW(SOW,T,WW),' SET SOW ',WW'
       (%SWTD%
 *------------------------------------------------------------------------------
 * Costs on Overall activity of a process
@@ -80,7 +86,7 @@ $            BATINCLUDE %cal_red% C COM S P T
                ) +
 *V06a_3 handle aux delivery cost to exchange processes, BUT NOT HANDLING different TSlevel!!!
 * Negative IRE_FLOSUM is resonable for import flows only, and for the commodity itself
-$IF DEFINED RTP_FFCS $SET MX "*(%SHFF%S(R,V,P,C,C%SOW%))"
+*$IF DEFINED RTP_FFCS $SET MX "*(%SHFF%S(R,V,P,C,C%SOW%))"
             SUM((RPC_IRE(R,P,COM,IE),IO)$IRE_FLOSUM(R,T,P,COM,S,IE,C,IO),
                 IRE_FLOSUM(R,T,P,COM,S,IE,C,IO) %MX% *
                 (%VAR%_IRE(R,V,T,P,COM,S,IE %SOW%)$(NOT RPC_AIRE(R,P,COM))+(%VAR%_ACT(R,V,T,P,S %SOW%)*PRC_ACTFLO(R,V,P,COM))$RPC_AIRE(R,P,COM))
@@ -108,6 +114,8 @@ $        BATINCLUDE cal_caps.%1 T 'SUM(TS_ANN(TS,SL),SUM(%TPULSE%*(OBJ_FCOST(R,Y
 
     =E=
 
-$IF %STAGES% == YES $SET SOW ',SOW'
+*$IF %STAGES% == YES $SET SOW ',SOW'
 
-%2    SUM(OBV,SUM_OBJ('OBJVAR',OBV)*%VAR%_OBJ(R,OBV,CUR %SOW%));
+%2    SUM(OBV,SUM_OBJ('OBJVAR',OBV)*%VAR%_OBJ(R,OBV,CUR %SOWTMPEND%));
+
+$IF %STAGES% == YES $SET SOW ',SOW'
