@@ -77,13 +77,6 @@ $   BATINCLUDE ppmain.%1 %1
 
 $   IFI %INTEXT_ONLY% ==YES $GOTO SKIPTOEND
 $   IF NOT '%EXTEND%' == '' $BATINCLUDE main_ext.mod ppm_ext %EXTEND%
-
-$onlisting
-display "justine";
-$offlisting
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop
 *-----------------------------------------------------------------------------
 * dump out the user/system data structures
 *-----------------------------------------------------------------------------
@@ -104,6 +97,9 @@ $   IF NOT '%EXTEND%' == '' $BATINCLUDE main_ext.mod coef_ext %EXTEND%
 *-----------------------------------------------------------------------------
 $   BATINCLUDE mod_vars.%SRC%
 $   IF NOT '%EXTEND%' == '' $BATINCLUDE main_ext.mod mod_vars %EXTEND%
+$gdxUnload %COMPILE_GDX%
+execute_unload "%EXECUTE_GDX%";
+$stop
 $   BATINCLUDE eqmain.%1 %1
 $   IF NOT '%EXTEND%' == '' $BATINCLUDE main_ext.mod equ_ext %EXTEND%
 *-----------------------------------------------------------------------------

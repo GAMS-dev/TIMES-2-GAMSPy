@@ -18,13 +18,26 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from typing import TYPE_CHECKING
 
+from core.coef_ext_abs import CoefExtAbs
+from core.coef_ext_cli import CoefExtCli
+from core.coef_ext_etl import CoefExtEtl
+from core.coef_ext_vda import CoefExtVda
+from core.coefmain_mod import CoefmainMod
 from core.err_stat_mod import ErrStatMod
 from core.init_ext_abs import InitExtAbs
 from core.init_ext_dsc import InitExtDsc
 from core.init_ext_vda import InitExtVda
 from core.main_ext_mod import include_extension
+from core.mod_vars_abs import ModVarsAbs
+from core.mod_vars_cli import ModVarsCli
+from core.mod_vars_dsc import ModVarsDsc
+from core.mod_vars_etl import ModVarsEtl
+from core.mod_vars_mod import ModVarsMod
+from core.mod_vars_msa import ModVarsMsa
+from core.mod_vars_tm import ModVarsTm
 from core.ppm_ext_cli import PpmEctCli
 from core.ppm_ext_dsc import PpmExtDsc
 from core.ppm_ext_ecb import PpmExtEcb
@@ -33,6 +46,7 @@ from core.ppm_ext_vda import PpmExtVda
 from core.ppmain_mod import PpmainMod
 from core.readbprice_mod import ReadbpriceMod
 from core.setglobs_gms import SetglobsGms
+from core.stages_stc import StagesStc
 
 from .base_class import GamsClass
 
@@ -171,4 +185,114 @@ class MainDrvMod(GamsClass):
                 source="maindrv",
             )
 
+        # *-----------------------------------------------------------------------------
+        # * dump out the user/system data structures
+        # *-----------------------------------------------------------------------------
+        if self.env.debug == "YES":
+            self.tc.container.write("DATADUMP.gdx")
+
+        # * Set the main controls for stochastic mode
+        if self.env.stages.upper() == "YES":
+            self.include(StagesStc(tc=self.tc, env=self.env))
+        if self.env.stages == "YES":
+            self.apply_inline_sets(set_string=self.env.sw_tags)
+        else:
+            self.apply_inline_sets(set_string=self.env.sw_notags)
+
+        # *-----------------------------------------------------------------------------
+        # * build the coefficients
+        # *-----------------------------------------------------------------------------
+        if self.env.mid_year.upper() == "YES":
+            self.env.set_scoped("discshift", "0.5")
+        self.include(CoefmainMod(tc=self.tc, env=self.env, arg1=self.arg1))
+
+        if self.env.extend != "":
+            extensions = {
+                "ABS": CoefExtAbs,
+                "CLI": CoefExtCli,
+                "ETL": CoefExtEtl,
+                "VDA": CoefExtVda,
+            }
+            requested_exts = set(self.env.extend.split())
+            include_extension(
+                module=self,
+                extensions=extensions,
+                requested_exts=requested_exts,
+                source="maindrv",
+            )
+
+        #         *-----------------------------------------------------------------------------
+        # * establish model (use different .ext?)
+        # *-----------------------------------------------------------------------------
+        src = self.env.src.upper()
+        if src == "ABS":
+            self.include(ModVarsAbs(tc=self.tc, env=self.env))
+        elif src == "CLI":
+            self.include(ModVarsCli(tc=self.tc, env=self.env))
+        elif src == "DSC":
+            self.include(ModVarsDsc(tc=self.tc, env=self.env))
+        elif src == "ETL":
+            self.include(ModVarsEtl(tc=self.tc, env=self.env))
+        elif src == "MOD":
+            self.include(ModVarsMod(tc=self.tc, env=self.env))
+        elif src == "MSA":
+            self.include(ModVarsMsa(tc=self.tc, env=self.env))
+        elif src == "TM":
+            self.include(ModVarsTm(tc=self.tc, env=self.env))
+        else:
+            raise Exception(f"Unknown extension {src} for mod_vars<ext>.py.")
+
+        if self.env.extend != "":
+            extensions = {
+                "ABS": ModVarsAbs,
+                "CLI": ModVarsCli,
+                "DSC": ModVarsDsc,
+                "ETL": ModVarsEtl,
+                "MOD": ModVarsMod,
+                "MSA": ModVarsMsa,
+                "TM": ModVarsTm,
+            }
+            requested_exts = set(self.env.extend.split())
+            include_extension(
+                module=self,
+                extensions=extensions,
+                requested_exts=requested_exts,
+                source="maindrv",
+            )
+
         # TODO: Keep translating
+
+    def apply_inline_sets(self: MainDrvMod, set_string: str) -> None:
+        """
+        Parses a string of consecutive GAMS SET, SETGLOBAL, or SETLOCAL commands
+        and applies them to the compile environment.
+        """
+        # Regex breakdown:
+        # 1. `(?i)`                      -> Makes the entire match case-insensitive
+        # 2. `(SETGLOBAL|SETLOCAL|SET)`  -> Capture Group 1: The exact command used
+        # 3. `\s+`                       -> Matches whitespace
+        # 4. `(\w+)`                     -> Capture Group 2: The key (e.g., EQ, VAR)
+        # 5. `\s+`                       -> Matches whitespace before the value
+        # 6. `('[^']*'|"[^"]*"|\S+)`     -> Capture Group 3: The value (single quotes, double quotes, or unquoted)
+        pattern = r"(?i)(SETGLOBAL|SETLOCAL|SET)\s+(\w+)\s+('[^']*'|\"[^\"]*\"|\S+)"
+
+        # re.findall returns a list of tuples: [('SET', 'EQ', "'EQ'"), ('SETGLOBAL', 'VAR', '"VAR"'), ...]
+        matches = re.findall(pattern, set_string)
+
+        for command, key, value in matches:
+            # Standardize the key to lowercase for your env dictionary
+            clean_key = key.lower()
+
+            # Strip both single and double surrounding quotes (if they exist)
+            clean_value = value.strip("'\"")
+
+            # Route to the correct env method based on the command
+            command_upper = command.upper()
+            if command_upper == "SETGLOBAL":
+                self.env.set_global(clean_key, clean_value)
+            elif command_upper == "SET":
+                self.env.set_scoped(clean_key, clean_value)
+            elif command_upper == "SETLOCAL":
+                self.env.set_local(clean_key, clean_value)
+            else:
+                raise Exception(command_upper, "not in [SETGLOBAL, SET, SETSCOPED]")

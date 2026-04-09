@@ -1,0 +1,221 @@
+# preppm_msa.py
+# *++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# * Copyright (C) 2000-2023 Energy Technology Systems Analysis Programme (ETSAP)
+# * This file is part of the IEA-ETSAP TIMES model generator, licensed
+# * under the GNU General Public License v3.0 (see file NOTICE-GPLv3.txt).
+# *============================================================================*
+# * PREPPM.MSA Preprocessing for Macro Stand-Alone
+# *============================================================================*
+from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING
+
+from core.filparam_gms import FilparamGms
+from core.forcupd_cli import ForcupdCli
+
+# from core.MSADDF_dd import MSADDF
+from core.rpt_dam_mod import RptDamMod
+
+from .base_class import GamsClass
+
+if TYPE_CHECKING:
+    from .compile_environment import CompileEnvironment
+    from .times_model_class import TimesModelClass
+
+logger = logging.getLogger(__name__)
+
+
+class PreppmMsa(GamsClass):
+    """Translation unit for preppm.msa."""
+
+    # Instance attributes
+    module_name: str = "preppm_msa"
+    gams_source: str = "preppm.msa"
+
+    def __init__(
+        self,
+        tc: TimesModelClass,
+        env: CompileEnvironment,
+        arg1: str,
+    ):
+        self.env = env.fork()
+        self.arg1 = arg1
+        self._sub_modules: dict[str, GamsClass] = {}
+        self.tc = tc
+        self.compile()
+
+    def compile(self) -> None:
+        if self.arg1 == "MSA":
+            self._label_msa()
+        elif self.arg1 == "TONLP":
+            self._label_tonlp()
+        elif self.arg1 == "TOLP":
+            self._label_tolp()
+
+    def _label_msa(self):
+        self.env.set_global("msa", "CSA")
+        if self.env.macro != "N":
+            self.env.set_global("msa", self.env.macro)
+
+        self.tc.add_gams_code(module=self, phase="init", code="$KILL TM_UDF")
+
+        if self.env.msa.upper() == "MSA":
+            # TODO: $BATINCLUDE MSADDF.dd
+            # self.include(MSADDF(self.tc, self.env))
+            raise Exception("TODO: MSADDF.dd not implemented")
+
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code="""
+  ALIAS(IPS,MDM);
+  SET CM_LPK(*), CM_LPT(*), XTP(LL);
+  PARAMETER CM_LED(LL), TM_XWT(R,LL);
+* Periods stuff
+  ALIAS(TB,T_1);
+""",
+        )
+
+        self.tc.enqueue(self.label_msa_exec1)
+
+        # Interpolate MACRO-specific parameters
+        # fmt: off
+        batincludes = [
+            ("TM_DDF",   "R,", "C", ",'','','','',''", "YEAR", "T",   "", ""),
+            ("TM_GR",    "R,", "",  ",'','','','',''", "YEAR", "T",   "", ""),
+            ("TM_GROWV", "R,", "",  ",'','','','',''", "YEAR", "XTP", "", ""),
+            ("TM_HSX",   "R,", "",  ",'','','','',''", "YEAR", "XTP", "", ""),
+        ]
+        # fmt: on
+        for arg in batincludes:
+            self.include(
+                FilparamGms(
+                    self.tc,
+                    self.env,
+                    arg1=arg[0],
+                    arg2=arg[1],
+                    arg3=arg[2],
+                    arg4=arg[3],
+                    arg5=arg[4],
+                    arg6=arg[5],
+                    arg7=arg[6],
+                    arg8=arg[7],
+                )
+            )
+
+        self.tc.enqueue(self.label_msa_exec2)
+
+        if (self.env.msa + self.env.cli).upper() != "MSAYES":
+            return
+
+        self.tc.enqueue(self.label_msa_exec3)
+
+    def label_msa_exec1(self: PreppmMsa):
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code="""
+  PP(T)$(ORD(T)>1) = YES;
+  TB(T)$(ORD(T)=1) = YES;
+  TLAST(T--ORD(T)) = YES;
+  NYPER(T) = LAGT(T);
+  NYPER(TLAST(T+1)) = LAGT(T);
+  CM_LED(T+1)=LAGT(T);
+  XTP(LL)$=CM_LED(LL);
+  XTP(T) = YES;
+""",
+        )
+
+    def label_msa_exec2(self: PreppmMsa):
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code="""
+TM_GDPGOAL(R,TB) = TM_GDP0(R);
+LOOP(PP(T+1),TM_GDPGOAL(R,PP) = TM_GDPGOAL(R,T)*(1+TM_GR(R,T)/100)**NYPER(T));
+""",
+        )
+
+    def label_msa_exec3(self: PreppmMsa):
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code="""
+* Preprocess CBA parameters
+  Z = MAX(1,ABS(TM_DEFVAL('REFTEMP')));
+  F = MAX(0,ROUND(TM_DEFVAL('REFLOSS'),4));
+  TM_DAM(R,'IN')$= TM_MDTL(R)$TM_GDP0(R);
+  TM_DAM(R,'IN')$= TM_MDTQ(R)$TM_GDP0(R);
+  OPTION TM_CATT < TM_HSX;
+  TM_CATT(R)$TM_CATT(R) = ((Z**2/F)**0.5)$F;
+  TM_DAM(R,'N')$= TM_CATT(R)$TM_GDP0(R);
+  MR(R) = SUM((TM_DAM(R,MDM),G_RCUR(R,CUR)),1);
+  CNT=SMAX(MR,TM_GDP0(MR));
+  LOOP(MR(R)$CNT,IF(TM_GDP0(R)=CNT,CNT=0;TM_DAM(R,'0')=YES));
+* Define initial guess for marginal damage for LP
+  LOOP((G_RCUR(R,CUR),C(CG(CM_EMIS)))$TM_DAM(R,'0'),DAM_BQTY(R,C) = EPS;
+    DAM_COST(R,PP(T),C,CUR) = 1/TM_SCALE_CST / 10**(3.4-2$DIAG('CO2-GTC',C)) *
+      SUM(MR(REG),MAX(.01,(2*Z/POWER(TM_CATT(R),2))$TM_CATT(R)+TM_MDTL(R)/Z+2*TM_MDTQ(R)/Z)*TM_GDPGOAL(REG,T)));
+  CM_LPK(CM_KIND)=YES; CM_LPT(CM_TKIND)=YES;
+  MR(R)=NO;
+""",
+        )
+
+    def _label_tonlp(self):
+        # Update forcing functions, reset damage and climate module
+        if self.tc.defined("TM_CATT"):
+            self.tc.enqueue(self.label_tonlp_exec1)
+
+        if self.tc.defined("DAM_COST"):
+            self.include(RptDamMod(self.tc, self.env))
+
+        if self.env.cli.upper() != "YES":
+            return
+
+        self.include(ForcupdCli(self.tc, self.env))
+
+        if not self.tc.defined("TM_CATT"):
+            return
+
+        self.tc.enqueue(self.label_tonlp_exec2)
+
+    def label_tonlp_exec1(self):
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code="""
+LOOP(G_RCUR(R,CUR)$TM_DAM(R,'0'),DAM_COST(R,PP,C(CG(CM_EMIS)),CUR) = EPS);
+""",
+        )
+
+    def label_tonlp_exec2(self):
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code="""
+  LOOP(G_RCUR(R,CUR)$TM_DAM(R,'0'),
+    F=REG_WOBJ(R,'DAM-EXT+',CUR); MY_F=REG_WOBJ(R,'DAS',CUR); Z=MAX(0,MIN(MY_F,-F));
+    REG_WOBJ(R,'DAS',CUR)=MY_F-Z; REG_WOBJ(R,'DAM-EXT+',CUR)=F+Z);
+  CM_MAXC_M(CM_EMIS,XTP) = VAR_CLITOT.LO(CM_EMIS,XTP);
+  IF(CARD(TM_DAM),CM_TKIND(CM_EMIS)=NO; VAR_CLITOT.FX(CM_EMIS,XTP)=VAR_CLITOT.L(CM_EMIS,XTP);
+  ELSE OPTION CLEAR=CM_KIND,CLEAR=CM_TKIND);
+""",
+        )
+
+    def _label_tolp(self):
+        self.tc.enqueue(self.label_tolp_exec1)
+
+    def label_tolp_exec1(self):
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code="""
+* Redefine marginal damages
+  LOOP((C(CG(CM_EMIS)),G_RCUR(R,CUR))$(CNT$TM_DAM(R,'0')),
+    DAM_COST(R,PP(T),C,CUR) = SUM(SUPERYR(T,XTP),ABS(VAR_CLITOT.M(CM_EMIS,XTP)/EQ_TRDBAL.M(T,"NMR"))*CM_EVAR(CM_EMIS,XTP)*OBJ_DISC(R,XTP,CUR)/OBJ_DISC(R,T,CUR)/TM_SCALE_CST));
+  CM_TKIND(CM_VAR(CM_LPT))=YES; CM_KIND(CM_VAR(CM_LPK))=YES;
+  VAR_CLITOT.LO(CM_EMIS,XTP) = CM_MAXC_M(CM_EMIS,XTP);
+  VAR_CLITOT.UP(CM_EMIS,XTP) = INF;
+""",
+        )
