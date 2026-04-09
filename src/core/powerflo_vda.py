@@ -874,6 +874,7 @@ OPTION CLEAR=RC_GRID,CLEAR=GR_ALLMAP,CLEAR=GR_ALGMAP,CLEAR=GR_DEMMAP,CLEAR=GR_PR
 """,
         )
 
+    # TODO: can this be removed? Same is done in function
     def return_str_for_IREAUX(
         self: PowerfloVda,
         mx: str = "",
@@ -885,3 +886,28 @@ OPTION CLEAR=RC_GRID,CLEAR=GR_ALLMAP,CLEAR=GR_ALGMAP,CLEAR=GR_DEMMAP,CLEAR=GR_PR
         # ** For balance of grid node C
         str2 = f"SUM(GR_DEMMAP(R,C,COM),{mx}({var}_GRIDIO(R,T,COM,C,S,'IN'{sow})$GR_ALGMAP(R,'NRG',COM) - {var}_GRIDIO(R,T,COM,C,S,'OUT'{sow}))) +"
         return f"{str1}{str2}"
+
+
+def powerflo_vda_ireaux(
+    # TODO: if powerflow_vda() is called with arg2=="IN", this is done in powerflo.vda first: $SET MX COM_IE(R,T,C,S)*
+    arg1: str = "",
+    arg2: str = "",
+    arg3: str = "",
+    var: str = "",
+    sow: str = "",
+) -> str:
+    target_label = f"{arg1}{arg2}{arg3}".strip().upper()
+
+    if target_label not in ["IREAUXIN", "IREAUXOUT-"]:
+        return ""
+
+    mx = arg3
+    if target_label == "IREAUXIN":
+        mx = "COM_IE(R,T,C,S)*"
+
+    return rf"""
+* For balance of C (and grid nodes COM)
+    SUM(GR_DEMMAP(R,COM,C), {mx}({var}_GRIDIO(R,T,C,COM,S,'OUT'{sow}) - {var}_GRIDIO(R,T,C,COM,S,'IN'{sow})$GR_ALGMAP(R,'NRG',C))) +
+* For balance of grid node C
+    SUM(GR_DEMMAP(R,C,COM), {mx}({var}_GRIDIO(R,T,COM,C,S,'IN'{sow})$GR_ALGMAP(R,'NRG',COM) - {var}_GRIDIO(R,T,COM,C,S,'OUT'{sow}))) +
+"""

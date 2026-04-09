@@ -20,10 +20,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.cal_cap_mod import CalCapMod
-from core.cal_fflo_mod import CalFfloMod
-from core.cal_ire_mod import CalIreMod
-from core.cal_stgn_mod import CalStgnMod
+from core.cal_cap_mod import cal_cap_mod
+from core.cal_fflo_mod import cal_fflo_mod
+from core.cal_ire_mod import cal_ire_mod
+from core.cal_stgn_mod import cal_stgn_mod
 
 from .base_class import GamsClass
 
@@ -105,59 +105,73 @@ class EqcombalMod(GamsClass):  # FilenameExt
         condition3: bool,
         condition4: bool,
     ):
-        include_cal_fflo_1 = CalFfloMod(
-            self.tc,
-            self.env,
+        include_cal_fflo_1 = cal_fflo_mod(
+            reduce=self.env.reduce,
+            shff=self.env.shff,
+            sow=self.env.sow,
+            var=self.env.var,
+            is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
             arg1="OUT",
-            arg2="O",
+            arg3="",
+            arg4="",
         )
-        include_cal_ire_1 = CalIreMod(
-            self.tc,
-            self.env,
+        include_cal_ire_1 = cal_ire_mod(
+            var=self.env.var,
+            sow=self.env.sow,
+            shff=self.env.shff,
+            is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
+            is_ireauxbal=self.env.is_set("ireauxbal"),
             arg1="IMP",
             arg2="OUT",
             arg3="IE",
+            arg4="",
+            arg5="",
+            arg6="",
+            arg7="",
         )
-        include_cal_stgn_1 = CalStgnMod(
-            self.tc,
-            self.env,
+        include_cal_stgn_1 = cal_stgn_mod(
             arg1="OUT",
             arg2="IN",
             arg3="*STG_EFF(R,V,P)",
             arg4="",
             arg5="(NOT PRC_NSTTS(R,P,TS))",
         )
-        include_cal_cap_1 = CalCapMod(
-            self.tc,
-            self.env,
+        include_cal_cap_1 = cal_cap_mod(
             arg1="OUT",
             arg2="O",
         )
-        include_cal_fflo_2 = CalFfloMod(
-            self.tc,
-            self.env,
+        include_cal_fflo_2 = cal_fflo_mod(
+            reduce=self.env.reduce,
+            shff=self.env.shff,
+            sow=self.env.sow,
+            var=self.env.var,
+            is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
             arg1="IN",
-            arg2="I",
+            arg3="",
+            arg4="",
         )
-        include_cal_ire_2 = CalIreMod(
-            self.tc,
-            self.env,
+        include_cal_ire_2 = cal_ire_mod(
+            var=self.env.var,
+            sow=self.env.sow,
+            shff=self.env.shff,
+            is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
+            is_ireauxbal=self.env.is_set("ireauxbal"),
             arg1="EXP",
             arg2="IN",
             arg3="IE",
+            arg4="",
+            arg5="",
+            arg6="",
+            arg7="",
         )
-        include_cal_stgn_2 = CalStgnMod(
-            self.tc,
-            self.env,
+        include_cal_stgn_2 = cal_stgn_mod(
             arg1="IN",
             arg2="OUT",
             arg3="",
             arg4="STG_EFF(R,V,P)*",
             arg5="((NOT PRC_MAP(R,'NST',P))+PRC_NSTTS(R,P,TS))",
         )
-        include_cal_cap_2 = CalCapMod(
-            self.tc,
-            self.env,
+        include_cal_cap_2 = cal_cap_mod(
             arg1="IN",
             arg2="I",
         )
