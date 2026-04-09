@@ -69,7 +69,47 @@ class CompileEnvironment:
         Checks Local, then Scoped, then Global.
         """
         key = str(key)
-        val = self._local.get(key) or self._scoped.get(key) or self._globals.get(key)
+        if key in self._local:
+            val = self._local[key]
+        elif key in self._scoped:
+            val = self._scoped[key]
+        elif key in self._globals:
+            val = self._globals[key]
+        else:
+            return False
+
+        # Return False if value is %key%
+        if isinstance(val, str) and val.startswith("%") and val.endswith("%"):
+            if val.upper() == f"%{key}%":
+                return False
+
+        return True
+
+    def is_set_local(self, key: str) -> bool:
+        """
+        Mimics GAMS '$IF SETLOCAL [variable]'.
+        Checks only the Local
+        """
+        key = str(key)
+        val = self._local[key]
+
+        if val is None:
+            return False
+
+        # Return False if value is %key%
+        if isinstance(val, str) and val.startswith("%") and val.endswith("%"):
+            if val.upper() == f"%{key}%":
+                return False
+
+        return True
+
+    def is_set_global(self, key: str) -> bool:
+        """
+        Mimics GAMS '$IF SETGLOBAL [variable]'.
+        Checks only the Global.
+        """
+        key = str(key)
+        val = self._globals[key]
 
         if val is None:
             return False
