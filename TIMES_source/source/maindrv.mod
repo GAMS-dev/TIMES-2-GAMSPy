@@ -97,10 +97,10 @@ $   IF NOT '%EXTEND%' == '' $BATINCLUDE main_ext.mod coef_ext %EXTEND%
 *-----------------------------------------------------------------------------
 $   BATINCLUDE mod_vars.%SRC%
 $   IF NOT '%EXTEND%' == '' $BATINCLUDE main_ext.mod mod_vars %EXTEND%
+$   BATINCLUDE eqmain.%1 %1
 $gdxUnload %COMPILE_GDX%
 execute_unload "%EXECUTE_GDX%";
 $stop
-$   BATINCLUDE eqmain.%1 %1
 $   IF NOT '%EXTEND%' == '' $BATINCLUDE main_ext.mod equ_ext %EXTEND%
 *-----------------------------------------------------------------------------
 $   BATINCLUDE mod_equa.%SRC%
