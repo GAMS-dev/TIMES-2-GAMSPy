@@ -12,6 +12,9 @@
 *-----------------------------------------------------------------------------
 *$ONLISTING
 *
+$SET SWSTMP %SWS%
+$IFI %STAGES% == YES $SETLOCAL SWS 'PROD(SW_MAP(T,SOW,J,WW)$S_COM_PROJ(R,T,C,J,WW),S_COM_PROJ(R,T,C,J,WW))*'
+
     %EQ%_PEAK(%R_T%,CG2,RTS(SL)%SWT%)$(SUM(COM_GMAP(R,CG2,C)$RTC(R,T,C),1)$COM_PKTS(R,CG2,SL)) ..
 
      SUM((COM_GMAP(R,CG2,C),COM_TS(R,C,S))$RS_FR(R,SL,S),
@@ -21,7 +24,7 @@
 
        (SUM(RPC_PKC(R,P,C), G_YRFR(R,S) * PRC_CAPACT(R,P) *
            SUM(V$COEF_VNT(R,T,P,V),COEF_VNT(R,T,P,V)*PRC_ACTFLO(R,V,P,C)*NCAP_PKCNT(R,V,P,S)*
-               (%VARV%_NCAP(R,V,P %SWS%)$MILESTONYR(V)+NCAP_PASTI(R,V,P)$PASTYEAR(V) %RCAPSUB%))
+               (%VARV%_NCAP(R,V,P %SWSTMP%)$MILESTONYR(V)+NCAP_PASTI(R,V,P)$PASTYEAR(V) %RCAPSUB%))
            ) +
 
 *
@@ -78,7 +81,7 @@ $          BATINCLUDE cal_stgn.%1 IN OUT '' 'STG_EFF(R,V,P)*(NCAP_PKCNT(R,V,P,S)
            SUM(BLE_OPR(R,BLE,OPR)$(BLE_INP(R,BLE,C)*BLE_TP(R,T,BLE)),G_YRFR(R,S)*(1+RTCS_FR(R,T,C,S,'ANNUAL'))*BL_INP(R,BLE,C)*PEAKDA_BL(R,BLE,T)*%VAR%_BLND(R,T,BLE,OPR %SOW%)) +
 
 *   demand projection
-$IFI %STAGES% == YES $SETLOCAL SWS 'PROD(SW_MAP(T,SOW,J,WW)$S_COM_PROJ(R,T,C,J,WW),S_COM_PROJ(R,T,C,J,WW))*'
+*$IFI %STAGES% == YES $SETLOCAL SWS 'PROD(SW_MAP(T,SOW,J,WW)$S_COM_PROJ(R,T,C,J,WW),S_COM_PROJ(R,T,C,J,WW))*'
       ((%SWS% COM_PROJ(R,T,C)$(NOT RD_NLP(R,C)) +%VAR%_DEM(R,T,C%SOW%)$RD_NLP(R,C) +SUM(RD_AGG(R,COM),RD_SHAR(R,T,COM,C)*%VAR%_COMPRD(R,T,COM,'ANNUAL'%SOW%))) * COM_FR%MX%(R,T,C,S))$DEM(R,C) +
 
 *   include the elasticity variables
