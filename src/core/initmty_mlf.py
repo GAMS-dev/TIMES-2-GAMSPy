@@ -1,8 +1,18 @@
 # initmty_mlf.py
+# *++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# * Copyright (C) 2000-2023 Energy Technology Systems Analysis Programme (ETSAP)
+# * This file is part of the IEA-ETSAP TIMES model generator, licensed
+# * under the GNU General Public License v3.0 (see file NOTICE-GPLv3.txt).
+# *=============================================================================
+# * Init Declarations for the MLF Macro extension
+# *=============================================================================
+
 from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
+
+from core.initmty_tm import InitmtyTm
 
 from .base_class import GamsClass
 
@@ -24,8 +34,6 @@ class InitmtyMlf(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
     ):
         self.env = env.fork()
         self.tc = tc
@@ -33,5 +41,64 @@ class InitmtyMlf(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        phase = "init"
-        print(phase)
+        self.include(InitmtyTm(tc=self.tc, env=self.env))
+        self.env.set_global("macro", "Yes")
+        self.env.set_global("spoint", "")
+
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=r"""
+*--- Redefined & Additional input parameters ---
+  PARAMETER TM_ARBM              'Arbitrary multiplier'                         /1/;
+  PARAMETER TM_SCALE_UTIL        'Scaling factor utility function'              /0.001/;
+  PARAMETER TM_SCALE_NRG         'Scaling factor demand units'                  /0.001/;
+  PARAMETER TM_SCALE_CST         'Scaling factor cost units'                    /0.001/;
+  PARAMETER TM_DESUB(R)          'Elasticity of substitution between demands'   //;
+  PARAMETER TM_STEP(R,CG,LIM)    'Steps in CES substitution'                    //;
+  PARAMETER TM_VOC(R,YEAR,CG,BD) 'Variance in CES component or utility'         //;
+
+*--- Internal attributes ---
+  SET COM_GRP / AKL, LAB, KN, YN, CON, UTIL /;
+  SET NITER /1*18/;
+  SET TM_PP(R,YEAR) //;
+*  Initialized Scalar Defaults *
+  PARAMETER TM_DEFVAL /
+      DEPR     5
+      ESUB     0.25
+      KGDP     2.5
+      KPVS     0.25
+      DMTOL    0.1
+      IVETOL   0.5
+      NEGTOL   0.01
+      MACVOC   0.4
+      MACSTEP  200
+      LOGSTEP  550
+      USEHDF   1
+      ESC      1.028
+     /;
+  PARAMETER SOL_ACFR(R,UC_COST,T) Baseline annual cost data  //;
+* MACRO Sectoral Demands, marginals and AEEIs
+  PARAMETERS
+    TM_DEM(REG,YEAR,COM) Demand levels
+    TM_DMC(REG,YEAR,COM) Demand marginals
+    TM_DDF_Y(R,T)        Production growths
+    TM_DDF_DM(R,T,C)     Demand growth rate
+    TM_DDF_SP(R,T,C)     Demand marginals change rate
+    TM_F2(R,T,C)         Demand DDF calibration
+    TM_ANNC(REG,YEAR)    Estimate of annual energy system cost
+    TM_GDPGOAL(REG,YEAR) Projected Baseline GDP
+    TM_GDP(R,T)          Actualized gross domestic product
+    TM_QSFA(REG,T)       Quadratic supply function A
+    TM_QSFB(REG,T,COM)   Quadratic supply function B
+    TM_NWT(REG)          Negishi weights
+    TM_NWTIT(NITER,REG)  Negishi weights by iteration
+    TM_CIE(R,T,CG)       Expnditure rate           //
+    PAR_Y(R,T)           Production parameter      //
+    PAR_GRGDP(R,T)       Growth rate of GDP        //
+    PAR_MC(R,YEAR,C)     Marginal costs of demands //
+    TM_RESULT(ITEM,R,YEAR) MACRO Summary result parameters //
+;
+
+""",
+        )
