@@ -18,6 +18,8 @@ import logging
 from typing import TYPE_CHECKING
 
 from core.cal_caps_mod import cal_caps_mod
+from core.cal_nored_red import cal_nored_red
+from core.cal_red_red import cal_red_red
 
 from .base_class import GamsClass
 
@@ -91,6 +93,7 @@ class EqobjvarMod(GamsClass):
             is_vnret_defined=self.tc.defined("VNRET"),
             varv=self.env.varv,
             varm=self.env.varm,
+            cal_red=self.env.cal_red,
         )
         if self.env.stages == "YES":
             self.env.set_scoped("sow", ",SOW")
@@ -113,6 +116,7 @@ class EqobjvarMod(GamsClass):
         is_vnret_defined: bool,
         varv: str,
         varm: str,
+        cal_red: str,
     ):
         include_cal_caps_ = cal_caps_mod(
             is_vnret_defined=is_vnret_defined,
@@ -124,6 +128,27 @@ class EqobjvarMod(GamsClass):
             sws=sws,
             varm=varm,
         )
+        include_cal_red = ""
+        # only set in pp_reduce.red
+        if cal_red == "cal_red.red":
+            include_cal_red = cal_red_red(
+                arg1="C",
+                arg2="COM",
+                arg3="S",
+                arg4="P",
+                arg5="T",
+            )
+        elif cal_red == "cal_nored.red":
+            include_cal_red = cal_nored_red(
+                arg1="C",
+                arg2="COM",
+                arg3="S",
+                arg4="P",
+                arg5="T",
+            )
+        else:
+            raise ValueError(f"Unexpected value for cal_red: {cal_red}")
+
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -175,7 +200,7 @@ class EqobjvarMod(GamsClass):
         SUM(TS_ANN(S,TS),
           SUM({tpulse} * (OBJ_FCOST(R,Y_EOH,P,C,TS,CUR)+OBJ_FDELV(R,Y_EOH,P,C,TS,CUR)+OBJ_FTAX(R,Y_EOH,P,C,TS,CUR)))) *
         SUM(RTP_VINTYR(R,V,T,P),
-{"#TODO $            BATINCLUDE {cal_red} C COM S P T"}
+{include_cal_red}
           )) +
 
 * same for IRE processes
