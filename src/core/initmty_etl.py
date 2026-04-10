@@ -44,7 +44,7 @@ class InitmtyEtl(GamsClass):
     def compile(self) -> None:
         phase = "init"
         # OPTCR from default 0.1 to 0.000001, may want to adjust in *.RUN file
-        self.tc.add_gams_code(module=self, phase=phase, code="OPTION OPTCR = 0.000001;")
+        self.tc.enqueue(self.exec1)
 
         # Input data
         self.env.set_scoped("etl", "YES")
@@ -123,3 +123,6 @@ SCALAR MLITERM /10.0/;
 SCALAR CCDIFCRIT /0.1/;
 """,
         )
+
+    def exec1(self: InitmtyEtl):
+        self.tc.add_gams_code(module=self, phase="run", code="OPTION OPTCR = 0.000001;")

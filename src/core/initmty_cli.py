@@ -34,8 +34,6 @@ class InitmtyCli(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
     ):
         self.env = env.fork()
         self.tc = tc
@@ -151,11 +149,16 @@ class InitmtyCli(GamsClass):
     EXT-EOH     -1
     BEOHMOD     20
  /;
-IF(NOT CM_CONST('GAMMA'), CM_CONST('GAMMA') = 5.35*LOG(2));
-IF(CM_CONST('LAMBDA') EQ 0, CM_CONST('LAMBDA') = 1.25);
-IF(CM_CONST('CS') EQ 0, CM_CONST('CS') = CM_CONST('GAMMA')/CM_CONST('LAMBDA'));
-CM_CONST('LAMBDA') = CM_CONST('GAMMA')/CM_CONST('CS');
-E('0')=0; IF(CM_CONST('EXT-EOH') EQ 0, CM_CONST('EXT-EOH')=SMAX(LL$E(LL),E(LL)));
+
+""",
+        )
+
+        self.tc.enqueue(self.exec1)
+
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=r"""
 *-----------------------------------------------------------------------------
 * The following parameters describe historical mass of CO2 in the ATM and ocean
 * as well as historical temperature increases in surface and deep ocean
@@ -170,5 +173,18 @@ E('0')=0; IF(CM_CONST('EXT-EOH') EQ 0, CM_CONST('EXT-EOH')=SMAX(LL$E(LL),E(LL)))
 2010       826      830     19230      0.80       0.06      3122    1988     414     2109
 ;
 *-----------------------------------------------------------------------------
+""",
+        )
+
+    def exec1(self: InitmtyCli):
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=r"""
+IF(NOT CM_CONST('GAMMA'), CM_CONST('GAMMA') = 5.35*LOG(2));
+IF(CM_CONST('LAMBDA') EQ 0, CM_CONST('LAMBDA') = 1.25);
+IF(CM_CONST('CS') EQ 0, CM_CONST('CS') = CM_CONST('GAMMA')/CM_CONST('LAMBDA'));
+CM_CONST('LAMBDA') = CM_CONST('GAMMA')/CM_CONST('CS');
+E('0')=0; IF(CM_CONST('EXT-EOH') EQ 0, CM_CONST('EXT-EOH')=SMAX(LL$E(LL),E(LL)));
 """,
         )
