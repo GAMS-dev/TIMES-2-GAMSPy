@@ -23,9 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 def cal_caps_mod(
-    # TODO not sure if this is ok...
-    # $IF DEFINED VNRET
-    condition: bool,
+    is_vnret_defined: bool,
     arg1: str = "",
     arg2: str = "",
     arg3: str = "",
@@ -46,7 +44,7 @@ def cal_caps_mod(
       SUM((RTP_CPTYR(R,V,{arg1},P),IO)$NCAP_COM(R,V,P,C,IO),
         COEF_CPT(R,V,{arg1},P) * NCAP_COM(R,V,P,C,IO) * G_YRFR(R,S) *
         ({varv}_NCAP{arg4}(R,V,P {sws})$T(V) + NCAP_PASTI(R,V,P)
-{f"-SUM(VNRET(V,MODLYEAR({arg1})),{varm}_SCAP{arg4}(R,V,{arg1},P{sws}))$PRC_RCAP(R,P)" if condition else ""}
+{f"-SUM(VNRET(V,MODLYEAR({arg1})),{varm}_SCAP{arg4}(R,V,{arg1},P{sws}))$PRC_RCAP(R,P)" if is_vnret_defined else ""}
         ) * SUM(RPCS_VAR(R,P,C,{arg3}), RS_FR(R,TS,S) * {arg2}) * (1+COEF_CIO(R,V,{arg1},P,C,IO)))
      )
 """

@@ -88,7 +88,7 @@ class EqobjvarMod(GamsClass):
             mx=self.env.mx,
             condition1=self.env.stages.upper() == "YES",
             condition2=self.env.stages == "YES",
-            condition_for_cal_caps_mod=self.tc.defined("VNRET"),
+            is_vnret_defined=self.tc.defined("VNRET"),
             varv=self.env.varv,
             varm=self.env.varm,
         )
@@ -110,12 +110,12 @@ class EqobjvarMod(GamsClass):
         mx: str,
         condition1: bool,
         condition2: bool,
-        condition_for_cal_caps_mod: bool,
+        is_vnret_defined: bool,
         varv: str,
         varm: str,
     ):
         include_cal_caps_ = cal_caps_mod(
-            condition=condition_for_cal_caps_mod,
+            is_vnret_defined=is_vnret_defined,
             arg1="T",
             arg2=f"SUM(TS_ANN(TS,SL),SUM({tpulse}*(OBJ_FCOST(R,Y_EOH,P,C,SL,CUR)+OBJ_FDELV(R,Y_EOH,P,C,SL,CUR)+OBJ_FTAX(R,Y_EOH,P,C,SL,CUR))))",
             arg3="TS",

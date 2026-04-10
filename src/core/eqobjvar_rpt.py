@@ -71,7 +71,7 @@ class EqobjvarRpt(GamsClass):
                 tpulse=self.env.tpulse,
                 tmp=self.env.tmp,
                 condition=self.env.stages.upper() == "YES",
-                condition_for_cal_caps_mod=self.tc.defined("VNRET"),
+                is_vnret_defined=self.tc.defined("VNRET"),
                 varv=self.env.varv,
                 sws=self.env.sws,
                 varm=self.env.varm,
@@ -79,7 +79,7 @@ class EqobjvarRpt(GamsClass):
         else:  # LEGACY
             self.tc.enqueue(
                 self.execute_legacy_behavior,
-                condition_for_cal_caps_mod=self.tc.defined("VNRET"),
+                is_vnret_defined=self.tc.defined("VNRET"),
                 varv=self.env.varv,
                 sws=self.env.sws,
                 varm=self.env.varm,
@@ -96,13 +96,13 @@ class EqobjvarRpt(GamsClass):
         tpulse: str,
         tmp: str,
         condition: bool,
-        condition_for_cal_caps_mod: bool,
+        is_vnret_defined: bool,
         varv: str,
         sws: str,
         varm: str,
     ):
         include_cal_caps_1 = cal_caps_mod(
-            condition=condition_for_cal_caps_mod,
+            is_vnret_defined=is_vnret_defined,
             arg1="T",
             arg2=f"SUM(TS_ANN(TS,SL),{arg5}({tpulse}(OBJ_FCOST(R,{arg4},P,C,SL,CUR)+OBJ_FDELV(R,{arg4},P,C,SL,CUR))))",
             arg3="TS",
@@ -112,7 +112,7 @@ class EqobjvarRpt(GamsClass):
             varm=varm,
         )
         include_cal_caps_2 = cal_caps_mod(
-            condition=condition_for_cal_caps_mod,
+            is_vnret_defined=is_vnret_defined,
             arg1="T",
             arg2=f"SUM(TS_ANN(TS,SL),{arg5}({tpulse} OBJ_FTAX(R,{arg4},P,C,SL,CUR)))",
             arg3="TS",
@@ -221,13 +221,13 @@ class EqobjvarRpt(GamsClass):
 
     def execute_legacy_behavior(
         self: EqobjvarRpt,
-        condition_for_cal_caps_mod: bool,
+        is_vnret_defined: bool,
         varv: str,
         sws: str,
         varm: str,
     ):
         include_cal_caps = cal_caps_mod(
-            condition=condition_for_cal_caps_mod,
+            is_vnret_defined=is_vnret_defined,
             arg1="T",
             arg2="SUM(TS_ANN(TS,SL),OBJ_FCOST(R,Y_EOH,P,C,SL,CUR)+OBJ_FDELV(R,Y_EOH,P,C,SL,CUR)+OBJ_FTAX(R,Y_EOH,P,C,SL,CUR))",
             arg3="TS",
