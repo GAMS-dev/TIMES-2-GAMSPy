@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class DynsliteVda(GamsClass):  # FilenameExt
+class DynsliteVda(GamsClass):
     """Translation unit for dynslite.vda."""
 
     # Instance attributes
