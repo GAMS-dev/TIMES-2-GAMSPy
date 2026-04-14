@@ -120,7 +120,6 @@ class EqpeakMod(GamsClass):
             arg3="IE",
             arg4="*(-NCAP_PKCNT(R,V,P,S)/COM_IE(R,T,C,S))$(COM_IE(R,T,C,S)>0)",
             arg5="-",
-            # TODO is the splitting here correct?
             arg6="PRC_PKNO(",
             arg7=")",
         )
