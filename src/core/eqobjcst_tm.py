@@ -18,7 +18,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from core.eqdamage_mod import eq_damage_mod
-from core.eqobjvar_mod import eqobjvar
+from core.eqobjvar_mod import eqobjvar_mod
 from core.prepret_dsc import objfix
 
 from .base_class import GamsClass
@@ -107,15 +107,21 @@ class EqobjcstTm(GamsClass):
    EQ_ANNVAR(R,T,CUR)$RDCUR(R,CUR) ..
 
 {
-            eqobjvar(
-                arg1="mod",
+            eqobjvar_mod(
+                swtd=self.env.swtd,
+                tpulse=self.env.tpulse,
                 var=self.env.var,
-                eq=self.env.eq,
-                stages=self.env.stages,
                 sow=self.env.sow,
+                pgprim=self.env.pgprim,
+                vart=self.env.vart,
                 sws=self.env.sws,
-                obj=self.env.obj,
-                varcost=self.env.varcost,
+                mx=self.env.mx,
+                condition1=self.env.stages.upper() == "YES",
+                condition2=self.env.stages == "YES",
+                is_vnret_defined=self.tc.defined("VNRET"),
+                varv=self.env.varv,
+                varm=self.env.varm,
+                cal_red=self.env.cal_red,
             )
         }
 

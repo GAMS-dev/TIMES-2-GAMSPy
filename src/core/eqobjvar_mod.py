@@ -74,19 +74,17 @@ class EqobjvarMod(GamsClass):
             self.env.set_scoped("mx", f"*({self.env.shff}S(R,V,P,C,C{self.env.sow}))")
         if self.env.stages == "YES":
             self.env.set_scoped("sowtmpend", ",SOW")
+        else:
+            self.env.set_scoped("sowtmpend", self.env.sow)
 
         # TODO need to figure out what todo if arg2 = *
-        self.comp1(
-            eq=self.env.eq,
-            sowtmp=self.env.sowtmp,
-            swtd=self.env.swtd,
+        eqobjvar = eqobjvar_mod(
             tpulse=self.env.tpulse,
             var=self.env.var,
             sow=self.env.sow,
             pgprim=self.env.pgprim,
             vart=self.env.vart,
             sws=self.env.sws,
-            sowtmpend=self.env.sowtmpend,
             mx=self.env.mx,
             condition1=self.env.stages.upper() == "YES",
             condition2=self.env.stages == "YES",
@@ -94,67 +92,73 @@ class EqobjvarMod(GamsClass):
             varv=self.env.varv,
             varm=self.env.varm,
             cal_red=self.env.cal_red,
+            swtd=self.env.swtd,
         )
-        if self.env.stages == "YES":
-            self.env.set_scoped("sow", ",SOW")
-
-    def comp1(
-        self: EqobjvarMod,
-        eq: str,
-        sowtmp: str,
-        swtd: str,
-        tpulse: str,
-        var: str,
-        sow: str,
-        pgprim: str,
-        vart: str,
-        sws: str,
-        sowtmpend: str,
-        mx: str,
-        condition1: bool,
-        condition2: bool,
-        is_vnret_defined: bool,
-        varv: str,
-        varm: str,
-        cal_red: str,
-    ):
-        include_cal_caps_ = cal_caps_mod(
-            is_vnret_defined=is_vnret_defined,
-            arg1="T",
-            arg2=f"SUM(TS_ANN(TS,SL),SUM({tpulse}*(OBJ_FCOST(R,Y_EOH,P,C,SL,CUR)+OBJ_FDELV(R,Y_EOH,P,C,SL,CUR)+OBJ_FTAX(R,Y_EOH,P,C,SL,CUR))))",
-            arg3="TS",
-            arg4="",
-            varv=varv,
-            sws=sws,
-            varm=varm,
-        )
-        include_cal_red = ""
-        # only set in pp_reduce.red
-        if cal_red == "cal_red.red":
-            include_cal_red = cal_red_red(
-                arg1="C",
-                arg2="COM",
-                arg3="S",
-                arg4="P",
-                arg5="T",
-            )
-        elif cal_red == "cal_nored.red":
-            include_cal_red = cal_nored_red(
-                arg1="C",
-                arg2="COM",
-                arg3="S",
-                arg4="P",
-                arg5="T",
-            )
-        else:
-            raise ValueError(f"Unexpected value for cal_red: {cal_red}")
 
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=rf"""
-   {eq}_OBJVAR(RDCUR(R,CUR) {sowtmp}) ..
+   {self.env.eq}_OBJVAR(RDCUR(R,CUR) {self.env.sowtmp}) ..
 
+{eqobjvar}
+
+    SUM(OBV,SUM_OBJ('OBJVAR',OBV)*{self.env.var}_OBJ(R,OBV,CUR {self.env.sowtmpend}));
+
+""",
+        )
+
+        if self.env.stages == "YES":
+            self.env.set_scoped("sow", ",SOW")
+
+
+def eqobjvar_mod(
+    swtd: str,
+    tpulse: str,
+    var: str,
+    sow: str,
+    pgprim: str,
+    vart: str,
+    sws: str,
+    mx: str,
+    condition1: bool,
+    condition2: bool,
+    is_vnret_defined: bool,
+    varv: str,
+    varm: str,
+    cal_red: str,
+) -> str:
+    include_cal_caps_ = cal_caps_mod(
+        is_vnret_defined=is_vnret_defined,
+        arg1="T",
+        arg2=f"SUM(TS_ANN(TS,SL),SUM({tpulse}*(OBJ_FCOST(R,Y_EOH,P,C,SL,CUR)+OBJ_FDELV(R,Y_EOH,P,C,SL,CUR)+OBJ_FTAX(R,Y_EOH,P,C,SL,CUR))))",
+        arg3="TS",
+        arg4="",
+        varv=varv,
+        sws=sws,
+        varm=varm,
+    )
+
+    if cal_red == "cal_red.red":
+        include_cal_red = cal_red_red(
+            arg1="C",
+            arg2="COM",
+            arg3="S",
+            arg4="P",
+            arg5="T",
+        )
+    elif cal_red == "cal_nored.red":
+        include_cal_red = cal_nored_red(
+            arg1="C",
+            arg2="COM",
+            arg3="S",
+            arg4="P",
+            arg5="T",
+        )
+    else:
+        raise ValueError(f"Unexpected value for cal_red: {cal_red}")
+
+    return rf"""
       ({swtd}
 *------------------------------------------------------------------------------
 * Costs on Overall activity of a process
@@ -239,9 +243,4 @@ class EqobjvarMod(GamsClass):
         )
 
     =E=
-
-
-    SUM(OBV,SUM_OBJ('OBJVAR',OBV)*{var}_OBJ(R,OBV,CUR {sowtmpend}));
-
-""",
-        )
+"""

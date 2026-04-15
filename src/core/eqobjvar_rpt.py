@@ -126,6 +126,7 @@ class EqobjvarRpt(GamsClass):
             module=self,
             phase="run",
             code=rf"""
+{"Z=SUM(W(SOW),SW_PROB(W));" if condition else ""}
 *------------------------------------------------------------------------------
   OPTION CLEAR={arg1}_ACTC,CLEAR={arg1}_COMC,CLEAR={arg1}_FLOC;
 *------------------------------------------------------------------------------
