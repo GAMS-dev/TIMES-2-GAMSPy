@@ -14,8 +14,6 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.prepret_dsc import prepret_dsc
-
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -37,7 +35,7 @@ class EqobsalvMod(GamsClass):
         tc: TimesModelClass,
         env: CompileEnvironment,
         arg1: str,
-        arg2: str,
+        arg2: str = "",
     ):
         self.env = env.fork()
         self.arg1 = arg1
@@ -240,7 +238,7 @@ LOOP((OBJ_SUMS(R,T(V),P),G_RCUR(R,CUR))$SEG(R,P),
 """
 
         if self.tc.defined("VNRET"):
-            rhs += prepret_dsc("OBSALV")
+            rhs += "OBSALV"
 
         rhs += rf"""
 *------------------------------------------------------------------------------

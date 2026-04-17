@@ -53,9 +53,9 @@ class EqcumfloMod(GamsClass):
             self.env.set_scoped("sw2", ",'1',SOW")
 
         if self.env.cal_red == "cal_red.red":
-            from core.cal_red_red import cal_red as cal_red_func
+            from core.cal_red_red import cal_red_red as cal_red_func
         else:
-            from core.cal_nored_red import cal_nored as cal_red_func
+            from core.cal_nored_red import cal_nored_red as cal_red_func
 
         equation = rf"""
 *$ONLISTING
@@ -83,7 +83,7 @@ class EqcumfloMod(GamsClass):
             equation += f"SUM({self.env.swsw} ("
 
         equation += rf"""
-{cal_red_func("C", "COM", "TS", "P", "T")}
+{cal_red_func(arg1="C", arg2="COM", arg3="TS", arg4="P", arg5="T", var=self.env.var, sow=self.env.sow, shff=self.env.shff, pgprim=self.env.pgprim)}
                          $RP_STD(R,P) +
                          (SUM(RPC_IRE(R,P,C,IE),{self.env.var}_IRE(R,V,T,P,C,TS,IE{self.env.sow}))$(NOT RPC_AIRE(R,P,C)) +
                           ({self.env.var}_ACT(R,V,T,P,TS{self.env.sow})*PRC_ACTFLO(R,V,P,C))$RPC_AIRE(R,P,C))$RP_IRE(R,P)
@@ -104,7 +104,7 @@ class EqcumfloMod(GamsClass):
 
         equation += rf"""
                       * {self.env.vartt}_ACT(R,V,T,P,TS {self.env.sws})
-                    )$SAMEAS({self.env.pgprim},C)
+                    )$SAMEAS('{self.env.pgprim}',C)
 
                  ) / {self.env.cufscal}
 

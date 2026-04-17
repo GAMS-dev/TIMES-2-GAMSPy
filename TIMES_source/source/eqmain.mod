@@ -27,6 +27,7 @@ $   IFI %VDA%==YES $BATINCLUDE equ_ext.vda DECLR
 * Main OBJ
   PARAMETER SUM_OBJ(ITEM,ITEM) 'Objective component summation';
 
+
 $IFI '%SPINES%'==YES $BATINCLUDE recurrin.stc SPINES
 $IF  '%STAGES%'==YES $%WITSPINE% %SW_STVARS%
 
@@ -104,6 +105,9 @@ $   BATINCLUDE eqcombal.%1 %1 E FX BAL
 * Limiting equation when total production is to be constrained
 *-----------------------------------------------------------------------------
 $   BATINCLUDE eqcombal.%1 %1 E FX PRD "* RHS_COMPRD(R,T,C,S)"
+$gdxUnload %COMPILE_GDX%
+execute_unload "%EXECUTE_GDX%";
+$stop
 
 *-----------------------------------------------------------------------------
 * Bound on the flow variable

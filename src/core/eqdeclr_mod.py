@@ -34,13 +34,10 @@ class EqdeclrMod(GamsClass):
     module_name: str = "eqdeclr_mod"
     gams_source: str = "eqdeclr.mod"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment, arg1: str):
         self.env = env.fork()
         self._sub_modules = {}
+        self.arg1 = arg1
         self.tc = tc
         self.compile()
 

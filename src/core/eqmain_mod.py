@@ -33,7 +33,8 @@ from core.eqcumflo_mod import EqcumfloMod
 from core.eqdamage_mod import EqdamageMod
 from core.eqdeclr_mod import EqdeclrMod
 from core.eqdeclr_tm import EqdeclrTm
-from core.eqflobnd_mod import EqflobndMod
+
+# from core.eqflobnd_mod import EqflobndMod
 from core.eqflofr_mod import EqflofrMod
 from core.eqflomrk_mod import EqflomrkMod
 from core.eqfloshr_mod import EqfloshrMod
@@ -54,6 +55,7 @@ from core.equ_ext_vda import EquExtVda
 from core.equcwrap_mod import EqucwrapMod
 from core.eqxbnd_mod import EqxbndMod
 from core.recurrin_stc import RecurrinStc
+from core.utils import EscapeStack
 
 from .base_class import GamsClass
 
@@ -121,6 +123,7 @@ class EqmainMod(GamsClass):
             self.include(EqobjTm(tc=self.tc, env=self.env))
 
         if self.env.spines.upper() == "YES":
+            # TODO: Resolve
             self.tc.add_gams_code(
                 module=self, phase="init", code=f"${self.env.ewispine}"
             )
@@ -183,6 +186,7 @@ class EqmainMod(GamsClass):
 
         # Capacity transfer constraint
         if self.env.spines.upper() == "YES":
+            # TODO: Resolve
             self.tc.add_gams_code(
                 module=self, phase="init", code=f"${self.env.witspine}"
             )
@@ -197,6 +201,7 @@ class EqmainMod(GamsClass):
         # Cumulative process flow / activity
         self.include(EqcumfloMod(tc=self.tc, env=self.env))
         if self.env.spines.upper() == "YES":
+            # TODO: Resolve
             self.tc.add_gams_code(
                 module=self, phase="init", code=f"${self.env.ewispine}"
             )
@@ -238,18 +243,20 @@ class EqmainMod(GamsClass):
             )
         )
 
+        raise EscapeStack(self.module_name)
         # Bound on the flow variable
         batincludes = [
             ("G", "LO", "YES"),
             ("E", "FX", "YES"),
             ("L", "UP", "(FLO_BND(R,T,P,CG,S,'UP') NE INF)"),
         ]
-        for arg in batincludes:
-            self.include(
-                EqflobndMod(
-                    tc=self.tc, env=self.env, arg1=arg[0], arg2=arg[1], arg3=arg[2]
-                )
-            )
+        # TODO
+        # for arg in batincludes:
+        #     self.include(
+        #         EqflobndMod(
+        #             tc=self.tc, env=self.env, arg1=arg[0], arg2=arg[1], arg3=arg[2]
+        #         )
+        #     )
 
         # Fraction of a flow within a specific time slice
         batincludes = [("L", "'LO'"), ("E", "LNX"), ("G", "'UP'")]
@@ -445,21 +452,13 @@ class EqmainMod(GamsClass):
             self.include(EqdamageMod(tc=self.tc, env=self.env))
 
     def _m2t(self: EqmainMod):
+        # fmt: off
         batincludes = [
-            (
-                "E",
-                "E",
-                "NOT PRC_MAP(R,'DMD',P)",
-                f"{self.env.var}_CAP(R,T,P {self.env.sow})",
-            ),
-            (
-                "L",
-                "L",
-                "PRC_MAP(R,'DMD',P)",
-                f"{self.env.var}_CAP(R,T,P {self.env.sow})",
-            ),
+            ("E", "E", "NOT PRC_MAP(R,'DMD',P)", f"{self.env.var}_CAP(R,T,P {self.env.sow})"),
+            ("L", "L", "PRC_MAP(R,'DMD',P)", f"{self.env.var}_CAP(R,T,P {self.env.sow})"),
             ("G", "G", "NO", "0"),
         ]
+        # fmt: on
         for arg in batincludes:
             self.include(
                 EqcptMod(
@@ -474,26 +473,13 @@ class EqmainMod(GamsClass):
 
     def _no_m2t(self: EqmainMod):
         self.tc.enqueue(self.assign_rtp_varp, etl=self.env.etl, macro=self.env.macro)
+        # fmt: off
         batincludes = [
-            (
-                "E",
-                "E",
-                "RTP_VARP(R,T,P) OR YES$CAP_BND(R,T,P,'FX')",
-                f"{self.env.var}_CAP(R,T,P {self.env.sow})",
-            ),
-            (
-                "L",
-                "L",
-                "((NOT RTP_VARP(R,T,P))$CAP_BND(R,T,P,'LO'))",
-                "CAP_BND(R,T,P,'LO')",
-            ),
-            (
-                "G",
-                "G",
-                "((NOT RTP_VARP(R,T,P))$CAP_BND(R,T,P,'UP'))",
-                "CAP_BND(R,T,P,'UP')",
-            ),
+            ("E", "E", "RTP_VARP(R,T,P) OR YES$CAP_BND(R,T,P,'FX')", f"{self.env.var}_CAP(R,T,P {self.env.sow})"),
+            ("L", "L", "((NOT RTP_VARP(R,T,P))$CAP_BND(R,T,P,'LO'))", "CAP_BND(R,T,P,'LO')"),
+            ("G", "G", "((NOT RTP_VARP(R,T,P))$CAP_BND(R,T,P,'UP'))", "CAP_BND(R,T,P,'UP')"),
         ]
+        # fmt: on
         for arg in batincludes:
             self.include(
                 EqcptMod(

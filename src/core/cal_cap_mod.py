@@ -24,9 +24,9 @@ logger = logging.getLogger(__name__)
 
 
 def cal_cap_mod(
-    varv: str = "",
-    sws: str = "",
-    rcapsub: str = "",
+    varv: str,
+    sws: str,
+    rcapsub: str,
     arg1: str = "",
     arg2: str = "",
     arg3: str = "",

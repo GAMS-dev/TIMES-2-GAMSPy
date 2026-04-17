@@ -327,15 +327,7 @@ LOOP(G_RCUR(R,CUR),
     def _label_dofix(self):
         self.env.set_global("capwd", "OBJ_WD(R,CUR,K_EOH,JOT,K)*")
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""
-OPTION CLEAR=FIL; FIL(LL+(B(LL)-YEARVAL(LL)))$T(LL) = YES;
-OPTION CLEAR=KAGE; KAGE(K,JOT)$((NOT FIL(K))$INVSTEP(K,JOT,K,JOT)) = YES;
-KAGE(FIL(LL-FLOOR(ORD(JOT)/2)),JOT)$((ORD(JOT) GT 1)$INVSTEP(FIL,JOT,FIL,JOT)$FIL(LL)) = YES;
-""",
-        )
+        self.tc.enqueue(self.exec11)
 
         # Convert INVSTEP to INVSPRED
         self.tc.enqueue(self.exec2)
@@ -353,6 +345,17 @@ KAGE(FIL(LL-FLOOR(ORD(JOT)/2)),JOT)$((ORD(JOT) GT 1)$INVSTEP(FIL,JOT,FIL,JOT)$FI
             return
 
         self.tc.enqueue(self.exec6)
+
+    def exec11(self):
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code="""
+OPTION CLEAR=FIL; FIL(LL+(B(LL)-YEARVAL(LL)))$T(LL) = YES;
+OPTION CLEAR=KAGE; KAGE(K,JOT)$((NOT FIL(K))$INVSTEP(K,JOT,K,JOT)) = YES;
+KAGE(FIL(LL-FLOOR(ORD(JOT)/2)),JOT)$((ORD(JOT) GT 1)$INVSTEP(FIL,JOT,FIL,JOT)$FIL(LL)) = YES;
+""",
+        )
 
     def _calculate_change_in_capacity(self, iled: str):
         self.tc.add_gams_code(

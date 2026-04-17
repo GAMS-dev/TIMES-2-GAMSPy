@@ -61,33 +61,69 @@ class EqcapactMod(GamsClass):
             )
 
         self.tc.add_gams_code(module=self, phase="init", code="SET AFS(R,T,P,S,BD) //;")
+        self.tc.enqueue(
+            self.exec,
+            validate=(self.env.validate == "YES"),
+            eq=self.env.eq,
+            var=self.env.var,
+            varv=self.env.varv,
+            varm=self.env.varm,
+            pass_var=self.env.__getattr__("pass"),
+            sws=self.env.sws,
+            swt=self.env.swt,
+            sow=self.env.sow,
+            r_v_t=self.env.r_v_t,
+            rcapsbm=self.env.rcapsbm,
+            rcapsub=self.env.rcapsub,
+            arg1=self.arg1,
+            arg2=self.arg2,
+            arg3=self.arg3,
+        )
 
-        if not self.env.validate == "YES":
+    def exec(
+        self: EqcapactMod,
+        validate: bool,
+        eq: str,
+        var: str,
+        varv: str,
+        varm: str,
+        pass_var: str,
+        sws: str,
+        swt: str,
+        sow: str,
+        r_v_t: str,
+        rcapsbm: str,
+        rcapsub: str,
+        arg1: str,
+        arg2: str,
+        arg3: str,
+    ):
+        if not validate:
             rhs_start = rf"""
       (SUM(MODLYEAR$COEF_CPT(R,MODLYEAR,T,P),
-             COEF_CPT(R,MODLYEAR,T,P) * COEF_AF{self.arg3}(R,MODLYEAR,T,P,S,'{self.arg2}') *
-             ({self.env.varm}_NCAP(R,MODLYEAR,P {self.env.sws})$T(MODLYEAR) + NCAP_PASTI(R,MODLYEAR,P)$PASTYEAR(MODLYEAR){self.env.rcapsbm})
+             COEF_CPT(R,MODLYEAR,T,P) * COEF_AF{arg3}(R,MODLYEAR,T,P,S,'{arg2}') *
+             ({varm}_NCAP(R,MODLYEAR,P {sws})$T(MODLYEAR) + NCAP_PASTI(R,MODLYEAR,P)$PASTYEAR(MODLYEAR){rcapsbm})
             ) * PRC_CAPACT(R,P)
 """
         else:
             rhs_start = rf"""
-        (COEF_AF(R,T,T,P,S,'{self.arg2}') * PRC_CAPACT(R,P) * {self.env.var}_CAP(R,T,P {self.env.sow})
+        (COEF_AF(R,T,T,P,S,'{arg2}') * PRC_CAPACT(R,P) * {var}_CAP(R,T,P {sow})
 """
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=rf"""
 * COEF_AFs are always at PRC_TS or above, can be directly used for testing:
-{"LOOP(V,AFS(RTP_VARA(R,T,P),S,BD)$COEF_AF(R,V,T,P,S,BD)=YES); AFS(RTPS_OFF,BD) = NO;" if self.arg1 == "L" else ""}
-{self.env.eq}{self.arg1}_CAPACT(RTP_VINTYR({self.env.r_v_t},P),S {self.env.swt})$(AFS(R,T,P,S,'{self.arg2}') {self.env.__getattr__("pass")}) ..
+{"LOOP(V,AFS(RTP_VARA(R,T,P),S,BD)$COEF_AF(R,V,T,P,S,BD)=YES); AFS(RTPS_OFF,BD) = NO;" if arg1 == "L" else ""}
+{eq}{arg1}_CAPACT(RTP_VINTYR({r_v_t},P),S {swt})$(AFS(R,T,P,S,'{arg2}') {pass_var}) ..
 
 * normal processes
-      SUM(PRC_TS(R,P,TS)$TS_MAP(R,S,TS),{self.env.var}_ACT(R,V,T,P,TS {self.env.sow}))$(NOT RP_STG(R,P))
+      SUM(PRC_TS(R,P,TS)$TS_MAP(R,S,TS),{var}_ACT(R,V,T,P,TS {sow}))$(NOT RP_STG(R,P))
       +
 * storage: parent timeslice fraction of the number of storage cycles in a year
-      SUM(PRC_TS(R,P,TS)$RS_FR(R,TS,S),({self.env.var}_ACT(R,V,T,P,TS {self.env.sow})+VAR_STS(R,V,T,P,TS,'{self.arg2}'))*RS_FR(R,TS,S)*EXP(PRC_SC(R,P))/RS_STGPRD(R,TS))$RP_STG(R,P)
+      SUM(PRC_TS(R,P,TS)$RS_FR(R,TS,S),({var}_ACT(R,V,T,P,TS {sow})+VAR_STS(R,V,T,P,TS,'{arg2}'))*RS_FR(R,TS,S)*EXP(PRC_SC(R,P))/RS_STGPRD(R,TS))$RP_STG(R,P)
 
-  ={self.arg1}=
+  ={arg1}=
 
       (
 
@@ -95,8 +131,8 @@ class EqcapactMod(GamsClass):
         )$(NOT PRC_VINT(R,P)) +
 
 * process is vintaged
-        (COEF_AF{self.arg3}(R,V,T,P,S,'{self.arg2}') * COEF_CPT(R,V,T,P) * PRC_CAPACT(R,P) *
-         ({self.env.varv}_NCAP(R,V,P {self.env.sws})$T(V) + NCAP_PASTI(R,V,P)$PASTYEAR(V){self.env.rcapsub}))$PRC_VINT(R,P)
+        (COEF_AF{arg3}(R,V,T,P,S,'{arg2}') * COEF_CPT(R,V,T,P) * PRC_CAPACT(R,P) *
+         ({varv}_NCAP(R,V,P {sws})$T(V) + NCAP_PASTI(R,V,P)$PASTYEAR(V){rcapsub}))$PRC_VINT(R,P)
       ) *
 
 * UR 10/05/00

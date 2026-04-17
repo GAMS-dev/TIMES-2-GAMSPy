@@ -32,6 +32,7 @@ def cal_fflo_mod(
     shff: str,
     sow: str,
     var: str,
+    pgprim: str,
     is_rtp_ffcs_defined: bool,
     arg1: str = "",
     arg3: str = "",
@@ -64,18 +65,34 @@ def cal_fflo_mod(
 """
 
     else:
-        include_cal_red_1 = cal_red_red("C", "COM", "TS", "P", "T", "", "T")
+        include_cal_red_1 = cal_red_red(
+            arg1="C",
+            arg2="COM",
+            arg3="TS",
+            arg4="P",
+            arg5="T",
+            arg6="",
+            arg7="T",
+            var=var,
+            sow=sow,
+            pgprim=pgprim,
+            shff=shff,
+        )
         include_cal_red_2 = cal_red_red(
-            "C",
-            "COM",
-            "TS",
-            "P",
-            "T",
-            "",
-            "V",
-            "SUM",
-            "RTP_VNTBYR(R,T,P,V),",
-            f"{arg3}",
+            arg1="C",
+            arg2="COM",
+            arg3="TS",
+            arg4="P",
+            arg5="T",
+            arg6="",
+            arg7="V",
+            arg8="SUM",
+            arg9="RTP_VNTBYR(R,T,P,V),",
+            arg10=f"{arg3}",
+            var=var,
+            sow=sow,
+            pgprim=pgprim,
+            shff=shff,
         )
 
         return rf"""

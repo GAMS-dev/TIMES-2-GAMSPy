@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class TemplateMod(GamsClass):
+class EqstgtssMod(GamsClass):
     """Translation unit for eqstgtss.mod."""
 
     # Instance attributes

@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class EqcombalMod(GamsClass):  # FilenameExt
+class EqcombalMod(GamsClass):
     """Translation unit for eqcombal.mod."""
 
     # Instance attributes
@@ -110,6 +110,7 @@ class EqcombalMod(GamsClass):  # FilenameExt
             shff=self.env.shff,
             sow=self.env.sow,
             var=self.env.var,
+            pgprim=self.env.pgprim,
             is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
             arg1="OUT",
             arg3="",
@@ -130,6 +131,8 @@ class EqcombalMod(GamsClass):  # FilenameExt
             arg7="",
         )
         include_cal_stgn_1 = cal_stgn_mod(
+            var=self.env.var,
+            sow=self.env.sow,
             arg1="OUT",
             arg2="IN",
             arg3="*STG_EFF(R,V,P)",
@@ -137,6 +140,9 @@ class EqcombalMod(GamsClass):  # FilenameExt
             arg5="(NOT PRC_NSTTS(R,P,TS))",
         )
         include_cal_cap_1 = cal_cap_mod(
+            varv=self.env.varv,
+            sws=self.env.sws,
+            rcapsub=self.env.rcapsub,
             arg1="OUT",
             arg2="O",
         )
@@ -145,6 +151,7 @@ class EqcombalMod(GamsClass):  # FilenameExt
             shff=self.env.shff,
             sow=self.env.sow,
             var=self.env.var,
+            pgprim=self.env.pgprim,
             is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
             arg1="IN",
             arg3="",
@@ -165,6 +172,8 @@ class EqcombalMod(GamsClass):  # FilenameExt
             arg7="",
         )
         include_cal_stgn_2 = cal_stgn_mod(
+            var=self.env.var,
+            sow=self.env.sow,
             arg1="IN",
             arg2="OUT",
             arg3="",
@@ -172,6 +181,9 @@ class EqcombalMod(GamsClass):  # FilenameExt
             arg5="((NOT PRC_MAP(R,'NST',P))+PRC_NSTTS(R,P,TS))",
         )
         include_cal_cap_2 = cal_cap_mod(
+            varv=self.env.varv,
+            sws=self.env.sws,
+            rcapsub=self.env.rcapsub,
             arg1="IN",
             arg2="I",
         )

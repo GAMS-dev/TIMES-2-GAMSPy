@@ -19,7 +19,7 @@
 * need to set the variable outside of the equation definition
 * %SWS% is only used after the change
 $IF '%4' == BAL
-  $IFI %STAGES% == YES $SETLOCAL SWS 'PROD(SW_MAP(T,SOW,J,WW)$S_COM_PROJ(R,T,C,J,WW),S_COM_PROJ(R,T,C,J,WW))*'
+  $$IFI %STAGES% == YES $SETLOCAL SWS 'PROD(SW_MAP(T,SOW,J,WW)$S_COM_PROJ(R,T,C,J,WW),S_COM_PROJ(R,T,C,J,WW))*'
 
 *
     %EQ%%2_COM%4(%R_T%,C,S %SWT%)$(RCS_COM%4(R,T,C,S,'%3') %5) ..

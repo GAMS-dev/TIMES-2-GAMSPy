@@ -18,6 +18,9 @@ from __future__ import annotations
 
 
 def cal_nored_red(
+    var: str,
+    sow: str,
+    shff: str,
     arg1: str = "",
     arg2: str = "",
     arg3: str = "",
@@ -28,9 +31,6 @@ def cal_nored_red(
     arg8: str = "",
     arg9: str = "",
     def_rtp_ffcs: bool = False,
-    shff: str = "",
-    sow: str = "",
-    var: str = "",
 ) -> str:
     shp3 = ""
     vnt = arg5

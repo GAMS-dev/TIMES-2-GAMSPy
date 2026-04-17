@@ -30,7 +30,6 @@ from core.eqobjvar_mod import EqobjvarMod
 from core.eqobjvar_rpt import EqobjvarRpt
 from core.eqobsalv_mod import EqobsalvMod
 from core.eqobsalv_rpt import EqobsalvRpt
-from core.main_ext_mod import include_extension
 from core.prepret_dsc import PrepretDsc
 
 from .base_class import GamsClass
@@ -74,6 +73,7 @@ class EqobjMod(GamsClass):
             phase="init",
             code="SET KTYAGE(LL,YEAR,LL,AGE);",
         )
+        self.add_records_to_universe_item(["OBJELS"])
         self.tc.enqueue(self.exec2)
         self.tc.add_gams_code(
             module=self,
@@ -172,16 +172,19 @@ class EqobjMod(GamsClass):
         )
 
         include_main_ext = ""
-        if self.env.extend != "":
-            # TODO: no obj_ext files present
-            extensions = {}
-            requested_exts = set(self.env.extend.split())
-            include_main_ext = include_extension(
-                module=self,
-                extensions=extensions,
-                requested_exts=requested_exts,
-                source="obj_ext",
-            )
+        # TODO: no obj_ext files present -> remove code
+        # if self.env.extend != "":
+        #     extensions = {}
+        #     requested_exts = set(self.env.extend.split())
+        #     include_main_ext = include_extension(
+        #         module=self,
+        #         extensions=extensions,
+        #         requested_exts=requested_exts,
+        #         source="obj_ext",
+        #     )
+
+        if is_timesed or is_micro:
+            self.add_records_to_universe_item(["OBJELS"])
 
         self.tc.add_gams_code(
             module=self,

@@ -93,6 +93,7 @@ class EqobjvarMod(GamsClass):
             varm=self.env.varm,
             cal_red=self.env.cal_red,
             swtd=self.env.swtd,
+            shff=self.env.shff,
         )
 
         self.tc.add_gams_code(
@@ -127,6 +128,7 @@ def eqobjvar_mod(
     varv: str,
     varm: str,
     cal_red: str,
+    shff: str,
 ) -> str:
     include_cal_caps_ = cal_caps_mod(
         is_vnret_defined=is_vnret_defined,
@@ -146,6 +148,10 @@ def eqobjvar_mod(
             arg3="S",
             arg4="P",
             arg5="T",
+            var=var,
+            sow=sow,
+            pgprim=pgprim,
+            shff=shff,
         )
     elif cal_red == "cal_nored.red":
         include_cal_red = cal_nored_red(
@@ -170,7 +176,7 @@ def eqobjvar_mod(
                 POWER(RS_STGAV(R,S),1$RP_STG(R,P)))
              ) +
 * modal costs if modeled
-          SUM(RTP_VINTYR(R,V,T,P)$RPC_CUR(R,P,{pgprim},CUR),
+          SUM(RTP_VINTYR(R,V,T,P)$RPC_CUR(R,P,'{pgprim}',CUR),
             SUM(RP_UPS(R,P,TSL,L('UP')),ACT_CSTUP(R,V,P,TSL,CUR)*OBJ_PVT(R,T,CUR)*SUM(TS_GROUP(R,TSL,S),RS_STGPRD(R,S)*{var}_UPS(R,V,T,P,S,L{sow}))) +
             SUM(RP_UPT(R,P,UPT,'UP'),ACT_CSTSD(R,V,P,UPT,'FX',CUR)*OBJ_PVT(R,T,CUR)*SUM(TS_GROUP(R,TSL,S)$RP_DPL(R,P,TSL),RS_STGPRD(R,S)*{var}_UPT(R,V,T,P,S,UPT{sow}))) +
             SUM(RP_UPR(R,P,BDNEQ(BD)),ACT_CSTRMP(R,V,P,BD,CUR)*OBJ_PVT(R,T,CUR)*SUM(PRC_TS(R,P,S),RS_STGPRD(R,S)*{var}_UDP(R,V,T,P,S,BD{sow})))) +
