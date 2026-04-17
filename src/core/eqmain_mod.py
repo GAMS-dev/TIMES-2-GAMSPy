@@ -68,7 +68,7 @@ class EqmainMod(GamsClass):
     """Translation unit for eqmain.mod."""
 
     # Instance attributes
-    module_name: str = "eqmain"
+    module_name: str = "eqmain_mod"
     gams_source: str = "eqmain.mod"
 
     def __init__(self, tc: TimesModelClass, env: CompileEnvironment, arg1: str):
@@ -116,8 +116,8 @@ class EqmainMod(GamsClass):
             self.env.set_local("obj", self.arg1)
         if self.env.macro.upper() != "YES":
             self.include(EqobjMod(tc=self.tc, env=self.env, arg1=self.arg1))
-        elif self.env.macro.upper() == "YES":
-            self.include(EqobjTm(tc=self.tc, env=self.env, arg1=self.arg1))
+        else:
+            self.include(EqobjTm(tc=self.tc, env=self.env))
 
         if self.env.spines.upper() == "YES":
             self.tc.add_gams_code(
@@ -194,7 +194,7 @@ class EqmainMod(GamsClass):
         self.include(EqcumcomMod(tc=self.tc, env=self.env, arg1="E", arg2="NET"))
         self.include(EqcumcomMod(tc=self.tc, env=self.env, arg1="E", arg2="PRD"))
         # Cumulative process flow / activity
-        self.include(EqcumfloMod(tc=self.tc, env=self.env, arg1="E"))
+        self.include(EqcumfloMod(tc=self.tc, env=self.env))
         if self.env.spines.upper() == "YES":
             self.tc.add_gams_code(
                 module=self, phase="init", code=f"${self.env.ewispine}"
@@ -386,10 +386,10 @@ class EqmainMod(GamsClass):
         self.tc.enqueue(self.exec2, ucbd=self.env.ucbd, take=self.env.take)
 
         batincludes = [
-            ("E", "BD", "", "SUM(BD$ ,1)", "NOT"),
-            ("E", "'FX'", ",'FX'"),
-            ("G", "'LO'", ",'LO'"),
-            ("L", "'UP'", ",'UP'"),
+            ("E", "BD", "", "SUM(BD$", ",1)", "NOT"),
+            ("E", "'FX'", ",'FX'", "", "", ""),
+            ("G", "'LO'", ",'LO'", "", "", ""),
+            ("L", "'UP'", ",'UP'", "", "", ""),
         ]
         for arg in batincludes:
             self.include(
@@ -399,8 +399,9 @@ class EqmainMod(GamsClass):
                     arg1=arg[0],
                     arg2=arg[1],
                     arg3=arg[2],
-                    arg4=arg[3] if len(arg) > 3 else "",
-                    arg5=arg[4] if len(arg) > 4 else "",
+                    arg4=arg[3],
+                    arg5=arg[4],
+                    arg6=arg[5],
                 )
             )
 
