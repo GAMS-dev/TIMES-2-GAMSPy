@@ -61,6 +61,29 @@ class EqbndcstMod(GamsClass):
         if not self.tc.defined("OBJ_SUMII"):
             return
 
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code="""
+ SET COST_GMAP(COSTAGG,COSTAGG,COSTYPE) /
+  INVTAXSUB.(INVTAX.TAX,INVSUB.SUB)
+  INVALL   .(INV.COST,INVTAX.TAX,INVSUB.SUB)
+  FOMTAXSUB.(FOMTAX.TAX,FOMSUB.SUB)
+  FOMALL   .(FOM.COST,FOMTAX.TAX,FOMSUB.SUB)
+  FIX      .(INV.COST,FOM.COST)
+  FIXTAX   .(INVTAX.TAX,FOMTAX.TAX)
+  FIXSUB   .(INVSUB.TAX,FOMSUB.TAX)
+  FIXTAXSUB.(INVTAX.TAX,INVSUB.SUB,FOMTAX.TAX,FOMSUB.SUB)
+  FIXALL   .(INV.COST,INVTAX.TAX,INVSUB.SUB,FOM.COST,FOMTAX.TAX,FOMSUB.SUB)
+  COMTAXSUB.(COMTAX.TAX,COMSUB.SUB)
+  FLOTAXSUB.(FLOTAX.TAX,FLOSUB.SUB)
+  ALLTAX   .(INVTAX.TAX,FOMTAX.TAX,COMTAX.TAX,FLOTAX.TAX)
+  ALLSUB   .(INVSUB.TAX,FOMSUB.TAX,COMSUB.TAX,FLOSUB.TAX)
+  ALLTAXSUB.(INVTAX.TAX,INVSUB.SUB,FOMTAX.TAX,FOMSUB.SUB,COMTAX.TAX,COMSUB.SUB,FLOTAX.TAX,FLOSUB.SUB)
+/;
+""",
+        )
+
         self.tc.enqueue(self.exec1, declif=self.env.declif)
 
         if self.env.stages == "YES":
@@ -76,11 +99,11 @@ class EqbndcstMod(GamsClass):
             self.env.set_scoped("sow", self.env.swd)
             self.env.set_scoped("swtd", "SUM")
 
-        if not self.env.obj.upper() == "LIN":
+        if self.env.obj.upper() != "LIN":
             self.env.set_scoped(
                 "tpulse", "(PERIODYR(T,Y_EOH),YK(ALLYEAR,Y_EOH))$YK(Y_EOH,YEAR),"
             )
-        if self.env.obj.upper() == "LIN":
+        else:
             self.env.set_scoped(
                 "tpulse",
                 "(TPULSEYR(T,Y_EOH),YK(ALLYEAR,Y_EOH))$YK(Y_EOH,YEAR),TPULSE(T,Y_EOH)*",
@@ -319,22 +342,6 @@ class EqbndcstMod(GamsClass):
             module=self,
             phase="run",
             code=rf"""
- SET COST_GMAP(COSTAGG,COSTAGG,COSTYPE) /
-  INVTAXSUB.(INVTAX.TAX,INVSUB.SUB)
-  INVALL   .(INV.COST,INVTAX.TAX,INVSUB.SUB)
-  FOMTAXSUB.(FOMTAX.TAX,FOMSUB.SUB)
-  FOMALL   .(FOM.COST,FOMTAX.TAX,FOMSUB.SUB)
-  FIX      .(INV.COST,FOM.COST)
-  FIXTAX   .(INVTAX.TAX,FOMTAX.TAX)
-  FIXSUB   .(INVSUB.TAX,FOMSUB.TAX)
-  FIXTAXSUB.(INVTAX.TAX,INVSUB.SUB,FOMTAX.TAX,FOMSUB.SUB)
-  FIXALL   .(INV.COST,INVTAX.TAX,INVSUB.SUB,FOM.COST,FOMTAX.TAX,FOMSUB.SUB)
-  COMTAXSUB.(COMTAX.TAX,COMSUB.SUB)
-  FLOTAXSUB.(FLOTAX.TAX,FLOSUB.SUB)
-  ALLTAX   .(INVTAX.TAX,FOMTAX.TAX,COMTAX.TAX,FLOTAX.TAX)
-  ALLSUB   .(INVSUB.TAX,FOMSUB.TAX,COMSUB.TAX,FLOSUB.TAX)
-  ALLTAXSUB.(INVTAX.TAX,INVSUB.SUB,FOMTAX.TAX,FOMSUB.SUB,COMTAX.TAX,COMSUB.SUB,FLOTAX.TAX,FLOSUB.SUB)
-/;
 *-----------------------------------------------------------------------------
 * Construct SUPERYR (needed for filtering)
   SUPERYR(PERIODYR(T,LL))$(YEARVAL(LL) LE YEARVAL(T)) = YES;
