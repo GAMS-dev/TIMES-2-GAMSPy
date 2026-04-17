@@ -109,6 +109,7 @@ class EqmainMod(GamsClass):
             self.tc.add_gams_code(
                 module=self,
                 phase="init",
+                # TODO: need to check possible values for variables
                 code=rf"${self.env.witspine} {self.env.sw_stvars}",
             )
 
