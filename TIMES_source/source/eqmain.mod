@@ -105,9 +105,6 @@ $   BATINCLUDE eqcombal.%1 %1 E FX BAL
 * Limiting equation when total production is to be constrained
 *-----------------------------------------------------------------------------
 $   BATINCLUDE eqcombal.%1 %1 E FX PRD "* RHS_COMPRD(R,T,C,S)"
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop
 
 *-----------------------------------------------------------------------------
 * Bound on the flow variable
@@ -116,6 +113,9 @@ $   BATINCLUDE eqflobnd.%1 G LO YES
 $   BATINCLUDE eqflobnd.%1 E FX YES
 $   BATINCLUDE eqflobnd.%1 L UP "(FLO_BND(R,T,P,CG,S,'UP') NE INF)"
 
+$gdxUnload %COMPILE_GDX%
+execute_unload "%EXECUTE_GDX%";
+$stop
 *-----------------------------------------------------------------------------
 * Fraction of a flow within a specific time slice
 *-----------------------------------------------------------------------------

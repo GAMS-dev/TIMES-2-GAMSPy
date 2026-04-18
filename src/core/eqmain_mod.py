@@ -33,8 +33,7 @@ from core.eqcumflo_mod import EqcumfloMod
 from core.eqdamage_mod import EqdamageMod
 from core.eqdeclr_mod import EqdeclrMod
 from core.eqdeclr_tm import EqdeclrTm
-
-# from core.eqflobnd_mod import EqflobndMod
+from core.eqflobnd_mod import EqflobndMod
 from core.eqflofr_mod import EqflofrMod
 from core.eqflomrk_mod import EqflomrkMod
 from core.eqfloshr_mod import EqfloshrMod
@@ -243,20 +242,20 @@ class EqmainMod(GamsClass):
             )
         )
 
-        raise EscapeStack(self.module_name)
         # Bound on the flow variable
         batincludes = [
             ("G", "LO", "YES"),
             ("E", "FX", "YES"),
             ("L", "UP", "(FLO_BND(R,T,P,CG,S,'UP') NE INF)"),
         ]
-        # TODO
-        # for arg in batincludes:
-        #     self.include(
-        #         EqflobndMod(
-        #             tc=self.tc, env=self.env, arg1=arg[0], arg2=arg[1], arg3=arg[2]
-        #         )
-        #     )
+
+        for arg in batincludes:
+            self.include(
+                EqflobndMod(
+                    tc=self.tc, env=self.env, arg1=arg[0], arg2=arg[1], arg3=arg[2]
+                )
+            )
+        raise EscapeStack(self.module_name)
 
         # Fraction of a flow within a specific time slice
         batincludes = [("L", "'LO'"), ("E", "LNX"), ("G", "'UP'")]
