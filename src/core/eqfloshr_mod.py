@@ -54,15 +54,15 @@ class EqfloshrMod(GamsClass):
 
     def compile(self) -> None:
         if self.env.cal_red == "cal_red.red":
-            from core.cal_red_red import cal_red as cal_red_func
+            from core.cal_red_red import cal_red_red as cal_red_func
         else:
-            from core.cal_nored_red import cal_nored as cal_red_func
+            from core.cal_nored_red import cal_nored_red as cal_red_func
 
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=rf"""
-    {self.env.EQ}{self.arg1}_{self.arg3}SHR(RTP_VINTYR({self.env.R_V_T},P),C,CG,S {self.env.swt})$((RP_STD(R,P)*TOP(R,P,C,'{self.arg3}')*RTPCS_VARF(R,T,P,C,S))$FLO_SHAR(R,V,P,C,CG,S,'{self.arg2}'))..
+    {self.env.eq}{self.arg1}_{self.arg3}SHR(RTP_VINTYR({self.env.r_v_t},P),C,CG,S {self.env.swt})$((RP_STD(R,P)*TOP(R,P,C,'{self.arg3}')*RTPCS_VARF(R,T,P,C,S))$FLO_SHAR(R,V,P,C,CG,S,'{self.arg2}'))..
 
 * all flows in the group
         FLO_SHAR(R,V,P,C,CG,S,'{self.arg2}') *
@@ -73,7 +73,7 @@ class EqfloshrMod(GamsClass):
             )$(NOT RPG_RED(R,P,CG,'{self.arg3}')) +
 
          SUM((TOP(R,P,COM,'{self.arg3}'),RTPCS_VARF(R,T,P,COM,TS))$COM_GMAP(R,CG,COM),
-{cal_red_func("COM", "COM1", "TS", "P", "T")}
+{cal_red_func(var=self.env.var, sow=self.env.sow, pgprim=self.env.pgprim, shff=self.env.shff, arg1="COM", arg2="COM1", arg3="TS", arg4="P", arg5="T")}
                       *
 * share-ts coarser than variable or share finer than variable
              RS_FR(R,S,TS)*(1+RTCS_FR(R,T,COM,S,TS))
@@ -85,7 +85,7 @@ class EqfloshrMod(GamsClass):
 * commodity working on, summed for all
         {self.env.var}_FLO(R,V,T,P,C,S {self.env.sow})$(NOT RPG_RED(R,P,CG,'{self.arg3}')) +
         (
-{cal_red_func("C", "COM", "S", "P", "T")}
+{cal_red_func(var=self.env.var, sow=self.env.sow, pgprim=self.env.pgprim, shff=self.env.shff, arg1="C", arg2="COM", arg3="S", arg4="P", arg5="T")}
         )$RPG_RED(R,P,CG,'{self.arg3}')
     ;
 """,

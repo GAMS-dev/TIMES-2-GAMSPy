@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 
 
 def uc_act_mod(
-    var: str = "",
-    sow: str = "",
+    var: str,
+    sow: str,
     arg1: str = "",
     arg2: str = "",
     arg3: str = "",

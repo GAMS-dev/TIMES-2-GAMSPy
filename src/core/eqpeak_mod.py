@@ -76,6 +76,7 @@ class EqpeakMod(GamsClass):
             is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
             is_ireauxbal=self.env.is_set("ireauxbal"),
             reduce=self.env.reduce,
+            pgprim=self.env.pgprim,
         )
 
     def comp1(
@@ -96,6 +97,7 @@ class EqpeakMod(GamsClass):
         is_rtp_ffcs_defined: bool,
         is_ireauxbal: bool,
         reduce: str,
+        pgprim: str,
     ):
         include_cal_ire_1 = cal_ire_mod(
             var=var,
@@ -138,6 +140,7 @@ class EqpeakMod(GamsClass):
             shff=shff,
             sow=sow,
             var=var,
+            pgprim=pgprim,
             is_rtp_ffcs_defined=is_rtp_ffcs_defined,
             arg1="OUT",
             # arg2="O", in cal_fflo_mod stated as no longer used
@@ -161,6 +164,7 @@ class EqpeakMod(GamsClass):
             shff=shff,
             sow=sow,
             var=var,
+            pgprim=pgprim,
             is_rtp_ffcs_defined=is_rtp_ffcs_defined,
             arg1="IN",
             # arg2="I", in cal_fflo_mod stated as no longer used

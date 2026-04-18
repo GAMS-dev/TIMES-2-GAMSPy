@@ -63,6 +63,10 @@ class EqptransMod(GamsClass):
             r_v_t=self.env.r_v_t,
             swt=self.env.swt,
             shp1=self.env.shp1,
+            var=self.env.var,
+            sow=self.env.sow,
+            pgprim=self.env.pgprim,
+            shff=self.env.shff,
         )
 
     def comp1(
@@ -72,6 +76,10 @@ class EqptransMod(GamsClass):
         r_v_t: str,
         swt: str,
         shp1: str,
+        var: str,
+        sow: str,
+        pgprim: str,
+        shff: str,
     ):
         include_cal_red = ""
         # only set in pp_reduce.red
@@ -82,6 +90,10 @@ class EqptransMod(GamsClass):
                 arg3="TS",
                 arg4="P",
                 arg5="T",
+                var=var,
+                sow=sow,
+                pgprim=pgprim,
+                shff=shff,
             )
         elif cal_red == "cal_nored.red":
             include_cal_red = cal_nored_red(

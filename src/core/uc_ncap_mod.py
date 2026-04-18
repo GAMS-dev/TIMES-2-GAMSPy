@@ -26,10 +26,10 @@ logger = logging.getLogger(__name__)
 
 
 def uc_ncap_mod(
-    var: str = "",
-    sow: str = "",
-    varv: str = "",
-    sws: str = "",
+    var: str,
+    sow: str,
+    varv: str,
+    sws: str,
     arg1: str = "",
     arg2: str = "",
     arg3: str = "",

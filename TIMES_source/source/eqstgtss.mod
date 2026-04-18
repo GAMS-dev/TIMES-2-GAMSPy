@@ -84,7 +84,9 @@
 
 
 *--- Levelizer Equation ---
-
+$ONLISTING
+$show
+$OFFLISTING
     EQ_STSLEV(RTP_VINTYR(%R_V_T%,P),TSL,RTS(S)%SWX%)$(%SWTX%(STOAL(R,S)=PRC_SGL(R,P))$TS_GROUP(R,TSL,S)$RP_STL(R,P,TSL,'UP'))..
 
 * Sum of levelizers must be less than average variation over S

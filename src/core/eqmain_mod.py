@@ -54,7 +54,6 @@ from core.equ_ext_vda import EquExtVda
 from core.equcwrap_mod import EqucwrapMod
 from core.eqxbnd_mod import EqxbndMod
 from core.recurrin_stc import RecurrinStc
-from core.utils import EscapeStack
 
 from .base_class import GamsClass
 
@@ -255,7 +254,6 @@ class EqmainMod(GamsClass):
                     tc=self.tc, env=self.env, arg1=arg[0], arg2=arg[1], arg3=arg[2]
                 )
             )
-        raise EscapeStack(self.module_name)
 
         # Fraction of a flow within a specific time slice
         batincludes = [("L", "'LO'"), ("E", "LNX"), ("G", "'UP'")]
@@ -359,6 +357,7 @@ class EqmainMod(GamsClass):
             )
 
         if self.env.spines.upper() == "YES":
+            # TODO: Resolve
             self.tc.add_gams_code(
                 module=self, phase="init", code=f"${self.env.witspine}"
             )
@@ -413,6 +412,7 @@ class EqmainMod(GamsClass):
             )
 
         if self.env.spines.upper() == "YES":
+            # TODO: Resolve
             self.tc.add_gams_code(
                 module=self, phase="init", code=f"${self.env.ewispine}"
             )

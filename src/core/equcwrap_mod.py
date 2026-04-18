@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, get_args
 
 from core.equserco_mod import EqusercoMod
 
@@ -26,6 +26,8 @@ if TYPE_CHECKING:
     from .times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+Arg6Type = Literal["", "NOT"]
 
 
 class EqucwrapMod(GamsClass):
@@ -43,7 +45,7 @@ class EqucwrapMod(GamsClass):
         arg3: str = "",
         arg4: str = "",
         arg5: str = "",
-        arg6: str = "",
+        arg6: Arg6Type = "",
     ):
         self.env = env.fork()
         self.tc = tc
@@ -57,7 +59,18 @@ class EqucwrapMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        if self.arg6 == "YES":
+        # $IF %6 %VAR_UC%==YES $EXIT
+        var_uc_is_yes = self.env.var_uc.strip().upper() == "YES"
+
+        # Ensure arg6 is exactly what is implemented
+        if self.arg6.strip().upper() not in get_args(Arg6Type):
+            raise ValueError(f"'{self.arg6}' not in {get_args(Arg6Type)}.")
+
+        is_inverted = self.arg6.strip().upper() == "NOT"
+
+        # If it's "NOT" and var_uc is "NO" -> EXIT
+        # If it's "" and var_uc is "YES" -> EXIT
+        if is_inverted != var_uc_is_yes:
             return
 
         self.env.set_local("tsum", "UC_T_SUM(R,UC_N,T),")

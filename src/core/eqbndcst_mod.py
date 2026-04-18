@@ -58,7 +58,7 @@ class EqbndcstMod(GamsClass):
 """,
         )
 
-        if not self.tc.defined("OBJ_SUMII"):
+        if "OBJ_SUMII" not in self.tc.container.listSymbols():
             return
 
         self.tc.add_gams_code(
@@ -85,7 +85,6 @@ class EqbndcstMod(GamsClass):
         )
 
         self.tc.enqueue(self.exec1, declif=self.env.declif)
-
         if self.env.stages == "YES":
             self.env.set_scoped("swt", f"SW_T(TT{self.env.sow})$")
 

@@ -67,7 +67,7 @@ class EqirebndMod(GamsClass):
    SUM(TOP_IRE(REG(ALL_REG),COM,R,C,P)$RPC_EQIRE(R,P,C,'IMP'),
      SUM(SL$(RTPCS_VARF(R,T,P,C,SL)*RS_TREE(R,S,SL)),
        SUM((RTP_VNTBYR(REG,T,P,V),RTPCS_VARF(REG,T,P,COM,TS),RS_TREE(REG,ALL_TS,TS))$IRE_TSCVT(REG,ALL_TS,R,SL),
-         ({self.env.eq}_IRE(REG,V,T,P,COM,TS,'EXP'{self.env.sow})$(NOT RPC_AIRE(REG,P,COM))+({self.env.var}_ACT(REG,V,T,P,TS{self.env.sow})*PRC_ACTFLO(REG,V,P,COM))$RPC_AIRE(REG,P,COM))
+         ({self.env.var}_IRE(REG,V,T,P,COM,TS,'EXP'{self.env.sow})$(NOT RPC_AIRE(REG,P,COM))+({self.env.var}_ACT(REG,V,T,P,TS{self.env.sow})*PRC_ACTFLO(REG,V,P,COM))$RPC_AIRE(REG,P,COM))
               * IRE_FLO(REG,V,P,COM,R,C,SL) * IRE_CCVT(REG,COM,R,C) * IRE_TSCVT(REG,ALL_TS,R,SL)
               * RS_FR(REG,ALL_TS,TS)*(1+RTCS_FR(REG,T,COM,ALL_TS,TS))
 * bound coarser than variable or bound finer than variable

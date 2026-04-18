@@ -113,9 +113,6 @@ $   BATINCLUDE eqflobnd.%1 G LO YES
 $   BATINCLUDE eqflobnd.%1 E FX YES
 $   BATINCLUDE eqflobnd.%1 L UP "(FLO_BND(R,T,P,CG,S,'UP') NE INF)"
 
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop
 *-----------------------------------------------------------------------------
 * Fraction of a flow within a specific time slice
 *-----------------------------------------------------------------------------

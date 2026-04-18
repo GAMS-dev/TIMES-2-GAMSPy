@@ -26,8 +26,8 @@ logger = logging.getLogger(__name__)
 
 def uc_cli_mod(
     is_uc_cli_defined: bool,
-    var: str = "",
-    sow: str = "",
+    var: str,
+    sow: str,
     arg1: str = "",
     arg2: str = "",
     arg3: str = "",

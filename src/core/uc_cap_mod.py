@@ -26,11 +26,11 @@ logger = logging.getLogger(__name__)
 
 
 def uc_cap_mod(
-    var: str = "",
-    sow: str = "",
-    upscaps: str = "",
-    vda: str = "",
-    abs: str = "",
+    var: str,
+    sow: str,
+    upscaps: str,
+    vda: str,
+    abs: str,
     arg1: str = "",
     arg2: str = "",
     arg3: str = "",

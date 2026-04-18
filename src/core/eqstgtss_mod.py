@@ -69,7 +69,7 @@ class EqstgtssMod(GamsClass):
                SUM(TOP(PRC_STGTSS(R,P,C),'OUT'),{self.env.var}_SOUT(R,V,T,P,C,ALL_TS{self.env.sow})/PRC_ACTFLO(R,V,P,C))
                -
 * optional balancer flow
-               SUM(PRC_TS(R,P,TS)$RS_BELOW1(R,TS,S),{self.env.var}_SOUT(R,V,T,P,{self.env.pgprim},TS{self.env.sow})*RS_FR(R,ALL_TS,TS))$RP_STS(R,P) -
+               SUM(PRC_TS(R,P,TS)$RS_BELOW1(R,TS,S),{self.env.var}_SOUT(R,V,T,P,'{self.env.pgprim}',TS{self.env.sow})*RS_FR(R,ALL_TS,TS))$RP_STS(R,P) -
 
 * storage losses: average storage level per cycle * loss fraction by cycle * cycles
                {self.env.var}_ACT(R,V,T,P,ALL_TS{self.env.sow}) * MAX(STG_LOSS(R,V,P,ALL_TS)/2,
@@ -88,24 +88,24 @@ class EqstgtssMod(GamsClass):
     {self.env.eq}_STSBAL(RTP_VINTYR({self.env.r_v_t},P),TSL,RTS(S),L{self.env.swt})$(TS_GROUP(R,TSL,S)$PRC_TS(R,P,S)$RP_STL(R,P,TSL,L))..
 
 * storage level in time-slice s
-         SUM(RS_BELOW(R,ANNUAL,S),{self.env.var}_ACT(R,V,T,P,S{self.env.sow})+({self.env.var}_SIN(R,V,T,P,{self.env.pgprim},S{self.env.sow})+VAR_STS(R,V,T,P,S,'N'))$RP_STL(R,P,TSL,'UP'))
+         SUM(RS_BELOW(R,ANNUAL,S),{self.env.var}_ACT(R,V,T,P,S{self.env.sow})+({self.env.var}_SIN(R,V,T,P,'{self.env.pgprim}',S{self.env.sow})+VAR_STS(R,V,T,P,S,'N'))$RP_STL(R,P,TSL,'UP'))
 
     =E=
 
          SUM(RS_BELOW(R,ANNUAL,SL(S--RS_STG(R,S))),
 * storage level in time-slice s
              {self.env.var}_ACT(R,V,T,P,SL{self.env.sow})$IPS(L) + {self.env.var}_UDP(R,V,T,P,SL,'LO'{self.env.sow})$BD(L) +
-             ({self.env.var}_SIN(R,V,T,P,{self.env.pgprim},SL{self.env.sow})+VAR_STS(R,V,T,P,SL,L))$RP_STL(R,P,TSL,'UP')
+             ({self.env.var}_SIN(R,V,T,P,'{self.env.pgprim}',SL{self.env.sow})+VAR_STS(R,V,T,P,SL,L))$RP_STL(R,P,TSL,'UP')
              +
 * balancer flows
-             ({self.env.var}_SOUT(R,V,T,P,{self.env.pgprim},SL{self.env.sow}) -
-              SUM(PRC_TS(R,P,TS)$RS_BELOW1(R,TS,S),{self.env.var}_SOUT(R,V,T,P,{self.env.pgprim},TS{self.env.sow})*RS_FR(R,SL,TS))
+             ({self.env.var}_SOUT(R,V,T,P,'{self.env.pgprim}',SL{self.env.sow}) -
+              SUM(PRC_TS(R,P,TS)$RS_BELOW1(R,TS,S),{self.env.var}_SOUT(R,V,T,P,'{self.env.pgprim}',TS{self.env.sow})*RS_FR(R,SL,TS))
               -
 * storage losses: average storage level * year fraction * loss fraction
               ({self.env.var}_ACT(R,V,T,P,SL{self.env.sow})$RS_STG(R,S)) * MAX(STG_LOSS(R,V,P,SL)/2,
 * equilibrium loss (STG_LOSS<0): Act0 * (1-Loss/(1/EXP(-Loss)-1))
                 (1+STG_LOSS(R,V,P,SL)/(1/EXP(STG_LOSS(R,V,P,SL))-1)))$STG_LOSS(R,V,P,SL) -
-              ({self.env.var}_ACT(R,V,T,P,S{self.env.sow})$RS_STG(R,S)+({self.env.var}_SIN(R,V,T,P,{self.env.pgprim},S{self.env.sow})-{self.env.var}_SIN(R,V,T,P,{self.env.pgprim},SL{self.env.sow}))$RP_STL(R,P,TSL,'UP')) *
+              ({self.env.var}_ACT(R,V,T,P,S{self.env.sow})$RS_STG(R,S)+({self.env.var}_SIN(R,V,T,P,'{self.env.pgprim}',S{self.env.sow})-{self.env.var}_SIN(R,V,T,P,'{self.env.pgprim}',SL{self.env.sow}))$RP_STL(R,P,TSL,'UP')) *
 * equilibrium loss (STG_LOSS<0): Act1 * (-Loss/(EXP(-Loss)-1)-1)
               MAX(STG_LOSS(R,V,P,SL)/2, (STG_LOSS(R,V,P,SL)/(EXP(STG_LOSS(R,V,P,SL))-1)-1))$STG_LOSS(R,V,P,SL)
             )$IPS(L))
@@ -115,7 +115,7 @@ class EqstgtssMod(GamsClass):
              SUM(TOP(PRC_STGIPS(R,P,C),IO), 1 / PRC_ACTFLO(R,V,P,C) *
                 {self.env.var}_SIN(R,V,T,P,C,S {self.env.sow})$IPS(IO) - {self.env.var}_SOUT(R,V,T,P,C,S {self.env.sow})$(NOT IPS(IO))) -
 * balancer flow
-             {self.env.var}_SOUT(R,V,T,P,{self.env.pgprim},S{self.env.sow}));
+             {self.env.var}_SOUT(R,V,T,P,'{self.env.pgprim}',S{self.env.sow}));
 
 
 *--- Levelizer Equation ---
@@ -123,7 +123,7 @@ class EqstgtssMod(GamsClass):
     EQ_STSLEV(RTP_VINTYR({self.env.r_v_t},P),TSL,RTS(S){self.env.swx})$({self.env.swtx}(STOAL(R,S)=PRC_SGL(R,P))$TS_GROUP(R,TSL,S)$RP_STL(R,P,TSL,'UP'))..
 
 * Sum of levelizers must be less than average variation over S
-        SUM(TS_MAP(R,TS,S)$STOA(TS),({self.env.var}_SIN(R,V,T,P,{self.env.pgprim},TS{self.env.sow})+{self.env.var}_UDP(R,V,T,P,TS,'LO'{self.env.sow})+VAR_STS(R,V,T,P,TS,'N'))/RS_STGPRD(R,TS))
+        SUM(TS_MAP(R,TS,S)$STOA(TS),({self.env.var}_SIN(R,V,T,P,'{self.env.pgprim}',TS{self.env.sow})+{self.env.var}_UDP(R,V,T,P,TS,'LO'{self.env.sow})+VAR_STS(R,V,T,P,TS,'N'))/RS_STGPRD(R,TS))
         =L=
         SUM(RS_BELOW1(R,S,TS)$RS_FR(R,TS,S),{self.env.var}_ACT(R,V,T,P,TS{self.env.sow})/RS_STGPRD(R,TS)*RS_FR(R,TS,S));
 """,

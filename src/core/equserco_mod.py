@@ -83,6 +83,7 @@ class EqusercoMod(GamsClass):
             if self.arg8 == "2":
                 self.env.set_scoped("sow", self.env.swd)
                 self.env.set_scoped("swt", self.env.sow)
+            elif self.arg8 == "S":
                 self.env.set_local("hs", "SIDE")
             lhs = self._static_lhs(
                 hs=self.env.hs,
@@ -104,7 +105,7 @@ class EqusercoMod(GamsClass):
         time_term = ""
         if self.arg8 != "1":
             time_term = rf"""
-+SUM(({self.arg7}V(T))$UC_TIME(UC_N,R,T), {self.arg5} UC_TIME(UC_N,R,T)*FPD(T))
++SUM(({self.arg7}V(T))$UC_TIME(UC_N,R,T), {self.arg5} UC_TIME(UC_N,R,T)*FPD(T)))
 """
         else:
             time_term = rf"""
@@ -128,7 +129,7 @@ class EqusercoMod(GamsClass):
         )
 
     def _static_lhs(
-        self: "EqusercoMod",
+        self: EqusercoMod,
         hs: str,
         swt: str,
         is_several: bool,
@@ -257,7 +258,7 @@ class EqusercoMod(GamsClass):
 """
 
     def _label_dynamic(
-        self: "EqusercoMod",
+        self: EqusercoMod,
         is_stages: bool,
         is_cli: bool,
     ) -> str:

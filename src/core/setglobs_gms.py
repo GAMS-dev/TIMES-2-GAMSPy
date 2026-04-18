@@ -484,7 +484,7 @@ $onMulti
         varmac = self.env.varmac
         if f"{swx}{swtx}{varmac}" != f"{self.x1}{self.x1}{self.x1}":
             raise ValueError(f"{msg}: SWX")
-        self.env.set_global("swx", ",'1")
+        self.env.set_global("swx", ",'1'")
 
         # $SET TMP '%CTST%'
         self.env.set_scoped("tmp", self.env.ctst)
