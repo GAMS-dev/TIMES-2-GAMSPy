@@ -1,0 +1,105 @@
+# equ_ext_ecb.py
+# *++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# * Copyright (C) 2000-2023 Energy Technology Systems Analysis Programme (ETSAP)
+# * This file is part of the IEA-ETSAP TIMES model generator, licensed
+# * under the GNU General Public License v3.0 (see file NOTICE-GPLv3.txt).
+# *=============================================================================*
+# * equ_ext.ecb - defines equations for the Market Share Mechanism
+# *   %1 - mod
+# *=============================================================================*
+
+from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING
+
+from .base_class import GamsClass
+
+if TYPE_CHECKING:
+    from .compile_environment import CompileEnvironment
+    from .times_model_class import TimesModelClass
+
+logger = logging.getLogger(__name__)
+
+
+class EquExtEcb(GamsClass):
+    """Translation unit for equ_ext.ecb."""
+
+    # Instance attributes
+    module_name: str = "equ_ext_ecb"
+    gams_source: str = "equ_ext.ecb"
+
+    def __init__(
+        self,
+        tc: TimesModelClass,
+        env: CompileEnvironment,
+    ):
+        self.env = env.fork()
+        self._sub_modules = {}
+        self.tc = tc
+        self.compile()
+
+    def compile(self) -> None:
+        if not self.tc.defined("RTC_MS"):
+            return
+
+        self.tc.enqueue(self.exec1, self.env.pgprim, self.env.capjd, self.env.capwd)
+
+        # Equations
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=rf"""
+          EQUATIONS
+  {self.env.eq}_MSNCAP(R,YEAR,C{self.env.swd}) //
+  {self.env.eq}_MSNCAPB(R,YEAR,C,P{self.env.swd}) //
+  ;
+  POSITIVE VARIABLES {self.env.var}_XCAP(R,YEAR,ITEM{self.env.swd}) //;
+        """,
+        )
+
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=rf"""
+        * Aggregate new capacity market by period
+  {self.env.eq}_MSNCAP(RTC_MS({self.env.r_t},C) {self.env.swt})..
+* Calculate size of market for new capacity
+   SUM(TOP(PRC_CAP(R,P),C,'OUT')$(COEF_LMS(R,T,C,P)$RTP_VARA(R,T,P)),
+     PRC_CAPACT(R,P) *
+     ({self.env.var}_NCAP(R,T,P {self.env.sow})$(NOT RTP_OFF(R,T,P)+RVPT(R,T,P,T)) +
+      SUM(RVPT(R,V,P,T),{self.env.varv}_NCAP(R,V,P{self.env.sws})*SQRT(COEF_CPT(R,V,T,P)))))
+   =E= {self.env.var}_XCAP(R,T,C{self.env.sow});
+
+* Maximum share in new capacity market by technology
+  {self.env.eq}_MSNCAPB(RTC_MS({self.env.r_t},C),P {self.env.swt})$(RTP_VARA(R,T,P)$PRC_CAP(R,P)$COEF_LMS(R,T,C,P))..
+   PRC_CAPACT(R,P) *
+   ({self.env.var}_NCAP(R,T,P {self.env.sow})$(NOT RTP_OFF(R,T,P)+RVPT(R,T,P,T)) +
+    SUM(RVPT(R,V,P,T),{self.env.varv}_NCAP(R,V,P{self.env.sws})*SQRT(COEF_CPT(R,V,T,P))))*SIGN(COEF_LMS(R,T,C,P))
+   =L=
+*  New capacity market multiplied by logit market share
+   {self.env.var}_XCAP(R,T,C{self.env.sow}) * COEF_LMS(R,T,C,P) + SUM(ANNUAL(S),{self.env.var}_FLO(R,T,T,P,'_MSVIOL_',S{self.env.sow}));
+
+*-----------------------------------------------------------------------------
+        """,
+        )
+
+    def exec1(self, PGPRIM: str, CAPJD: str, CAPWD: str) -> None:
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=rf"""
+          OPTION RVP < COEF_LMS;
+* Calculate ceiling cost coefficients for dummy flow, according to NCAP_MSPRF(UP)
+  PASTSUM(RVP(R,T,P)) = NCAP_MSPRF(R,T,{PGPRIM},P,'UP')/PRC_CAPACT(R,P);
+  FLO_COST(RVP(R,T,P),C('_MSVIOL_'),ANNUAL(S),CUR)$OBJ_FCOST(R,T,P,C,S,CUR) =
+    SUM(OBJ_SUMII(RVP,LIFE,K_EOH,JOT), {CAPJD} COR_SALVI(RVP,CUR) / OBJ_DIVI(RVP) *
+      SUM(INVSPRED(K_EOH,JOT,Y,K), (1-SALV_INV(RVP,Y)$OBJ_SUMS(RVP)) * OBJ_DISC(R,K,CUR) * OBJ_ICOST(R,K,P,CUR)));
+  FLO_DELIV(RVP(R,T,P),C('_MSVIOL_'),ANNUAL(S),CUR)$OBJ_FDELV(R,T,P,C,S,CUR) =
+    SUM(OBJ_SUMIV(K_EOH,RVP,JOT,LIFE),
+       SUM(INVSPRED(K_EOH,JOT,LL,K), OBJ_LIFE(LL,R,JOT,LIFE,CUR) * {CAPWD} OBJ_FOM(R,K,P,CUR)) / OBJ_DIVIV(RVP));
+  OBJ_FCOST(R,Y_EOH,P,C('_MSVIOL_'),ANNUAL(S),CUR)$OBJ_FCOST(R,Y_EOH,P,C,S,CUR) = SUM(PERIODYR(T,Y_EOH),FLO_COST(R,T,P,C,S,CUR)*PASTSUM(R,T,P)/OBJ_PVT(R,T,CUR));
+  OBJ_FDELV(R,Y_EOH,P,C('_MSVIOL_'),ANNUAL(S),CUR)$OBJ_FDELV(R,Y_EOH,P,C,S,CUR) = SUM(PERIODYR(T,Y_EOH),FLO_DELIV(R,T,P,C,S,CUR)*PASTSUM(R,T,P)/OBJ_PVT(R,T,CUR));
+  OPTION CLEAR=PASTSUM,CLEAR=RVP;
+        """,
+        )
