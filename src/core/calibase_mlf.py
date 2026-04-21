@@ -46,8 +46,26 @@ class CalibaseMlf(GamsClass):
 
     def compile(self) -> None:
         self.tc.enqueue(self.exec1)
-        self.comp1()
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=r"""
+  MODEL MCE / EQ_UTIL, EQ_PROD_Y, EQ_AKL, EQ_LABOR, EQ_KNCAP, EQ_MCAP, EQ_TMC, EQ_DD, EQ_IVECBND, EQ_ESCOST, EQ_TRDBAL /;
+""",
+        )
         self.tc.enqueue(self.exec2)
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=r"""
+  SET LOOPS / NWT, DDF, GDP /;
+  PARAMETER GDPLOSS(REG,tp) 'GDP losses in percent';
+  PARAMETER MSA_ERR(NITER,LOOPS,REG);
+  PARAMETER TM_TOL(ITEM) / CAL 1E-5, MST 1E-7, DEM 0, EQUIL 1 /;
+  SCALAR ERRDEM / 0 /, ERRGDP / 0 /, DOITER/ 1 /;
+""",
+        )
+        self.tc.enqueue(self.exec3)
 
     def exec1(self: CalibaseMlf):
         self.tc.add_gams_code(
@@ -56,6 +74,18 @@ class CalibaseMlf(GamsClass):
             code=r"""
   TM_YCHECK(R) = TM_IVETOL(R);
   TM_IVETOL(R) = MAX(1,TM_IVETOL(R));
+""",
+        )
+
+    def exec2(self: CalibaseMlf):
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=r"""
+  OPTION SOLPRINT=OFF,SOLVELINK=1;
+  OPTION SOLVEOPT=MERGE,BRATIO=0.25;
+  MCE.MODELSTAT=0; MCE.SOLVESTAT=0; MCE.OPTFILE=1;
+  MCE.LIMROW=0; MCE.LIMCOL=0;
 """,
         )
 
@@ -79,7 +109,7 @@ MODEL MCE / EQ_UTIL, EQ_PROD_Y, EQ_AKL, EQ_LABOR, EQ_KNCAP, EQ_MCAP, EQ_TMC, EQ_
 """,
         )
 
-    def exec2(self: CalibaseMlf):
+    def exec3(self: CalibaseMlf):
         self.tc.add_gams_code(
             module=self,
             phase="run",

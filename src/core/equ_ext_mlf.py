@@ -77,10 +77,8 @@ class EquExtMlf(GamsClass):
 
         if self.env.nonlp.upper() != "NL":
             self.include(PresolveMlf(tc=self.tc, env=self.env))
-            if self.env.x2().upper() == "LP":
-                self.tc.add_gams_code(
-                    module=self, phase="init", code="OPTION LP=KESTREL"
-                )
+            if self.env.x2.upper() == "LP":
+                self.tc.enqueue(self.option_lp)
 
             self.full_model_equations()
 
@@ -90,7 +88,8 @@ class EquExtMlf(GamsClass):
 
         if self.env.nonlp.upper() == "NL":
             if f"{self.env.x1}{self.env.x2}".upper() == "NLP":
-                self.tc.enqueue(self.exec2)
+                self.tc.enqueue(self.option_nlp)
+            self.tc.enqueue(self.exec2)
 
     def utility_objective_function(self: EquExtMlf):
         """Utility Objective Function"""
@@ -266,6 +265,24 @@ LOOP(R, Z=REG_FIXT(R); IF(Z=0,Z=ABS(%FIXBOH%)); TM_PP(R,T)$(M(T) LE Z)=NO);
 LOOP(BD,TM_PP(R,T)$((M(T)<=REG_BDNCAP(R,BD))$REG_BDNCAP(R,BD))=NO);
 """,
             )
+
+    def option_lp(self: EquExtMlf):
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=r"""
+OPTION LP=KESTREL;
+""",
+        )
+
+    def option_nlp(self: EquExtMlf):
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=r"""
+OPTION NLP=KESTREL;
+""",
+        )
 
     def full_model_equations(self: EquExtMlf):
         self.utility_objective_function2()
