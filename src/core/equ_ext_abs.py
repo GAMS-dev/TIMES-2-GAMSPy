@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 class EquExtAbs(GamsClass):
-    """Translation unit for filename.extension."""
+    """Translation unit for equ_ext.abs."""
 
     # Instance attributes
     module_name: str = "equ_ext_abs"
@@ -162,8 +162,6 @@ class EquExtAbs(GamsClass):
             r_w_t=self.env.r_w_t,
             swx=self.env.swx,
             swtx=self.env.swtx,
-            var=self.env.var,
-            sow=self.env.sow,
         )
         self.abs_eq_26(r_t=self.env.r_t, swx=self.env.swx, swtx=self.env.swtx)
         self.abs_eq_27(

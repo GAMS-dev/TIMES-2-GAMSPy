@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 class EquExtCli(GamsClass):
-    """Translation unit for filename.extension."""
+    """Translation unit for equ_ext.cli."""
 
     # Instance attributes
     module_name: str = "equ_ext_cli"
@@ -45,25 +45,25 @@ class EquExtCli(GamsClass):
     def compile(self) -> None:
         # CLIMATE MODULE EQUATIONS
         if self.env.stages.upper() == "YES":
-            swtd = "SUM(SOW,"
-            swo = ",SOW"
-            send = ")"
-            swts = ",SW_TSW(SOW,T,W)"
+            self.env.set_local("swtd", "SUM(SOW,")
+            self.env.set_local("swo", ",SOW")
+            self.env.set_local("send", ")")
+            self.env.set_local("swts", ",SW_TSW(SOW,T,W)")
         else:
-            swo = ",'1'"
-            send = ""
-            swts = ""
+            self.env.set_local("swo", ",'1'")
+            self.env.set_local("send", "")
+            self.env.set_local("swts", "")
 
         if self.env.stages == "YES":
-            swtd = "SUM(SW_TSW(SOW,T-1,W),"
-            swd = ",W"
-            send = ""
-            swt = "$SW_T(T,SOW)"
+            self.env.set_local("swtd", "SUM(SW_TSW(SOW,T-1,W),")
+            self.env.set_local("swd", ",W")
+            self.env.set_local("send", "")
+            self.env.set_local("swt", "$SW_T(T,SOW)")
         else:
-            cpar = "CM_MAXC(LL,CG)"
+            self.env.set_local("cpar", "CM_MAXC(LL,CG)")
 
         if self.env.stages == "YES":
-            cpar = f"S_CM_MAXC(LL,CG,'1'{self.env.sow})"
+            self.env.set_local("cpar", f"S_CM_MAXC(LL,CG,'1'{self.env.sow})")
             # TODO Resolve: %SW_STVARS%
             raise NotImplementedError("# TODO Resolve: $%SW_STVARS%")
 
@@ -75,6 +75,13 @@ class EquExtCli(GamsClass):
         sws = self.env.sws
         stages = self.env.stages
         obj = self.env.obj
+        cpar = self.env.cpar
+        swt = self.env.swt
+        swd = self.env.swd
+        swtd = self.env.swtd
+        send = self.env.send
+        swts = self.env.swts
+        swo = self.env.swo
 
         self.balance_equation_for_total_emission(
             eq=eq, var=var, sow=sow, cpar=cpar, swt=swt

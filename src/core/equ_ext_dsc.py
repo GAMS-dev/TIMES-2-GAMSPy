@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 class EquExtDsc(GamsClass):
-    """Translation unit for filename.extension."""
+    """Translation unit for equ_ext.dsc."""
 
     # Instance attributes
     module_name: str = "equ_ext_dsc"
