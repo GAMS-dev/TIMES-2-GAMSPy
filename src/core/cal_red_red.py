@@ -21,6 +21,10 @@ from __future__ import annotations
 
 
 def cal_red_red(
+    var: str,
+    sow: str,
+    pgprim: str,
+    shff: str,
     arg1: str = "",
     arg2: str = "",
     arg3: str = "",
@@ -31,19 +35,15 @@ def cal_red_red(
     arg8: str = "",
     arg9: str = "",
     arg10: str = "",
-    pgprim: str = "",
     def_rtp_ffcs: bool = False,
-    shff: str = "",
-    sow: str = "",
-    var: str = "",
 ) -> str:
     shp1 = ""
     shp2 = ""
     shp3 = ""
     vnt = arg5
     tst = f"$PRC_VINT(R,{arg4})"
-    shg1 = f",{arg4},{pgprim},COM2"
-    shg2 = f",{arg4},{pgprim},{arg1}"
+    shg1 = f",{arg4},'{pgprim}',COM2"
+    shg2 = f",{arg4},'{pgprim}',{arg1}"
     shg = f",{arg4},CG1,{arg1}"
     if not arg7 == "T":
         vnt = "V"

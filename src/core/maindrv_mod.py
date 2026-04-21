@@ -26,6 +26,7 @@ from core.coef_ext_cli import CoefExtCli
 from core.coef_ext_etl import CoefExtEtl
 from core.coef_ext_vda import CoefExtVda
 from core.coefmain_mod import CoefmainMod
+from core.eqmain_mod import EqmainMod
 from core.err_stat_mod import ErrStatMod
 from core.init_ext_abs import InitExtAbs
 from core.init_ext_dsc import InitExtDsc
@@ -259,6 +260,8 @@ class MainDrvMod(GamsClass):
                 requested_exts=requested_exts,
                 source="maindrv",
             )
+
+        self.include(EqmainMod(tc=self.tc, env=self.env, arg1=self.arg1))
 
         # TODO: Keep translating
 

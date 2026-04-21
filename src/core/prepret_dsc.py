@@ -62,9 +62,9 @@ class PrepretDsc(GamsClass):
         elif arg_upper == "EQOBJ":
             self.comp_eqobj()
         elif arg_upper == "OBJFIX":
-            raise NotImplementedError("should call function objfix to get expression")
+            return objfix(capwd=self.env.capwd, vart=self.env.vart, sws=self.env.sws)
         elif arg_upper == "OBSALV":
-            raise NotImplementedError("should call function objsalv to get expression")
+            objsalv()
         else:
             allowed = ", ".join(get_args(PhaseArg))
             raise ValueError(
@@ -352,3 +352,7 @@ def objsalv(var: str, varv: str, sws: str, sow: str):
      OBJSCC(R,V,P,CUR) * OBJ_DCEOH(R,CUR) *
      ({var}_SCAP(R,V,'0',P{sow})-{varv}_NCAP(R,V,P{sws})$T(V)-NCAP_PASTI(R,V,P))) +
 """
+
+
+def prepret_dsc():
+    raise NotImplementedError()

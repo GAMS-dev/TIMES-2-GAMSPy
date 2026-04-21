@@ -27,6 +27,7 @@ $   IFI %VDA%==YES $BATINCLUDE equ_ext.vda DECLR
 * Main OBJ
   PARAMETER SUM_OBJ(ITEM,ITEM) 'Objective component summation';
 
+
 $IFI '%SPINES%'==YES $BATINCLUDE recurrin.stc SPINES
 $IF  '%STAGES%'==YES $%WITSPINE% %SW_STVARS%
 

@@ -16,8 +16,6 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.cal_red_red import cal_red_red
-
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -103,7 +101,22 @@ SET RMKC(REG,ITEM,COM) //;
         sigo: str,
         sigi: str,
     ):
-        include_cal_red = cal_red_red("C", "COM1", "TS", "P", "T")
+        if self.env.cal_red == "cal_red.red":
+            from core.cal_red_red import cal_red_red as cal_red_func
+        else:
+            from core.cal_nored_red import cal_nored_red as cal_red_func
+
+        include_cal_red = cal_red_func(
+            arg1="C",
+            arg2="COM1",
+            arg3="TS",
+            arg4="P",
+            arg5="T",
+            var=self.env.var,
+            sow=self.env.sow,
+            pgprim=self.env.pgprim,
+            shff=self.env.shff,
+        )
         self.tc.add_gams_code(
             module=self,
             phase="init",
