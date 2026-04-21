@@ -53,7 +53,7 @@ SCALAR MICRO / 1E-6 /;
             self.tc.enqueue(self.exec1)
         else:  # EQUA
             self.env.set_scoped("shp1", "")
-            self.env.set_scoped("shg", f",P,CG,{self.env.pgprim}")
+            self.env.set_scoped("shg", f",P,CG,'{self.env.pgprim}'")
             if self.tc.defined("RTP_FFCS"):
                 self.env.set_scoped(
                     "shp1", f"*({self.env.shff}S(R,V{self.env.shg}{self.env.sow}))"

@@ -59,7 +59,7 @@ class DynsliteVda(GamsClass):
                 tmp=self.env.tmp,
             )
         elif self.arg1.upper() == "POSTLEV":
-            self.env.set_scoped("RESET", "0")
+            self.env.set_scoped("reset", "0")
             self.tc.enqueue(
                 self.postlev_exec,
                 dflbl=self.env.dflbl,

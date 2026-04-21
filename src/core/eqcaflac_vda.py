@@ -19,8 +19,6 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.cal_red_red import cal_red_red
-
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -84,6 +82,9 @@ class EqcaflacVda(GamsClass):
             varm=self.env.varm,
             sws=self.env.sws,
             var=self.env.var,
+            cal_red=self.env.cal_red,
+            pgprim=self.env.pgprim,
+            shff=self.env.shff,
             arg1=self.arg1,
             arg2=self.arg2,
         )
@@ -143,11 +144,29 @@ class EqcaflacVda(GamsClass):
         varm: str,
         sws: str,
         var: str,
+        cal_red: str,
+        pgprim: str,
+        shff: str,
         arg1: str,
         arg2: str,
     ):
-        include_cal_red = cal_red_red(
-            arg1="C", arg2="COM", arg3="TS", arg4="P", arg5="T"
+        if cal_red == "cal_red.red":
+            from core.cal_red_red import cal_red_red as cal_red_func
+        elif cal_red == "cal":
+            from core.cal_nored_red import cal_nored_red as cal_red_func
+        else:
+            raise ValueError(f"Unexpected value for cal_red: {self.env.cal_red}")
+
+        include_cal_red = cal_red_func(
+            var=var,
+            sow=sow,
+            pgprim=pgprim,
+            shff=shff,
+            arg1="C",
+            arg2="COM",
+            arg3="TS",
+            arg4="P",
+            arg5="T",
         )
         self.tc.add_gams_code(
             module=self,

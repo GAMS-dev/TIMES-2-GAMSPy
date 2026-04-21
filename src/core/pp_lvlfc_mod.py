@@ -75,7 +75,7 @@ class PpLvlfcMod(GamsClass):
         self.compile()
 
     def compile(self: PpLvlfcMod) -> None:
-        self.tc.enqueue(self.clear_uncd7)
+        self.tc.enqueue(clear_uncd7, module=self)
         self.env.set_local("take", self.arg12)
         self.env.set_local("regy", f"R,{self.arg7}")
         self.env.set_local("ts", f"(NOT {self.arg3}(R,{self.arg2},S))$")
@@ -95,7 +95,8 @@ class PpLvlfcMod(GamsClass):
             )
 
         self.tc.enqueue(
-            self.all_exec,
+            all_exec,
+            module=self,
             take=self.env.take,
             regy=self.env.regy,
             ts=self.env.ts,
@@ -112,38 +113,40 @@ class PpLvlfcMod(GamsClass):
             arg11=self.arg11,
         )
 
-    def clear_uncd7(self: PpLvlfcMod):
-        self.tc.add_gams_code(module=self, phase="run", code=r"OPTION CLEAR=UNCD7;")
 
-    def all_exec(
-        self: PpLvlfcMod,
-        take: str,
-        regy: str,
-        ts: str,
-        awgt: str,
-        iwgt: str,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-        arg4: str,
-        arg5: str,
-        arg6: str,
-        arg8: str,
-        arg10: str,
-        arg11: str,
-    ):
-        if arg11 == "N":
-            self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code=rf"""
-{arg1}(R,LL--ORD(LL),{arg2}{arg10},S+STOA(S){arg4})$(STOAL(R,S)${arg1}(R,LL,{arg2}{arg10},S{arg4})) = 1;
-""",
-            )
-        self.tc.add_gams_code(
-            module=self,
+def clear_uncd7(module: GamsClass):
+    module.tc.add_gams_code(module=module, phase="run", code=r"OPTION CLEAR=UNCD7;")
+
+
+def all_exec(
+    module: GamsClass,
+    take: str,
+    regy: str,
+    ts: str,
+    awgt: str,
+    iwgt: str,
+    arg1: str,
+    arg2: str,
+    arg3: str,
+    arg4: str,
+    arg5: str,
+    arg6: str,
+    arg8: str,
+    arg10: str,
+    arg11: str,
+):
+    if arg11 == "N":
+        module.tc.add_gams_code(
+            module=module,
             phase="run",
             code=rf"""
+{arg1}(R,LL--ORD(LL),{arg2}{arg10},S+STOA(S){arg4})$(STOAL(R,S)${arg1}(R,LL,{arg2}{arg10},S{arg4})) = 1;
+""",
+        )
+    module.tc.add_gams_code(
+        module=module,
+        phase="run",
+        code=rf"""
 * Mark to be levelized if inheritance is allowed or S is not ANNUAL:
 LOOP(({regy},{arg2}{arg10},S{arg4})$({ts}{arg1}({regy},{arg2}{arg10},S{arg4})), UNCD7({regy},{arg2}{arg10}{arg4}{arg5})$({arg8}{take}) = YES);
 *-----------------------------------------------------------------------------
@@ -161,20 +164,69 @@ LOOP(UNCD7({regy},{arg2}{arg10}{arg4}{arg5}), TS_ARRAY(S) = {arg1}({regy},{arg2}
                        TS_ARRAY({arg6}){iwgt})));)));
 *-----------------------------------------------------------------------------
 """,
-        )
-        if arg11 == "0":
-            self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code=rf"""
+    )
+    if arg11 == "0":
+        module.tc.add_gams_code(
+            module=module,
+            phase="run",
+            code=rf"""
 {arg1}({regy},{arg2}{arg10},S{arg4})$((NOT {arg1}({regy},{arg2}{arg10},S{arg4}))${arg3}(R,{arg2},S)) $= {arg1}({regy},{arg2}{arg10},'ANNUAL'{arg4});
 """,
-            )
-        if len(arg11):
-            self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code=rf"""
+        )
+    if len(arg11):
+        module.tc.add_gams_code(
+            module=module,
+            phase="run",
+            code=rf"""
 {arg1}(R,LL,{arg2}{arg10},S{arg4})$((NOT {arg3}(R,{arg2},S)){take}) = 0;
 """,
-            )
+        )
+
+
+def pp_lvlfc_mod(
+    arg1: str,
+    arg2: str,
+    arg3: str,
+    arg4: str,
+    arg5: str,
+    arg6: str,
+    arg7: str,
+    arg8: str,
+    arg9: str,
+    arg10: str,
+    arg11: str,
+    arg12: str,
+):
+    clear_uncd7()
+
+    take = arg12
+    regy = f"R,{arg7}"
+    ts = f"(NOT {arg3}(R,{arg2},S))$"
+    awgt = "G_YRFR(R,S)/G_YRFR(R,TS)"
+    iwgt = ""
+    if not len(arg7):
+        regy = "R"
+    if arg6 == "S2":
+        ts = ""
+    if arg9 == "1":
+        awgt = "1"
+        iwgt = f"*G_YRFR(R,S)/G_YRFR(R,{arg6})"
+    if arg11 == "N":
+        take = (f"${arg1}(R,'0',{arg2}{arg10},'ANNUAL'{arg4})",)
+
+    all_exec(
+        take=take,
+        regy=regy,
+        ts=ts,
+        awgt=awgt,
+        iwgt=iwgt,
+        arg1=arg1,
+        arg2=arg2,
+        arg3=arg3,
+        arg4=arg4,
+        arg5=arg5,
+        arg6=arg6,
+        arg8=arg8,
+        arg10=arg10,
+        arg11=arg11,
+    )

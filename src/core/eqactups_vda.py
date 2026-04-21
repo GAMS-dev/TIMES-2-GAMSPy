@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.pp_lvlfc_mod import PpLvlfcMod
+from core.pp_lvlfc_mod import pp_lvlfc_mod
 
 from .base_class import GamsClass
 
@@ -45,42 +45,17 @@ class EqactupsVda(GamsClass):
 
     def compile(self) -> None:
         self.tc.enqueue(self.set_indicators, pgprim=self.env.pgprim)
-        # fmt: off
-        batinclude = [
-            ("ACT_UPS","P","PRC_TS","',BD'",",'','',''","ALL_TS","V","RTP(R,V,P)","0","","N","")
-        ]
-        # fmt: on
-        # * Levelize ACT_UPS
-        for arg in batinclude:
-            self.include(
-                PpLvlfcMod(
-                    self.tc,
-                    self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
-                    arg5=arg[4],
-                    arg6=arg[5],
-                    arg7=arg[6],
-                    arg8=arg[7],
-                    arg9=arg[8],
-                    arg10=arg[9],
-                    arg11=arg[10],
-                    arg12=arg[11],
-                )
-            )
-        self.tc.enqueue(self.levelize_act_ups)
+
         self.env.set_scoped(
-            "CAPON",
+            "capon",
             f"(COEF_CPT(R,V,T,P)*({self.env.varv}_NCAP(R,V,P{self.env.sws})$T(V)+NCAP_PASTI(R,V,P){self.env.rcapsub}))$PRC_VINT(R,P)+{self.env.var}_CAP(R,T,P{self.env.sow})$RP_UX(R,P)",
         )
         self.env.set_scoped(
-            "MX",
+            "mx",
             f"SUM(RVP_KMAP(R,V,P,MODLYEAR(K)),COEF_VNT(R,T,P,K)*({self.env.varm}_NCAP(R,K,P{self.env.sws})$T(K)+NCAP_PASTI(R,K,P){self.env.rcapsbm}))",
         )
         self.env.set_scoped(
-            "TMP",
+            "tmp",
             f"$(NOT RP_UX(R,P))+{self.env.var}_CAP(R,T,P{self.env.sow})$RP_UX(R,P){self.env.upscaps}",
         )
 
@@ -164,12 +139,19 @@ class EqactupsVda(GamsClass):
         )
 
     def set_indicators(self: EqactupsVda, pgprim: str):
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-* Set indicators
-  IF(CARD(RP_UPL)+CARD(RP_PL)+CARD(ACT_CSTRMP),OPTION CLEAR=UNCD7;
+        m = self.tc.container
+        RpUpl = m["RP_UPL"]
+        RpPl = m["RP_PL"]
+        act_cstrmp = m["ACT_CSTRMP"]
+
+        # Set indicators
+        # IF(CARD(RP_UPL)+CARD(RP_PL)+CARD(ACT_CSTRMP),
+        if RpPl.number_records + RpUpl.number_records + act_cstrmp.number_records:
+            self.tc.add_gams_code(
+                module=self,
+                phase="run",
+                code=rf"""
+  OPTION CLEAR=UNCD7;
   AFUPS(R,T,P,S)$((NOT RPS_CAFLAC(R,P,S,'UP'))$PRC_TS(R,P,S)) $= AFS(R,T,P,S,'UP')$RP_UPL(R,P,'FX'); AFS(AFUPS,BD)=NO;
   RPS_UPS(R,P,S)$((STOAL(R,S)<2+1$RP_UPR(R,P,'N'))$RP_UPL(R,P,'FX')) = SUM(PRC_TS(R,P,TS)$RS_BELOW(R,S,TS),RS_BELOW1(R,S,TS) OR STOA(S));
   RP_UX(RP)$(NOT PRC_VINT(RP))$=RP_UPL(RP,'FX'); RTP_VARP(RTP(R,T,P))$RP_UX(R,P)=YES;
@@ -177,7 +159,7 @@ class EqactupsVda(GamsClass):
 * Check for startup costs
   UNCD7(R,LL--ORD(LL),P,TSL,RDCUR(R,CUR),'UP') $= ACT_CSTUP(R,LL,P,TSL,CUR);
   UNCD7(R,LL--ORD(LL),P,BD,RDCUR(R,CUR),'N') $= ACT_CSTRMP(R,LL,P,BD,CUR);
-  LOOP(UNCD7(R,LL,P,ITEM,R,CUR,L),RP_UPS(R,P,TSL(ITEM),L)$(TSLVLNUM(TSL)$RP_UPL(R,P,'FX')>1)=YES; RPC_CUR(R,P,{pgprim},CUR)=YES);
+  LOOP(UNCD7(R,LL,P,ITEM,R,CUR,L),RP_UPS(R,P,TSL(ITEM),L)$(TSLVLNUM(TSL)$RP_UPL(R,P,'FX')>1)=YES; RPC_CUR(R,P,'{pgprim}',CUR)=YES);
   RP_UPS(RP,TSL,L)$SUM(PRC_TSL(RP,TSLVL)$(ORD(TSL)>ORD(TSLVL)),1)=NO;
   RPS_UPS(RP,S)$SUM(RP_UPS(PRC_TSL(RP,TSL),L),1)=NO;
   RPS_UPS(R,P,S) $= SUM(RP_UPS(R,P,TSL,L)$TS_GROUP(R,TSL,S),1);
@@ -187,19 +169,39 @@ class EqactupsVda(GamsClass):
   LOOP(UNCD7(R,LL,P,TSL(ANNUAL),R,CUR,L),RP_UPS(R,P,TSL,L)=YES; RP_PL(R,P,'N')=NOT RP_PL(R,P,L));
   ACT_LOSPL(RTP(R,V,P),BDNEQ(BD))$((ACT_LOSPL(RTP,BD)<=0)$RP_PL(R,P,'N'))=MAX(.1+.5$BDUPX(BD),ACT_MINLD(RTP));
 """,
-        )
+            )
 
-    def levelize_act_ups(self: EqactupsVda):
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
+            pp_lvlfc_mod(
+                module=self,
+                arg1="ACT_UPS",
+                arg2="P",
+                arg3="PRC_TS",
+                arg4="',BD'",
+                arg5=",'','',''",
+                arg6="ALL_TS",
+                arg7="V",
+                arg8="RTP(R,V,P)",
+                arg9="0",
+                arg10="",
+                arg11="N",
+                arg12="",
+            )
+
+            self.tc.add_gams_code(
+                module=self,
+                phase="run",
+                code=r"""
   RTP_PL(RTP(R,V,P))$((ACT_LOSPL(RTP,'LO')=ACT_MINLD(RTP))$RP_UPL(R,P,'FX'))$=RP_PL(R,P,'N');
 * Check for cycling limits
   RP_UPC(R,P,TSL,'N')$RP_UPR(R,P,'N') $= SUM(RP_UPS(PRC_TSL(R,P,TSLVL),L),RLUP(R,TSLVL,TSL));
   RP_UPC(PRC_TSL(RP,TSL),BDNEQ(BD))$RP_UPS(RP,TSL,'UP') $= RP_UPR(RP,BD));
-  OPTION RP_UPR < ACT_CSTRMP;
 """,
+            )
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=r"""
+  OPTION RP_UPR < ACT_CSTRMP;""",
         )
 
     def equation_capload(
@@ -427,11 +429,11 @@ class EqactupsVda(GamsClass):
 
   SUM(RTP_VINTYR(R,V,T,P),
 * Limit net and gross sifting flows
-    SUM(IPS(L)$(PRC_TS(R,P,S)+YES$STG_SIFT(RTP,{pgprim},S)+ANNUAL(S)$ACTCG(COM)),
-      SUM(PRC_TS(R,P,TS)$RS_BELOW1(R,S,TS),{var}_ACT(R,V,T,P,TS{sow}))$STG_SIFT(RTP,{pgprim},S) +
+    SUM(IPS(L)$(PRC_TS(R,P,S)+YES$STG_SIFT(RTP,'{pgprim}',S)+ANNUAL(S)$ACTCG(COM)),
+      SUM(PRC_TS(R,P,TS)$RS_BELOW1(R,S,TS),{var}_ACT(R,V,T,P,TS{sow}))$STG_SIFT(RTP,'{pgprim}',S) +
       SUM((TOP(RPC_STG(R,P,C),'OUT'),RPCS_VAR(R,P,C,TS)),{var}_SOUT(R,V,T,P,C,TS{sow}))$ANNUAL(S)$ACTCG(COM) +
-      ({var}_SIN(R,V,T,P,COM,S{sow}) + {var}_ACT(R,V,T,P,S{sow}))$PRC_TS(R,P,S) + {var}_SOUT(R,T,T,P,{pgprim},S{sow}) -
-      SUM((TOP(RPC_STG(R,P,C),'OUT'),RTCS_VARC(RTC(R,T,C),TS))$RS_FR(R,S,TS),(STG_SIFT(RTP,C,TS)$(PRC_TS(R,P,S)+ANNUAL(S)$ACTCG(COM))+STG_SIFT(RTP,{pgprim},S))*{var}_COMPRD(R,T,C,TS{sow})/COM_IE(RTC,TS)*RS_FR(R,S,TS)*(1+RTCS_FR(R,T,C,S,TS)))) -
+      ({var}_SIN(R,V,T,P,COM,S{sow}) + {var}_ACT(R,V,T,P,S{sow}))$PRC_TS(R,P,S) + {var}_SOUT(R,T,T,P,'{pgprim}',S{sow}) -
+      SUM((TOP(RPC_STG(R,P,C),'OUT'),RTCS_VARC(RTC(R,T,C),TS))$RS_FR(R,S,TS),(STG_SIFT(RTP,C,TS)$(PRC_TS(R,P,S)+ANNUAL(S)$ACTCG(COM))+STG_SIFT(RTP,'{pgprim}',S))*{var}_COMPRD(R,T,C,TS{sow})/COM_IE(RTC,TS)*RS_FR(R,S,TS)*(1+RTCS_FR(R,T,C,S,TS)))) -
 * Get net sifting, force zero shifting at seasonal level
     SUM(BD(L)$LNX(L),
       (SUM((TOP(RPC_STG(R,P,C),'OUT'),RPCS_VAR(R,P,C,TS))$RS_FR(R,S,TS),{var}_SOUT(R,V,T,P,C,TS{sow})*RS_FR(R,S,TS)*(1+RTCS_FR(R,T,C,S,TS))) -

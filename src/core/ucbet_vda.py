@@ -85,11 +85,11 @@ class UcbetVda(GamsClass):
                 sow=self.env.sow,
                 var=self.env.var,
             )
-        self.env.set_scoped("SWTD2", self.env.swtd)
-        self.env.set_scoped("SOW2", self.env.sow)
+        self.env.set_scoped("swtd2", self.env.swtd)
+        self.env.set_scoped("sow2", self.env.sow)
         if self.env.stages == "YES":
-            self.env.set_scoped("SWTD2", ",SW_TSW(SOW,T,W)")
-            self.env.set_scoped("SOW2", ",W")
+            self.env.set_scoped("swtd2", ",SW_TSW(SOW,T,W)")
+            self.env.set_scoped("sow2", ",W")
 
         self.tc.add_gams_code(
             module=self,

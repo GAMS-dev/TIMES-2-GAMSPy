@@ -27,6 +27,14 @@ from core.coef_ext_etl import CoefExtEtl
 from core.coef_ext_vda import CoefExtVda
 from core.coefmain_mod import CoefmainMod
 from core.eqmain_mod import EqmainMod
+from core.equ_ext_abs import EquExtAbs
+from core.equ_ext_cli import EquExtCli
+from core.equ_ext_dsc import EquExtDsc
+from core.equ_ext_ecb import EquExtEcb
+from core.equ_ext_etl import EquExtEtl
+from core.equ_ext_ier import EquExtIer
+from core.equ_ext_msa import EquExtMsa
+from core.equ_ext_vda import EquExtVda
 from core.err_stat_mod import ErrStatMod
 from core.init_ext_abs import InitExtAbs
 from core.init_ext_dsc import InitExtDsc
@@ -263,6 +271,25 @@ class MainDrvMod(GamsClass):
 
         self.include(EqmainMod(tc=self.tc, env=self.env, arg1=self.arg1))
 
+        if self.env.extend != "":
+            extensions = {
+                "ABS": EquExtAbs,
+                "CLI": EquExtCli,
+                "DSC": EquExtDsc,
+                "ECB": EquExtEcb,
+                "ETL": EquExtEtl,
+                "IER": EquExtIer,
+                "MLF": "",
+                "MSA": EquExtMsa,
+                "VDA": EquExtVda,
+            }
+            requested_exts = set(self.env.extend.split())
+            include_extension(
+                module=self,
+                extensions=extensions,
+                requested_exts=requested_exts,
+                source="maindrv",
+            )
         # TODO: Keep translating
 
     def apply_inline_sets(self: MainDrvMod, set_string: str) -> None:

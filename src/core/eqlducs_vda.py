@@ -67,7 +67,7 @@ class EqlducsVda(GamsClass):
             )
             self.env.set_scoped(
                 "capon",
-                f"(COEF_CPT(R,V,T,P)*{self.env.var}_NCAP(R,V,P{self.env.sws})$T(V)+NCAP_PASTI(R,V,P){self.env.rcapsub}))$PRC_VINT(R,P)+{self.env.var}_CAP(R,T,P{self.env.sow})$RP_UX(R,P)",
+                f"(COEF_CPT(R,V,T,P)*({self.env.varv}_NCAP(R,V,P{self.env.sws})$T(V)+NCAP_PASTI(R,V,P){self.env.rcapsub}))$PRC_VINT(R,P)+{self.env.var}_CAP(R,T,P{self.env.sow})$RP_UX(R,P)",
             )
             self.define_equation1(
                 capon=self.env.capon,
