@@ -65,6 +65,7 @@ class EquExtMlf(GamsClass):
         self.tc.enqueue(
             self.exec1,
             fixboh_set=self.env.is_set("fixboh"),
+            fixboh=self.env.fixboh,
             reg_bdncap_defined=self.tc.defined("REG_BDNCAP"),
         )
 
@@ -248,13 +249,13 @@ class EquExtMlf(GamsClass):
 """,
         )
 
-    def exec1(self: EquExtMlf, fixboh_set, reg_bdncap_defined):
+    def exec1(self: EquExtMlf, fixboh_set: bool, fixboh: str, reg_bdncap_defined: bool):
         if fixboh_set:
             self.tc.add_gams_code(
                 module=self,
                 phase="run",
-                code=r"""
-LOOP(R, Z=REG_FIXT(R); IF(Z=0,Z=ABS(%FIXBOH%)); TM_PP(R,T)$(M(T) LE Z)=NO);
+                code=rf"""
+LOOP(R, Z=REG_FIXT(R); IF(Z=0,Z=ABS({fixboh})); TM_PP(R,T)$(M(T) LE Z)=NO);
 """,
             )
         if reg_bdncap_defined:
