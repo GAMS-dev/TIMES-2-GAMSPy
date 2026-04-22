@@ -51,23 +51,23 @@ class StagesStc(GamsClass):
             pass
         else:
             self.env.set_global(
-                "SW_TAGS",
+                "sw_tags",
                 r"""SET EQ 'ES' SET VAR 'VAS' SET SWD ',WW' SET SWTD ',T,WW' SET SWS ',W)' SET SOW ',SOW' SET SWT ',SW_T(T,SOW)' SET VART 'SUM(SW_TSW(SOW,T,W),VAS' SET VARV 'SUM(SW_TSW(SOW,V,W),VAS' SET VARM 'SUM(SW_TSW(SOW,MODLYEAR,W),VAS'""",
             )
             if self.env.stages == "YES":
                 self.env.set_global(
-                    "SW_STVARS",
+                    "sw_stvars",
                     r"""SET VARTT 'SUM(SW_TSW(SOW,TT,W),VAS' SET SWSW SW_TSW(SOW,T,WW),""",
                 )
-            self.env.set_global("SWD", "',WW'")
-            self.env.set_global("WITSPINE", "")
+            self.env.set_global("swd", "',WW'")
+            self.env.set_global("witspine", "")
             if self.env.stages == "YES":
-                self.env.set_global("SWX", "',SOW'")
-                self.env.set_global("SWTX", "SW_T(T,SOW)$")
+                self.env.set_global("swx", "',SOW'")
+                self.env.set_global("swtx", "SW_T(T,SOW)$")
             if self.env.sensis == "YES":
-                self.env.set_global("SWD", "")
+                self.env.set_global("swd", "")
             self.tc.enqueue(self.set_auxsow)
-            self.env.set_global("VAR_UC", "YES")
+            self.env.set_global("var_uc", "YES")
             if not self.env.var_uc == "YES":
                 raise ValueError("Invalid VAR_UC setting in stochastic mode - abort")
             self.tc.enqueue(self.preprocess_inputs)

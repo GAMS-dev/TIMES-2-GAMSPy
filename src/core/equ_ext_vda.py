@@ -47,11 +47,13 @@ class EquExtVda(GamsClass):
         tc: TimesModelClass,
         env: CompileEnvironment,
         arg1: str = "",
+        arg2: str = "",
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
         self.arg1 = arg1
+        self.arg2 = arg2
         self.compile()
 
     def compile(self) -> None:
@@ -62,14 +64,14 @@ class EquExtVda(GamsClass):
             if self.tc.defined("PREMILE"):
                 self.include(BndIreVda(self.tc, self.env))
             return
-        self.env.set_scoped("VAS", self.env.var)
+        self.env.set_scoped("vas", self.env.var)
         if self.env.stages == "YES":
             # TODO: Expected to FAIL: invalid add_gams_code
             self.tc.add_gams_code(
                 module=self, phase="init", code=rf"""${self.env.sw_stvars}"""
             )
         self.env.set_scoped(
-            "UPSCAP0", f"({self.env.upscaps}$PRC_TS(R,P,S))$RP_UPL(R,P,'FX')"
+            "upscap0", f"({self.env.upscaps}$PRC_TS(R,P,S))$RP_UPL(R,P,'FX')"
         )
         self.tc.add_gams_code(
             module=self, phase="init", code="PARAMETER DP_UNS(R,LL,T,P,TSL,IPS,L) //;"
@@ -81,23 +83,21 @@ class EquExtVda(GamsClass):
         # * Activity Efficiency Transformation
         self.include(PpActefVda(self.tc, self.env))
         # * Capacity-activity equations:
-        eqcaflac_bat_includes: list[dict[str, list]] = [
-            ("E", "'FX'", "$", f"{self.env.mx}"),
-            ("L", "'UP'", "*", f"{self.env.mx}"),
+        eqcaflac_bat_includes = [
+            ("E", "'FX'", "$", self.env.mx),
+            ("L", "'UP'", "*", self.env.mx),
         ]
-        for inc in eqcaflac_bat_includes:
-            for args in inc:
-                self.include(
-                    EqcaflacVda(
-                        self.tc,
-                        self.env,
-                        arg1=args[0],
-                        arg2=args[1],
-                        arg3=args[2],
-                        arg4=args[3],
-                        arg5=args[4],
-                    )
+        for args in eqcaflac_bat_includes:
+            self.include(
+                EqcaflacVda(
+                    self.tc,
+                    self.env,
+                    arg1=args[0],
+                    arg2=args[1],
+                    arg3=args[2],
+                    arg4=args[3],
                 )
+            )
         self.include(EqactupsVda(self.tc, self.env, arg1=self.env.mx))
         self.include(EqlducsVda(self.tc, self.env, arg1="EQU"))
 
@@ -109,16 +109,15 @@ class EquExtVda(GamsClass):
             ("G", "UP")
         ]
         # fmt: on
-        for inc in eqashar_batinclude:
-            for args in inc:
-                self.include(
-                    EqasharVda(
-                        self.tc,
-                        self.env,
-                        arg1=args[0],
-                        arg2=args[1],
-                    )
+        for args in eqashar_batinclude:
+            self.include(
+                EqasharVda(
+                    self.tc,
+                    self.env,
+                    arg1=args[0],
+                    arg2=args[1],
                 )
+            )
 
         # * UCBET equations
         if self.tc.defined("UC_FLOBET"):
@@ -135,18 +134,17 @@ class EquExtVda(GamsClass):
             ("EQU_EXT", "N", "L", "BDNEQ"),
             ("EQU_EXT", "E", "E", "'FX'"),
         ]
-        for inc in equcrtp_batinclude:
-            for args in inc:
-                self.include(
-                    EqucrtpVda(
-                        self.tc,
-                        self.env,
-                        arg1=args[0],
-                        arg2=args[1],
-                        arg3=args[2],
-                        arg4=args[3],
-                    )
+        for args in equcrtp_batinclude:
+            self.include(
+                EqucrtpVda(
+                    self.tc,
+                    self.env,
+                    arg1=args[0],
+                    arg2=args[1],
+                    arg3=args[2],
+                    arg4=args[3],
                 )
+            )
 
     def equations(self: EquExtVda, eq: str, swtd: str, swd: str):
         self.tc.add_gams_code(
