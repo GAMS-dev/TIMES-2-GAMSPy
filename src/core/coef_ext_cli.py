@@ -465,7 +465,7 @@ OPTION CM_MAXC_M < S_CM_MAXC;
                 # fmt: on
                 for arg in batincludes:
                     exec_fillsow_stc(
-                        module=FillsowStc,
+                        module=self,
                         arg1=arg[0],
                         arg2=arg[1],
                         arg3=arg[2],

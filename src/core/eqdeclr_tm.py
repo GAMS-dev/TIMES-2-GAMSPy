@@ -29,19 +29,16 @@ class EqdeclrTm(GamsClass):
     module_name: str = "eqdeclr_tm"
     gams_source: str = "eqdeclr.tm"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment, arg1: str = ""):
         self.env = env.fork()
+        self.arg1 = arg1
         self._sub_modules = {}
         self.tc = tc
         self.compile()
 
     def compile(self) -> None:
         if self.env.macro.upper() == "YES":
-            self.include(EqdeclrTm(self.tc, self.env))
+            self.include(EqdeclrTm(self.tc, self.env, arg1=self.arg1))
         else:
             self.tc.add_gams_code(
                 module=self,

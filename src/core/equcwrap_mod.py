@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-Arg6Type = Literal["", "NOT"]
+EqucwrapArg6Type = Literal["", "NOT"]
 
 
 class EqucwrapMod(GamsClass):
@@ -45,7 +45,7 @@ class EqucwrapMod(GamsClass):
         arg3: str = "",
         arg4: str = "",
         arg5: str = "",
-        arg6: Arg6Type = "",
+        arg6: EqucwrapArg6Type = "",
     ):
         self.env = env.fork()
         self.tc = tc
@@ -63,8 +63,8 @@ class EqucwrapMod(GamsClass):
         var_uc_is_yes = self.env.var_uc.strip().upper() == "YES"
 
         # Ensure arg6 is exactly what is implemented
-        if self.arg6.strip().upper() not in get_args(Arg6Type):
-            raise ValueError(f"'{self.arg6}' not in {get_args(Arg6Type)}.")
+        if self.arg6.strip().upper() not in get_args(EqucwrapArg6Type):
+            raise ValueError(f"'{self.arg6}' not in {get_args(EqucwrapArg6Type)}.")
 
         is_inverted = self.arg6.strip().upper() == "NOT"
 

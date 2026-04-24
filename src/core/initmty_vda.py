@@ -125,7 +125,7 @@ $onMulti
 
         # SET ITEM / OBJ /;
         # Remember: ITEM is a UniverseSet
-        item_records = set(["OBJ"])
+        item_records = ["OBJ"]
         self.add_records_to_universe_item(records=item_records)
 
         self.tc.add_gams_code(

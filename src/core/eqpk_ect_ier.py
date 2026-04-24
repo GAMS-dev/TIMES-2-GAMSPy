@@ -25,6 +25,7 @@ def eqpk_ect_ier(
     shff: str,
     sow: str,
     var: str,
+    pgprim: str,
     is_rtp_ffcs_defined: bool,
 ) -> str:
     """Translation unit for eqpk_ect.ier."""
@@ -33,6 +34,7 @@ def eqpk_ect_ier(
         shff=shff,
         sow=sow,
         var=var,
+        pgprim=pgprim,
         is_rtp_ffcs_defined=is_rtp_ffcs_defined,
         arg1="OUT",
         # arg2 = "O" in cal_fflo_mod stated as no longer used

@@ -28,7 +28,8 @@ docs = [
 
 dev = [
     "pre-commit",
-    "detect-secrets"
+    "detect-secrets",
+    "mypy>=1.19.1",
 ]
 
 [tool.pytest.ini_options]
@@ -61,3 +62,9 @@ ignore = []
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.mypy]
+warn_unused_configs = true
+follow_imports = "skip"
+follow_imports_for_stubs = true
+disable_error_code = ["misc", "import-untyped"]

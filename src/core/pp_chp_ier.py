@@ -28,7 +28,7 @@ class PpChpIer(GamsClass):
     module_name: str = "pp_chp_ier"
     gams_source: str = "pp_chp.ier"
 
-    def __init__(self, tc: TimesModelClass, env: CompileEnvironment, arg1: str):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment, arg1: str = ""):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc

@@ -49,7 +49,7 @@ class FillsowStc(GamsClass):
         arg5: str = "",
         arg6: str = "",
         arg7: str = "",
-    ):
+    ) -> None:
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
@@ -77,7 +77,8 @@ class FillsowStc(GamsClass):
             self.env.set_local("stg", "SW_TSTG(T,J)$")
 
         self.tc.enqueue(
-            self.clean_up_sow,
+            clean_up_sow,
+            module=self,
             tail=self.env.tail,
             ix=self.env.ix,
             stg=self.env.stg,
@@ -90,7 +91,8 @@ class FillsowStc(GamsClass):
             return
 
         self.tc.enqueue(
-            self.update_data_indicators,
+            update_data_indicators,
+            module=self,
             tail=self.env.tail,
             ix=self.env.ix,
             stg=self.env.stg,
@@ -101,13 +103,20 @@ class FillsowStc(GamsClass):
             arg7=self.arg7,
         )
 
-    def clean_up_sow(
-        self: FillsowStc, tail: str, ix: str, stg: str, arg1: str, arg2: str, arg4: str
-    ):
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
+
+def clean_up_sow(
+    module: GamsClass,
+    tail: str,
+    ix: str,
+    stg: str,
+    arg1: str,
+    arg2: str,
+    arg4: str,
+):
+    module.tc.add_gams_code(
+        module=module,
+        phase="run",
+        code=rf"""
 * Clean up stage 1 from invalid SOW:
   S_{arg1}({arg2}{arg4}{tail},'1',SOW)$(NOT SAMEAS(SOW,'1')) = 0;
 * Set up data indicators
@@ -117,23 +126,24 @@ class FillsowStc(GamsClass):
 * Copy parameters from first to other branches when appropriate
   S_{arg1}({arg2}{arg4}{tail},J,WW)$({stg}(NOT S_{arg1}({arg2}{ix}{tail},J,WW))) $= SUM(SW_CPMAP(J,WW,SOW),S_{arg1}({arg2}{arg4}{tail},J,SOW));
 """,
-        )
+    )
 
-    def update_data_indicators(
-        self: FillsowStc,
-        tail: str,
-        ix: str,
-        stg: str,
-        arg1: str,
-        arg2: str,
-        arg4: str,
-        arg6: str,
-        arg7: str,
-    ):
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
+
+def update_data_indicators(
+    module: GamsClass,
+    tail: str,
+    ix: str,
+    stg: str,
+    arg1: str,
+    arg2: str,
+    arg4: str,
+    arg6: str,
+    arg7: str,
+):
+    module.tc.add_gams_code(
+        module=module,
+        phase="run",
+        code=rf"""
 * Update data indicators if eventual copy occurred
 {f"IF(CARD(S_{arg1})>F, S_{arg1}({arg2}LL--ORD(LL){tail},J,WW) $= S_{arg1}({arg2}LL{tail},J,WW));" if len(arg4) else ""}
 
@@ -147,11 +157,11 @@ class FillsowStc(GamsClass):
 * Remove flags if LL
 {f"S_{arg1}({arg2}{ix}{tail},J,WW) = 0;" if arg4 == "LL" else ""}
 """,
-        )
+    )
 
 
 def exec_fillsow_stc(
-    module: FillsowStc,
+    module: GamsClass,
     arg1: str,
     arg2: str,
     arg3: str,
@@ -173,7 +183,8 @@ def exec_fillsow_stc(
     if arg4 == "T":
         stg = "SW_TSTG(T,J)$"
 
-    module.clean_up_sow(
+    clean_up_sow(
+        module=module,
         tail=tail,
         ix=ix,
         stg=stg,
@@ -185,7 +196,8 @@ def exec_fillsow_stc(
     if not arg5 == "YES":
         return
 
-    module.update_data_indicators(
+    update_data_indicators(
+        module=module,
         tail=tail,
         ix=ix,
         stg=stg,

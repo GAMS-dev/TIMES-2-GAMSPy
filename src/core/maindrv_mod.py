@@ -47,7 +47,7 @@ from core.mod_vars_etl import ModVarsEtl
 from core.mod_vars_mod import ModVarsMod
 from core.mod_vars_msa import ModVarsMsa
 from core.mod_vars_tm import ModVarsTm
-from core.ppm_ext_cli import PpmEctCli
+from core.ppm_ext_cli import PpmExtCli
 from core.ppm_ext_dsc import PpmExtDsc
 from core.ppm_ext_ecb import PpmExtEcb
 from core.ppm_ext_mlf import PpmExtMlf
@@ -87,7 +87,7 @@ class MainDrvMod(GamsClass):
 
         if self.tc.test_run:
             self.tc.save_test_state(env=self.env, checkpoint="setglobs_gms_start")
-        self.include(SetglobsGms(tc=self.tc, env=self.env, arg1=1))
+        self.include(SetglobsGms(tc=self.tc, env=self.env, arg1="1"))
         if self.tc.test_run:
             self.tc.save_test_state(env=self.env, checkpoint="setglobs_gms_end")
 
@@ -160,7 +160,7 @@ class MainDrvMod(GamsClass):
 
         # perform preprocessor tasks
         if self.env.extend != "":
-            extensions = {
+            init_extensions = {
                 "ABS": InitExtAbs,
                 "DSC": InitExtDsc,
                 "VDA": InitExtVda,
@@ -168,7 +168,7 @@ class MainDrvMod(GamsClass):
             requested_exts = set(self.env.extend.split())
             include_extension(
                 module=self,
-                extensions=extensions,
+                extensions=init_extensions,
                 requested_exts=requested_exts,
                 source="maindrv",
             )
@@ -179,8 +179,8 @@ class MainDrvMod(GamsClass):
             return
 
         if self.env.extend != "":
-            extensions = {
-                "CLI": PpmEctCli,
+            ppm_extensions = {
+                "CLI": PpmExtCli,
                 "DSC": PpmExtDsc,
                 "ECB": PpmExtEcb,
                 "MLF": PpmExtMlf,
@@ -189,7 +189,7 @@ class MainDrvMod(GamsClass):
             requested_exts = set(self.env.extend.split())
             include_extension(
                 module=self,
-                extensions=extensions,
+                extensions=ppm_extensions,
                 requested_exts=requested_exts,
                 source="maindrv",
             )
@@ -216,7 +216,7 @@ class MainDrvMod(GamsClass):
         self.include(CoefmainMod(tc=self.tc, env=self.env, arg1=self.arg1))
 
         if self.env.extend != "":
-            extensions = {
+            coef_extensions = {
                 "ABS": CoefExtAbs,
                 "CLI": CoefExtCli,
                 "ETL": CoefExtEtl,
@@ -225,12 +225,12 @@ class MainDrvMod(GamsClass):
             requested_exts = set(self.env.extend.split())
             include_extension(
                 module=self,
-                extensions=extensions,
+                extensions=coef_extensions,
                 requested_exts=requested_exts,
                 source="maindrv",
             )
 
-        #         *-----------------------------------------------------------------------------
+        # *-----------------------------------------------------------------------------
         # * establish model (use different .ext?)
         # *-----------------------------------------------------------------------------
         src = self.env.src.upper()
@@ -252,7 +252,7 @@ class MainDrvMod(GamsClass):
             raise Exception(f"Unknown extension {src} for mod_vars<ext>.py.")
 
         if self.env.extend != "":
-            extensions = {
+            mod_var_extensions = {
                 "ABS": ModVarsAbs,
                 "CLI": ModVarsCli,
                 "DSC": ModVarsDsc,
@@ -264,7 +264,7 @@ class MainDrvMod(GamsClass):
             requested_exts = set(self.env.extend.split())
             include_extension(
                 module=self,
-                extensions=extensions,
+                extensions=mod_var_extensions,
                 requested_exts=requested_exts,
                 source="maindrv",
             )
@@ -272,7 +272,7 @@ class MainDrvMod(GamsClass):
         self.include(EqmainMod(tc=self.tc, env=self.env, arg1=self.arg1))
 
         if self.env.extend != "":
-            extensions = {
+            equ_extensions = {
                 "ABS": EquExtAbs,
                 "CLI": EquExtCli,
                 "DSC": EquExtDsc,
@@ -286,7 +286,7 @@ class MainDrvMod(GamsClass):
             requested_exts = set(self.env.extend.split())
             include_extension(
                 module=self,
-                extensions=extensions,
+                extensions=equ_extensions,
                 requested_exts=requested_exts,
                 source="maindrv",
             )

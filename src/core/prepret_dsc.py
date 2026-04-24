@@ -39,14 +39,14 @@ class PrepretDsc(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
-        arg2: PhaseArg = "",
+        arg1: PhaseArg,
+        arg2: str = "",
         arg3: str = "",
     ):
         self.env = env.fork()
-        self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
+        self._sub_modules: dict[str, GamsClass] = {}
+        self.arg1: str = arg1
         self.arg2 = arg2
         self.arg3 = arg3
         self.compile()
@@ -64,7 +64,9 @@ class PrepretDsc(GamsClass):
         elif arg_upper == "OBJFIX":
             return objfix(capwd=self.env.capwd, vart=self.env.vart, sws=self.env.sws)
         elif arg_upper == "OBSALV":
-            objsalv()
+            objsalv(
+                var=self.env.var, varv=self.env.varv, sws=self.env.sws, sow=self.env.sow
+            )
         else:
             allowed = ", ".join(get_args(PhaseArg))
             raise ValueError(

@@ -157,6 +157,7 @@ class EqpeakMod(GamsClass):
                 shff=shff,
                 sow=sow,
                 var=var,
+                pgprim=pgprim,
                 is_rtp_ffcs_defined=is_rtp_ffcs_defined,
             )
         include_cal_fflo_2 = cal_fflo_mod(

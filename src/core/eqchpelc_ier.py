@@ -74,7 +74,7 @@ class EqchpelcIer(GamsClass):
         sws: str,
         varv: str,
         pgprim: str,
-        def_rtp_ffcs: str,
+        def_rtp_ffcs: bool,
         shff: str,
         sow: str,
         var: str,

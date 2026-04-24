@@ -71,6 +71,7 @@ class UcbetVda(GamsClass):
                 shff=self.env.shff,
                 sow=self.env.sow,
                 var=self.env.var,
+                pgprim=self.env.pgprim,
             )
         else:
             cal_red_code = cal_red_red.cal_red_red(

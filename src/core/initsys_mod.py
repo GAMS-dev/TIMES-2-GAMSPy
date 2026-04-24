@@ -79,7 +79,9 @@ $ ONMULTI
             if not self.env.shell == "ANSWER":
                 if self.env.is_set("maxsow"):
                     # Expand the universe alias item
-                    item_records = ["BOH"] + [i for i in range(1, self.env.eotime + 1)]
+                    item_records = ["BOH"] + [
+                        str(i) for i in range(1, self.env.eotime + 1)
+                    ]
                     self.add_records_to_universe_item(records=item_records)
 
         self.tc.add_gams_code(

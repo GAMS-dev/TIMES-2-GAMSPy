@@ -22,8 +22,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core import prepret_dsc
 from core.coef_alt_lin import CoefAltLin
-from core.prepret_dsc import PrepretDsc
 
 from .base_class import GamsClass
 
@@ -49,8 +49,8 @@ class EqobjfixMod(GamsClass):
         arg2: str = "",
     ):
         self.env = env.fork()
-        self._sub_modules = {}
         self.tc = tc
+        self._sub_modules: dict[str, GamsClass] = {}
         self.arg1 = arg1
         self.arg2 = arg2
         self.compile()
@@ -346,9 +346,9 @@ LOOP(SAMEAS(J,'1'),
         vart: str,
         var: str,
         condition1: str,
-        condition2: str,
+        condition2: bool,
     ):
-        include_prepret = self.include(PrepretDsc(self.tc, self.env, arg1="OBJFIX"))
+        include_prepret = prepret_dsc.objfix(capwd=capwd, vart=vart, sws=sws)
         self.tc.add_gams_code(
             module=self,
             phase="init",

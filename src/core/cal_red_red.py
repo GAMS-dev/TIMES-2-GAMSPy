@@ -25,17 +25,17 @@ def cal_red_red(
     sow: str,
     pgprim: str,
     shff: str,
-    arg1: str = "",
-    arg2: str = "",
-    arg3: str = "",
-    arg4: str = "",
-    arg5: str = "",
+    def_rtp_ffcs: bool,
+    arg1: str,
+    arg2: str,
+    arg3: str,
+    arg4: str,
+    arg5: str,
     arg6: str = "",
     arg7: str = "",
     arg8: str = "",
     arg9: str = "",
     arg10: str = "",
-    def_rtp_ffcs: bool = False,
 ) -> str:
     shp1 = ""
     shp2 = ""

@@ -77,6 +77,7 @@ def cal_fflo_mod(
             sow=sow,
             pgprim=pgprim,
             shff=shff,
+            def_rtp_ffcs=is_rtp_ffcs_defined,
         )
         include_cal_red_2 = cal_red_red(
             arg1="C",
@@ -93,6 +94,7 @@ def cal_fflo_mod(
             sow=sow,
             pgprim=pgprim,
             shff=shff,
+            def_rtp_ffcs=is_rtp_ffcs_defined,
         )
 
         return rf"""
