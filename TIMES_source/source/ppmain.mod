@@ -758,11 +758,12 @@ $   BATINCLUDE pp_lvlfc.mod COM_BQTY   C COM_TS '' ",'0','0','0','0','0'" ALL_TS
        IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
 $        BATINCLUDE pp_qaput.%1 PUTOUT PUTGRP 01 'COM_FR does not sum to unity (T=first year)'
          PUT QLOG ' WARNING       - Normalized to 1,   R=',%RL%,' C=',%CL%,' (T=',T.TL:0,')';)));
+$onlisting
     COM_FR(RTC(R,T,C),S)$((COM_FR(RTC,'ANNUAL') NE 1)$TRACKC(R,C)) = COM_FR(RTC,S) / COM_FR(RTC,'ANNUAL');
     RP_PGFLO(RP(R,P))$=SUM(RPC_PG(RP,C)$TRACKC(R,C),1);
     RP_PGFLO(RP)$SUM(RPS_S1(PRC_TS(RP,S)),1)=NO;
     OPTION CLEAR=RCS, CLEAR=TRACKC;
-
+$offlisting
 *-----------------------------------------------------------------------------
 * Split of timeslice based upon level and commodity profile
 *-----------------------------------------------------------------------------

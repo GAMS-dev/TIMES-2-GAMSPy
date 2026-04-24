@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 def include_extension(
-    module: GamsClass, extensions: dict, requested_exts: list, source: str
+    module: GamsClass, extensions: dict, requested_exts: set[str], source: str
 ):
     for ext_name, ext_class in extensions.items():
         if ext_name in requested_exts:

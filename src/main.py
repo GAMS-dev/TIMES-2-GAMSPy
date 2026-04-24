@@ -54,7 +54,7 @@ def main(
     output_compile: Path = Path("compile_gamspy.gdx"),
     output_execute: Path = Path("execute_gamspy.gdx"),
     test: bool = False,
-) -> None:
+) -> TimesModelClass:
     logging.info("Starting TIMES.")
 
     # Initialize Core

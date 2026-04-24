@@ -19,6 +19,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from core.equcwrap_mod import EqucwrapArg6Type
+
 from core.coef_csv_mod import CoefCsvMod
 from core.eqactbnd_mod import EqactbndMod
 from core.eqactflo_mod import EqactfloMod
@@ -131,21 +134,19 @@ class EqmainMod(GamsClass):
 
         # Bound of vintage process activity or TS-level above PRC_TS
         # *V0.5b avoid equations if LO=0/UP=INF
-        batincludes = [
+        eqactbnd_batincludes: list[tuple[str, str, str]] = [
             ("G", "LO", "(ACT_BND(R,T,P,S,'LO') NE 0)"),
             ("E", "FX", "YES"),
             ("L", "UP", "(ACT_BND(R,T,P,S,'UP') NE INF)"),
         ]
-        for arg in batincludes:
+        for arg1, arg2, arg3 in eqactbnd_batincludes:
             self.include(
-                EqactbndMod(
-                    tc=self.tc, env=self.env, arg1=arg[0], arg2=arg[1], arg3=arg[2]
-                )
+                EqactbndMod(tc=self.tc, env=self.env, arg1=arg1, arg2=arg2, arg3=arg3)
             )
 
         # Bound on commodity Net/Production activity above COM_TS
         # fmt: off
-        batincludes = [
+        eqbndcom_batincludes: list[tuple[str, str, str, str]] = [
             ("G", "LO", "(COM_BNDNET(R,T,C,S,'LO') NE 0)", "NET"),
             ("E", "FX", "YES", "NET"),
             ("L", "UP", "(COM_BNDNET(R,T,C,S,'UP') NE INF)", "NET"),
@@ -154,29 +155,27 @@ class EqmainMod(GamsClass):
             ("L", "UP", "(COM_BNDPRD(R,T,C,S,'UP') NE INF)", "PRD"),
         ]
         # fmt: on
-        for arg in batincludes:
+        for arg1, arg2, arg3, arg4 in eqbndcom_batincludes:
             self.include(
                 EqbndcomMod(
                     tc=self.tc,
                     env=self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
+                    arg1=arg1,
+                    arg2=arg2,
+                    arg3=arg3,
+                    arg4=arg4,
                 )
             )
 
         # Utilization equation ensure activity <= or = capacity
-        batincludes = [
+        eqcapact_batincludes: list[tuple[str, str, str]] = [
             ("E", "FX", self.env.mx),
             ("L", "UP", self.env.mx),
             ("G", "LO", ""),
         ]
-        for arg in batincludes:
+        for arg1, arg2, arg3 in eqcapact_batincludes:
             self.include(
-                EqcapactMod(
-                    tc=self.tc, env=self.env, arg1=arg[0], arg2=arg[1], arg3=arg[2]
-                )
+                EqcapactMod(tc=self.tc, env=self.env, arg1=arg1, arg2=arg2, arg3=arg3)
             )
 
         if self.tc.defined("PRC_SIMV"):
@@ -242,76 +241,70 @@ class EqmainMod(GamsClass):
         )
 
         # Bound on the flow variable
-        batincludes = [
+        eqflobnd_batincludes: list[tuple[str, str, str]] = [
             ("G", "LO", "YES"),
             ("E", "FX", "YES"),
             ("L", "UP", "(FLO_BND(R,T,P,CG,S,'UP') NE INF)"),
         ]
 
-        for arg in batincludes:
+        for arg1, arg2, arg3 in eqflobnd_batincludes:
             self.include(
-                EqflobndMod(
-                    tc=self.tc, env=self.env, arg1=arg[0], arg2=arg[1], arg3=arg[2]
-                )
+                EqflobndMod(tc=self.tc, env=self.env, arg1=arg1, arg2=arg2, arg3=arg3)
             )
 
         # Fraction of a flow within a specific time slice
-        batincludes = [("L", "'LO'"), ("E", "LNX"), ("G", "'UP'")]
-        for arg in batincludes:
-            self.include(EqflofrMod(tc=self.tc, env=self.env, arg1=arg[0], arg2=arg[1]))
+        eqflofr_batincludes: list[tuple[str, str]] = [
+            ("L", "'LO'"),
+            ("E", "LNX"),
+            ("G", "'UP'"),
+        ]
+        for arg1, arg2 in eqflofr_batincludes:
+            self.include(EqflofrMod(tc=self.tc, env=self.env, arg1=arg1, arg2=arg2))
 
         # Market share equation allocating commodity percentages of a group
-        batincludes = [
+        eqfloshr_batincludes: list[tuple[str, str, str]] = [
             ("L", "LO", "IN"),
             ("E", "FX", "IN"),
             ("G", "UP", "IN"),
         ]
-        for arg in batincludes:
+        for arg1, arg2, arg3 in eqfloshr_batincludes:
             self.include(
-                EqfloshrMod(
-                    tc=self.tc, env=self.env, arg1=arg[0], arg2=arg[1], arg3=arg[2]
-                )
+                EqfloshrMod(tc=self.tc, env=self.env, arg1=arg1, arg2=arg2, arg3=arg3)
             )
 
         # Product share equation allocating commodity percentages of a group
-        batincludes = [
+        eqfloshr_batincludes = [
             ("L", "LO", "OUT"),
             ("E", "FX", "OUT"),
             ("G", "UP", "OUT"),
         ]
-        for arg in batincludes:
+        for arg1, arg2, arg3 in eqfloshr_batincludes:
             self.include(
-                EqfloshrMod(
-                    tc=self.tc, env=self.env, arg1=arg[0], arg2=arg[1], arg3=arg[2]
-                )
+                EqfloshrMod(tc=self.tc, env=self.env, arg1=arg1, arg2=arg2, arg3=arg3)
             )
 
         # Process market share constraint in total commodity production
-        batincludes = [
+        eqflomrk_batincludes: list[tuple[str, str]] = [
             ("G", "LO"),
             ("E", "FX"),
             ("L", "UP"),
         ]
-        for arg in batincludes:
-            self.include(
-                EqflomrkMod(tc=self.tc, env=self.env, arg1=arg[0], arg2=arg[1])
-            )
+        for arg1, arg2 in eqflomrk_batincludes:
+            self.include(EqflomrkMod(tc=self.tc, env=self.env, arg1=arg1, arg2=arg2))
 
         # Inter-regional exchange
         self.include(EqireMod(tc=self.tc, env=self.env))
 
         # Bound on exchange between internal regions
         # *V0.5b avoid equations if LO=0/UP=INF
-        batincludes = [
+        eqirebnd_batincludes: list[tuple[str, str, str]] = [
             ("G", "LO", "(IRE_BND(R,T,C,S,ALL_REG,IE,'LO') NE 0)"),
             ("E", "FX", "YES"),
             ("L", "UP", "(IRE_BND(R,T,C,S,ALL_REG,IE,'UP') NE INF)"),
         ]
-        for arg in batincludes:
+        for arg1, arg2, arg3 in eqirebnd_batincludes:
             self.include(
-                EqirebndMod(
-                    tc=self.tc, env=self.env, arg1=arg[0], arg2=arg[1], arg3=arg[2]
-                )
+                EqirebndMod(tc=self.tc, env=self.env, arg1=arg1, arg2=arg2, arg3=arg3)
             )
 
         # Commodity peaking
@@ -336,7 +329,7 @@ class EqmainMod(GamsClass):
         self.include(EqstgtssMod(tc=self.tc, env=self.env))
 
         # Bound on input/output flows of storage process
-        batincludes = [
+        eqstgflo_batincludes: list[tuple[str, str, str, str]] = [
             ("IN", "G", "LO", "0"),
             ("IN", "E", "FX", "NA"),
             ("IN", "L", "UP", "INF"),
@@ -344,15 +337,15 @@ class EqmainMod(GamsClass):
             ("OUT", "E", "FX", "NA"),
             ("OUT", "L", "UP", "INF"),
         ]
-        for arg in batincludes:
+        for arg1, arg2, arg3, arg4 in eqstgflo_batincludes:
             self.include(
                 EqstgfloMod(
                     tc=self.tc,
                     env=self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
+                    arg1=arg1,
+                    arg2=arg2,
+                    arg3=arg3,
+                    arg4=arg4,
                 )
             )
 
@@ -391,23 +384,23 @@ class EqmainMod(GamsClass):
         self.add_sets(ucbd=self.env.ucbd, tmp=self.env.tmp)
         self.tc.enqueue(self.exec2, ucbd=self.env.ucbd, take=self.env.take)
 
-        batincludes = [
+        equcwrap_batincludes: list[tuple[str, str, str, str, str, EqucwrapArg6Type]] = [
             ("E", "BD", "", "SUM(BD$", ",1)", "NOT"),
             ("E", "'FX'", ",'FX'", "", "", ""),
             ("G", "'LO'", ",'LO'", "", "", ""),
             ("L", "'UP'", ",'UP'", "", "", ""),
         ]
-        for arg in batincludes:
+        for arg1, arg2, arg3, arg4, arg5, arg6 in equcwrap_batincludes:
             self.include(
                 EqucwrapMod(
                     tc=self.tc,
                     env=self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
-                    arg5=arg[4],
-                    arg6=arg[5],
+                    arg1=arg1,
+                    arg2=arg2,
+                    arg3=arg3,
+                    arg4=arg4,
+                    arg5=arg5,
+                    arg6=arg6,
                 )
             )
 
@@ -434,14 +427,14 @@ class EqmainMod(GamsClass):
 
         # *GG* V07_2 Refinery blending
         # Blending constraint to a specification characteristic
-        batincludes = [
+        eqblnd_batincludes: list[tuple[str, str]] = [
             ("L", "1"),
             ("G", "2"),
             ("E", "3"),
             ("N", "4"),
         ]
-        for arg in batincludes:
-            self.include(EqblndMod(tc=self.tc, env=self.env, arg1=arg[0], arg2=arg[1]))
+        for arg1, arg2 in eqblnd_batincludes:
+            self.include(EqblndMod(tc=self.tc, env=self.env, arg1=arg1, arg2=arg2))
 
         # MACRO equations
         if self.env.macro == "YES":
@@ -452,42 +445,42 @@ class EqmainMod(GamsClass):
 
     def _m2t(self: EqmainMod):
         # fmt: off
-        batincludes = [
+        batincludes: list[tuple[str, str, str, str]] = [
             ("E", "E", "NOT PRC_MAP(R,'DMD',P)", f"{self.env.var}_CAP(R,T,P {self.env.sow})"),
             ("L", "L", "PRC_MAP(R,'DMD',P)", f"{self.env.var}_CAP(R,T,P {self.env.sow})"),
             ("G", "G", "NO", "0"),
         ]
         # fmt: on
-        for arg in batincludes:
+        for arg1, arg2, arg3, arg4 in batincludes:
             self.include(
                 EqcptMod(
                     tc=self.tc,
                     env=self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
+                    arg1=arg1,
+                    arg2=arg2,
+                    arg3=arg3,
+                    arg4=arg4,
                 )
             )
 
     def _no_m2t(self: EqmainMod):
         self.tc.enqueue(self.assign_rtp_varp, etl=self.env.etl, macro=self.env.macro)
         # fmt: off
-        batincludes = [
+        batincludes: list[tuple[str, str, str, str]] = [
             ("E", "E", "RTP_VARP(R,T,P) OR YES$CAP_BND(R,T,P,'FX')", f"{self.env.var}_CAP(R,T,P {self.env.sow})"),
             ("L", "L", "((NOT RTP_VARP(R,T,P))$CAP_BND(R,T,P,'LO'))", "CAP_BND(R,T,P,'LO')"),
             ("G", "G", "((NOT RTP_VARP(R,T,P))$CAP_BND(R,T,P,'UP'))", "CAP_BND(R,T,P,'UP')"),
         ]
         # fmt: on
-        for arg in batincludes:
+        for arg1, arg2, arg3, arg4 in batincludes:
             self.include(
                 EqcptMod(
                     tc=self.tc,
                     env=self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
+                    arg1=arg1,
+                    arg2=arg2,
+                    arg3=arg3,
+                    arg4=arg4,
                 )
             )
 

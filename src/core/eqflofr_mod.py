@@ -62,13 +62,13 @@ class EqflofrMod(GamsClass):
    SUM(RTP_VINTYR(R,V,T,P),{self.env.var}_FLO(R,V,T,P,C,S{self.env.sow})$IPS(L) +
      SUM(RS_BELOW1(R,SL,S),SUM(TS_ANN(SL,TS),{self.env.var}_FLO(R,V,T,P,C,TS{self.env.sow})*(FLO_FR(RTPC,TS,'N')>0))$FLO_FR(RTPC,SL,'N') +
        SUM(RTPCS_VARF(RTPC,TS)$(FLO_FR(RTPC,S,L)>-INF$RS_FR(R,SL,TS)),
-{cal_red_func(var=self.env.var, sow=self.env.sow, pgprim=self.env.pgprim, shff=self.env.shff, arg1="C", arg2="COM", arg3="TS", arg4="P", arg5="T")}
+{cal_red_func(var=self.env.var, sow=self.env.sow, pgprim=self.env.pgprim, shff=self.env.shff, def_rtp_ffcs=self.tc.defined("RTP_FFCS"), arg1="C", arg2="COM", arg3="TS", arg4="P", arg5="T")}
           )$(NOT FLO_FR(RTPC,SL,'N')))$BD(L)) * ABS(FLO_FR(RTPC,S,L))
 
    ={self.arg1}=
 
    SUM((RTP_VINTYR(R,V,T,P),RTPCS_VARF(RTPC,TS))$(STOA(TS)$TS_MAP(R,S,TS)),
-{cal_red_func(var=self.env.var, sow=self.env.sow, pgprim=self.env.pgprim, shff=self.env.shff, arg1="C", arg2="COM", arg3="TS", arg4="P", arg5="T")}
+{cal_red_func(var=self.env.var, sow=self.env.sow, pgprim=self.env.pgprim, shff=self.env.shff, def_rtp_ffcs=self.tc.defined("RTP_FFCS"), arg1="C", arg2="COM", arg3="TS", arg4="P", arg5="T")}
       )$(MIN(0,FLO_FR(RTPC,S,L))->BD(L));
 """,
         )

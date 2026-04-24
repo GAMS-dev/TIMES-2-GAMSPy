@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-Phases = Literal["INIT_EXT", "PREP_EXT", "PPM_EXT", "EQU_EXT"]
+EqucrtpPhases = Literal["INIT_EXT", "PREP_EXT", "PPM_EXT", "EQU_EXT"]
 
 
 class EqucrtpVda(GamsClass):
@@ -41,7 +41,7 @@ class EqucrtpVda(GamsClass):
         self: EqucrtpVda,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: Literal[Phases] = "",
+        arg1: Literal[EqucrtpPhases],
         arg2: str = "",
         arg3: str = "",
         arg4: str = "",
@@ -127,6 +127,7 @@ class EqucrtpVda(GamsClass):
             )
 
             prepparm(
+                module=self,
                 arg1="PRC_DYNUC",
                 arg2="UC_N,SIDE,R",
                 arg3="P,UC_GRPTYPE,BD",

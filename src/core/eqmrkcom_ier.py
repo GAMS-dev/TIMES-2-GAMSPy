@@ -62,53 +62,31 @@ class EqmrkcomIer(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.comp1()
-
-    def comp1(
-        self: EqmrkcomIer,
-        arg2: str,
-        arg3: str,
-        arg4: str,
-        arg5: str,
-        swx: str,
-        swtx: str,
-        var: str,
-        sow: str,
-        cal_red: str,
-        pgprim: str,
-        def_rtp_ffcs: str,
-        shff: str,
-        is_rtp_ffcs_defined: str,
-        is_ireauxbal: str,
-        reduce: str,
-        varv: str,
-        sws: str,
-        rcapsub: str,
-    ):
         include_cal_fflo_1 = cal_fflo_mod(
-            reduce=reduce,
-            shff=shff,
-            sow=sow,
-            var=var,
-            is_rtp_ffcs_defined=is_rtp_ffcs_defined,
+            reduce=self.env.reduce,
+            shff=self.env.shff,
+            sow=self.env.sow,
+            var=self.env.var,
+            pgprim=self.env.pgprim,
+            is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
             arg1="OUT",
             # arg2="O", in cal_fflo_mod stated as no longer used
         )
 
         include_cal_ire_1 = cal_ire_mod(
-            var=var,
-            sow=sow,
-            shff=shff,
-            is_rtp_ffcs_defined=is_rtp_ffcs_defined,
-            is_ireauxbal=is_ireauxbal,
+            var=self.env.var,
+            sow=self.env.sow,
+            shff=self.env.shff,
+            is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
+            is_ireauxbal=self.tc.defined("IS_IREAUXBAL"),
             arg1="IMP",
             arg2="OUT",
             arg3="IE",
         )
 
         include_cal_stgn_1 = cal_stgn_mod(
-            var=var,
-            sow=sow,
+            var=self.env.var,
+            sow=self.env.sow,
             arg1="OUT",
             arg2="IN",
             arg3="*STG_EFF(R,V,P)",
@@ -117,37 +95,38 @@ class EqmrkcomIer(GamsClass):
         )
 
         include_cal_cap_1 = cal_cap_mod(
-            varv=varv,
-            sws=sws,
-            rcapsub=rcapsub,
+            varv=self.env.varv,
+            sws=self.env.sws,
+            rcapsub=self.env.rcapsub,
             arg1="OUT",
             arg2="O",
         )
 
         include_cal_fflo_2 = cal_fflo_mod(
-            reduce=reduce,
-            shff=shff,
-            sow=sow,
-            var=var,
-            is_rtp_ffcs_defined=is_rtp_ffcs_defined,
+            reduce=self.env.reduce,
+            shff=self.env.shff,
+            sow=self.env.sow,
+            var=self.env.var,
+            pgprim=self.env.pgprim,
+            is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
             arg1="IN",
             # arg2="I", in cal_fflo_mod stated as no longer used
         )
 
         include_cal_ire_2 = cal_ire_mod(
-            var=var,
-            sow=sow,
-            shff=shff,
-            is_rtp_ffcs_defined=is_rtp_ffcs_defined,
-            is_ireauxbal=is_ireauxbal,
+            var=self.env.var,
+            sow=self.env.sow,
+            shff=self.env.shff,
+            is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
+            is_ireauxbal=self.tc.defined("IS_IREAUXBAL"),
             arg1="EXP",
             arg2="IN",
             arg3="IE",
         )
 
         include_cal_stgn_2 = cal_stgn_mod(
-            var=var,
-            sow=sow,
+            var=self.env.var,
+            sow=self.env.sow,
             arg1="IN",
             arg2="OUT",
             arg3="",
@@ -156,13 +135,14 @@ class EqmrkcomIer(GamsClass):
         )
 
         include_cal_cap_2 = cal_cap_mod(
-            varv=varv,
-            sws=sws,
-            rcapsub=rcapsub,
+            varv=self.env.varv,
+            sws=self.env.sws,
+            rcapsub=self.env.rcapsub,
             arg1="IN",
             arg2="I",
         )
 
+        cal_red = self.env.cal_red
         if cal_red == "cal_red.red":
             from core.cal_red_red import cal_red_red as cal_red_func
         elif cal_red == "cal_nored.red":
@@ -176,23 +156,25 @@ class EqmrkcomIer(GamsClass):
             arg3="S",
             arg4="PRC",
             arg5="T",
-            pgprim=pgprim,
-            def_rtp_ffcs=def_rtp_ffcs,
-            shff=shff,
-            sow=sow,
-            var=var,
+            pgprim=self.env.pgprim,
+            def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
+            shff=self.env.shff,
+            sow=self.env.sow,
+            var=self.env.var,
         )
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=rf"""
-  EQ{arg2}_MRK{arg4}(RTP(R,T,PRC),C,S {swx})$({swtx}TOP(R,PRC,C,'{arg5}')*FLO_MRK{
-                arg4
-            }(R,T,PRC,C,S,'{arg3}')) ..
+  EQ{self.arg2}_MRK{self.arg4}(RTP(R,T,PRC),C,S {self.env.swx})$({
+                self.env.swtx
+            }TOP(R,PRC,C,'{self.arg5}')*FLO_MRK{self.arg4}(R,T,PRC,C,S,'{
+                self.arg3
+            }')) ..
 
-  FLO_MRK{arg4}(R,T,PRC,C,S,'{arg3}') *
+  FLO_MRK{self.arg4}(R,T,PRC,C,S,'{self.arg3}') *
 
-$IF '{arg4}'=='CON' $GOTO CONS
+$IF '{self.arg4}'=='CON' $GOTO CONS
 {
                 (
                     rf'''
@@ -206,10 +188,10 @@ $IF '{arg4}'=='CON' $GOTO CONS
 
 *V07_1b blending flows
         SUM(OPR$BLE_OPR(R,C,OPR),
-            RS_FR(R,S,'ANNUAL')*(1+RTCS_FR(R,T,C,S,'ANNUAL')) * BLE_BAL(R,T,C,OPR) * {var}_BLND(R,T,C,OPR {sow})
+            RS_FR(R,S,'ANNUAL')*(1+RTCS_FR(R,T,C,S,'ANNUAL')) * BLE_BAL(R,T,C,OPR) * {self.env.var}_BLND(R,T,C,OPR {self.env.sow})
         ) +
 *V07_1b emissions due to blending operations
-        SUM(BLE_ENV(R,C,BLE,OPR), RS_FR(R,S,'ANNUAL') * ENV_BL(R,C,BLE,OPR,T) * {var}_BLND(R,T,BLE,OPR {sow})
+        SUM(BLE_ENV(R,C,BLE,OPR), RS_FR(R,S,'ANNUAL') * ENV_BL(R,C,BLE,OPR,T) * {self.env.var}_BLND(R,T,BLE,OPR {self.env.sow})
         ) +
 
 * inter-regional trade to region
@@ -225,7 +207,7 @@ $IF '{arg4}'=='CON' $GOTO CONS
 
 '''
                 )
-                if not arg4 == "CON"
+                if not self.arg4 == "CON"
                 else (
                     rf'''
   (
@@ -237,12 +219,14 @@ $IF '{arg4}'=='CON' $GOTO CONS
 
 *V07_1a blending flows
       SUM(BLE_TP(R,T,BLE)$BLE_OPR(R,BLE,C),
-         RS_FR(R,S,'ANNUAL')*(1+RTCS_FR(R,T,C,S,'ANNUAL')) * {var}_BLND(R,T,BLE,C {sow})
+         RS_FR(R,S,'ANNUAL')*(1+RTCS_FR(R,T,C,S,'ANNUAL')) * {
+                        self.env.var
+                    }_BLND(R,T,BLE,C {self.env.sow})
       ) +
       SUM(BLE_OPR(R,BLE,OPR)$(BLE_INP(R,BLE,C) * BLE_TP(R,T,BLE)),
          RS_FR(R,S,'ANNUAL')*(1+RTCS_FR(R,T,C,S,'ANNUAL')) * BL_INP(R,BLE,C) + {
-                        var
-                    }_BLND(R,T,BLE,OPR {sow})
+                        self.env.var
+                    }_BLND(R,T,BLE,OPR {self.env.sow})
       ) +
 
 * inter-regional trade from region
@@ -256,17 +240,17 @@ $IF '{arg4}'=='CON' $GOTO CONS
 
 * include the elasticity variables
       - SUM(RCJ(R,C,J,BDNEQ(BD))$COM_ELAST(R,T,C,S,BD),BDSIG(BD)*{
-                        var
-                    }_ELAST(R,T,C,S,J,BD {sow}))
+                        self.env.var
+                    }_ELAST(R,T,C,S,J,BD {self.env.sow}))
 
   )
 '''
                 )
             }
 
-  ={arg2}=
+  ={self.arg2}=
 
-  SUM(RTPCS_VARF(R,T,PRC,C,TS)$(TOP(R,PRC,C,'{arg5}')$RP_FLO(R,PRC)),
+  SUM(RTPCS_VARF(R,T,PRC,C,TS)$(TOP(R,PRC,C,'{self.arg5}')$RP_FLO(R,PRC)),
      SUM(RTP_VINTYR(R,V,T,PRC),
 {include_cal_red}
          *RS_FR(R,S,TS)*(1+RTCS_FR(R,T,C,S,TS))

@@ -81,11 +81,13 @@ def uc_flo_mod(
             arg1="C",
             arg2="COM",
             arg3="TS",
-            arg4=arg4,
+            arg4="P",
+            arg5=arg4,
             def_rtp_ffcs=def_rtp_ffcs,
             shff=shff,
             sow=sow,
             var=var,
+            pgprim=pgprim,
         )
     else:
         raise ValueError(f"Unexpected value for cal_red: {cal_red}")

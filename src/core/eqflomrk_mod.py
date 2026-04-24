@@ -116,6 +116,7 @@ SET RMKC(REG,ITEM,COM) //;
             sow=self.env.sow,
             pgprim=self.env.pgprim,
             shff=self.env.shff,
+            def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
         )
         self.tc.add_gams_code(
             module=self,

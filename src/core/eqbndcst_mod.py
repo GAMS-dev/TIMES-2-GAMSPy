@@ -196,6 +196,7 @@ class EqbndcstMod(GamsClass):
                 shff=shff,
                 sow=sow,
                 var=var,
+                pgprim=pgprim,
             )
         else:
             raise ValueError(f"Unexpected value for cal_red: {cal_red}")

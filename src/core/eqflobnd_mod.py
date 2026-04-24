@@ -78,7 +78,7 @@ class EqflobndMod(GamsClass):
            SUM(RTP_VINTYR(R,V,T,P),
 * [UR] model reduction self.reduce is set in *.run
             (
-            {cal_red_func(var=self.env.var, sow=self.env.sow, pgprim=self.env.pgprim, shff=self.env.shff, arg1="C", arg2="COM", arg3="TS", arg4="P", arg5="T")}
+            {cal_red_func(var=self.env.var, sow=self.env.sow, pgprim=self.env.pgprim, shff=self.env.shff, def_rtp_ffcs=self.tc.defined("RTP_FFCS"), arg1="C", arg2="COM", arg3="TS", arg4="P", arg5="T")}
 
             )$RP_FLO(R,P) +
 

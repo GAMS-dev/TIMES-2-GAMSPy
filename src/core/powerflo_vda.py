@@ -619,9 +619,23 @@ $ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,{pgprim},s,ie{sow}))
         bigm: str,
         varv: str,
         sws: str,
+        pgprim: str,
+        shff: str,
+        def_rtp_ffcs: bool,
     ):
         # both includes are the same
-        include_cal_red = cal_red_red("COM", "COM1", "TS", "P", "T")
+        include_cal_red = cal_red_red(
+            arg1="COM",
+            arg2="COM1",
+            arg3="TS",
+            arg4="P",
+            arg5="T",
+            var=var,
+            sow=sow,
+            pgprim=pgprim,
+            shff=shff,
+            def_rtp_ffcs=def_rtp_ffcs,
+        )
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -786,6 +800,7 @@ OPTION CLEAR=RC_GRID,CLEAR=GR_ALLMAP,CLEAR=GR_ALGMAP,CLEAR=GR_DEMMAP,CLEAR=GR_PR
 
     def eq_objbal(
         self: PowerfloVda,
+        cal_red: str,
         sowpre: str,
         var: str,
         swd: str,
@@ -793,9 +808,30 @@ OPTION CLEAR=RC_GRID,CLEAR=GR_ALLMAP,CLEAR=GR_ALGMAP,CLEAR=GR_DEMMAP,CLEAR=GR_PR
         swsw: str,
         sow: str,
         tpulse: str,
+        pgprim: str,
+        shff: str,
+        def_rtp_ffcs: bool,
         condition: bool,
     ):
-        include_cal_red = cal_red_red("COM", "COM1", "TS", "P", "T")
+        if cal_red == "cal_red.red":
+            from core.cal_red_red import cal_red_red as cal_red_func
+        elif cal_red == "cal_nored.red":
+            from core.cal_nored_red import cal_nored_red as cal_red_func
+        else:
+            raise ValueError(f"Unexpected value for cal_red: {cal_red}")
+
+        include_cal_red = cal_red_func(
+            arg1="COM",
+            arg2="COM1",
+            arg3="TS",
+            arg4="P",
+            arg5="T",
+            var=var,
+            sow=sow,
+            pgprim=pgprim,
+            shff=shff,
+            def_rtp_ffcs=def_rtp_ffcs,
+        )
         self.tc.add_gams_code(
             module=self,
             phase="init",

@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class PpmEctCli(GamsClass):
+class PpmExtCli(GamsClass):
     """Translation unit for ppm_ext.cli."""
 
     # Instance attributes
@@ -65,7 +65,7 @@ class PpmEctCli(GamsClass):
 
         self.tc.enqueue(self.statistic_mappings)
 
-    def comp1(self: PpmEctCli):
+    def comp1(self: PpmExtCli):
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -77,7 +77,7 @@ class PpmEctCli(GamsClass):
 """,
         )
 
-    def user_defined_emissions(self: PpmEctCli):
+    def user_defined_emissions(self: PpmExtCli):
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -109,7 +109,7 @@ class PpmEctCli(GamsClass):
 """,
         )
 
-    def statistic_mappings(self: PpmEctCli):
+    def statistic_mappings(self: PpmExtCli):
         self.tc.add_gams_code(
             module=self,
             phase="run",
