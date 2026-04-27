@@ -91,7 +91,7 @@ class PowerfloVda(GamsClass):
 $ MACRO GR_DUNIT(r,v,p,u) {self.env.tmp}
 """,
             )
-            if not self.env.tmp == "0":
+            if self.env.tmp != "0":
                 self.env.set_scoped("tmp", "PRC_DSCNCAP(r,p)")
 
             self.tc.add_gams_code(
@@ -102,7 +102,7 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
 """,
             )
 
-            if not self.env.tmp == "0":
+            if self.env.tmp != "0":
                 self.env.set_scoped("tmp", "1")
                 self.tc.enqueue(self.exec3, tmp=self.env.tmp)
 
@@ -307,9 +307,7 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
                     sws=self.env.sws,
                 )
 
-            elif label == "IREAUXIN-":
-                pass  # end of file
-            elif label == "IREAUXOUT":
+            elif label == "IREAUXIN-" or label == "IREAUXOUT":
                 pass  # end of file
 
     def declaration1(self: PowerfloVda) -> None:

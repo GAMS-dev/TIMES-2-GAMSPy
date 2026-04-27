@@ -63,10 +63,11 @@ class TimsliceMod(GamsClass):
         self.env.set_scoped("mx", "(MIYR_1)")
         self.env.set_global("rts", "S")
 
-        if (self.env.obmac + self.env.dynts).upper() == "YESYES":
-            if self.tc.defined("TS_OFF"):
-                self.env.set_scoped("mx", "")
-                self.env.set_global("rts", "S+NORTS(R,T,S)")
+        if (self.env.obmac + self.env.dynts).upper() == "YESYES" and self.tc.defined(
+            "TS_OFF"
+        ):
+            self.env.set_scoped("mx", "")
+            self.env.set_global("rts", "S+NORTS(R,T,S)")
 
         self.tc.add_gams_code(module=self, phase="init", code="SET TS_OFF //;")
 

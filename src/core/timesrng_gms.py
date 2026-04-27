@@ -65,7 +65,7 @@ PARAMETER  VAR_NCAPRNG(R,ALLYEAR,P,RNGLIM) / EMPTY.EMPTY.EMPTY.EMPTY 0 /;
             # self.include(TimesrngInc(tc=self.tc, env=self.env))
         self.tc.enqueue(self.exec1)
 
-    def exec1(self: "TimesrngGms") -> None:
+    def exec1(self: TimesrngGms) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

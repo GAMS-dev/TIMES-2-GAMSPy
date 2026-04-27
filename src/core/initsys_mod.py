@@ -75,14 +75,16 @@ $ ONMULTI
 
         # $IF NOT %SHELL%==ANSWER
         # $IF SET MAXSOW SET ITEM /BOH, 1*%EOTIME%/;
-        if self.env.is_set("shell"):
-            if not self.env.shell == "ANSWER":
-                if self.env.is_set("maxsow"):
-                    # Expand the universe alias item
-                    item_records = ["BOH"] + [
-                        str(i) for i in range(1, int(self.env.eotime) + 1)
-                    ]
-                    self.add_records_to_universe_item(records=item_records)
+        if (
+            self.env.is_set("shell")
+            and self.env.shell != "ANSWER"
+            and self.env.is_set("maxsow")
+        ):
+            # Expand the universe alias item
+            item_records = ["BOH"] + [
+                str(i) for i in range(1, int(self.env.eotime) + 1)
+            ]
+            self.add_records_to_universe_item(records=item_records)
 
         self.tc.add_gams_code(
             module=self,

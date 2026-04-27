@@ -45,7 +45,7 @@ def cal_red_red(
     shg1 = f",{arg4},'{pgprim}',COM2"
     shg2 = f",{arg4},'{pgprim}',{arg1}"
     shg = f",{arg4},CG1,{arg1}"
-    if not arg7 == "T":
+    if arg7 != "T":
         vnt = "V"
     if def_rtp_ffcs:
         shp1 = f"*({shff}S(R,{vnt}{shg1}{sow}))"
@@ -53,7 +53,7 @@ def cal_red_red(
         shp3 = f"*({shff}S(R,{vnt}{shg}{sow}))"
     if arg7 == "V":
         tst = ""
-    if not arg7 == "T":
+    if arg7 != "T":
         shp1 = f"*({shff}X(R,V,{arg5}{shg1}){tst}){shp1}"
         shp2 = f"*({shff}X(R,V,{arg5}{shg2}){tst}){shp2}"
         shp3 = f"*({shff}X(R,V,{arg5}{shg}){tst}){shp3}"

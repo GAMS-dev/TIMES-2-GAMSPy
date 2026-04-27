@@ -172,7 +172,7 @@ $CLEAR EQL_UC EQL_UCR EQL_UCT EQL_UCRT EQL_UCTS EQL_UCRTS EQL_UCRS EQL_UCSU EQL_
             return
 
     def exec1(
-        self: "SpointMod",
+        self: SpointMod,
         arg1: str,
         spoint: str,
         model_name: str,
@@ -192,7 +192,7 @@ $CLEAR EQL_UC EQL_UCR EQL_UCT EQL_UCRT EQL_UCTS EQL_UCRTS EQL_UCRS EQL_UCSU EQL_
         )
 
     def exec2(
-        self: "SpointMod",
+        self: SpointMod,
         eq_clitot_defined: bool,
         timesed_yes: bool,
     ) -> None:
@@ -207,7 +207,7 @@ $CLEAR EQL_UC EQL_UCR EQL_UCT EQL_UCRT EQL_UCTS EQL_UCRTS EQL_UCRS EQL_UCSU EQL_
         )
 
     def exec3(
-        self: "SpointMod",
+        self: SpointMod,
         file: str,
     ) -> None:
         self.tc.add_gams_code(
@@ -216,7 +216,7 @@ $CLEAR EQL_UC EQL_UCR EQL_UCT EQL_UCRT EQL_UCTS EQL_UCRTS EQL_UCRS EQL_UCSU EQL_
             code=rf"execute_loadpoint '{file}';",
         )
 
-    def exec_finish1(self: "SpointMod") -> None:
+    def exec_finish1(self: SpointMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -238,7 +238,7 @@ $CLEAR EQL_UC EQL_UCR EQL_UCT EQL_UCRT EQL_UCTS EQL_UCRTS EQL_UCRS EQL_UCSU EQL_
         )
 
     def exec_finish2(
-        self: "SpointMod",
+        self: SpointMod,
         var: str,
         sow: str,
         swt: str,

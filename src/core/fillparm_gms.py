@@ -81,7 +81,7 @@ class FillparmGms(GamsClass):
             )
             self.env.set_local("item", f"MY_FIL2({self.arg5})")
             self.env.set_local("add", f"+MY_FIL2({self.arg5})")
-        if not self.arg8 == self.arg9:
+        if self.arg8 != self.arg9:
             self.tc.add_gams_code(
                 module=self,
                 phase="init",

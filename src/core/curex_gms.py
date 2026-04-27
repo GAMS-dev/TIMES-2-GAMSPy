@@ -59,7 +59,7 @@ class CurexGms(GamsClass):
         if self.env.intext_only == "YES":
             return  # $EXIT
         else:
-            if not (self.arg1 == ""):  # SUBR
+            if self.arg1 != "":  # SUBR
                 if self.arg6 == "":
                     self.env.set_scoped("mx", "1$YEARVAL(LL)")
 

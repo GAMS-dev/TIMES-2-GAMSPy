@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, List, Literal, ParamSpec
+from typing import TYPE_CHECKING, Any, Literal, ParamSpec
 
 from gamspy import Container, Options, Set
 
@@ -80,7 +81,7 @@ class TimesModelClass:
         self.logger = logging.getLogger("TimesModel")
 
         # Ordered list of registered modules
-        self._modules: List[GamsClass] = []
+        self._modules: list[GamsClass] = []
 
     def register_module(self, module: GamsClass) -> None:
         """Register a module object."""

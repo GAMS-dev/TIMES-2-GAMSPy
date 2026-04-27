@@ -46,7 +46,7 @@ class PpReduceRed(GamsClass):
         else:
             self.tc.enqueue(self.determine_capacity_variables)
             self.tc.enqueue(self.determine_emission_flow_variables)
-            if not self.env.reduce == "YES":  # L58: GOTO reddone
+            if self.env.reduce != "YES":  # L58: GOTO reddone
                 self.tc.enqueue(self.reddone)
             else:
                 self.env.set_global("cal_red", "cal_red.red")
@@ -69,7 +69,7 @@ class PpReduceRed(GamsClass):
                     self.reddone,
                 )
 
-        if not self.env.rts == "S":
+        if self.env.rts != "S":
             self.include(DynsliteVda(self.tc, self.env, arg1="REDUCE"))
 
     def reduction_of_model_size(self: PpReduceRed) -> None:

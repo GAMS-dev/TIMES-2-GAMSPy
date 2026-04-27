@@ -17,7 +17,7 @@ def pp_qaput(
     arg3: str = "",
     arg4: str = "",
 ) -> str:
-    condition = not (arg3 == "*")
+    condition = arg3 != "*"
 
     return rf"""
 IF(NOT {arg1}, {arg1}=1; PUT QLOG @15;

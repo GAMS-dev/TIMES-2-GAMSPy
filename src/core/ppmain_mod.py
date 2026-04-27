@@ -1,4 +1,3 @@
-# ruff: noqa: F821
 # ppmain_mod.py
 # *++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # * Copyright (C) 2000-2025 Energy Technology Systems Analysis Programme (ETSAP)
@@ -244,7 +243,7 @@ class PpmainMod(GamsClass):
         self.tc.enqueue(self.phase_nine)
 
         # Call the SHAPE inter-/extrapolation routine
-        self.include(FilshapeGms(tc=self.tc, env=self.env, arg1="STARTOFF"))  # noqa: F821
+        self.include(FilshapeGms(tc=self.tc, env=self.env, arg1="STARTOFF"))
 
         self.tc.enqueue(self.adjust_shape)
 
@@ -329,7 +328,7 @@ class PpmainMod(GamsClass):
 
         # Preprocess TIMES-Micro
         if self.env.timesed == "YES":
-            self.include(PpMicroMod(tc=self.tc, env=self.env, arg1="PRE"))  # noqa: F821
+            self.include(PpMicroMod(tc=self.tc, env=self.env, arg1="PRE"))
 
         self.tc.enqueue(self.phase_fourteen)
 

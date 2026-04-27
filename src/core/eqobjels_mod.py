@@ -54,7 +54,7 @@ class EqobjelsMod(GamsClass):
             r_t=self.env.r_t,
             swt=self.env.swt,
             mx=self.env.mx,
-            condition=not (self.env.micro.upper() == "YES"),
+            condition=self.env.micro.upper() != "YES",
         )
 
     def comp1(

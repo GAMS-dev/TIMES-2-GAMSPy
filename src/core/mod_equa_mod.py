@@ -51,7 +51,7 @@ def mod_equa_mod(
         if timesed == "YES":
             equations.append(f"{eq}_OBJELS")
 
-        if not objann.upper() == "YES":
+        if objann.upper() != "YES":
             # Fixed Costs including tax/subsidy
             equations.append(f"{eq}_OBJFIX")
 

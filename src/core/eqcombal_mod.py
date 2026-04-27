@@ -62,12 +62,11 @@ class EqcombalMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        if self.arg4 == "BAL":
-            if self.env.stages.upper() == "YES":
-                self.env.set_local(
-                    "sws",
-                    "PROD(SW_MAP(T,SOW,J,WW)$S_COM_PROJ(R,T,C,J,WW),S_COM_PROJ(R,T,C,J,WW))*",
-                )
+        if self.arg4 == "BAL" and self.env.stages.upper() == "YES":
+            self.env.set_local(
+                "sws",
+                "PROD(SW_MAP(T,SOW,J,WW)$S_COM_PROJ(R,T,C,J,WW),S_COM_PROJ(R,T,C,J,WW))*",
+            )
 
         self.define_equation(
             arg2=self.arg2,

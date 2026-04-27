@@ -67,7 +67,7 @@ class PpmExtVda(GamsClass):
 
         self.tc.enqueue(
             self.add_acteff_to_rpc_func,
-            condition=not (self.env.reduce == "YES"),
+            condition=self.env.reduce != "YES",
         )
 
         self.tc.add_gams_code(module=self, phase="init", code="SET RPG_AFCX(R,P,C,IE);")
@@ -76,7 +76,7 @@ class PpmExtVda(GamsClass):
 
         self.include(EqucrtpVda(self.tc, self.env, arg1="PPM_EXT"))
 
-        if not (self.env.rts == "S"):
+        if self.env.rts != "S":
             self.include(DynsliteVda(self.tc, self.env, arg1="POSTLEV"))
 
     def display(self: PpmExtVda) -> None:

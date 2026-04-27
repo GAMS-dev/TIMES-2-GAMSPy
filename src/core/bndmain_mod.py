@@ -172,7 +172,7 @@ class BndmainMod(GamsClass):
         # *-----------------------------------------------------------------------------
         # $IF %MACRO%==YES $GOTO MACRO
 
-        if not self.env.macro == "YES":
+        if self.env.macro != "YES":
             self.tc.enqueue(
                 self.bounds_for_obj_components,
                 var=self.env.var,
@@ -186,7 +186,7 @@ class BndmainMod(GamsClass):
             self.include(BndMacroTm(tc=self.tc, env=self.env))
         # *-----------------------------------------------------------------------------
         # * Fix timeslices turned off in projected periods
-        if not self.env.rts == "S":
+        if self.env.rts != "S":
             self.include(DynsliteVda(tc=self.tc, env=self.env, arg1="BOUNDS"))
 
     def bounds_for_obj_components(self: BndmainMod, var: str, sow: str) -> None:

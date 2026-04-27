@@ -101,9 +101,8 @@ def mod_ext_vda(
             ]
         )
 
-    if def_rtc_ms:
-        if ecb == "YES":
-            equations.extend([f"{eq}_MSNCAP", f"{eq}_MSNCAPB"])
+    if def_rtc_ms and ecb == "YES":
+        equations.extend([f"{eq}_MSNCAP", f"{eq}_MSNCAPB"])
 
     if def_gg_mm:
         equations.extend(

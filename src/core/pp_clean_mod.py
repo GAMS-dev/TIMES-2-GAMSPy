@@ -48,7 +48,7 @@ class PpCleanMod(GamsClass):
             # TODO: clarify what this file is about
             shutil.move("timesrng_inc.py", "timesrng_inc_bak.py")
 
-    def exec1(self: "PpCleanMod") -> None:
+    def exec1(self: PpCleanMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

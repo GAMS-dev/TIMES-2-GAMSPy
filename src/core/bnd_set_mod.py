@@ -119,16 +119,14 @@ class BndSetMod(GamsClass):
     ) -> None:
         # $IF%6 NOT %STAGES%==YES $EXIT
         if arg6 == "":
-            stop = True if not stages == "YES" else False
+            stop = bool(stages != "YES")
         elif arg6 == "I":
-            stop = True if not stages.upper() == "YES" else False
+            stop = stages.upper() != "YES"
         else:
             raise Exception(f"Unhandled argument arg6={arg6} passed.")
 
         # $IF NOT DECLARED S_%3 $EXIT
-        symbol_declared = (
-            True if f"S_{arg3}" in self.tc.container.listSymbols() else False
-        )
+        symbol_declared = f"S_{arg3}" in self.tc.container.listSymbols()
 
         if not stop and symbol_declared:
             self.tc.add_gams_code(
