@@ -43,10 +43,10 @@ class EqlducsVda(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        if not self.env.obmac == "YES":
+        if self.env.obmac != "YES":
             return
 
-        if not (self.arg1 == "EQU"):
+        if self.arg1 != "EQU":
             # * Internal attributes for equation control
             self.tc.add_gams_code(
                 module=self,
@@ -77,7 +77,7 @@ class EqlducsVda(GamsClass):
                 upscaps=self.env.upscaps,
             )
             # * Discrete Unit Commitment
-            if not (self.env.duc.upper() == "YES"):
+            if self.env.duc.upper() != "YES":
                 return
 
             self.env.set_global("solmip", "YES")

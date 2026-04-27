@@ -63,9 +63,13 @@ class PrepExtStc(GamsClass):
         ]
         # fmt: on
         for arg in batincludes:
-            if arg[1] in ["S_DAM_COST", "S_FLO_FUNC", "S_NCAP_AFS", "S_COM_FR"]:
-                if not self.tc.defined(arg[1]):
-                    continue
+            if arg[1] in [
+                "S_DAM_COST",
+                "S_FLO_FUNC",
+                "S_NCAP_AFS",
+                "S_COM_FR",
+            ] and not self.tc.defined(arg[1]):
+                continue
             if arg[0] == "fp":
                 self.include(
                     FillparmGms(

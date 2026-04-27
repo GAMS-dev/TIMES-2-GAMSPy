@@ -104,9 +104,8 @@ class MainDrvMod(GamsClass):
 
         self.env.set_scoped("model_name", "TIMES")
 
-        if self.env.micro.upper() == "YES":
-            if self.env.timesed == "0":
-                self.env.set_scoped("timesed", "YES")
+        if self.env.micro.upper() == "YES" and self.env.timesed == "0":
+            self.env.set_scoped("timesed", "YES")
 
         if self.env.macro.upper() == "YES":
             self.env.set_scoped("macro", "YES")
@@ -115,9 +114,8 @@ class MainDrvMod(GamsClass):
         if os.name != "nt":
             self.env.set_scoped("model_name", "times")
 
-        if self.env.timesed.upper() != "NO":
-            if self.env.timesed != "0":
-                self.include(ReadbpriceMod(tc=self.tc, env=self.env))
+        if self.env.timesed.upper() != "NO" and self.env.timesed != "0":
+            self.include(ReadbpriceMod(tc=self.tc, env=self.env))
 
         # TODO: $   %MX% SETGLOBAL MX --> How to handle %MX% here?
         self.env.set_global("mx", "")
@@ -348,39 +346,38 @@ class MainDrvMod(GamsClass):
         def_rtc_ms = self.tc.defined("RTC_MS")
         def_gg_mm = self.tc.defined("GG_MM")
 
-        if self.env.merge.upper() != "YES":
-            if self.env.extend != "":
-                requested_exts = set(self.env.extend.split())
-                if "ABS" in requested_exts:
-                    mod_ext_abs(equations=equations, obmac=self.env.obmac)
-                elif "CLI" in requested_exts:
-                    mod_ext_cli(equations=equations, eq=self.env.eq)
-                elif "DSC" in requested_exts:
-                    mod_ext_dsc(
-                        equations=equations,
-                        eq=self.env.eq,
-                        dsc=self.env.dsc,
-                        solmip=self.env.solmip,
-                    )
-                elif "ETL" in requested_exts:
-                    mod_ext_etl(equations=equations, eq=self.env.eq)
-                elif "IER" in requested_exts:
-                    mod_ext_ier(equations=equations, chp_mode=self.env.chp_mode)
-                elif "VDA" in requested_exts:
-                    mod_ext_vda(
-                        equations=equations,
-                        eq=self.env.eq,
-                        obmac=self.env.obmac,
-                        duc=self.env.duc,
-                        solmip=self.env.solmip,
-                        ecb=self.env.ecb,
-                        powerflo=self.env.powerflo,
-                        def_uc_flobet=def_uc_flobet,
-                        def_com_cstbal=def_com_cstbal,
-                        def_gr_vargen=def_gr_vargen,
-                        def_rtc_ms=def_rtc_ms,
-                        def_gg_mm=def_gg_mm,
-                    )
+        if self.env.merge.upper() != "YES" and self.env.extend != "":
+            requested_exts = set(self.env.extend.split())
+            if "ABS" in requested_exts:
+                mod_ext_abs(equations=equations, obmac=self.env.obmac)
+            elif "CLI" in requested_exts:
+                mod_ext_cli(equations=equations, eq=self.env.eq)
+            elif "DSC" in requested_exts:
+                mod_ext_dsc(
+                    equations=equations,
+                    eq=self.env.eq,
+                    dsc=self.env.dsc,
+                    solmip=self.env.solmip,
+                )
+            elif "ETL" in requested_exts:
+                mod_ext_etl(equations=equations, eq=self.env.eq)
+            elif "IER" in requested_exts:
+                mod_ext_ier(equations=equations, chp_mode=self.env.chp_mode)
+            elif "VDA" in requested_exts:
+                mod_ext_vda(
+                    equations=equations,
+                    eq=self.env.eq,
+                    obmac=self.env.obmac,
+                    duc=self.env.duc,
+                    solmip=self.env.solmip,
+                    ecb=self.env.ecb,
+                    powerflo=self.env.powerflo,
+                    def_uc_flobet=def_uc_flobet,
+                    def_com_cstbal=def_com_cstbal,
+                    def_gr_vargen=def_gr_vargen,
+                    def_rtc_ms=def_rtc_ms,
+                    def_gg_mm=def_gg_mm,
+                )
 
         self.tc.add_gams_code(
             module=self,

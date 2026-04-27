@@ -86,7 +86,7 @@ class PpLvlbdMod(GamsClass):
             arg8=self.arg8,
             arg9=self.arg9,
             rl=self.env.rl,
-            condition=not (self.arg9 == ""),
+            condition=self.arg9 != "",
         )
 
     def comp1(self: PpLvlbdMod) -> None:

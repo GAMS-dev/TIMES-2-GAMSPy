@@ -45,7 +45,7 @@ def load_data(model: TimesModelClass, gdx_file: Path) -> None:
     t = Container(load_from=gdx_file)
 
     for name, symbol in t.data.items():
-        if not isinstance(symbol, (Alias, UniverseAlias)) and name in m.data:
+        if not isinstance(symbol, Alias | UniverseAlias) and name in m.data:
             m[name].records = symbol.records
 
     model.logger.info("Data loading complete.")

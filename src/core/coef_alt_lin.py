@@ -404,4 +404,4 @@ KAGE(FIL(LL-FLOOR(ORD(JOT)/2)),JOT)$((ORD(JOT) GT 1)$INVSTEP(FIL,JOT,FIL,JOT)$FI
         self.tc.enqueue(self._label_done)
 
     def _label_done(self) -> None:
-        self.exec10
+        self.exec10()

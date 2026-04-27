@@ -297,7 +297,7 @@ class PrepretDsc(GamsClass):
             self.env.set_scoped("var", self.env.vas)
         self.tc.enqueue(
             self.exec_eqobj1,
-            notmip=not self.env.mip == "YES==YES",
+            notmip=self.env.mip != "YES==YES",
             var=self.env.var,
             sow=self.env.sow,
         )

@@ -64,7 +64,7 @@ class EqobjfixMod(GamsClass):
         )
         self.env.set_scoped("zhalf", "CEIL(Z/2-.5)")
         self.env.set_scoped("istep", "IPD(T)")
-        if not self.env.ctst == "":
+        if self.env.ctst != "":
             self.env.set_scoped("istep", "MIN(IPD(T),ROUND(Z))")
             self.env.set_scoped("zhalf", "FLOOR(ROUND(Z)/2)")
 
@@ -77,7 +77,7 @@ class EqobjfixMod(GamsClass):
         )
 
         # * Commissioning years
-        if not self.env.ctst.upper() == "":
+        if self.env.ctst.upper() != "":
             self.include(
                 CoefAltLin(
                     self.tc,
@@ -91,7 +91,7 @@ class EqobjfixMod(GamsClass):
 
         # * Reset OBJ_DIVIV to be the year divisor in the equation
         # * Only single commissioning year B(V)+ILED is taken for PASTMILE
-        if not self.env.ctst.upper() == "":
+        if self.env.ctst.upper() != "":
             pass
         else:
             self.tc.enqueue(

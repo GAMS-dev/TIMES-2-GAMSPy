@@ -87,7 +87,7 @@ class FillsowStc(GamsClass):
             arg4=self.arg4,
         )
 
-        if not self.arg5 == "YES":
+        if self.arg5 != "YES":
             return
 
         self.tc.enqueue(
@@ -193,7 +193,7 @@ def exec_fillsow_stc(
         arg4=arg4,
     )
 
-    if not arg5 == "YES":
+    if arg5 != "YES":
         return
 
     update_data_indicators(

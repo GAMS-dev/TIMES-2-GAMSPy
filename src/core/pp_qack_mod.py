@@ -131,7 +131,7 @@ class PpQackMod(GamsClass):
         self.tc.enqueue(self.exec4)
 
     def exec1(
-        self: "PpQackMod",
+        self: PpQackMod,
         var_uc_yes: bool,
         rl: str,
         pl: str,

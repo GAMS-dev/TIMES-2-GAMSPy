@@ -207,7 +207,7 @@ $IF '{self.arg4}'=='CON' $GOTO CONS
 
 '''
                 )
-                if not self.arg4 == "CON"
+                if self.arg4 != "CON"
                 else (
                     rf'''
   (

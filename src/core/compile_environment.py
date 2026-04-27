@@ -80,11 +80,12 @@ class CompileEnvironment:
             return False
 
         # Return False if value is %key%
-        if isinstance(val, str) and val.startswith("%") and val.endswith("%"):
-            if val.upper() == f"%{key}%":
-                return False
-
-        return True
+        return not (
+            isinstance(val, str)
+            and val.startswith("%")
+            and val.endswith("%")
+            and val.upper() == f"%{key}%"
+        )
 
     def is_set_local(self, key: str) -> bool:
         """
@@ -98,11 +99,12 @@ class CompileEnvironment:
             return False
 
         # Return False if value is %key%
-        if isinstance(val, str) and val.startswith("%") and val.endswith("%"):
-            if val.upper() == f"%{key}%":
-                return False
-
-        return True
+        return not (
+            isinstance(val, str)
+            and val.startswith("%")
+            and val.endswith("%")
+            and val.upper() == f"%{key}%"
+        )
 
     def is_set_global(self, key: str) -> bool:
         """
@@ -116,11 +118,12 @@ class CompileEnvironment:
             return False
 
         # Return False if value is %key%
-        if isinstance(val, str) and val.startswith("%") and val.endswith("%"):
-            if val.upper() == f"%{key}%":
-                return False
-
-        return True
+        return not (
+            isinstance(val, str)
+            and val.startswith("%")
+            and val.endswith("%")
+            and val.upper() == f"%{key}%"
+        )
 
     def set_if_not_exists(self, key: str, value: str, scope: ScopeType) -> bool:
         """

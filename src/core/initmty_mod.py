@@ -589,10 +589,9 @@ PARAMETER IE_DEFAULT(*) //;
 
             # $IFI '%OBLONG%%OBJ%'==YESALT $SETGLOBAL VARCOST LIN
             # $IFI '%OBLONG%%OBJ%'==YESALT ALTOBJ = -2;
-            if self.env.objlong == "YES":
-                if self.env.obj == "ALT":
-                    self.env.set_global("varcost", "LIN")
-                    self.tc.enqueue(self.assign_alternative_objective_long)
+            if self.env.objlong == "YES" and self.env.obj == "ALT":
+                self.env.set_global("varcost", "LIN")
+                self.tc.enqueue(self.assign_alternative_objective_long)
 
             # Stochastic extension
             # $IFI %SENSIS%==YES $SETLOCAL STAGES yes
@@ -741,9 +740,8 @@ PARAMETER IE_DEFAULT(*) //;
             # $SET VAR VARIABLE OBJZ
             self.env.set_scoped("var", "VARIABLE OBJZ")
             # $IF %DATAGDXI%%INTEXT_ONLY%==YESyes $SET VAR *
-            if self.env.datagdxi == "YES":
-                if self.env.intext_only == "YES":
-                    self.env.set_scoped("var", "*")
+            if self.env.datagdxi == "YES" and self.env.intext_only == "YES":
+                self.env.set_scoped("var", "*")
             # $IF ERRORFREE $BATINCLUDE err_stat.mod '$IF NOT ERRORFREE' ABORT 'Errors in Compile' '%VAR%' ': Required _TIMES.g00 Restart File Missing'
             self.include(
                 ErrStatMod(
@@ -776,7 +774,7 @@ PARAMETER IE_DEFAULT(*) //;
             if not self.env.is_set("datagdx"):
                 return
             # $ IF NOT %G2X6%==YES $GOTO RUN
-            if not self.env.g2x6 == "YES":
+            if self.env.g2x6 != "YES":
                 return
             # $ IF NOT SET RUN_NAME $SETNAMES "%SYSTEM.INCPARENT%" . RUN_NAME .
             if not self.env.is_set("run_name"):
@@ -793,11 +791,13 @@ PARAMETER IE_DEFAULT(*) //;
                 self.env.set_scoped("tmp", f"{self.env.run_name}")
 
             # $ IFI %DATAGDXI%%DATAGDX%==YESNO
-            if self.env.datagdxi == "YES":
-                if self.env.datagdx == "NO":
-                    # $ IF EXIST _dd_.gdx $SET TMP _dd_
-                    if Path("_dd_.gdx").exists():
-                        self.env.set_scoped("tmp", "_dd_")
+            # $ IF EXIST _dd_.gdx $SET TMP _dd_
+            if (
+                self.env.datagdxi == "YES"
+                and self.env.datagdx == "NO"
+                and Path("_dd_.gdx").exists()
+            ):
+                self.env.set_scoped("tmp", "_dd_")
 
             if self.env.tmp == "0":
                 return

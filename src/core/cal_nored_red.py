@@ -41,7 +41,7 @@ def cal_nored_red(
 
     if arg7 == "V":
         tst = ""
-    if not arg7 == "T":
+    if arg7 != "T":
         vnt = "V"
     if def_rtp_ffcs:
         shp3 = f"*({shff}S(R,{vnt}{shg}{sow}))"

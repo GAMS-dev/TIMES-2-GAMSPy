@@ -104,7 +104,7 @@ class InitExtVda(GamsClass):
             self.peaking_and_storage_stuff,
         )
 
-        if not self.env.obmac == "YES":
+        if self.env.obmac != "YES":
             self.tc.add_gams_code(
                 module=self,
                 phase="init",
@@ -139,7 +139,7 @@ class InitExtVda(GamsClass):
             )
         )
 
-        uc_actbet_defined = True if self.tc.defined("UC_ACTBET") else False
+        uc_actbet_defined = self.tc.defined("UC_ACTBET")
         self.tc.enqueue(
             self.prepare_uc_cli_uc_dynbnd_uc_actbet_cont,
             cli=self.env.cli,

@@ -59,7 +59,7 @@ class EqobjelsRpt(GamsClass):
             arg3=self.arg3,
             condition=self.tc.defined("MI_AGC"),
         )
-        if not (self.env.micro.upper() == "YES"):
+        if self.env.micro.upper() != "YES":
             pass
         else:
             self.tc.enqueue(

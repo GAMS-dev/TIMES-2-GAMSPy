@@ -116,9 +116,9 @@ class BndUcvMod(GamsClass):
 
         if self.arg10 not in ["", "I"]:
             raise Exception(f"Unhandled argument arg10={self.arg10}.")
-        if self.arg10 == "" and not self.env.stages == "YES":
-            return
-        elif self.arg10 == "I" and not self.env.stages.upper() == "YES":
+        if (self.arg10 == "" and self.env.stages != "YES") or (
+            self.arg10 == "I" and self.env.stages.upper() != "YES"
+        ):
             return
 
         self.tc.enqueue(

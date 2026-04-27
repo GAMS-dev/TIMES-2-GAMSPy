@@ -88,8 +88,8 @@ class CoefExtVda(GamsClass):
         self.tc.enqueue(
             self.exec2,
             pgprim=self.env.pgprim,
-            condition1=not (self.env.stsflx.upper() == "YES"),
-            condition2=not (self.env.sensis.upper() == "YES"),
+            condition1=self.env.stsflx.upper() != "YES",
+            condition2=self.env.sensis.upper() != "YES",
         )
 
         self.include(EqlducsVda(self.tc, self.env))

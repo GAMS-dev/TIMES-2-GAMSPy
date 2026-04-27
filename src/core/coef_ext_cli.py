@@ -137,7 +137,7 @@ class CoefExtCli(GamsClass):
         )
 
         cm_kind = self.tc.container["CM_KIND"]
-        forcing_in_cm_kind = True if "FORCING" in cm_kind.toList() else False
+        forcing_in_cm_kind = "FORCING" in cm_kind.toList()
         self.tc.enqueue(self.exec11, forcing=forcing_in_cm_kind, stages=self.env.stages)
 
         self.tc.enqueue(self.exec12)

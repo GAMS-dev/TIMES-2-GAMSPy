@@ -228,12 +228,12 @@ class CoefObjMod(GamsClass):
         # *    OBJ_CRFD(RTP(R,V,P),CUR)$NCAP_DELIF(RTP)  = (1-(1/(1+(G_DRATE(R,V,CUR)$(NOT NCAP_DRATE(RTP)) + NCAP_DRATE(RTP))))) /
         # *                                 (1-(1/(1+G_DRATE(R,V,CUR)$(NOT NCAP_DRATE(RTP)) + NCAP_DRATE(RTP)))**NCAP_DELIF(RTP));
 
-        if (not self.env.validate == "YES") and (not self.env.timesed == "YES"):
+        if (self.env.validate != "YES") and (self.env.timesed != "YES"):
             # * ignore investment cost for learned technologies when ETL active: COEF_EXT.ETL
             pass
         else:
             self.tc.enqueue(self.exec5)
-            if not self.env.validate == "YES":
+            if self.env.validate != "YES":
                 # * ignore investment cost for learned technologies when ETL active: COEF_EXT.ETL
                 pass
             else:

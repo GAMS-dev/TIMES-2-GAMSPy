@@ -195,7 +195,7 @@ class EqdeclrMod(GamsClass):
     {self.env.eq}E_UCRSU(R,T,UC_N {self.env.swd}) 	'User-constraints (=E=)'
 """,
         )
-        if not self.env.var_uc == "YES":
+        if self.env.var_uc != "YES":
             self.tc.add_gams_code(
                 module=self,
                 phase="init",

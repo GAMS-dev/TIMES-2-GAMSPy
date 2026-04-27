@@ -55,7 +55,7 @@ class EqobjvarRpt(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        if not self.arg1.upper() == "MOD":
+        if self.arg1.upper() != "MOD":
             if self.arg5.upper() == "":
                 self.env.set_scoped("tpulse", "")
                 self.env.set_scoped("tmp", "")
