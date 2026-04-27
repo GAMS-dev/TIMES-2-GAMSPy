@@ -107,7 +107,7 @@ $OFFLISTING
 """,
         )
 
-    def exec1(self: EqstgipsLin):
+    def exec1(self: EqstgipsLin) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

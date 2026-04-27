@@ -51,7 +51,7 @@ class BndElasMod(GamsClass):
             sow=self.env.sow,
         )
 
-    def bnd_elas(self: BndElasMod, stages: str, var: str, mx: str, sow: str):
+    def bnd_elas(self: BndElasMod, stages: str, var: str, mx: str, sow: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

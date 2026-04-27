@@ -108,7 +108,7 @@ class EquExtCli(GamsClass):
 
     def balance_equation_for_total_emission(
         self: EquExtCli, eq: str, var: str, sow: str, swt: str, cpar: str
-    ):
+    ) -> None:
         """Balance equation for the total emissions/forcing in each T"""
 
         self.tc.add_gams_code(
@@ -139,7 +139,7 @@ class EquExtCli(GamsClass):
         swt: str,
         swtd: str,
         send: str,
-    ):
+    ) -> None:
         """Balance equation for the mass of CO2 in each box in each T"""
 
         self.tc.add_gams_code(
@@ -173,7 +173,7 @@ class EquExtCli(GamsClass):
         sws: str,
         swtd: str,
         send: str,
-    ):
+    ) -> None:
         """Balance equation for the temperature"""
 
         self.tc.add_gams_code(
@@ -204,7 +204,7 @@ class EquExtCli(GamsClass):
         swo: str,
         swd: str,
         swts: str,
-    ):
+    ) -> None:
         """Balance equation for the temperature"""
 
         self.tc.add_gams_code(
@@ -240,7 +240,7 @@ class EquExtCli(GamsClass):
         sow: str,
         sws: str,
         cpar: str,
-    ):
+    ) -> None:
         """Constraint for the maximum atmospheric concentration of GHGs"""
 
         self.tc.add_gams_code(

@@ -272,7 +272,7 @@ $macro Z_CLIBOX VAS_CLIBOX
 """,
                 )
 
-    def spines_exec(self: RecurrinStc):
+    def spines_exec(self: RecurrinStc) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

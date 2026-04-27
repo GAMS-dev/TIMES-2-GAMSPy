@@ -56,7 +56,7 @@ class PowerfloVda(GamsClass):
         self.arg6 = arg6
         self.compile()
 
-    def compile(self):
+    def compile(self) -> None:
         self.env.set_scoped("mx", f"{self.arg3}")
         self.env.set_scoped("pdtol", "1E-5")
         self.env.set_scoped("bigm", "10")
@@ -118,7 +118,7 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
             label = f"{self.arg1}{self.arg2}{self.arg3}"
             if label == "PREP":
                 # ends with $EXIT
-                if self.tc.defined("PRC_REACT"):
+                if not self.tc.defined("PRC_REACT"):
                     self.tc.add_gams_code(
                         module=self,
                         phase="init",
@@ -237,19 +237,11 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
                     bigm=self.env.bigm,
                     varv=self.env.varv,
                     sws=self.env.sws,
+                    pgprim=self.env.pgprim,
+                    shff=self.env.shff,
+                    def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
                 )
                 self.include(GasgridsVda(self.tc, self.env, arg1="MODEL"))
-
-            elif label in ["IREAUXIN", "IREAUXOUT-"]:
-                mx = self.env.mx
-                if label == "IREAUXIN":
-                    mx = "COM_IE(R,T,C,S)*"
-
-                return self.return_str_for_IREAUX(
-                    mx=mx,
-                    var=self.env.var,
-                    sow=self.env.sow,
-                )
 
             elif label == "IREAUXOUT":
                 pass  # end of file
@@ -297,6 +289,10 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
                     sow=self.env.sow,
                     tpulse=self.env.tpulse,
                     condition=self.env.stages == "YES",
+                    cal_red=self.env.cal_red,
+                    pgprim=self.env.pgprim,
+                    shff=self.env.shff,
+                    def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
                 )
 
             elif label == "RPTB":
@@ -316,9 +312,7 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
             elif label == "IREAUXOUT":
                 pass  # end of file
 
-    def declaration1(
-        self: PowerfloVda,
-    ):
+    def declaration1(self: PowerfloVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -346,9 +340,7 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
 """,
         )
 
-    def exec1(
-        self: PowerfloVda,
-    ):
+    def exec1(self: PowerfloVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -423,9 +415,7 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
   """,
         )
 
-    def exec2(
-        self: PowerfloVda,
-    ):
+    def exec2(self: PowerfloVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -481,10 +471,7 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
   """,
         )
 
-    def exec3(
-        self: PowerfloVda,
-        tmp: str,
-    ):
+    def exec3(self: PowerfloVda, tmp: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -493,11 +480,7 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
 """,
         )
 
-    def complete_ptfd_processing(
-        self: PowerfloVda,
-        pdtol: str,
-        tmp: str,
-    ):
+    def complete_ptfd_processing(self: PowerfloVda, pdtol: str, tmp: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -521,13 +504,7 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
 """,
         )
 
-    def declaration2(
-        self: PowerfloVda,
-        var: str,
-        swd: str,
-        eq: str,
-        swtd: str,
-    ):
+    def declaration2(self: PowerfloVda, var: str, swd: str, eq: str, swtd: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -548,11 +525,7 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
 """,
         )
 
-    def exec4(
-        self: PowerfloVda,
-        var: str,
-        sow: str,
-    ):
+    def exec4(self: PowerfloVda, var: str, sow: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -564,13 +537,7 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
 """,
         )
 
-    def comp1(
-        self: PowerfloVda,
-        tmp: str,
-        var: str,
-        pgprim: str,
-        sow: str,
-    ):
+    def comp1(self: PowerfloVda, tmp: str, var: str, pgprim: str, sow: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -580,11 +547,7 @@ $ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,{pgprim},s,ie{sow}))
 """,
         )
 
-    def exec5(
-        self: PowerfloVda,
-        var: str,
-        sow: str,
-    ):
+    def exec5(self: PowerfloVda, var: str, sow: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -622,7 +585,7 @@ $ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,{pgprim},s,ie{sow}))
         pgprim: str,
         shff: str,
         def_rtp_ffcs: bool,
-    ):
+    ) -> None:
         # both includes are the same
         include_cal_red = cal_red_red(
             arg1="COM",
@@ -747,9 +710,7 @@ $ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,{pgprim},s,ie{sow}))
 """,
         )
 
-    def comp2(
-        self: PowerfloVda,
-    ):
+    def comp2(self: PowerfloVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -763,9 +724,7 @@ $ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,{pgprim},s,ie{sow}))
 """,
         )
 
-    def exec6(
-        self: PowerfloVda,
-    ):
+    def exec6(self: PowerfloVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -774,9 +733,7 @@ OPTION CLEAR=RC_GRID,CLEAR=GR_ALLMAP,CLEAR=GR_ALGMAP,CLEAR=GR_DEMMAP,CLEAR=GR_PR
 """,
         )
 
-    def exec7(
-        self: PowerfloVda,
-    ):
+    def exec7(self: PowerfloVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -812,7 +769,7 @@ OPTION CLEAR=RC_GRID,CLEAR=GR_ALLMAP,CLEAR=GR_ALGMAP,CLEAR=GR_DEMMAP,CLEAR=GR_PR
         shff: str,
         def_rtp_ffcs: bool,
         condition: bool,
-    ):
+    ) -> None:
         if cal_red == "cal_red.red":
             from core.cal_red_red import cal_red_red as cal_red_func
         elif cal_red == "cal_nored.red":
@@ -880,7 +837,7 @@ OPTION CLEAR=RC_GRID,CLEAR=GR_ALLMAP,CLEAR=GR_ALGMAP,CLEAR=GR_DEMMAP,CLEAR=GR_PR
         var: str,
         vart: str,
         sws: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -909,19 +866,6 @@ OPTION CLEAR=RC_GRID,CLEAR=GR_ALLMAP,CLEAR=GR_ALGMAP,CLEAR=GR_DEMMAP,CLEAR=GR_PR
  OPTION CLEAR=TRACKC;
 """,
         )
-
-    # TODO: can this be removed? Same is done in function
-    def return_str_for_IREAUX(
-        self: PowerfloVda,
-        mx: str = "",
-        var: str = "",
-        sow: str = "",
-    ) -> str:
-        # * For balance of C (and grid nodes COM)
-        str1 = f"SUM(GR_DEMMAP(R,COM,C),{mx}({var}_GRIDIO(R,T,C,COM,S,'OUT'{sow}) - {var}_GRIDIO(R,T,C,COM,S,'IN'{sow})$GR_ALGMAP(R,'NRG',C))) + \n"
-        # ** For balance of grid node C
-        str2 = f"SUM(GR_DEMMAP(R,C,COM),{mx}({var}_GRIDIO(R,T,COM,C,S,'IN'{sow})$GR_ALGMAP(R,'NRG',COM) - {var}_GRIDIO(R,T,COM,C,S,'OUT'{sow}))) +"
-        return f"{str1}{str2}"
 
 
 def powerflo_vda_ireaux(

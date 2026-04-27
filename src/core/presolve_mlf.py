@@ -43,7 +43,7 @@ class PresolveMlf(GamsClass):
         self.comp1()
         self.tc.enqueue(self.exec1)
 
-    def comp1(self: PresolveMlf):
+    def comp1(self: PresolveMlf) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -67,7 +67,7 @@ class PresolveMlf(GamsClass):
 """,
         )
 
-    def exec1(self: PresolveMlf):
+    def exec1(self: PresolveMlf) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

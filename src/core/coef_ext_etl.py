@@ -41,7 +41,7 @@ class CoefExtEtl(GamsClass):
     def compile(self) -> None:
         self.tc.enqueue(self.exec1)
 
-    def exec1(self: CoefExtEtl):
+    def exec1(self: CoefExtEtl) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

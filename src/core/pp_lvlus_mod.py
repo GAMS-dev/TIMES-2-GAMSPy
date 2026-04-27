@@ -102,7 +102,7 @@ class PpLvlusMod(GamsClass):
         arg8: str,
         arg9: str,
         arg10: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -126,7 +126,7 @@ class PpLvlusMod(GamsClass):
         arg6: str,
         arg7: str,
         arg10: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

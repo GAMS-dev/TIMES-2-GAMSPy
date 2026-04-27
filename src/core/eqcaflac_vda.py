@@ -104,7 +104,7 @@ class EqcaflacVda(GamsClass):
         arg1: str,
         arg2: str,
         arg4: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -151,7 +151,7 @@ class EqcaflacVda(GamsClass):
         def_rtp_ffcs: bool,
         arg1: str,
         arg2: str,
-    ):
+    ) -> None:
         if cal_red == "cal_red.red":
             from core.cal_red_red import cal_red_red as cal_red_func
         elif cal_red == "cal_nored.red":

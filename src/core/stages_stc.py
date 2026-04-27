@@ -245,7 +245,7 @@ DISPLAY SW_START,SW_SUBS,SW_CHILD,SW_TREE,SW_MAP,SW_STAGE,SW_T,SW_TSW,SW_TPROB,S
         if self.tc.defined("S_COM_FR"):
             self.tc.enqueue(self.process_com_fr)
 
-    def post(self: StagesStc):
+    def post(self: StagesStc) -> None:
         # fmt: off
         pp_lvlfc_mod_bat_include_params = [
             ("S_COM_TAX","C","COM_TS","',COM_VAR,CUR,J,WW'","","ALL_TS","T","RC(R,C)$(ORD(J)=1)","","","","")
@@ -273,7 +273,7 @@ DISPLAY SW_START,SW_SUBS,SW_CHILD,SW_TREE,SW_MAP,SW_STAGE,SW_T,SW_TSW,SW_TPROB,S
                 )
             )
 
-    def didfunc(self: StagesStc):
+    def didfunc(self: StagesStc) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -285,7 +285,7 @@ DISPLAY SW_START,SW_SUBS,SW_CHILD,SW_TREE,SW_MAP,SW_STAGE,SW_T,SW_TSW,SW_TPROB,S
 """,
         )
 
-    def set_auxsow(self: StagesStc):
+    def set_auxsow(self: StagesStc) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -294,7 +294,7 @@ SET AUXSOW(ALLSOW) / 1 /;
 """,
         )
 
-    def preprocess_inputs(self: StagesStc):
+    def preprocess_inputs(self: StagesStc) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -327,7 +327,7 @@ SET AUXSOW(ALLSOW) / 1 /;
 """,
         )
 
-    def check_parameters(self: StagesStc):
+    def check_parameters(self: StagesStc) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -373,7 +373,7 @@ SET AUXSOW(ALLSOW) / 1 /;
 """,
         )
 
-    def construct_spanning_tree(self: StagesStc):
+    def construct_spanning_tree(self: StagesStc) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -436,7 +436,7 @@ SET AUXSOW(ALLSOW) / 1 /;
 """,
         )
 
-    def normalize_probability_distribution(self: StagesStc):
+    def normalize_probability_distribution(self: StagesStc) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -472,7 +472,7 @@ SET AUXSOW(ALLSOW) / 1 /;
 """,
         )
 
-    def construct_sw_uct(self: StagesStc):
+    def construct_sw_uct(self: StagesStc) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -483,7 +483,7 @@ SET AUXSOW(ALLSOW) / 1 /;
 """,
         )
 
-    def preprocess_cumulative_bounds(self: StagesStc):
+    def preprocess_cumulative_bounds(self: StagesStc) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -499,7 +499,7 @@ SET AUXSOW(ALLSOW) / 1 /;
 """,
         )
 
-    def s_com_tax(self: StagesStc):
+    def s_com_tax(self: StagesStc) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -508,7 +508,7 @@ S_COM_TAX(RTC(R,T,C),S,COM_VAR,CUR,'1',W)$(NOT SW_T(T,W)) $= SUM(SW_TSW(W,T,WW),
 """,
         )
 
-    def preprocess_flo_func(self: StagesStc, swd: str):
+    def preprocess_flo_func(self: StagesStc, swd: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -521,7 +521,7 @@ PARAMETER RTP_FFCS(R,ALLYEAR,P,CG,CG{swd}); OPTION CLEAR=RTP_FFCS;
 """,
         )
 
-    def remap_reduced_func_flows(self: StagesStc):
+    def remap_reduced_func_flows(self: StagesStc) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -540,7 +540,7 @@ OPTION CLEAR=UNCD7; UNCD7(R,TT,T--ORD(T),P,SOW,'','')$TRACKP(R,P) $= RTP_VINTYR(
 """,
         )
 
-    def process_ncap_afs(self: StagesStc):
+    def process_ncap_afs(self: StagesStc) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -557,7 +557,7 @@ LOOP(J, RTP_SAFS(R,T,P,S,W) $= SUM(SW_MAP(T,W,J,WW),S_NCAP_AFS(R,T,P,S,J,WW)));
 """,
         )
 
-    def process_com_fr(self: StagesStc):
+    def process_com_fr(self: StagesStc) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

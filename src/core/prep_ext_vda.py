@@ -135,7 +135,7 @@ class PrepExtVda(GamsClass):
             self.tailored_interpolation, waver=self.env.waver.upper() == "YES"
         )
 
-    def prepare_availabilities(self: PrepExtVda):
+    def prepare_availabilities(self: PrepExtVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -154,7 +154,7 @@ class PrepExtVda(GamsClass):
 """,
         )
 
-    def tailored_interpolation(self: PrepExtVda, waver: bool):
+    def tailored_interpolation(self: PrepExtVda, waver: bool) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

@@ -443,7 +443,7 @@ class EqmainMod(GamsClass):
         if self.tc.defined("DAM_COST"):
             self.include(EqdamageMod(tc=self.tc, env=self.env))
 
-    def _m2t(self: EqmainMod):
+    def _m2t(self: EqmainMod) -> None:
         # fmt: off
         batincludes: list[tuple[str, str, str, str]] = [
             ("E", "E", "NOT PRC_MAP(R,'DMD',P)", f"{self.env.var}_CAP(R,T,P {self.env.sow})"),
@@ -463,7 +463,7 @@ class EqmainMod(GamsClass):
                 )
             )
 
-    def _no_m2t(self: EqmainMod):
+    def _no_m2t(self: EqmainMod) -> None:
         self.tc.enqueue(self.assign_rtp_varp, etl=self.env.etl, macro=self.env.macro)
         # fmt: off
         batincludes: list[tuple[str, str, str, str]] = [
@@ -484,7 +484,7 @@ class EqmainMod(GamsClass):
                 )
             )
 
-    def assign_rtp_varp(self: EqmainMod, etl: str, macro: str):
+    def assign_rtp_varp(self: EqmainMod, etl: str, macro: str) -> None:
         if etl.upper() == "YES":
             self.tc.add_gams_code(
                 module=self, phase="run", code="RTP_VARP(RTP(R,T,P))$TEG(P) = YES;"
@@ -496,7 +496,7 @@ class EqmainMod(GamsClass):
                 code="RTP_VARP(RTP(R,T,P))$((TM_QFAC(R) NE 0)$TM_CAPTB(R,P)) = YES;",
             )
 
-    def exec1(self: EqmainMod):
+    def exec1(self: EqmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -507,7 +507,7 @@ class EqmainMod(GamsClass):
 """,
         )
 
-    def add_sets(self: EqmainMod, ucbd: str, tmp: str):
+    def add_sets(self: EqmainMod, ucbd: str, tmp: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -520,7 +520,7 @@ class EqmainMod(GamsClass):
 """,
         )
 
-    def exec2(self: EqmainMod, ucbd: str, take: str):
+    def exec2(self: EqmainMod, ucbd: str, take: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

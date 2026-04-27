@@ -42,11 +42,7 @@ class BndActMod(GamsClass):
 
     def compile(self) -> None:
         self.tc.enqueue(
-            self.reset_any_existing_bounds,
-            var=self.env.var,
-            swd=self.env.swd,
-            swt=self.env.swt,
-            r_t=self.env.r_t,
+            self.reset_any_existing_bounds, var=self.env.var, swd=self.env.swd
         )
 
         # assign from user data - only set bounds directly at the PRC_TS level
@@ -61,7 +57,7 @@ class BndActMod(GamsClass):
             r_t=self.env.r_t,
         )
 
-    def reset_any_existing_bounds(self: BndActMod, var: str, swd: str):
+    def reset_any_existing_bounds(self: BndActMod, var: str, swd: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -74,7 +70,7 @@ class BndActMod(GamsClass):
 
     def reset_any_existing_bounds2(
         self: BndActMod, var: str, swd: str, swt: str, r_t: str
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

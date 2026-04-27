@@ -97,7 +97,7 @@ class EqcapactMod(GamsClass):
         arg1: str,
         arg2: str,
         arg3: str,
-    ):
+    ) -> None:
         if not validate:
             rhs_start = rf"""
       (SUM(MODLYEAR$COEF_CPT(R,MODLYEAR,T,P),

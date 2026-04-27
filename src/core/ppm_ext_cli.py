@@ -65,7 +65,7 @@ class PpmExtCli(GamsClass):
 
         self.tc.enqueue(self.statistic_mappings)
 
-    def comp1(self: PpmExtCli):
+    def comp1(self: PpmExtCli) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -77,7 +77,7 @@ class PpmExtCli(GamsClass):
 """,
         )
 
-    def user_defined_emissions(self: PpmExtCli):
+    def user_defined_emissions(self: PpmExtCli) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -109,7 +109,7 @@ class PpmExtCli(GamsClass):
 """,
         )
 
-    def statistic_mappings(self: PpmExtCli):
+    def statistic_mappings(self: PpmExtCli) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

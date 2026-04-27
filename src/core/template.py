@@ -54,7 +54,6 @@ class TemplateMod(GamsClass):  # FilenameExt
         self.compile()
 
     def compile(self) -> None:
-        self.comp1()
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -91,15 +90,7 @@ PARAMETER {self.arg3} //;
             waver=self.env.waver.upper() == "YES",
         )
 
-    def comp1(
-        self: TemplateMod,
-    ):
-        pass
-
-    def exec1(
-        self: TemplateMod,
-        waver: bool,
-    ):
+    def exec1(self: TemplateMod, waver: bool) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

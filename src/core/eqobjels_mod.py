@@ -68,7 +68,7 @@ class EqobjelsMod(GamsClass):
         swt: str,
         mx: str,
         condition: bool,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",

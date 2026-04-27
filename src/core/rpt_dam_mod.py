@@ -82,7 +82,7 @@ class RptDamMod(GamsClass):
         sws: str,
         sow: str,
         sw1: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -131,14 +131,8 @@ class RptDamMod(GamsClass):
         )
 
     def exec2(
-        self,
-        stages: str,
-        var: str,
-        swp: str,
-        sow: str,
-        sw1: str,
-        scum: str,
-    ):
+        self, stages: str, var: str, swp: str, sow: str, sw1: str, scum: str
+    ) -> None:
         if scum == "1":
             self.tc.add_gams_code(
                 module=self,

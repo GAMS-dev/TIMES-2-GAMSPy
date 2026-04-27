@@ -77,7 +77,7 @@ class PpmExtEcb(GamsClass):
 
         self.tc.enqueue(self.init_probing_shares)
 
-    def comp1(self: PpmExtEcb):
+    def comp1(self: PpmExtEcb) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -87,7 +87,7 @@ class PpmExtEcb(GamsClass):
   """,
         )
 
-    def comp2(self: PpmExtEcb):
+    def comp2(self: PpmExtEcb) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -100,7 +100,7 @@ class PpmExtEcb(GamsClass):
   """,
         )
 
-    def init_probing_shares(self: PpmExtEcb):
+    def init_probing_shares(self: PpmExtEcb) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

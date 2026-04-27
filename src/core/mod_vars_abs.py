@@ -94,7 +94,7 @@ $ macro Z_BSPRS VAS_BSPRS
         self: ModVarsAbs,
         var: str,
         sow: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

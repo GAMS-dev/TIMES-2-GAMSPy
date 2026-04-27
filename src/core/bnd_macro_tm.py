@@ -38,7 +38,7 @@ class BndMacroTm(GamsClass):
     def compile(self: BndMacroTm) -> None:
         self.tc.enqueue(self.set_cut_off_point)
 
-    def set_cut_off_point(self: BndMacroTm):
+    def set_cut_off_point(self: BndMacroTm) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

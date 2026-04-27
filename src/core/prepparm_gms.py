@@ -126,7 +126,7 @@ class PrepparmGms(GamsClass):
         dflbl: str,
         def_iebd: str,
         reset: str,
-    ):
+    ) -> None:
         prepparm(
             module=self,
             arg1=arg1,

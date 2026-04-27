@@ -120,9 +120,7 @@ class EqobjfixMod(GamsClass):
             condition2=self.tc.defined("VNRET"),
         )
 
-    def declarations(
-        self: EqobjfixMod,
-    ):
+    def declarations(self: EqobjfixMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -142,10 +140,7 @@ class EqobjfixMod(GamsClass):
 """,
         )
 
-    def exec1(
-        self: EqobjfixMod,
-        condition: bool,
-    ):
+    def exec1(self: EqobjfixMod, condition: bool) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -177,12 +172,8 @@ LOOP(SAMEAS(J,'1'),
         )
 
     def exec_loop(
-        self: EqobjfixMod,
-        ctst: str,
-        zhalf: str,
-        istep: str,
-        condition: bool,
-    ):
+        self: EqobjfixMod, ctst: str, zhalf: str, istep: str, condition: bool
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -307,9 +298,7 @@ LOOP(SAMEAS(J,'1'),
 """,
         )
 
-    def exec2(
-        self: EqobjfixMod,
-    ):
+    def exec2(self: EqobjfixMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -318,11 +307,7 @@ LOOP(SAMEAS(J,'1'),
 """,
         )
 
-    def exec3(
-        self: EqobjfixMod,
-        ctst: str,
-        condtion: bool,
-    ):
+    def exec3(self: EqobjfixMod, ctst: str, condition: bool) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -330,7 +315,7 @@ LOOP(SAMEAS(J,'1'),
     OBJ_DIVIV(OBJ_YES(R,PASTMILE,P)) = 1;
     OBJ_DIVIV(OBJ_YES(R,T,P))$(NOT OBJ_1B(R,T,P)) = 1+(IPD(T)-1)$OBJ_1A(R,T,P);
     IF(ALTOBJ, OBJ_DIVIV(OBJ_1B(OBJ_YES(R,T,P)))$((ROUND(NCAP_TLIFE(R,T,P))-IPD(T){ctst}) GT 0) = IPD(T));
-{"OBJ_DIVIV(OBJ_YES(R,T,P)) = 1;" if condtion else ""}
+{"OBJ_DIVIV(OBJ_YES(R,T,P)) = 1;" if condition else ""}
 *-----------------------------------------------------------------------------*
   OPTION CLEAR=OBJ_YES, CLEAR=YKAGE;
 """,
@@ -345,9 +330,9 @@ LOOP(SAMEAS(J,'1'),
         sws: str,
         vart: str,
         var: str,
-        condition1: str,
+        condition1: bool,
         condition2: bool,
-    ):
+    ) -> None:
         include_prepret = prepret_dsc.objfix(capwd=capwd, vart=vart, sws=sws)
         self.tc.add_gams_code(
             module=self,

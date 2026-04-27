@@ -100,9 +100,7 @@ class CoefExtVda(GamsClass):
 
         self.tc.enqueue(self.exec3)
 
-    def comp1(
-        self: CoefExtVda,
-    ):
+    def comp1(self: CoefExtVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -112,9 +110,7 @@ $ CLEAR VDA_DISC
 """,
         )
 
-    def exec1(
-        self: CoefExtVda,
-    ):
+    def exec1(self: CoefExtVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -123,9 +119,7 @@ OPTION CLEAR=VDA_DISC;
 """,
         )
 
-    def make_sensible_resid_pasti(
-        self: CoefExtVda,
-    ):
+    def make_sensible_resid_pasti(self: CoefExtVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -142,11 +136,7 @@ OPTION CLEAR=VDA_DISC;
 """,
         )
 
-    def comp2(
-        self: CoefExtVda,
-        var: str,
-        sow: str,
-    ):
+    def comp2(self: CoefExtVda, var: str, sow: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -156,11 +146,8 @@ $ macro var_sts(r,v,t,p,ts,bd) sum(rp_stl(r,p,tsl,bd)$ts_group(r,tsl,ts),{var}_u
         )
 
     def exec2(
-        self: CoefExtVda,
-        pgprim: str,
-        condition1: bool,
-        condition2: bool,
-    ):
+        self: CoefExtVda, pgprim: str, condition1: bool, condition2: bool
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -212,7 +199,7 @@ $ macro var_sts(r,v,t,p,ts,bd) sum(rp_stl(r,p,tsl,bd)$ts_group(r,tsl,ts),{var}_u
   """,
         )
 
-    def exec3(self: CoefExtVda):
+    def exec3(self: CoefExtVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

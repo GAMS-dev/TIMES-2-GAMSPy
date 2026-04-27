@@ -107,9 +107,7 @@ $IF NOT DEFINED TM_EC0 OPTION CLEAR=TM_EC0;
         )
         self.tc.enqueue(self.prep_ext_tm_exec)
 
-    def prep_ext_tm_exec(
-        self: PrepExtTm,
-    ):
+    def prep_ext_tm_exec(self: PrepExtTm) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

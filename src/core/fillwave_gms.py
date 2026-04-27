@@ -65,13 +65,7 @@ SET REG_{self.arg2}(REG,{self.arg2});
             tmp=self.env.tmp,
         )
 
-    def exec1(
-        self: FillwaveGms,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-        tmp: str,
-    ):
+    def exec1(self: FillwaveGms, arg1: str, arg2: str, arg3: str, tmp: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

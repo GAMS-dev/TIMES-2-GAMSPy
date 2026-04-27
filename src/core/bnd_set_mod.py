@@ -41,11 +41,11 @@ class BndSetMod(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
-        arg4: str = "",
-        arg5: str = "",
+        arg1: str,
+        arg2: str,
+        arg3: str,
+        arg4: str,
+        arg5: str,
         arg6: str = "",
     ):
         self.env = env.fork()
@@ -59,7 +59,7 @@ class BndSetMod(GamsClass):
         self._sub_modules = {}
         self.compile()
 
-    def compile(self):
+    def compile(self) -> None:
         self.tc.enqueue(
             self.set_bounds,
             arg1=self.arg1,
@@ -91,7 +91,7 @@ class BndSetMod(GamsClass):
         arg5: str,
         swd: str,
         sow: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -116,7 +116,7 @@ class BndSetMod(GamsClass):
         arg6: str,
         stages: str,
         sow: str,
-    ):
+    ) -> None:
         # $IF%6 NOT %STAGES%==YES $EXIT
         if arg6 == "":
             stop = True if not stages == "YES" else False

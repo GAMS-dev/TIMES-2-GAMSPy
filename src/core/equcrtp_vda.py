@@ -65,7 +65,7 @@ class EqucrtpVda(GamsClass):
         elif self.arg1 == "EQU_EXT":
             self.label_equ_ext()
 
-    def init_ext(self: EqucrtpVda):
+    def init_ext(self: EqucrtpVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -95,8 +95,8 @@ class EqucrtpVda(GamsClass):
 """,
         )
 
-    def label_prep_ext(self: EqucrtpVda):
-        self.env.set_scoped("reset", 1)
+    def label_prep_ext(self: EqucrtpVda) -> None:
+        self.env.set_scoped("reset", "1")
         self.add_records_to_universe_item(records=["PRC_DYNUC"])
         self.tc.enqueue(
             self.manipulate_lhs_and_rhs,
@@ -105,7 +105,9 @@ class EqucrtpVda(GamsClass):
             reset=self.env.reset,
         )
 
-    def manipulate_lhs_and_rhs(self: EqucrtpVda, dflbl: str, def_iebd: str, reset: str):
+    def manipulate_lhs_and_rhs(
+        self: EqucrtpVda, dflbl: str, def_iebd: str, reset: str
+    ) -> None:
         prc_dynuc = self.tc.container["PRC_DYNUC"]
         if prc_dynuc.number_records:
             self.tc.add_gams_code(
@@ -160,7 +162,7 @@ class EqucrtpVda(GamsClass):
             code=r"LOOP(UC_DYNBND(UCN,BD),UC_T_SUCC(R,UCN,'0') = YES);",
         )
 
-    def ppm_ext(self: EqucrtpVda):
+    def ppm_ext(self: EqucrtpVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -174,7 +176,7 @@ class EqucrtpVda(GamsClass):
 """,
         )
 
-    def label_equ_ext(self: EqucrtpVda):
+    def label_equ_ext(self: EqucrtpVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",

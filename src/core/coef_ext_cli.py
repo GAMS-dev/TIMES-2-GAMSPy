@@ -229,12 +229,12 @@ class CoefExtCli(GamsClass):
             )
         )
 
-    def comp_slope(self: CoefExtCli):
+    def comp_slope(self: CoefExtCli) -> None:
         self.tc.enqueue(self.exec_slope)
 
     def exec_slope(
         self: CoefExtCli,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -258,7 +258,7 @@ class CoefExtCli(GamsClass):
 """,
         )
 
-    def exec1(self: CoefExtCli):
+    def exec1(self: CoefExtCli) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -277,7 +277,7 @@ CM_CALIB=1;
 """,
         )
 
-    def exec2(self: CoefExtCli):
+    def exec2(self: CoefExtCli) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -286,7 +286,7 @@ CM_CALIB = SUM(MIYR_1(T),M(T)-B(T))+1;
 """,
         )
 
-    def exec3(self: CoefExtCli):
+    def exec3(self: CoefExtCli) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -295,7 +295,7 @@ CM_CALIB = EPS;
 """,
         )
 
-    def exec4(self: CoefExtCli):
+    def exec4(self: CoefExtCli) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -305,7 +305,7 @@ OPTION CLEAR=FIL; LOOP(MIYR_1(LL),FIL(LL-CM_CALIB) = YES);
 """,
         )
 
-    def exec4_2(self: CoefExtCli):
+    def exec4_2(self: CoefExtCli) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -318,7 +318,7 @@ OPTION CLEAR=FIL; LOOP(MIYR_1(LL),FIL(LL-CM_CALIB) = YES);
 """,
         )
 
-    def exec5(self: CoefExtCli):
+    def exec5(self: CoefExtCli) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -374,7 +374,7 @@ IF(NOT SUM((CM_BOX,CM_BUCK),CM_PHI(CM_EMIS,CM_BOX,CM_BUCK)),
 """,
         )
 
-    def exec6(self: CoefExtCli):
+    def exec6(self: CoefExtCli) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -383,7 +383,7 @@ CM_KIND('FORCING')$SUM((LL,J,W)$S_CM_MAXC(LL,'DELTA-ATM',J,W),1) = YES;
 """,
         )
 
-    def exec7(self: CoefExtCli):
+    def exec7(self: CoefExtCli) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -392,7 +392,7 @@ DAM_COST CM_KIND('FORCING')$SUM(R$(DAM_BQTY(R,'FORCING')+DAM_BQTY(R,'DELTA-ATM')
 """,
         )
 
-    def exec8(self: CoefExtCli):
+    def exec8(self: CoefExtCli) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -408,7 +408,7 @@ DAM_COST CM_KIND('FORCING')$SUM(R$(DAM_BQTY(R,'FORCING')+DAM_BQTY(R,'DELTA-ATM')
 """,
         )
 
-    def exec9(self: CoefExtCli):
+    def exec9(self: CoefExtCli) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -417,7 +417,7 @@ OPTION CM_MAXC_M < S_CM_MAXC;
 """,
         )
 
-    def exec10(self: CoefExtCli):
+    def exec10(self: CoefExtCli) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -445,7 +445,7 @@ OPTION CM_MAXC_M < S_CM_MAXC;
 """,
         )
 
-    def exec11(self: CoefExtCli, forcing: bool, stages: str):
+    def exec11(self: CoefExtCli, forcing: bool, stages: str) -> None:
         if forcing:
             self.tc.add_gams_code(
                 module=self,
@@ -500,7 +500,7 @@ OPTION CM_MAXC_M < S_CM_MAXC;
     """,
             )
 
-    def exec12(self: CoefExtCli):
+    def exec12(self: CoefExtCli) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -550,7 +550,7 @@ LOOP(CM_EMIS(CM_VAR),
 """,
         )
 
-    def exec15(self: CoefExtCli):
+    def exec15(self: CoefExtCli) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -567,7 +567,7 @@ LOOP(CM_EMIS(CM_VAR),
   """,
         )
 
-    def exec16(self: CoefExtCli):
+    def exec16(self: CoefExtCli) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

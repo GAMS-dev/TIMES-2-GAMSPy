@@ -545,7 +545,7 @@ UC_COM(UC_N,'NET',SIDE,R,DATAYEAR,C,S,'COMNET') $= UC_COMNET(UC_N,SIDE,R,DATAYEA
 """,
         )
 
-    def prepare_flags_for_flow_tax_sub(self: PreppmMod, dflbl: str):
+    def prepare_flags_for_flow_tax_sub(self: PreppmMod, dflbl: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

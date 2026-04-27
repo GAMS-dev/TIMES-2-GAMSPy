@@ -46,7 +46,7 @@ class CoefNioMod(GamsClass):
     def compile(self) -> None:
         self.tc.enqueue(self.exec1)
 
-    def exec1(self: CoefNioMod):
+    def exec1(self: CoefNioMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

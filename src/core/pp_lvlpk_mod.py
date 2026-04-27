@@ -55,7 +55,7 @@ class PpLvlpkMod(GamsClass):
         )
         self.tc.enqueue(self.pp_lvlpk_exec, arg1=self.arg1)
 
-    def pp_lvlpk_exec(self: PpLvlpkMod, arg1: str):
+    def pp_lvlpk_exec(self: PpLvlpkMod, arg1: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

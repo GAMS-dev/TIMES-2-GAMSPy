@@ -89,7 +89,7 @@ class PpLvlbdMod(GamsClass):
             condition=not (self.arg9 == ""),
         )
 
-    def comp1(self: PpLvlbdMod):
+    def comp1(self: PpLvlbdMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -112,7 +112,7 @@ class PpLvlbdMod(GamsClass):
         arg9: str,
         rl: str,
         condition: bool,
-    ):
+    ) -> None:
         include_pp_qaput = pp_qaput(
             "PUTOUT",
             "PUTGRP",

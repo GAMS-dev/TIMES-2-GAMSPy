@@ -108,7 +108,7 @@ class EqobjTm(GamsClass):
 """,
         )
 
-    def exec1(self):
+    def exec1(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -118,7 +118,7 @@ class EqobjTm(GamsClass):
 """,
         )
 
-    def exec2(self):
+    def exec2(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

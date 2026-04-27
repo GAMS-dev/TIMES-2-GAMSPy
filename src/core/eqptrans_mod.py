@@ -82,7 +82,7 @@ class EqptransMod(GamsClass):
         pgprim: str,
         shff: str,
         def_rtp_ffcs: bool,
-    ):
+    ) -> None:
         include_cal_red = ""
         # only set in pp_reduce.red
         if cal_red == "cal_red.red":

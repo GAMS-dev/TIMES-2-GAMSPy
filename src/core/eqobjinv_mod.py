@@ -209,12 +209,7 @@ class EqobjinvMod(GamsClass):
 """,
         )
 
-    def exec1(
-        self: "EqobjinvMod",
-        etl_yes: bool,
-        invlif: str,
-        discshift: str,
-    ):
+    def exec1(self: EqobjinvMod, etl_yes: bool, invlif: str, discshift: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -268,9 +263,7 @@ class EqobjinvMod(GamsClass):
 """,
         )
 
-    def exec2(
-        self: "EqobjinvMod",
-    ):
+    def exec2(self: EqobjinvMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -292,9 +285,7 @@ class EqobjinvMod(GamsClass):
 """,
         )
 
-    def _label_m2t(
-        self: "EqobjinvMod",
-    ):
+    def _label_m2t(self: EqobjinvMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -304,9 +295,7 @@ class EqobjinvMod(GamsClass):
 """,
         )
 
-    def exec3(
-        self: "EqobjinvMod",
-    ):
+    def exec3(self: EqobjinvMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -321,9 +310,7 @@ class EqobjinvMod(GamsClass):
 """,
         )
 
-    def _label_cont(
-        self: "EqobjinvMod",
-    ):
+    def _label_cont(self: EqobjinvMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -336,9 +323,7 @@ class EqobjinvMod(GamsClass):
 """,
         )
 
-    def _label_m2t_2(
-        self: "EqobjinvMod",
-    ):
+    def _label_m2t_2(self: EqobjinvMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -353,12 +338,7 @@ class EqobjinvMod(GamsClass):
 """,
         )
 
-    def exec4(
-        self: "EqobjinvMod",
-        ctst: str,
-        zhalf: str,
-        istep: str,
-    ):
+    def exec4(self: EqobjinvMod, ctst: str, zhalf: str, istep: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -380,9 +360,7 @@ class EqobjinvMod(GamsClass):
 """,
         )
 
-    def _label_cont_2(
-        self: "EqobjinvMod",
-    ):
+    def _label_cont_2(self: EqobjinvMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -458,9 +436,7 @@ class EqobjinvMod(GamsClass):
 """,
         )
 
-    def _label_cont_2b(
-        self: "EqobjinvMod",
-    ):
+    def _label_cont_2b(self: EqobjinvMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -485,9 +461,7 @@ class EqobjinvMod(GamsClass):
 """,
         )
 
-    def _label_clrs(
-        self: "EqobjinvMod",
-    ):
+    def _label_clrs(self: EqobjinvMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -497,11 +471,7 @@ class EqobjinvMod(GamsClass):
 """,
         )
 
-    def exec5(
-        self: "EqobjinvMod",
-        validate_yes: bool,
-        ctst: str,
-    ):
+    def exec5(self: EqobjinvMod, validate_yes: bool, ctst: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

@@ -54,7 +54,7 @@ class EqobjfixRpt(GamsClass):
             condition=(self.env.validate == "YES"),
         )
 
-    def exec1(self: EqobjfixRpt, condition: bool):
+    def exec1(self: EqobjfixRpt, condition: bool) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

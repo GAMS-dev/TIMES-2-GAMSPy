@@ -120,10 +120,7 @@ class PrepExtStc(GamsClass):
             have_s_flo_func=self.tc.defined("S_FLO_FUNC"),
         )
 
-    def prep_ext_stc_exec(
-        self: PrepExtStc,
-        have_s_flo_func: bool,
-    ):
+    def prep_ext_stc_exec(self: PrepExtStc, have_s_flo_func: bool) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",

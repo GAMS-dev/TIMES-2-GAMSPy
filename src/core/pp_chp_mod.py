@@ -50,7 +50,7 @@ class PpChpMod(GamsClass):
             pl=self.env.pl,
         )
 
-    def pp_chp_exec(self: PpChpMod, rl: str, pl: str):
+    def pp_chp_exec(self: PpChpMod, rl: str, pl: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

@@ -90,7 +90,7 @@ class ModVarsTm(GamsClass):
         )
         self.tc.enqueue(self.mod_vars_tm_exec)
 
-    def mod_vars_tm_exec(self: ModVarsTm):
+    def mod_vars_tm_exec(self: ModVarsTm) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
