@@ -86,7 +86,7 @@ SET RTP_SHAPI(REG,ALLYEAR,PRC,BD,J,J,LL,LL) //;
         arg5: str,
         arg6: str,
         pass_var: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

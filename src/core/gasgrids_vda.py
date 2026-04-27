@@ -29,7 +29,9 @@ class GasgridsVda(GamsClass):
     module_name: str = "gasgrids_vda"
     gams_source: str = "gasgrids.vda"
 
-    def __init__(self, tc: TimesModelClass, env: CompileEnvironment, arg1: PhaseName):
+    def __init__(
+        self, tc: TimesModelClass, env: CompileEnvironment, arg1: PhaseName = ""
+    ):
         self.env = env.fork()
         self.tc = tc
         self.arg1 = arg1
@@ -93,7 +95,7 @@ class GasgridsVda(GamsClass):
         self.tc.enqueue(self.autogenerate_pressure_points)
         self.tc.enqueue(self.gamma_controls_bigM)
 
-    def collect_gas_grid_node(self: GasgridsVda):
+    def collect_gas_grid_node(self: GasgridsVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -106,7 +108,7 @@ class GasgridsVda(GamsClass):
 """,
         )
 
-    def prepare_control_sets(self: GasgridsVda):
+    def prepare_control_sets(self: GasgridsVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -121,7 +123,7 @@ class GasgridsVda(GamsClass):
 """,
         )
 
-    def sync_kgf_and_klp(self: GasgridsVda):
+    def sync_kgf_and_klp(self: GasgridsVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -135,7 +137,7 @@ class GasgridsVda(GamsClass):
 """,
         )
 
-    def bounds_gamma_links(self: GasgridsVda):
+    def bounds_gamma_links(self: GasgridsVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -151,14 +153,14 @@ class GasgridsVda(GamsClass):
        """,
         )
 
-    def assign_gg(self: GasgridsVda, solmip: str):
+    def assign_gg(self: GasgridsVda, solmip: str) -> None:
         if solmip.upper() == "YES":
             code_block = "GG_M1 = 1;"
         else:
             code_block = "GG_WTX(TRACKPC) = NO;"
         self.tc.add_gams_code(module=self, phase="run", code=code_block)
 
-    def autogenerate_pressure_points(self: GasgridsVda):
+    def autogenerate_pressure_points(self: GasgridsVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -184,7 +186,7 @@ class GasgridsVda(GamsClass):
 """,
         )
 
-    def gamma_controls_bigM(self: GasgridsVda):
+    def gamma_controls_bigM(self: GasgridsVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -232,7 +234,7 @@ POSITIVE VARIABLES
         self.tc.enqueue(self.fix_reserve_pressure_difference)
         self.equations()
 
-    def delete_eq_ire(self: GasgridsVda):
+    def delete_eq_ire(self: GasgridsVda) -> None:
         """Delete EQ_IRE for all with gg_klp defined"""
         self.tc.add_gams_code(
             module=self,
@@ -244,7 +246,7 @@ POSITIVE VARIABLES
 """,
         )
 
-    def bounds_for_pressure_and_linepack(self: GasgridsVda, pgprim: str):
+    def bounds_for_pressure_and_linepack(self: GasgridsVda, pgprim: str) -> None:
         """Bounds for pressures and linepack"""
         self.tc.add_gams_code(
             module=self,
@@ -260,7 +262,7 @@ POSITIVE VARIABLES
 """,
         )
 
-    def fix_reserve_pressure_difference(self: GasgridsVda):
+    def fix_reserve_pressure_difference(self: GasgridsVda) -> None:
         """Fix reverse pressure difference to zero for unidirectional case"""
         self.tc.add_gams_code(
             module=self,
@@ -273,7 +275,7 @@ POSITIVE VARIABLES
 """,
         )
 
-    def equations(self: GasgridsVda):
+    def equations(self: GasgridsVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",

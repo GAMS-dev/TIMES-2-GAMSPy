@@ -79,7 +79,7 @@ class PpmExtVda(GamsClass):
         if not (self.env.rts == "S"):
             self.include(DynsliteVda(self.tc, self.env, arg1="POSTLEV"))
 
-    def display(self: PpmExtVda):
+    def display(self: PpmExtVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -88,7 +88,7 @@ DISPLAY 'PPM_EXT Invoked';
 """,
         )
 
-    def exec1(self: PpmExtVda, pgprim: str):
+    def exec1(self: PpmExtVda, pgprim: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -140,7 +140,7 @@ DISPLAY 'PPM_EXT Invoked';
 """,
         )
 
-    def catch_shape_indexes(self: PpmExtVda, pgprim: str):
+    def catch_shape_indexes(self: PpmExtVda, pgprim: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -164,7 +164,7 @@ DISPLAY 'PPM_EXT Invoked';
 """,
         )
 
-    def prepare_map(self: PpmExtVda):
+    def prepare_map(self: PpmExtVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -178,7 +178,7 @@ DISPLAY 'PPM_EXT Invoked';
 """,
         )
 
-    def add_acteff_to_rpc_func(self: PpmExtVda, condition: bool):
+    def add_acteff_to_rpc_func(self: PpmExtVda, condition: bool) -> None:
         include_pp_qaput_1 = pp_qaput(
             "PUTOUT",
             "PUTGRP",
@@ -215,7 +215,7 @@ DISPLAY 'PPM_EXT Invoked';
 """,
         )
 
-    def prep_commodity_factors(self: PpmExtVda, pgprim: str):
+    def prep_commodity_factors(self: PpmExtVda, pgprim: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

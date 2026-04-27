@@ -29,11 +29,7 @@ class BndFloMod(GamsClass):
     module_name: str = "bnd_flo"
     gams_source: str = "bnd_flo.mod"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
         self.env = env.fork()
         self.tc = tc
         self._sub_modules = {}
@@ -43,10 +39,9 @@ class BndFloMod(GamsClass):
         self.tc.enqueue(
             self.step_one,
             stages=self.env.stages,
-            reduce=self.env.reduce,
             var=self.env.var,
             swd=self.env.swd,
-            swt=self.env.swt,
+            dflbl=self.env.dflbl,
         )
 
         if self.env.reduce != "YES":
@@ -61,9 +56,7 @@ class BndFloMod(GamsClass):
             swt=self.env.swt,
         )
 
-    def step_one(
-        self: BndFloMod, stages: str, reduce: str, var: str, swd: str, swt: str
-    ):
+    def step_one(self: BndFloMod, stages: str, var: str, swd: str, dflbl: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -79,8 +72,8 @@ class BndFloMod(GamsClass):
   TRACKPC(RPC_FFUNC(R,P,C))= NO;
   TRACKPC(RPC_EMIS(R,P,C)) = NO;
 * Mark all tuples that definitely cannot be handled by VAR bounds
-  LOOP(T,FLO_BND(R,'%DFLBL%',P,C,S,BD)$FLO_BND(R,T,P,C,S,BD) = EPS$(NOT TRACKPC(R,P,C));
-         FLO_BND(R,'%DFLBL%',P,CG,S,BD)$((NOT C(CG))$FLO_BND(R,T,P,CG,S,BD)) = EPS);
+  LOOP(T,FLO_BND(R,'{dflbl}',P,C,S,BD)$FLO_BND(R,T,P,C,S,BD) = EPS$(NOT TRACKPC(R,P,C));
+         FLO_BND(R,'{dflbl}',P,CG,S,BD)$((NOT C(CG))$FLO_BND(R,T,P,CG,S,BD)) = EPS);
   TRACKPC(RPC_ACT(R,P,C)) = NO;
 """,
         )
@@ -106,7 +99,7 @@ OPTION CLEAR=TRACKPC;
 """,
         )
 
-    def step_two(self: BndFloMod, var: str, swt: str):
+    def step_two(self: BndFloMod, var: str, swt: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

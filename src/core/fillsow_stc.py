@@ -112,7 +112,7 @@ def clean_up_sow(
     arg1: str,
     arg2: str,
     arg4: str,
-):
+) -> None:
     module.tc.add_gams_code(
         module=module,
         phase="run",
@@ -139,7 +139,7 @@ def update_data_indicators(
     arg4: str,
     arg6: str,
     arg7: str,
-):
+) -> None:
     module.tc.add_gams_code(
         module=module,
         phase="run",
@@ -169,7 +169,7 @@ def exec_fillsow_stc(
     arg5: str,
     arg6: str,
     arg7: str,
-):
+) -> None:
     tail = arg3
     stg = ""
     ix = "0"

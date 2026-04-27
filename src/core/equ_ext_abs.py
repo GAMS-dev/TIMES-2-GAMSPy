@@ -14,7 +14,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable
 
 from .base_class import GamsClass
 
@@ -45,7 +45,7 @@ class EquExtAbs(GamsClass):
         self.cal_red_func = self._resolve_cal_red_func()
         self.compile()
 
-    def _resolve_cal_red_func(self):
+    def _resolve_cal_red_func(self) -> Callable[..., Any]:
         """Helper method to determine and return the correct reduction function."""
         if self.env.cal_red == "cal_red.red":
             from core.cal_red_red import cal_red_red
@@ -182,7 +182,7 @@ class EquExtAbs(GamsClass):
             upscaps=self.env.upscaps,
         )
 
-    def exec1(self: EquExtAbs, pgprim: str):
+    def exec1(self: EquExtAbs, pgprim: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -213,7 +213,7 @@ class EquExtAbs(GamsClass):
 """,
         )
 
-    def macros(self: EquExtAbs, var: str, sow: str, pgprim: str):
+    def macros(self: EquExtAbs, var: str, sow: str, pgprim: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -229,7 +229,9 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
 """,
         )
 
-    def abs_eq_1(self: EquExtAbs, r_t: str, swx: str, swtx: str, var: str, sow: str):
+    def abs_eq_1(
+        self: EquExtAbs, r_t: str, swx: str, swtx: str, var: str, sow: str
+    ) -> None:
         """Demands for reserves"""
         self.tc.add_gams_code(
             module=self,
@@ -246,7 +248,9 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
 """,
         )
 
-    def abs_eq_1p(self: EquExtAbs, r_t: str, var: str, sow: str, swx: str, swtx: str):
+    def abs_eq_1p(
+        self: EquExtAbs, r_t: str, var: str, sow: str, swx: str, swtx: str
+    ) -> None:
         """Max and ABS(diff) and Share equations"""
 
         self.tc.add_gams_code(
@@ -267,7 +271,9 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
 """,
         )
 
-    def abs_eq_2(self: EquExtAbs, r_t: str, swx: str, swtx: str, var: str, sow: str):
+    def abs_eq_2(
+        self: EquExtAbs, r_t: str, swx: str, swtx: str, var: str, sow: str
+    ) -> None:
         """Loads by source of imbalance for each user category k"""
 
         cal_red = self.cal_red_func(arg1="C", arg2="COM", arg3="TS", arg4="P", arg5="T")
@@ -292,7 +298,9 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
 """,
         )
 
-    def abs_eq_3(self: EquExtAbs, r_t: str, swtx: str, swx: str, var: str, sow: str):
+    def abs_eq_3(
+        self: EquExtAbs, r_t: str, swtx: str, swx: str, var: str, sow: str
+    ) -> None:
         """Stochastic or combined demand with variances"""
 
         self.tc.add_gams_code(
@@ -308,7 +316,9 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
 """,
         )
 
-    def abs_eq_4(self: EquExtAbs, r_t: str, swx: str, swtx: str, tmp: str, mx: str):
+    def abs_eq_4(
+        self: EquExtAbs, r_t: str, swx: str, swtx: str, tmp: str, mx: str
+    ) -> None:
         """Deterministic demand"""
 
         self.tc.add_gams_code(
@@ -324,7 +334,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
 """,
         )
 
-    def abs_eq_5_to_6(self: EquExtAbs, r_v_t: str, swx: str, swtx: str):
+    def abs_eq_5_to_6(self: EquExtAbs, r_v_t: str, swx: str, swtx: str) -> None:
         """Minimum online and offline times (adjusted)"""
 
         self.tc.add_gams_code(
@@ -342,7 +352,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
 
     def abs_eq_7_to_8(
         self: EquExtAbs, r_v_t: str, swx: str, swtx: str, var: str, sow: str
-    ):
+    ) -> None:
         """Ramping rates (adjusted)"""
 
         self.tc.add_gams_code(
@@ -363,7 +373,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
 
     def abs_eq_9(
         self: EquExtAbs, r_v_t: str, swx: str, swtx: str, mx: str, sow: str, var: str
-    ):
+    ) -> None:
         """Capacity margin constraints - positive"""
 
         self.tc.add_gams_code(
@@ -380,7 +390,9 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
 """,
         )
 
-    def abs_eq_10(self: EquExtAbs, r_v_t: str, swx: str, swtx: str, sow: str, var: str):
+    def abs_eq_10(
+        self: EquExtAbs, r_v_t: str, swx: str, swtx: str, sow: str, var: str
+    ) -> None:
         """Capacity margin constraints - negative"""
 
         self.tc.add_gams_code(
@@ -396,7 +408,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
 """,
         )
 
-    def abs_eq_11_to_17(self: EquExtAbs, r_w_t: str, swx: str, swtx: str):
+    def abs_eq_11_to_17(self: EquExtAbs, r_w_t: str, swx: str, swtx: str) -> None:
         """Limit reserve by type and sign according to BS_RMAX"""
 
         self.tc.add_gams_code(
@@ -410,7 +422,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
 """,
         )
 
-    def abs_eq_18_20(self: EquExtAbs, r_w_t: str, swx: str, swtx: str):
+    def abs_eq_18_20(self: EquExtAbs, r_w_t: str, swx: str, swtx: str) -> None:
         """Limit the provision of TRT & RRR reserves according to quick start-up / shut-down capacity"""
         self.tc.add_gams_code(
             module=self,
@@ -423,7 +435,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
 """,
         )
 
-    def abs_eq_19_21(self: EquExtAbs, r_w_t: str, swx: str, swtx: str):
+    def abs_eq_19_21(self: EquExtAbs, r_w_t: str, swx: str, swtx: str) -> None:
         """Limit the provision of TRT & RRR reserves according to quick start-up / shut-down capacity"""
 
         self.tc.add_gams_code(
@@ -436,7 +448,9 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
 """,
         )
 
-    def abs_eq_22(self: EquExtAbs, r_w_t: str, swx: str, swtx: str, var: str, sow: str):
+    def abs_eq_22(
+        self: EquExtAbs, r_w_t: str, swx: str, swtx: str, var: str, sow: str
+    ) -> None:
         """Ensure sufficient storage level when contracted to reserve"""
 
         self.tc.add_gams_code(
@@ -454,7 +468,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
 
     def abs_eq_23(
         self: EquExtAbs, r_v_t: str, swx: str, swtx: str, sow: str, var: str, tmp: str
-    ):
+    ) -> None:
         """Limit storage level by capacity and contracted reserve"""
 
         self.tc.add_gams_code(
@@ -474,7 +488,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
 
     def abs_eq_24(
         self: EquExtAbs, r_w_t: str, swx: str, swtx: str, var: str, mx: str, sow: str
-    ):
+    ) -> None:
         """End-use - negative"""
 
         self.tc.add_gams_code(
@@ -495,7 +509,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
 """,
         )
 
-    def abs_eq_25(self: EquExtAbs, r_w_t: str, swx: str, swtx: str):
+    def abs_eq_25(self: EquExtAbs, r_w_t: str, swx: str, swtx: str) -> None:
         """End-use - positive"""
 
         cal_red = self.cal_red_func(arg1="C", arg2="COM", arg3="TS", arg4="P", arg5="T")
@@ -514,7 +528,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
 """,
         )
 
-    def abs_eq_26(self: EquExtAbs, r_t: str, swx: str, swtx: str):
+    def abs_eq_26(self: EquExtAbs, r_t: str, swx: str, swtx: str) -> None:
         """Bound on process reserve provision"""
 
         self.tc.add_gams_code(
@@ -537,7 +551,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
         sws: str,
         rcapsbm: str,
         mx: str,
-    ):
+    ) -> None:
         """Maintenence 1 - entrance to maintenance"""
 
         self.tc.add_gams_code(
@@ -562,7 +576,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
         tmp: str,
         mx: str,
         upscaps: str,
-    ):
+    ) -> None:
         """Maintenence 2 - continuous duration"""
 
         self.tc.add_gams_code(

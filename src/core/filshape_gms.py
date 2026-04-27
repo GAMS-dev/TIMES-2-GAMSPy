@@ -48,7 +48,7 @@ class FilshapeGms(GamsClass):
             maxlife=self.arg1,
         )
 
-    def filshape_exec(self: FilshapeGms, maxlife: str):
+    def filshape_exec(self: FilshapeGms, maxlife: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

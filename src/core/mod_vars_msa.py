@@ -76,7 +76,7 @@ VARIABLES
         if not self.tc.defined("tm_udf"):
             self.tc.enqueue(self.exec2)
 
-    def exec1(self):
+    def exec1(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -86,7 +86,7 @@ VAR_CDM.LO(R,'N',XTP) = .01;
 """,
         )
 
-    def exec2(self):
+    def exec2(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

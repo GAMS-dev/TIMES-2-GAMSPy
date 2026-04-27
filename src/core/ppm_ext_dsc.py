@@ -50,7 +50,7 @@ class PpmExtDsc(GamsClass):
         if self.env.dsc.upper() == "YES":
             self.tc.enqueue(self.exec1)
 
-    def exec1(self: PpmExtDsc):
+    def exec1(self: PpmExtDsc) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

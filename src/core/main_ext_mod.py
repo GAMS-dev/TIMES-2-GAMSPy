@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .base_class import GamsClass
@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 
 
 def include_extension(
-    module: GamsClass, extensions: dict, requested_exts: set[str], source: str
-):
+    module: GamsClass, extensions: dict[str, Any], requested_exts: set[str], source: str
+) -> None:
     for ext_name, ext_class in extensions.items():
         if ext_name in requested_exts:
             module.include(

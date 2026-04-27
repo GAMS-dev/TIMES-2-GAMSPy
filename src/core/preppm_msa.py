@@ -53,7 +53,7 @@ class PreppmMsa(GamsClass):
         elif self.arg1 == "TOLP":
             self._label_tolp()
 
-    def _label_msa(self):
+    def _label_msa(self) -> None:
         self.env.set_global("msa", "CSA")
         if self.env.macro != "N":
             self.env.set_global("msa", self.env.macro)
@@ -111,7 +111,7 @@ class PreppmMsa(GamsClass):
 
         self.tc.enqueue(self.label_msa_exec3)
 
-    def label_msa_exec1(self: PreppmMsa):
+    def label_msa_exec1(self: PreppmMsa) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -127,7 +127,7 @@ class PreppmMsa(GamsClass):
 """,
         )
 
-    def label_msa_exec2(self: PreppmMsa):
+    def label_msa_exec2(self: PreppmMsa) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -137,7 +137,7 @@ LOOP(PP(T+1),TM_GDPGOAL(R,PP) = TM_GDPGOAL(R,T)*(1+TM_GR(R,T)/100)**NYPER(T));
 """,
         )
 
-    def label_msa_exec3(self: PreppmMsa):
+    def label_msa_exec3(self: PreppmMsa) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -162,7 +162,7 @@ LOOP(PP(T+1),TM_GDPGOAL(R,PP) = TM_GDPGOAL(R,T)*(1+TM_GR(R,T)/100)**NYPER(T));
 """,
         )
 
-    def _label_tonlp(self):
+    def _label_tonlp(self) -> None:
         # Update forcing functions, reset damage and climate module
         if self.tc.defined("TM_CATT"):
             self.tc.enqueue(self.label_tonlp_exec1)
@@ -180,7 +180,7 @@ LOOP(PP(T+1),TM_GDPGOAL(R,PP) = TM_GDPGOAL(R,T)*(1+TM_GR(R,T)/100)**NYPER(T));
 
         self.tc.enqueue(self.label_tonlp_exec2)
 
-    def label_tonlp_exec1(self):
+    def label_tonlp_exec1(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -189,7 +189,7 @@ LOOP(G_RCUR(R,CUR)$TM_DAM(R,'0'),DAM_COST(R,PP,C(CG(CM_EMIS)),CUR) = EPS);
 """,
         )
 
-    def label_tonlp_exec2(self):
+    def label_tonlp_exec2(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -203,10 +203,10 @@ LOOP(G_RCUR(R,CUR)$TM_DAM(R,'0'),DAM_COST(R,PP,C(CG(CM_EMIS)),CUR) = EPS);
 """,
         )
 
-    def _label_tolp(self):
+    def _label_tolp(self) -> None:
         self.tc.enqueue(self.label_tolp_exec1)
 
-    def label_tolp_exec1(self):
+    def label_tolp_exec1(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

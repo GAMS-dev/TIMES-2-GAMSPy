@@ -53,7 +53,7 @@ class ForcupdCli(GamsClass):
         )
         self.include(CoefExtCli(self.tc, self.env, arg1="SLOPE"))
 
-    def exec1(self, ch4_pre: str, n2o_pre: str, fofo: str):
+    def exec1(self, ch4_pre: str, n2o_pre: str, fofo: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

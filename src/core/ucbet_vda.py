@@ -180,10 +180,7 @@ class UcbetVda(GamsClass):
 """,
         )
 
-    def ucbet_exec(
-        self: UcbetVda,
-        pgprim: str,
-    ):
+    def ucbet_exec(self: UcbetVda, pgprim: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

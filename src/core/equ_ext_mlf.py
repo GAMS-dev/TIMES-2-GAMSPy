@@ -92,7 +92,7 @@ class EquExtMlf(GamsClass):
                 self.tc.enqueue(self.option_nlp)
             self.tc.enqueue(self.exec2)
 
-    def utility_objective_function(self: EquExtMlf):
+    def utility_objective_function(self: EquExtMlf) -> None:
         """Utility Objective Function"""
 
         self.tc.add_gams_code(
@@ -105,7 +105,7 @@ class EquExtMlf(GamsClass):
 """,
         )
 
-    def production_function(self: EquExtMlf):
+    def production_function(self: EquExtMlf) -> None:
         """Production Function"""
         self.tc.add_gams_code(
             module=self,
@@ -116,7 +116,7 @@ class EquExtMlf(GamsClass):
 """,
         )
 
-    def akl_aggregate(self: EquExtMlf):
+    def akl_aggregate(self: EquExtMlf) -> None:
         """AKL aggregate"""
         self.tc.add_gams_code(
             module=self,
@@ -126,7 +126,7 @@ class EquExtMlf(GamsClass):
 """,
         )
 
-    def labor_resource(self: EquExtMlf):
+    def labor_resource(self: EquExtMlf) -> None:
         """Labor resource"""
 
         self.tc.add_gams_code(
@@ -137,7 +137,7 @@ class EquExtMlf(GamsClass):
 """,
         )
 
-    def capital_dynamics_equation(self: EquExtMlf):
+    def capital_dynamics_equation(self: EquExtMlf) -> None:
         """Capital Dynamics Equation"""
 
         self.tc.add_gams_code(
@@ -148,7 +148,7 @@ class EquExtMlf(GamsClass):
 """,
         )
 
-    def capital_dummy_definition(self: EquExtMlf):
+    def capital_dummy_definition(self: EquExtMlf) -> None:
         """Capital dummy definition"""
 
         self.tc.add_gams_code(
@@ -159,7 +159,7 @@ class EquExtMlf(GamsClass):
 """,
         )
 
-    def terminal_condition_investment(self: EquExtMlf):
+    def terminal_condition_investment(self: EquExtMlf) -> None:
         """Terminal Condition for investment in last period"""
 
         self.tc.add_gams_code(
@@ -170,7 +170,7 @@ class EquExtMlf(GamsClass):
 """,
         )
 
-    def bound_sum_of_investment_and_energy(self: EquExtMlf):
+    def bound_sum_of_investment_and_energy(self: EquExtMlf) -> None:
         """Bound on Sum of Investment and Energy"""
 
         self.tc.add_gams_code(
@@ -181,7 +181,7 @@ class EquExtMlf(GamsClass):
 """,
         )
 
-    def demand_coupling_equation(self: EquExtMlf):
+    def demand_coupling_equation(self: EquExtMlf) -> None:
         """Demand Coupling Equation"""
 
         self.tc.add_gams_code(
@@ -193,7 +193,7 @@ class EquExtMlf(GamsClass):
 """,
         )
 
-    def energy_system_costs(self: EquExtMlf):
+    def energy_system_costs(self: EquExtMlf) -> None:
         """Energy System Costs"""
 
         self.tc.add_gams_code(
@@ -205,7 +205,7 @@ class EquExtMlf(GamsClass):
 """,
         )
 
-    def trade_balance(self: EquExtMlf):
+    def trade_balance(self: EquExtMlf) -> None:
         """Trade balance"""
 
         self.tc.add_gams_code(
@@ -216,7 +216,7 @@ class EquExtMlf(GamsClass):
 """,
         )
 
-    def set_variable_bounds(self: EquExtMlf):
+    def set_variable_bounds(self: EquExtMlf) -> None:
         """Variable bounds"""
 
         self.tc.add_gams_code(
@@ -249,7 +249,9 @@ class EquExtMlf(GamsClass):
 """,
         )
 
-    def exec1(self: EquExtMlf, fixboh_set: bool, fixboh: str, reg_bdncap_defined: bool):
+    def exec1(
+        self: EquExtMlf, fixboh_set: bool, fixboh: str, reg_bdncap_defined: bool
+    ) -> None:
         if fixboh_set:
             self.tc.add_gams_code(
                 module=self,
@@ -267,7 +269,7 @@ LOOP(BD,TM_PP(R,T)$((M(T)<=REG_BDNCAP(R,BD))$REG_BDNCAP(R,BD))=NO);
 """,
             )
 
-    def option_lp(self: EquExtMlf):
+    def option_lp(self: EquExtMlf) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -276,7 +278,7 @@ OPTION LP=KESTREL;
 """,
         )
 
-    def option_nlp(self: EquExtMlf):
+    def option_nlp(self: EquExtMlf) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -285,7 +287,7 @@ OPTION NLP=KESTREL;
 """,
         )
 
-    def full_model_equations(self: EquExtMlf):
+    def full_model_equations(self: EquExtMlf) -> None:
         self.utility_objective_function2()
         self.consumption()
         self.consumption_disaggregation()
@@ -297,11 +299,11 @@ OPTION NLP=KESTREL;
         self.demand_ces_aggregation()
         self.demand_linear_ces_function_constraint()
 
-    def nlp_equations(self: EquExtMlf):
+    def nlp_equations(self: EquExtMlf) -> None:
         self.demand_non_linear_ces_function()
         self.energy_system_costs_nlp()
 
-    def utility_objective_function2(self: EquExtMlf):
+    def utility_objective_function2(self: EquExtMlf) -> None:
         """Utility Objective Function"""
 
         self.tc.add_gams_code(
@@ -315,7 +317,7 @@ OPTION NLP=KESTREL;
 """,
         )
 
-    def consumption(self: EquExtMlf):
+    def consumption(self: EquExtMlf) -> None:
         """Consumption"""
 
         self.tc.add_gams_code(
@@ -326,7 +328,7 @@ OPTION NLP=KESTREL;
 """,
         )
 
-    def consumption_disaggregation(self: EquExtMlf):
+    def consumption_disaggregation(self: EquExtMlf) -> None:
         """Consumption disaggregation"""
 
         self.tc.add_gams_code(
@@ -337,7 +339,7 @@ OPTION NLP=KESTREL;
 """,
         )
 
-    def consumption_log_steps(self: EquExtMlf):
+    def consumption_log_steps(self: EquExtMlf) -> None:
         """Consumption LOG steps constraint"""
         self.tc.add_gams_code(
             module=self,
@@ -347,7 +349,7 @@ OPTION NLP=KESTREL;
 """,
         )
 
-    def macro_ces_function_shares(self: EquExtMlf):
+    def macro_ces_function_shares(self: EquExtMlf) -> None:
         """Macro CES function shares"""
         self.tc.add_gams_code(
             module=self,
@@ -359,7 +361,7 @@ OPTION NLP=KESTREL;
 """,
         )
 
-    def macro_ces_function_aggregation(self: EquExtMlf):
+    def macro_ces_function_aggregation(self: EquExtMlf) -> None:
         """Macro CES function aggregation"""
         self.tc.add_gams_code(
             module=self,
@@ -372,7 +374,7 @@ OPTION NLP=KESTREL;
 """,
         )
 
-    def macro_ces_function_constraint(self: EquExtMlf):
+    def macro_ces_function_constraint(self: EquExtMlf) -> None:
         """Macro CES function constraint"""
         self.tc.add_gams_code(
             module=self,
@@ -384,7 +386,7 @@ OPTION NLP=KESTREL;
 """,
         )
 
-    def demand_ces_function_shares(self: EquExtMlf):
+    def demand_ces_function_shares(self: EquExtMlf) -> None:
         """Demand CES function shares"""
         self.tc.add_gams_code(
             module=self,
@@ -396,7 +398,7 @@ OPTION NLP=KESTREL;
 """,
         )
 
-    def demand_ces_aggregation(self: EquExtMlf):
+    def demand_ces_aggregation(self: EquExtMlf) -> None:
         """Demand CES aggregation"""
         self.tc.add_gams_code(
             module=self,
@@ -409,7 +411,7 @@ OPTION NLP=KESTREL;
 """,
         )
 
-    def demand_linear_ces_function_constraint(self: EquExtMlf):
+    def demand_linear_ces_function_constraint(self: EquExtMlf) -> None:
         """Demand linear CES function constraint"""
         self.tc.add_gams_code(
             module=self,
@@ -421,7 +423,7 @@ OPTION NLP=KESTREL;
 """,
         )
 
-    def demand_non_linear_ces_function(self: EquExtMlf):
+    def demand_non_linear_ces_function(self: EquExtMlf) -> None:
         """Demand non-linear CES function constraint"""
         self.tc.add_gams_code(
             module=self,
@@ -433,7 +435,7 @@ OPTION NLP=KESTREL;
 """,
         )
 
-    def energy_system_costs_nlp(self: EquExtMlf):
+    def energy_system_costs_nlp(self: EquExtMlf) -> None:
         """Energy System costs"""
         self.tc.add_gams_code(
             module=self,
@@ -448,7 +450,7 @@ OPTION NLP=KESTREL;
 """,
         )
 
-    def full_model_bounds(self: EquExtMlf):
+    def full_model_bounds(self: EquExtMlf) -> None:
         """Full model bounds"""
         self.tc.add_gams_code(
             module=self,
@@ -465,7 +467,7 @@ OPTION NLP=KESTREL;
 """,
         )
 
-    def exec2(self: EquExtMlf):
+    def exec2(self: EquExtMlf) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

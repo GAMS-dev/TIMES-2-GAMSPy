@@ -18,7 +18,7 @@ from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from .compile_environment import CompileEnvironment
-    from .times_model_class import TimesModelClass
+    from .times_model_class import GamsPhase, TimesModelClass
 
 logger = logging.getLogger(__name__)
 
@@ -65,15 +65,15 @@ class SetglobsGms(GamsClass):
         # $ IF NOT ERRORFREE $ABORT GAMS cannot filter domain violations
         # $ IF %G2X6%==YES $BATINCLUDE gdxfilter MAIN
 
-        self.label_sysd(tc=self.tc)
+        self.label_sysd()
 
-    def label_sysd(self, tc):
+    def label_sysd(self) -> None:
         """SYSTEM (Internal) Declarations"""
-        phase = "init"
+        phase: GamsPhase = "init"
         # *----------------------------------------------------------------------------------------------
         # * SET SECTION
         # *----------------------------------------------------------------------------------------------
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=r"""
@@ -195,12 +195,12 @@ $onMulti
 """,
         )
 
-        pastyear = tc.container["PASTYEAR"]
-        Alias(container=tc.container, name="PYR", alias_with=pastyear)
-        modlyear = tc.container["MODLYEAR"]
-        Alias(container=tc.container, name="V", alias_with=modlyear)
+        pastyear = self.tc.container["PASTYEAR"]
+        Alias(container=self.tc.container, name="PYR", alias_with=pastyear)
+        modlyear = self.tc.container["MODLYEAR"]
+        Alias(container=self.tc.container, name="V", alias_with=modlyear)
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase="init",
             code=r"""
@@ -228,7 +228,7 @@ $onMulti
   PARAMETER NO_RT(ALL_R,T) //;
 """,
         )
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=r"""
@@ -276,9 +276,9 @@ $onMulti
         )
 
         if self.env.obmac == "YES":
-            self.label_restobj(tc=tc)
+            self.label_restobj()
         else:
-            tc.add_gams_code(
+            self.tc.add_gams_code(
                 module=self,
                 phase=phase,
                 code=r"""
@@ -297,9 +297,9 @@ $onMulti
 """,
             )
 
-    def label_restobj(self, tc):
-        phase = "init"
-        tc.add_gams_code(
+    def label_restobj(self) -> None:
+        phase: GamsPhase = "init"
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=r"""
@@ -403,7 +403,7 @@ $onMulti
             self.env.set_global("pl", "P.TL:MAX(12,CARD(P.TL))")
             self.env.set_global("cl", "C.TL:MAX(12,CARD(C.TL)")
 
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=r"""
@@ -430,9 +430,9 @@ $onMulti
         self.env.set_global("timesed", "0")
         control_abort_msg = "Abort Internal Control variable being set by user, aborted"
         self.env.set_scoped("ControlAbort", control_abort_msg)
-        self.label_reset(tc=tc, msg=control_abort_msg)
+        self.label_reset(msg=control_abort_msg)
 
-    def label_reset(self, tc, msg):
+    def label_reset(self, msg: str) -> None:
         if self.x2 != "":
             return
 
@@ -506,6 +506,6 @@ $onMulti
         # --- Recursive Reset Logic ---
         if self.x1 != "":
             self.x1 = ""
-            self.label_reset(tc=tc, msg=msg)
+            self.label_reset(msg=msg)
 
         self.env.set_global("varmac", "0==1")

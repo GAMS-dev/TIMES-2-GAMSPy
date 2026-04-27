@@ -52,7 +52,7 @@ class EqobjcstTm(GamsClass):
         self.fixed_cost_equation()
         self.variable_cost_equation()
 
-    def investment_equation(self):
+    def investment_equation(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -74,7 +74,7 @@ class EqobjcstTm(GamsClass):
 """,
         )
 
-    def fixed_cost_equation(self):
+    def fixed_cost_equation(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -98,7 +98,7 @@ class EqobjcstTm(GamsClass):
 """,
         )
 
-    def variable_cost_equation(self: EqobjcstTm):
+    def variable_cost_equation(self: EqobjcstTm) -> None:
         equation = rf"""
 *===============================================================================
 * Generate Variable cost equation summing over all active indexes by region and currency

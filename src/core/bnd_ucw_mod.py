@@ -44,7 +44,7 @@ class BndUcwMod(GamsClass):
         self.tc = tc
         self.arg1 = arg1
         self.arg2 = arg2
-        self._sub_modules = {}
+        self._sub_modules: dict[str, GamsClass] = {}
         self.compile()
 
     def compile(self) -> None:
@@ -56,40 +56,40 @@ class BndUcwMod(GamsClass):
 
         var = self.env.var
         # fmt: off
-        batincludes = [
-            (f"{var}_UC",    "",  "", "",     "UC_RHS",    "$UC_ON(R,UC_N)", "LOOP(R, );", '', self.arg2, ",'','',''"),
-            (f"{var}_UCR",   ",", "R", "",    "UC_RHSR",   "$UC_ON(R,UC_N)", '', '', '', self.arg2, ",'',''", "$UC_R_EACH(R,UC_N)"),
-            (f"{var}_UCT",   "", "", ",TT",   "UC_RHST",   f"$(UC_ON(R,UC_N)*UC_T_EACH(R,UC_N,TT){self.arg1})", "LOOP(R, );", '', self.arg2, ",'',''", '', ),
+        bnducvs: list[tuple[str, str, str, str, str, str, str, str, str, str, str, str, str]] = [
+            (f"{var}_UC",    "",  "", "",     "UC_RHS",    "$UC_ON(R,UC_N)", "LOOP(R,", ");", '', self.arg2, ",'','',''", "", ""),
+            (f"{var}_UCR",   ",", "R", "",    "UC_RHSR",   "$UC_ON(R,UC_N)", '', '', '', self.arg2, ",'',''", "$UC_R_EACH(R,UC_N)", ""),
+            (f"{var}_UCT",   "", "", ",TT",   "UC_RHST",   f"$(UC_ON(R,UC_N)*UC_T_EACH(R,UC_N,TT){self.arg1})", "LOOP(R,", ");", '', self.arg2, ",'',''", '', ""),
             (f"{var}_UCRT",  ",", "R", ",TT", "UC_RHSRT",  f"$(UC_ON(R,UC_N)*UC_T_EACH(R,UC_N,TT){self.arg1})", '', '', '', self.arg2, ",''", "$UC_T_EACH(R,UC_N,TT)", self.env.tmp),
-            (f"{var}_UCTS",  "", "", ",TT",   "UC_RHSTS",  f"$(UC_ON(R,UC_N)*UC_T_EACH(R,UC_N,TT){self.arg1})", "LOOP(R, );", ",S", self.arg2, ",''", '',  self.env.tmp),
+            (f"{var}_UCTS",  "", "", ",TT",   "UC_RHSTS",  f"$(UC_ON(R,UC_N)*UC_T_EACH(R,UC_N,TT){self.arg1})", "LOOP(R,", ");", ",S", self.arg2, ",''", '',  self.env.tmp),
             (f"{var}_UCRTS", ",", "R", ",TT", "UC_RHSRTS", f"$(UC_ON(R,UC_N)*UC_T_EACH(R,UC_N,TT){self.arg1})", '', '', ",S", self.arg2, "", "$UC_T_EACH(R,UC_N,TT)", self.env.tmp),
         ]
         # fmt: on
 
-        for arg in batincludes:
+        for a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13 in bnducvs:
             self.include(
                 BndUcvMod(
                     tc=self.tc,
                     env=self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
-                    arg5=arg[4],
-                    arg6=arg[5],
-                    arg7=arg[6],
-                    arg8=arg[7],
-                    arg9=arg[8],
-                    arg10=arg[9],
-                    arg11=arg[10] if len(arg) > 10 else "",
-                    arg12=arg[11] if len(arg) > 11 else "",
-                    arg13=arg[12] if len(arg) > 12 else "",
+                    arg1=a1,
+                    arg2=a2,
+                    arg3=a3,
+                    arg4=a4,
+                    arg5=a5,
+                    arg6=a6,
+                    arg7=a7,
+                    arg8=a8,
+                    arg9=a9,
+                    arg10=a10,
+                    arg11=a11,
+                    arg12=a12,
+                    arg13=a13,
                 )
             )
 
         self.tc.enqueue(self.exec2, stages=self.env.stages)
 
-    def exec1(self: BndUcwMod):
+    def exec1(self: BndUcwMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -99,7 +99,7 @@ class BndUcwMod(GamsClass):
 """,
         )
 
-    def exec2(self: BndUcwMod, stages: str):
+    def exec2(self: BndUcwMod, stages: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

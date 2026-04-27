@@ -49,7 +49,7 @@ SET AGEJ(J,AGE) / 1.1 /;
         self.tc.enqueue(self.shaping_of_coef_ptrans)
         self.tc.enqueue(self.shaping_of_coef_cpt)
 
-    def shaping_of_coef_ptrans(self):
+    def shaping_of_coef_ptrans(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -92,7 +92,7 @@ SET AGEJ(J,AGE) / 1.1 /;
 """,
         )
 
-    def shaping_of_coef_cpt(self):
+    def shaping_of_coef_cpt(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

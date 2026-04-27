@@ -62,7 +62,7 @@ PARAMETER COEF_OBJINV(R,YEAR,PRC)    //;
 
         self.tc.enqueue(self.exec2, capjd=self.env.capjd)
 
-    def exec1(self, etl: str):
+    def exec1(self, etl: str) -> None:
         lhs = "PAR_OBJSAL(RTP(R,V,P),CUR)$RDCUR(R,CUR) ="
         rhs = """
 *------------------------------------------------------------------------------
@@ -112,7 +112,7 @@ PARAMETER COEF_OBJINV(R,YEAR,PRC)    //;
 
         self.tc.add_gams_code(module=self, phase="run", code=lhs + rhs)
 
-    def exec2(self, capjd: str):
+    def exec2(self, capjd: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

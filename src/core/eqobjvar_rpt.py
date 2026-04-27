@@ -100,7 +100,7 @@ class EqobjvarRpt(GamsClass):
         varv: str,
         sws: str,
         varm: str,
-    ):
+    ) -> None:
         include_cal_caps_1 = cal_caps_mod(
             is_vnret_defined=is_vnret_defined,
             arg1="T",
@@ -221,12 +221,8 @@ class EqobjvarRpt(GamsClass):
         )
 
     def execute_legacy_behavior(
-        self: EqobjvarRpt,
-        is_vnret_defined: bool,
-        varv: str,
-        sws: str,
-        varm: str,
-    ):
+        self: EqobjvarRpt, is_vnret_defined: bool, varv: str, sws: str, varm: str
+    ) -> None:
         include_cal_caps = cal_caps_mod(
             is_vnret_defined=is_vnret_defined,
             arg1="T",

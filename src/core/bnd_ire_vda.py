@@ -84,7 +84,7 @@ class BndIreVda(GamsClass):
 
         self.tc.enqueue(self.exec3, var=self.env.var, swd=self.env.swd)
 
-    def exec1(self: BndIreVda):
+    def exec1(self: BndIreVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -96,7 +96,7 @@ class BndIreVda(GamsClass):
 """,
         )
 
-    def exec2(self: BndIreVda, var: str, swd: str):
+    def exec2(self: BndIreVda, var: str, swd: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -116,7 +116,7 @@ class BndIreVda(GamsClass):
 """,
         )
 
-    def exec3(self: BndIreVda, var: str, swd: str):
+    def exec3(self: BndIreVda, var: str, swd: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

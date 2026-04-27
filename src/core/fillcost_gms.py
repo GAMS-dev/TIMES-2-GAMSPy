@@ -121,7 +121,7 @@ PARAMETER {self.arg10}({self.arg2},{self.arg3},ALLYEAR);
         data: str,
         condition1: bool,
         condition2: bool,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

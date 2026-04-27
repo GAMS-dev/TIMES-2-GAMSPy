@@ -46,7 +46,7 @@ class CoefPtrMod(GamsClass):
 
         self.tc.enqueue(self.exec1)
 
-    def build_test_set(self: CoefPtrMod):
+    def build_test_set(self: CoefPtrMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -57,7 +57,7 @@ class CoefPtrMod(GamsClass):
 """,
         )
 
-    def exec1(self: CoefPtrMod):
+    def exec1(self: CoefPtrMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

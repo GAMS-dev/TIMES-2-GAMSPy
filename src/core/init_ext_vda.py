@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from core import equcrtp_vda
@@ -204,7 +205,7 @@ $LOAD RPC_IREIN=RPC_IREIO PREMILE=MILESTONYR PAR_IRE
     def label_ifprice(self: InitExtVda) -> None:
         if not self.env.is_set("gdx_ipric"):
             return
-        if not os.exists(f"{self.env.gdxpath}{self.env.gdx_ipric}.gdx"):
+        if not Path(f"{self.env.gdxpath}{self.env.gdx_ipric}.gdx").exists():
             return
         self.label_load2()
 

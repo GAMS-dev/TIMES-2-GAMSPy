@@ -8,7 +8,7 @@ from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from .compile_environment import CompileEnvironment
-    from .times_model_class import TimesModelClass
+    from .times_model_class import GamsPhase, TimesModelClass
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class Demo12DD(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        phase = "init"
+        phase: GamsPhase = "init"
         print(self.module_name, phase)
         self.tc.logger.info("Reading data...")
 
@@ -47,7 +47,7 @@ class Demo12DD(GamsClass):
         self.bounds_uc_wsets_dd(phase)
         self.tc.logger.info("Data loading complete.")
 
-    def base_dd(self: Demo12DD, phase: str):
+    def base_dd(self: Demo12DD, phase: GamsPhase) -> None:
         """model/base.dd"""
         self.tc.add_gams_code(
             module=self,
@@ -4252,7 +4252,7 @@ REG2.2005.TRAGSL.TRACO2 73
 """,
         )
 
-    def newtechs_dd(self: Demo12DD, phase: str):
+    def newtechs_dd(self: Demo12DD, phase: GamsPhase) -> None:
         """model/newtechs.dd"""
         self.tc.add_gams_code(
             module=self,
@@ -5661,7 +5661,7 @@ REG2.TPUNLPG1 0.001
 """,
         )
 
-    def trade_param_dd(self: Demo12DD, phase: str):
+    def trade_param_dd(self: Demo12DD, phase: GamsPhase) -> None:
         """model/trade_param.dd"""
         self.tc.add_gams_code(
             module=self,
@@ -5690,7 +5690,7 @@ REG2.2005.TU_GAS_REG2_REG1_01.MEURO05 10
 """,
         )
 
-    def dem_ref_dd(self: Demo12DD, phase: str):
+    def dem_ref_dd(self: Demo12DD, phase: GamsPhase) -> None:
         """model/dem_ref.dd"""
         self.tc.add_gams_code(
             module=self,
@@ -6482,7 +6482,7 @@ REG2.2050.DTPUB 2908.64824332379
 """,
         )
 
-    def syssettings_dd(self: Demo12DD, phase: str):
+    def syssettings_dd(self: Demo12DD, phase: GamsPhase) -> None:
         """model/syssettings.dd"""
         self.tc.add_gams_code(
             module=self,
@@ -6689,7 +6689,7 @@ REG2.WN 0.271118721461187
 """,
         )
 
-    def peak_rsv_dd(self: Demo12DD, phase: str):
+    def peak_rsv_dd(self: Demo12DD, phase: GamsPhase) -> None:
         """model/peak_rsv.dd"""
         self.tc.add_gams_code(
             module=self,
@@ -6724,7 +6724,7 @@ REG1.2020.ELC 0.2
 """,
         )
 
-    def refinery_dd(self: Demo12DD, phase: str):
+    def refinery_dd(self: Demo12DD, phase: GamsPhase) -> None:
         """model/refinery.dd"""
         self.tc.add_gams_code(
             module=self,
@@ -6772,7 +6772,7 @@ REG2.2020.REFEOIL00.OPP.REFEOIL00_NRGO.ANNUAL.UP 0.5
 """,
         )
 
-    def demproj_dtcar_dd(self: Demo12DD, phase: str):
+    def demproj_dtcar_dd(self: Demo12DD, phase: GamsPhase) -> None:
         """model/demproj_dtcar.dd"""
         self.tc.add_gams_code(
             module=self,
@@ -6807,7 +6807,7 @@ REG2.2020.DTCAR 4830.62902259472
 """,
         )
 
-    def uc_nuc_maxcap_dd(self: Demo12DD, phase: str):
+    def uc_nuc_maxcap_dd(self: Demo12DD, phase: GamsPhase) -> None:
         """model/uc_nuc_maxcap_dd.dd"""
         self.tc.add_gams_code(
             module=self,
@@ -6864,7 +6864,7 @@ REG2.AU_NUC_MaxCAP.2050.UP 94.962899543379
 """,
         )
 
-    def bounds_uc_wsets_dd(self: Demo12DD, phase: str):
+    def bounds_uc_wsets_dd(self: Demo12DD, phase: GamsPhase) -> None:
         """model/bounds-uc_wsets.dd"""
         self.tc.add_gams_code(
             module=self,

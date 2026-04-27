@@ -176,7 +176,7 @@ class InitmtyCli(GamsClass):
 """,
         )
 
-    def exec1(self: InitmtyCli):
+    def exec1(self: InitmtyCli) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

@@ -47,7 +47,7 @@ from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from .compile_environment import CompileEnvironment
-    from .times_model_class import TimesModelClass
+    from .times_model_class import GamsPhase, TimesModelClass
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ class PpmainMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        phase = "init"
+        phase: GamsPhase = "init"
         m = self.tc.container
         self.tc.add_gams_code(
             module=self,
@@ -644,7 +644,9 @@ PARAMETER BLE_BAL(R,YEAR,C,C) //;
 
         self.tc.enqueue(self.phase_twenty_six)
 
-    def control_set_for_balance_production_equations(self: PpmainMod, validate: str):
+    def control_set_for_balance_production_equations(
+        self: PpmainMod, validate: str
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -659,7 +661,7 @@ PARAMETER BLE_BAL(R,YEAR,C,C) //;
 """,
         )
 
-    def convert_equilibrium_losses_to_standard_losses(self: PpmainMod):
+    def convert_equilibrium_losses_to_standard_losses(self: PpmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -671,7 +673,7 @@ PARAMETER BLE_BAL(R,YEAR,C,C) //;
 """,
         )
 
-    def deactivate_rpc_noflo(self: PpmainMod):
+    def deactivate_rpc_noflo(self: PpmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -684,14 +686,14 @@ PUTGRP = 0;
 """,
         )
 
-    def activate_rtc_net(self: PpmainMod):
+    def activate_rtc_net(self: PpmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code="RTC_NET(RTC(R,T,C))$(NOT COM_TSL(R,C,'ANNUAL')) = YES;",
         )
 
-    def adjust_shape(self: PpmainMod):
+    def adjust_shape(self: PpmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -701,12 +703,12 @@ PUTGRP = 0;
 """,
         )
 
-    def activate_rtp_cptyr(self: PpmainMod):
+    def activate_rtp_cptyr(self: PpmainMod) -> None:
         self.tc.add_gams_code(
             module=self, phase="run", code=r"RTP_CPTYR(R,T,T,P)$RTP(R,T,P) = YES;"
         )
 
-    def phase_one(self: PpmainMod, pgprim: str):
+    def phase_one(self: PpmainMod, pgprim: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -795,7 +797,7 @@ PUTGRP = 0;
 """,
         )
 
-    def phase_two(self: PpmainMod):
+    def phase_two(self: PpmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -814,7 +816,7 @@ PUTGRP = 0;
 """,
         )
 
-    def phase_two_two(self: PpmainMod):
+    def phase_two_two(self: PpmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -832,13 +834,13 @@ PUTGRP = 0;
 """,
         )
 
-    def set_mt_zero(self: PpmainMod):
+    def set_mt_zero(self: PpmainMod) -> None:
         self.tc.add_gams_code(module=self, phase="run", code="M(T) = 0;")
 
-    def g_offthd_to_zero(self: PpmainMod):
+    def g_offthd_to_zero(self: PpmainMod) -> None:
         self.tc.add_gams_code(module=self, phase="run", code="G_OFFTHD('0') = 0;")
 
-    def phase_three(self: PpmainMod, condition: bool):
+    def phase_three(self: PpmainMod, condition: bool) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -866,7 +868,7 @@ PUTGRP = 0;
 """,
         )
 
-    def phase_four(self: PpmainMod):
+    def phase_four(self: PpmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -893,7 +895,7 @@ PUTGRP = 0;
 """,
         )
 
-    def phase_five(self: PpmainMod, botime: str):
+    def phase_five(self: PpmainMod, botime: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -929,7 +931,7 @@ PUTGRP = 0;
 """,
         )
 
-    def check_ncap_pasti(self: PpmainMod, rl: str):
+    def check_ncap_pasti(self: PpmainMod, rl: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -943,7 +945,7 @@ PUTGRP = 0;
         """,
         )
 
-    def set_rtp_off(self: PpmainMod):
+    def set_rtp_off(self: PpmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -961,7 +963,7 @@ PUTGRP = 0;
         """,
         )
 
-    def phase_six(self: PpmainMod, rl: str, pl: str, ctst: str):
+    def phase_six(self: PpmainMod, rl: str, pl: str, ctst: str) -> None:
         code = rf"""
 RT_PP(R,T) = YES;
 
@@ -1242,7 +1244,7 @@ NCAP_TLIFE(RXX(R,V,P)) = 1);
 """,
         )
 
-    def phase_seven(self: PpmainMod, ctst: str):
+    def phase_seven(self: PpmainMod, ctst: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -1284,7 +1286,7 @@ NCAP_TLIFE(RXX(R,V,P)) = 1);
 
     def phase_eight(
         self: PpmainMod, rl: str, pl: str, cl: str, pgprim: str, prc_simv_defined: bool
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -1416,7 +1418,7 @@ OPTION CLEAR=TRACKP;
 """,
         )
 
-    def phase_nine(self: PpmainMod):
+    def phase_nine(self: PpmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -1428,7 +1430,7 @@ OPTION CLEAR=TRACKP;
 """,
         )
 
-    def establish_basic_defaults_for_non_ts_attribute(self: PpmainMod):
+    def establish_basic_defaults_for_non_ts_attribute(self: PpmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -1457,7 +1459,7 @@ OPTION CLEAR=TRACKP;
 """,
         )
 
-    def phase_eleven(self: PpmainMod):
+    def phase_eleven(self: PpmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -1489,7 +1491,7 @@ OPTION CLEAR=TRACKP;
 """,
         )
 
-    def phase_twelve(self: PpmainMod, rl: str, cl: str):
+    def phase_twelve(self: PpmainMod, rl: str, cl: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -1535,7 +1537,7 @@ IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
 """,
         )
 
-    def phase_thirteen(self: PpmainMod, mx: str):
+    def phase_thirteen(self: PpmainMod, mx: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -1552,7 +1554,7 @@ IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
 """,
         )
 
-    def phase_fourteen(self: PpmainMod):
+    def phase_fourteen(self: PpmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -1577,7 +1579,7 @@ IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
 """,
         )
 
-    def phase_fiveteen(self: PpmainMod):
+    def phase_fiveteen(self: PpmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -1603,7 +1605,7 @@ IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
 """,
         )
 
-    def phase_sixteen(self: PpmainMod):
+    def phase_sixteen(self: PpmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -1617,7 +1619,7 @@ IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
 """,
         )
 
-    def phase_seventeen(self: PpmainMod):
+    def phase_seventeen(self: PpmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -1631,7 +1633,9 @@ IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
 """,
         )
 
-    def phase_eightteen(self: PpmainMod, macro: str, micro: str, rl: str, pgprim: str):
+    def phase_eightteen(
+        self: PpmainMod, macro: str, micro: str, rl: str, pgprim: str
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -1799,7 +1803,7 @@ LOOP(RPC_MARKET(R,P,C,IE)$(NOT SUM(TOP_IRE(R,C,R,COM,P),1)),
 """,
         )
 
-    def phase_nineteen(self: PpmainMod, pgprim: str):
+    def phase_nineteen(self: PpmainMod, pgprim: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -1848,7 +1852,7 @@ LOOP(RPC_MARKET(R,P,C,IE)$(NOT SUM(TOP_IRE(R,C,R,COM,P),1)),
 
     def phase_twenty(
         self: PpmainMod, dam_elast_defined: bool, obj_eq_lin: bool, pgprim: str
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -1913,7 +1917,7 @@ LOOP(RPC_MARKET(R,P,C,IE)$(NOT SUM(TOP_IRE(R,C,R,COM,P),1)),
   """,
         )
 
-    def phase_twentyone(self: PpmainMod):
+    def phase_twentyone(self: PpmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -1994,7 +1998,7 @@ LOOP(RPC_MARKET(R,P,C,IE)$(NOT SUM(TOP_IRE(R,C,R,COM,P),1)),
 """,
         )
 
-    def phase_twentytwo(self: PpmainMod):
+    def phase_twentytwo(self: PpmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -2029,7 +2033,7 @@ LOOP(RPC_MARKET(R,P,C,IE)$(NOT SUM(TOP_IRE(R,C,R,COM,P),1)),
 """,
         )
 
-    def phase_twentythree(self: PpmainMod):
+    def phase_twentythree(self: PpmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -2089,7 +2093,7 @@ PEAKDA_BL(R,BLE,T)$((NOT PEAKDA_BL(R,BLE,T))$SUM(COM_PEAK(R,C)$BLE_INP(R,BLE,C),
 """,
         )
 
-    def phase_twentyfour(self: PpmainMod):
+    def phase_twentyfour(self: PpmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -2136,7 +2140,7 @@ RU_FEQ(R,OPR,T)$(NOT RU_FEQ(R,OPR,T)) = 1;
 """,
         )
 
-    def phase_twentyfive(self: PpmainMod):
+    def phase_twentyfive(self: PpmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -2153,7 +2157,7 @@ RU_FEQ(R,OPR,T)$(NOT RU_FEQ(R,OPR,T)) = 1;
 """,
         )
 
-    def phase_twenty_six(self: PpmainMod):
+    def phase_twenty_six(self: PpmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

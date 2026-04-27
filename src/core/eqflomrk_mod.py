@@ -75,7 +75,7 @@ class EqflomrkMod(GamsClass):
                 sigi=self.env.sigi,
             )
 
-    def comp1(self: EqflomrkMod):
+    def comp1(self: EqflomrkMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -100,7 +100,7 @@ SET RMKC(REG,ITEM,COM) //;
         ired: str,
         sigo: str,
         sigi: str,
-    ):
+    ) -> None:
         if self.env.cal_red == "cal_red.red":
             from core.cal_red_red import cal_red_red as cal_red_func
         else:
@@ -168,7 +168,7 @@ SET RMKC(REG,ITEM,COM) //;
 """,
         )
 
-    def exec1(self: EqflomrkMod):
+    def exec1(self: EqflomrkMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

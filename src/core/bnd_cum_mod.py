@@ -69,7 +69,7 @@ class BndCumMod(GamsClass):
         sow: str,
         cufscal: str,
         cucscal: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -107,7 +107,7 @@ class BndCumMod(GamsClass):
 """,
         )
 
-    def step_two(self: BndCumMod, var: str, sow: str):
+    def step_two(self: BndCumMod, var: str, sow: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

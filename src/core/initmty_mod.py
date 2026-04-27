@@ -42,7 +42,7 @@ from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from .compile_environment import CompileEnvironment
-    from .times_model_class import TimesModelClass
+    from .times_model_class import GamsPhase, TimesModelClass
 
 logger = logging.getLogger(__name__)
 
@@ -77,20 +77,19 @@ class InitmtyMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        phase = "init"
         self.version_control()
 
         # Easy access gamspy.Container
         m = self.tc.container
 
-        def set_section():
+        def set_section() -> None:
             """
             SET SECTION
             Note: the *-out user SETs are declared in INITSYS.MOD
             """
             self.tc.add_gams_code(
                 module=self,
-                phase=phase,
+                phase="init",
                 code=r"""
 * commodities
 *  SET COM_GRP                       'All CGs and each individal commodity';
@@ -179,7 +178,7 @@ class InitmtyMod(GamsClass):
 
             self.tc.add_gams_code(
                 module=self,
-                phase=phase,
+                phase="init",
                 code=r"""
   SET DATAYEAR(ALLYEAR)               'Years for which user data is provided' //;
   SET PASTYEAR(ALLYEAR)               'Years before 1st MILESTONYR for which PASTI needs to be handled' //;
@@ -192,7 +191,7 @@ class InitmtyMod(GamsClass):
 
             self.tc.add_gams_code(
                 module=self,
-                phase=phase,
+                phase="init",
                 code=r"""
 * topology
   SET TOP(REG,PRC,COM,IO)                  'Topology for all process'        //;
@@ -228,7 +227,7 @@ class InitmtyMod(GamsClass):
 
             self.tc.add_gams_code(
                 module=self,
-                phase=phase,
+                phase="init",
                 code=r"""
 * miscellaneous
 *  SET SOW                       'Stochastic State-of-the-World'         //;
@@ -247,7 +246,7 @@ class InitmtyMod(GamsClass):
             self.env.set_if_not_exists("pgprim", "ACT", scope="global")
             self.tc.add_gams_code(
                 module=self,
-                phase=phase,
+                phase="init",
                 code=rf"""
 $onMulti
     SET COM_GRP   / {self.env.pgprim}, CAPFLO /;
@@ -256,11 +255,11 @@ $onMulti
     """,
             )
 
-        def parameters_section():
+        def parameters_section() -> None:
             """Parameters section"""
             self.tc.add_gams_code(
                 module=self,
-                phase=phase,
+                phase="init",
                 code="""
 * time
   PARAMETER B(ALLYEAR)      'Beginning year of each model period' //;
@@ -457,11 +456,11 @@ $onMulti
 """,
             )
 
-        def extensions_and_system_scalars():
+        def extensions_and_system_scalars() -> None:
             """Extensions & System scalars"""
             self.tc.add_gams_code(
                 module=self,
-                phase=phase,
+                phase="init",
                 code="""
 * Damage input parameters
   PARAMETER DAM_COST(REG,ALLYEAR,COM,CUR) 'Marginal damage cost of emissions';
@@ -498,7 +497,7 @@ $onMulti
 
             self.tc.add_gams_code(
                 module=self,
-                phase=phase,
+                phase="init",
                 code=rf"""
 SET LASTLL(LL) /{self.env.dflbl}/;
 """,
@@ -507,7 +506,7 @@ SET LASTLL(LL) /{self.env.dflbl}/;
 
             self.tc.add_gams_code(
                 module=self,
-                phase=phase,
+                phase="init",
                 code=r"""
 * Interpolation defaults
 SET INT_DEFAULT(*) //, UNCD1(*);
@@ -516,11 +515,11 @@ PARAMETER IE_DEFAULT(*) //;
     """,
             )
 
-        def initializations_for_blending():
+        def initializations_for_blending() -> None:
             """*GG* V07_2 Initializations for BLENDing"""
             self.tc.add_gams_code(
                 module=self,
-                phase=phase,
+                phase="init",
                 code="""
 * user provided Sets & Scalars
      SET BLE(COM)         //;
@@ -558,7 +557,7 @@ PARAMETER IE_DEFAULT(*) //;
 """,
             )
 
-        def control_section():
+        def control_section() -> None:
             """CONTROL section"""
             self.env.set_global("gdxpath", "")
             # TODO: $ IFI EXIST gamssave\nul $SETGLOBAL GDXPATH 'gamssave/'
@@ -613,7 +612,7 @@ PARAMETER IE_DEFAULT(*) //;
             # * Stepped extensions etc.
             # SET ITEM / "%FIXBOH%", "%TIMESTEP%", "%SPOINT%" /;
             # Remember: ITEM is a UniverseSet
-            itemadd_records = set([self.env.fixboh, self.env.timestep, self.env.spoint])
+            itemadd_records = [self.env.fixboh, self.env.timestep, self.env.spoint]
             self.add_records_to_universe_item(records=itemadd_records)
 
             self.env.set_global("rpoint", "NO")
@@ -641,7 +640,7 @@ PARAMETER IE_DEFAULT(*) //;
                 self.env.set_global("var_uc", "YES")
             # TODO: $IF %SYSTEM.LICENSELEVEL%==2 $SETGLOBAL VAR_UC YES
 
-        def other_extensions():
+        def other_extensions() -> None:
             """Other extensions to TIMES code"""
             # Auto-activation of discrete capacity extensions
             # $IF %DSCAUTO%==YES $SETGLOBAL DSC YES
@@ -653,7 +652,7 @@ PARAMETER IE_DEFAULT(*) //;
                 self.env.set_global("dscauto", "Yes")
             # $IFI %DSC%==YES    $KILL RCAP_BLK
             if self.env.dsc == "YES":
-                self.tc.add_gams_code(module=self, phase=phase, code="$KILL RCAP_BLK")
+                self.tc.add_gams_code(module=self, phase="init", code="$KILL RCAP_BLK")
 
             # Initialize list of standard extensions to be loaded
             # $SET VDA 'YES' SETGLOBAL EXTEND
@@ -758,7 +757,7 @@ PARAMETER IE_DEFAULT(*) //;
                 )
             )
 
-        def call_macro_initmty_tm():
+        def call_macro_initmty_tm() -> None:
             if self.tc.test_run:
                 self.tc.save_test_state(
                     env=self.env, checkpoint="initmty_mod_prior_initmty_tm"
@@ -783,7 +782,7 @@ PARAMETER IE_DEFAULT(*) //;
             if not self.env.is_set("run_name"):
                 source_file = Path(__file__)
                 self.env.set_scoped("run_name", source_file.stem)
-            self.env.set_scoped("tmp", 0)
+            self.env.set_scoped("tmp", "0")
 
             # $ IF EXIST %RUN_NAME%~data.gdx $SET TMP %RUN_NAME%~data
             # GAMS: %RUN_NAME%~data.gdx
@@ -800,12 +799,12 @@ PARAMETER IE_DEFAULT(*) //;
                     if Path("_dd_.gdx").exists():
                         self.env.set_scoped("tmp", "_dd_")
 
-            if self.env.tmp == 0:
+            if self.env.tmp == "0":
                 return
 
             self.tc.add_gams_code(
                 module=self,
-                phase=phase,
+                phase="init",
                 code=rf"""
 $ hiddencall gdxdump {self.env.tmp}.gdx NODATA > _dd_.dmp
 $ hiddencall sed "/^\(Alias\|[^($]*(\*) Alias\|[^$].*empty *$\)/{{N;d;}}; /^\([^$].*$\|$\)/d; s/\$LOAD.. /\$LOAD /I" _dd_.dmp > _dd_.dd
@@ -817,8 +816,8 @@ $ GDXIN
             )
 
             if self.env.var == "*":
-                self.include(MainDrvMod(self.tc, self.env, extensions="mod"))
-                self.tc.add_gams_code(module=self, phase=phase, code="$stop")
+                self.include(MainDrvMod(self.tc, self.env, arg1="mod"))
+                self.tc.add_gams_code(module=self, phase="init", code="$stop")
 
         set_section()
         parameters_section()
@@ -828,28 +827,28 @@ $ GDXIN
         other_extensions()
         call_macro_initmty_tm()
 
-    def version_control(self):
+    def version_control(self) -> None:
         # $IF NOT FUNTYPE gamsversion $ABORT TIMES Version 4.8 and above Requires GAMS 23.0 or above!
         self.env.set_global("g2x6", "YES")
         self.env.set_global("obmac", "YES")
 
-    def assign_yearval(self, dflbl):
-        phase = "run"
+    def assign_yearval(self, dflbl: str) -> None:
+        phase: GamsPhase = "run"
         self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=f"YEARVAL('{dflbl}') = 0;",
         )
 
-    def assign_z(self):
-        phase = "run"
+    def assign_z(self) -> None:
+        phase: GamsPhase = "run"
         self.tc.add_gams_code(
             module=self,
             phase=phase,
             code="Z=SUM(LASTLL(LL),ORD(LL)); ABORT$(Z NE CARD(LL)) 'FATAL';",
         )
 
-    def assign_alternative_objective(self, objective):
+    def assign_alternative_objective(self, objective: str) -> None:
         # Alternative objective controls
         alt_obj = self.tc.container["ALTOBJ"]
         if objective == "STD":
@@ -859,46 +858,44 @@ $ GDXIN
         elif objective == "LIN":
             alt_obj[...] = 3
 
-    def check_macro(self):
-        phase = "run"
+    def check_macro(self) -> None:
+        phase: GamsPhase = "run"
         self.tc.add_gams_code(
             module=self,
             phase=phase,
             code="IF(ALTOBJ>1,ABORT 'MACRO Cannot be used with Alternative Objective');",
         )
 
-    def validate(self):
-        phase = "run"
+    def validate(self) -> None:
+        phase: GamsPhase = "run"
         self.tc.add_gams_code(
             module=self,
             phase=phase,
             code="IF(ALTOBJ>1,ABORT 'VALIDATE Cancels Alternative Objective'); ALTOBJ=0;",
         )
 
-    def assign_alternative_objective_long(
-        self,
-    ):
+    def assign_alternative_objective_long(self) -> None:
         alt_obj = self.tc.container["ALTOBJ"]
         alt_obj[...] = -2
 
-    def catch_invalid_spoint_control(self, spoint):
-        phase = "run"
+    def catch_invalid_spoint_control(self, spoint: str) -> None:
+        phase: GamsPhase = "run"
         self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=f"IF((NOT J('{spoint}'))$(NOT SAMEAS('{spoint}','YES')), ABORT 'Invalid Control: SPOINT');",
         )
 
-    def catch_invalid_timestep_control(self, timestep):
-        phase = "run"
+    def catch_invalid_timestep_control(self, timestep: str) -> None:
+        phase: GamsPhase = "run"
         self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=f"IIF(NOT AGE('{timestep}'), ABORT 'Invalid Control: TIMESTEP');",
         )
 
-    def catch_invalid_fixboh_control(self, fixboh):
-        phase = "run"
+    def catch_invalid_fixboh_control(self, fixboh: str) -> None:
+        phase: GamsPhase = "run"
         self.tc.add_gams_code(
             module=self,
             phase=phase,

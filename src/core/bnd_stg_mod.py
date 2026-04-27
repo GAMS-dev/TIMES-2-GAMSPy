@@ -66,7 +66,7 @@ class BndStgMod(GamsClass):
 
     def reset_any_existing_bounds(
         self: BndStgMod, arg1: str, arg3: str, var: str, swd: str, pgprim: str
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -75,13 +75,13 @@ class BndStgMod(GamsClass):
 
   {var}_{arg1}.LO(R,V,T,P,C,S{swd})$PRC_MAP(R,'STG',P) = 0;
   {var}_{arg1}.UP(R,V,T,P,C,S{swd})$PRC_MAP(R,'STG',P) = INF;
-  {var}_{arg1}.LO(RTP_VINTYR(R,V,T,P),{pgprim},S{swd})$((RPS_STG(R,P,S)->0)$RP_STS(R,P)) = {arg3};
+  {var}_{arg1}.LO(RTP_VINTYR(R,V,T,P),'{pgprim}',S{swd})$((RPS_STG(R,P,S)->0)$RP_STS(R,P)) = {arg3};
 """,
         )
 
     def set_bounds_at_process_activity_level(
         self: BndStgMod, arg1: str, arg2: str, var: str, swd: str, stages: str
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

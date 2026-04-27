@@ -73,12 +73,12 @@ class CoefCsvMod(GamsClass):
         self.include(EqcapvacMod(self.tc, self.env, "L", "UP", "N"))
         self.include(EqcapvacMod(self.tc, self.env, "G", "LO", "LO"))
 
-    def average_vintage_year(self):
+    def average_vintage_year(self) -> None:
         self.tc.add_gams_code(
             module=self, phase="run", code="MY_ARRAY(T) = YEARVAL(T)-LEAD(T);"
         )
 
-    def simplified_vintaging_processes(self, trivint: str):
+    def simplified_vintaging_processes(self, trivint: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -101,7 +101,7 @@ LOOP(T(LL), MY_F = YEARVAL(T); Z = MIN(B(T),YEARVAL(T)-FLOOR(LEAD(T)/2));
 """,
         )
 
-    def initialize_capacity_transfer(self):
+    def initialize_capacity_transfer(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -126,7 +126,7 @@ IF(CARD(PRC_SIMV),
 """,
         )
 
-    def calculate_capacity_transfer(self):
+    def calculate_capacity_transfer(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

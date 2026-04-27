@@ -186,7 +186,7 @@ PARAMETER {self.arg2}({self.arg3},CUR);
 
                 self.tc.enqueue(self.exec2, prf=self.env.prf)
 
-    def initialization(self: CurexGms):
+    def initialization(self: CurexGms) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -220,7 +220,7 @@ LOOP(RXX(R,CURR,CRU),CURMAP(R,CURR,CRU)=NO; CURMAP(R,CUR,CRU)$CURMAP(R,CUR,CURR)
         arg5: str,
         arg6: str,
         mx: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -231,7 +231,7 @@ LOOP(RXX(R,CURR,CRU),CURMAP(R,CURR,CRU)=NO; CURMAP(R,CUR,CRU)$CURMAP(R,CUR,CURR)
 """,
         )
 
-    def exec2(self: CurexGms, prf: str):
+    def exec2(self: CurexGms, prf: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -240,7 +240,7 @@ OPTION PRO{prf},CLEAR=RYPM,CLEAR=RYPCSM,CLEAR=RYPCSRXM,CLEAR=RYCSM;
 """,
         )
 
-    def comp1(self: CurexGms):
+    def comp1(self: CurexGms) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",

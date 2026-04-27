@@ -80,7 +80,7 @@ class EqasharVda(GamsClass):
                 )
             )
 
-    def collect_all_flo_ashar_groups(self: EqasharVda):
+    def collect_all_flo_ashar_groups(self: EqasharVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

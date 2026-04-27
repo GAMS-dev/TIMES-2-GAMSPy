@@ -62,7 +62,8 @@ class PrepretDsc(GamsClass):
         elif arg_upper == "EQOBJ":
             self.comp_eqobj()
         elif arg_upper == "OBJFIX":
-            return objfix(capwd=self.env.capwd, vart=self.env.vart, sws=self.env.sws)
+            raise NotImplementedError("Need to call as function")
+            # return objfix(capwd=self.env.capwd, vart=self.env.vart, sws=self.env.sws)
         elif arg_upper == "OBSALV":
             objsalv(
                 var=self.env.var, varv=self.env.varv, sws=self.env.sws, sow=self.env.sow
@@ -73,7 +74,7 @@ class PrepretDsc(GamsClass):
                 f"Unknown argument '{self.arg1}'. Expected one of: {allowed}"
             )
 
-    def comp_prep(self: PrepretDsc):
+    def comp_prep(self: PrepretDsc) -> None:
         self.env.set_scoped("tst", self.arg2)
         if self.tc.defined("PRC_REFIT"):
             self.tc.add_gams_code(
@@ -154,35 +155,35 @@ class PrepretDsc(GamsClass):
             if self.env.retire.upper() == "MIP":
                 self.env.set_global("solmip", "YES")
 
-    def exec_prep1(self: PrepretDsc, sym2: str, sym3: str):
+    def exec_prep1(self: PrepretDsc, sym2: str, sym3: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"{sym3}(R,'0',P,'N')$({sym3}(R,'0',P,'N')=0)$={sym2}(R,P);",
         )
 
-    def exec_prep2(self: PrepretDsc):
+    def exec_prep2(self: PrepretDsc) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"PRC_REFIT(RP,P)$0=0;",
         )
 
-    def exec_prep3(self: PrepretDsc, tst: str, arg2: str):
+    def exec_prep3(self: PrepretDsc, tst: str, arg2: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"OPTION {tst} < {arg2};",
         )
 
-    def exec_prep4(self: PrepretDsc):
+    def exec_prep4(self: PrepretDsc) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"OPTION PRC_CAP < NCAP_ELIFE; NCAP_ELIFE(R,V,P)$(NOT PRC_CAP(R,P)) $= NCAP_OLIFE(R,V,P); PRC_CAP(R,P)=0;",
         )
 
-    def exec_prep5(self: PrepretDsc):
+    def exec_prep5(self: PrepretDsc) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -196,7 +197,7 @@ class PrepretDsc(GamsClass):
 """,
         )
 
-    def comp_decl(self: PrepretDsc):
+    def comp_decl(self: PrepretDsc) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -209,7 +210,7 @@ class PrepretDsc(GamsClass):
 
         self.tc.enqueue(self.exec_decl1, sow=self.env.sow, var=self.env.str)
 
-    def exec_decl1(self: PrepretDsc, sow: str, var: str):
+    def exec_decl1(self: PrepretDsc, sow: str, var: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -249,7 +250,7 @@ class PrepretDsc(GamsClass):
 """,
         )
 
-    def comp_eqobj(self: PrepretDsc):
+    def comp_eqobj(self: PrepretDsc) -> None:
         self.env.set_global(
             "rcapsub",
             rf"-SUM(VNRET(V,T),{self.env.vart}_SCAP(R,V,T,P{self.env.sws}))$PRC_RCAP(R,P)",
@@ -301,7 +302,7 @@ class PrepretDsc(GamsClass):
             sow=self.env.sow,
         )
 
-    def exec_eqobj1(self: PrepretDsc, notmip: bool, var: str, sow: str):
+    def exec_eqobj1(self: PrepretDsc, notmip: bool, var: str, sow: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -321,7 +322,7 @@ class PrepretDsc(GamsClass):
         )
 
 
-def objfix(capwd: str, vart: str, sws: str):
+def objfix(capwd: str, vart: str, sws: str) -> str:
     return rf"""
 * Credit retired capacity for the avoided fixed costs
    SUM((OBJ_SUMIV(K_EOH,R,V,P,JOT,LIFE),VNRET(V,T))$RVPRL(R,V,P),
@@ -347,7 +348,7 @@ def objfix(capwd: str, vart: str, sws: str):
 """
 
 
-def objsalv(var: str, varv: str, sws: str, sow: str):
+def objsalv(var: str, varv: str, sws: str, sow: str) -> str:
     return rf"""
 * Discredit salvage value for retired capacity
    SUM(OBJ_SUMS(R,V,P)$((NOT NCAP_FDR(R,V,P)$RVPRL(R,'0',P))$RVPRL(R,V,P)),
@@ -356,5 +357,5 @@ def objsalv(var: str, varv: str, sws: str, sow: str):
 """
 
 
-def prepret_dsc():
+def prepret_dsc() -> None:
     raise NotImplementedError()

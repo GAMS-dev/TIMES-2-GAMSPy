@@ -104,7 +104,7 @@ class EqcombalMod(GamsClass):
         condition2: bool,
         condition3: bool,
         condition4: bool,
-    ):
+    ) -> None:
         include_cal_fflo_1 = cal_fflo_mod(
             reduce=self.env.reduce,
             shff=self.env.shff,

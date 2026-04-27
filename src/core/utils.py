@@ -1,4 +1,4 @@
-from typing import Iterable
+from typing import Any
 
 
 class EscapeStack(Exception):
@@ -7,7 +7,7 @@ class EscapeStack(Exception):
     pass
 
 
-def expand_set(symbol, elements: Iterable) -> None:
+def expand_set(symbol: Any, elements: list[str]) -> None:
     """
     Expands a 1D GAMSPy Set with additional elements,
     preserving any existing records and avoiding duplicates.

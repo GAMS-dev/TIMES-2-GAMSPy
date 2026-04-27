@@ -149,7 +149,7 @@ class EquExtVda(GamsClass):
                 )
             )
 
-    def equations(self: EquExtVda, eq: str, swtd: str, swd: str):
+    def equations(self: EquExtVda, eq: str, swtd: str, swd: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -210,7 +210,7 @@ EQUATIONS
 """,
         )
 
-    def define_param_dp_uns(self: EquExtVda):
+    def define_param_dp_uns(self: EquExtVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

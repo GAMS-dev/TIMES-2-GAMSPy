@@ -70,12 +70,8 @@ class EqobjelsRpt(GamsClass):
             )
 
     def exec1(
-        self: EqobjelsRpt,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-        condition: bool,
-    ):
+        self: EqobjelsRpt, arg1: str, arg2: str, arg3: str, condition: bool
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -100,12 +96,7 @@ class EqobjelsRpt(GamsClass):
 """,
         )
 
-    def exec2(
-        self: EqobjelsRpt,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-    ):
+    def exec2(self: EqobjelsRpt, arg1: str, arg2: str, arg3: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

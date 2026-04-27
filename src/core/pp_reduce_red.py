@@ -72,7 +72,7 @@ class PpReduceRed(GamsClass):
         if not self.env.rts == "S":
             self.include(DynsliteVda(self.tc, self.env, arg1="REDUCE"))
 
-    def reduction_of_model_size(self: PpReduceRed):
+    def reduction_of_model_size(self: PpReduceRed) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -86,7 +86,7 @@ class PpReduceRed(GamsClass):
 """,
         )
 
-    def reddone(self: PpReduceRed):
+    def reddone(self: PpReduceRed) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -100,7 +100,7 @@ class PpReduceRed(GamsClass):
 """,
         )
 
-    def determine_capacity_variables(self: PpReduceRed):
+    def determine_capacity_variables(self: PpReduceRed) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -135,7 +135,7 @@ class PpReduceRed(GamsClass):
 """,
         )
 
-    def determine_emission_flow_variables(self: PpReduceRed):
+    def determine_emission_flow_variables(self: PpReduceRed) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -154,7 +154,7 @@ class PpReduceRed(GamsClass):
 """,
         )
 
-    def update_rpc_act(self: PpReduceRed, pgprim: str):
+    def update_rpc_act(self: PpReduceRed, pgprim: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -190,7 +190,7 @@ class PpReduceRed(GamsClass):
 """,
         )
 
-    def get_flo_func(self: PpReduceRed):
+    def get_flo_func(self: PpReduceRed) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -209,7 +209,7 @@ class PpReduceRed(GamsClass):
 """,
         )
 
-    def check_flo_sum_order(self: PpReduceRed):
+    def check_flo_sum_order(self: PpReduceRed) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -221,7 +221,7 @@ class PpReduceRed(GamsClass):
 """,
         )
 
-    def check_commodity_processes_in_flo_sum(self: PpReduceRed, pgprim: str):
+    def check_commodity_processes_in_flo_sum(self: PpReduceRed, pgprim: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -234,7 +234,7 @@ class PpReduceRed(GamsClass):
 """,
         )
 
-    def check_shadow_group(self: PpReduceRed):
+    def check_shadow_group(self: PpReduceRed) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -247,7 +247,7 @@ class PpReduceRed(GamsClass):
 """,
         )
 
-    def update_rpc_ffunc(self: PpReduceRed):
+    def update_rpc_ffunc(self: PpReduceRed) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -258,7 +258,7 @@ class PpReduceRed(GamsClass):
 """,
         )
 
-    def add_to_rpc_ffunc(self: PpReduceRed):
+    def add_to_rpc_ffunc(self: PpReduceRed) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -271,7 +271,7 @@ class PpReduceRed(GamsClass):
 """,
         )
 
-    def check_act_bnd_level(self: PpReduceRed):
+    def check_act_bnd_level(self: PpReduceRed) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -287,7 +287,7 @@ class PpReduceRed(GamsClass):
 """,
         )
 
-    def varf_early_clear(self: PpReduceRed):
+    def varf_early_clear(self: PpReduceRed) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -299,7 +299,7 @@ class PpReduceRed(GamsClass):
 """,
         )
 
-    def track_commodities(self: PpReduceRed):
+    def track_commodities(self: PpReduceRed) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -322,7 +322,7 @@ class PpReduceRed(GamsClass):
 """,
         )
 
-    def check_commodity(self: PpReduceRed):
+    def check_commodity(self: PpReduceRed) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -343,7 +343,7 @@ class PpReduceRed(GamsClass):
 """,
         )
 
-    def set_eps_bounds_prc_ts(self: PpReduceRed):
+    def set_eps_bounds_prc_ts(self: PpReduceRed) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

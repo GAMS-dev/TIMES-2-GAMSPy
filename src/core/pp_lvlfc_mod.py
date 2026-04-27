@@ -114,7 +114,7 @@ class PpLvlfcMod(GamsClass):
         )
 
 
-def clear_uncd7(module: GamsClass):
+def clear_uncd7(module: GamsClass) -> None:
     module.tc.add_gams_code(module=module, phase="run", code=r"OPTION CLEAR=UNCD7;")
 
 
@@ -134,7 +134,7 @@ def all_exec(
     arg8: str,
     arg10: str,
     arg11: str,
-):
+) -> None:
     if arg11 == "N":
         module.tc.add_gams_code(
             module=module,
@@ -197,7 +197,7 @@ def pp_lvlfc_mod(
     arg10: str,
     arg11: str,
     arg12: str,
-):
+) -> None:
     clear_uncd7(module=module)
 
     take = arg12

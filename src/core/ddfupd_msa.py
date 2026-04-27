@@ -15,7 +15,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def ddfupd_msa():
+def ddfupd_msa() -> str:
     code = r"""
 * initialize Y
   TM_DDF_Y(MR(R),T(T_1)) = 1;

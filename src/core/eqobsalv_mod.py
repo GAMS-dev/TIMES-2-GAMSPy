@@ -204,7 +204,7 @@ LOOP((OBJ_SUMS(R,T(V),P),G_RCUR(R,CUR))$SEG(R,P),
         sws: str,
         varv: str,
         var: str,
-    ):
+    ) -> None:
         if arg2 == "EXIT":
             return
 
@@ -220,7 +220,7 @@ LOOP((OBJ_SUMS(R,T(V),P),G_RCUR(R,CUR))$SEG(R,P),
         sws: str,
         varv: str,
         var: str,
-    ):
+    ) -> None:
         lhs = rf"    {eq}_OBJSALV(RDCUR(R,CUR) {sow}) .."
         rhs = rf"""
 *------------------------------------------------------------------------------

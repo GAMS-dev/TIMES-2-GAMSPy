@@ -96,7 +96,7 @@ class PpPrelvVda(GamsClass):
         if not self.env.rts == "S":
             self.include(DynsliteVda(self.tc, self.env, arg1="PRELEV"))
 
-    def restore_ncap_tlife(self: PpPrelvVda, dflbl: str):
+    def restore_ncap_tlife(self: PpPrelvVda, dflbl: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -106,7 +106,7 @@ LOOP(PYR_S(V),NCAP_TLIFE(R,V,P)$PRC_RESID(R,'{dflbl}',P) = PRC_RESID(R,'{dflbl}'
 """,
         )
 
-    def filter_vda_flop(self: PpPrelvVda, pgprim: str):
+    def filter_vda_flop(self: PpPrelvVda, pgprim: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -118,7 +118,7 @@ TRACKPC(RPC_SPG(R,P,C))$((NOT RPG_1ACE(R,P,C,C))$RPC_ACE(R,P,'{pgprim}')) = YES;
 """,
         )
 
-    def exec1(self: PpPrelvVda):
+    def exec1(self: PpPrelvVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -136,7 +136,7 @@ Z = Z-CARD(VDA_FLOP); IF(Z, DISPLAY 'Deleted FLOPS for SPG:',Z);
 """,
         )
 
-    def preprocess_vda_flop(self: PpPrelvVda):
+    def preprocess_vda_flop(self: PpPrelvVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -155,7 +155,7 @@ Z = Z-CARD(VDA_FLOP); IF(Z, DISPLAY 'Deleted FLOPS for SPG:',Z);
 """,
         )
 
-    def partition_groups(self: PpPrelvVda):
+    def partition_groups(self: PpPrelvVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -167,7 +167,7 @@ Z = Z-CARD(VDA_FLOP); IF(Z, DISPLAY 'Deleted FLOPS for SPG:',Z);
 """,
         )
 
-    def process_trackp(self: PpPrelvVda):
+    def process_trackp(self: PpPrelvVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -177,7 +177,7 @@ Z = Z-CARD(VDA_FLOP); IF(Z, DISPLAY 'Deleted FLOPS for SPG:',Z);
 """,
         )
 
-    def update_trackp(self: PpPrelvVda):
+    def update_trackp(self: PpPrelvVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -189,7 +189,7 @@ Z = Z-CARD(VDA_FLOP); IF(Z, DISPLAY 'Deleted FLOPS for SPG:',Z);
 """,
         )
 
-    def vda_flop_direction(self: PpPrelvVda):
+    def vda_flop_direction(self: PpPrelvVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -199,7 +199,7 @@ FLO_FUNC(RTP(R,V,P),CG2,CG,S)$RPCC_FFUNC(R,P,CG2,CG) = VDA_FLOP(RTP,CG,S);
 """,
         )
 
-    def set_flo_sum(self: PpPrelvVda):
+    def set_flo_sum(self: PpPrelvVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -215,7 +215,7 @@ FLO_SUM(RTP(R,V,P),CG2,C,CG,S)$(RPC_PG(R,P,C)$RPCC_FFUNC(R,P,CG2,CG)) = VDA_FLOP
 """,
         )
 
-    def distribute_ire_flosum(self: PpPrelvVda, pgprim: str):
+    def distribute_ire_flosum(self: PpPrelvVda, pgprim: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -226,7 +226,7 @@ FLO_SUM(RTP(R,V,P),CG2,C,CG,S)$(RPC_PG(R,P,C)$RPCC_FFUNC(R,P,CG2,CG)) = VDA_FLOP
 """,
         )
 
-    def preprocess_flo_emis(self: PpPrelvVda):
+    def preprocess_flo_emis(self: PpPrelvVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -241,7 +241,7 @@ FLO_SUM(RTP(R,V,P),CG2,C,CG,S)$(RPC_PG(R,P,C)$RPCC_FFUNC(R,P,CG2,CG)) = VDA_FLOP
 """,
         )
 
-    def update_src_commodities(self: PpPrelvVda):
+    def update_src_commodities(self: PpPrelvVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -253,7 +253,7 @@ FLO_SUM(RTP(R,V,P),CG2,C,CG,S)$(RPC_PG(R,P,C)$RPCC_FFUNC(R,P,CG2,CG)) = VDA_FLOP
 """,
         )
 
-    def add_activity_src(self: PpPrelvVda, pgprim: str, rl: str, pl: str):
+    def add_activity_src(self: PpPrelvVda, pgprim: str, rl: str, pl: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -269,7 +269,7 @@ FLO_SUM(RTP(R,V,P),CG2,C,CG,S)$(RPC_PG(R,P,C)$RPCC_FFUNC(R,P,CG2,CG)) = VDA_FLOP
 """,
         )
 
-    def add_single_src_commodity(self: PpPrelvVda, pgprim: str):
+    def add_single_src_commodity(self: PpPrelvVda, pgprim: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -282,7 +282,7 @@ FLO_SUM(RTP(R,V,P),CG2,C,CG,S)$(RPC_PG(R,P,C)$RPCC_FFUNC(R,P,CG2,CG)) = VDA_FLOP
 """,
         )
 
-    def preprocessing_for_veda_interface_before_include(self: PpPrelvVda):
+    def preprocessing_for_veda_interface_before_include(self: PpPrelvVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -296,7 +296,7 @@ FLO_SUM(RTP(R,V,P),CG2,C,CG,S)$(RPC_PG(R,P,C)$RPCC_FFUNC(R,P,CG2,CG)) = VDA_FLOP
 """,
         )
 
-    def preprocessing_for_veda_interface_after_include(self: PpPrelvVda):
+    def preprocessing_for_veda_interface_after_include(self: PpPrelvVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -315,7 +315,7 @@ FLO_SUM(RTP(R,V,P),CG2,C,CG,S)$(RPC_PG(R,P,C)$RPCC_FFUNC(R,P,CG2,CG)) = VDA_FLOP
 """,
         )
 
-    def set_com_var_def_bounds(self: PpPrelvVda):
+    def set_com_var_def_bounds(self: PpPrelvVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

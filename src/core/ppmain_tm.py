@@ -46,7 +46,7 @@ class PpmainTm(GamsClass):
         self.tc.enqueue(self.calc_vals_for_econ_variables)
         self.tc.enqueue(self.execFinal)
 
-    def initialize_economic_parameters(self: PpmainTm):
+    def initialize_economic_parameters(self: PpmainTm) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -65,7 +65,7 @@ class PpmainTm(GamsClass):
 """,
         )
 
-    def calc_vals_for_econ_variables(self: PpmainTm):
+    def calc_vals_for_econ_variables(self: PpmainTm) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -98,7 +98,7 @@ class PpmainTm(GamsClass):
 """,
         )
 
-    def execFinal(self: PpmainTm):
+    def execFinal(self: PpmainTm) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

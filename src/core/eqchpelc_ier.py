@@ -78,7 +78,7 @@ class EqchpelcIer(GamsClass):
         shff: str,
         sow: str,
         var: str,
-    ):
+    ) -> None:
         if cal_red == "cal_red.red":
             from core.cal_red_red import cal_red_red as cal_red_func
         elif cal_red == "cal_nored.red":

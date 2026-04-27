@@ -60,11 +60,7 @@ PARAMETER YKAGEP(ALLYEAR,ALLYEAR,AGE);
             declif=self.env.declif,
         )
 
-    def exec1(
-        self: EqobjinvRpt,
-        etl_enabled: bool,
-        declif: str,
-    ):
+    def exec1(self: EqobjinvRpt, etl_enabled: bool, declif: str) -> None:
         etl_block = ""
         if etl_enabled:
             etl_block = r"""

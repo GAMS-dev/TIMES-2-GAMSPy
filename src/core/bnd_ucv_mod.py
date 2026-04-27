@@ -43,19 +43,19 @@ class BndUcvMod(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
-        arg4: str = "",
-        arg5: str = "",
-        arg6: str = "",
-        arg7: str = "",
-        arg8: str = "",
-        arg9: str = "",
-        arg10: str = "",
-        arg11: str = "",
-        arg12: str = "",
-        arg13: str = "",
+        arg1: str,
+        arg2: str,
+        arg3: str,
+        arg4: str,
+        arg5: str,
+        arg6: str,
+        arg7: str,
+        arg8: str,
+        arg9: str,
+        arg10: str,
+        arg11: str,
+        arg12: str,
+        arg13: str,
     ):
         self.env = env.fork()
         self.tc = tc
@@ -76,7 +76,7 @@ class BndUcvMod(GamsClass):
         self._sub_modules = {}
         self.compile()
 
-    def compile(self: BndUcvMod):
+    def compile(self: BndUcvMod) -> None:
         # $IF '%10'=='M' $GOTO MULTIPHASE
         if self.arg10 == "M":
             self._label_multiphase()
@@ -84,7 +84,7 @@ class BndUcvMod(GamsClass):
         else:
             self._single_phase()
 
-    def _single_phase(self: BndUcvMod):
+    def _single_phase(self: BndUcvMod) -> None:
         self.tc.enqueue(
             self.clear_and_set_bounds,
             arg1_defined=self.tc.defined(self.arg1),
@@ -155,7 +155,7 @@ class BndUcvMod(GamsClass):
             sow=self.env.sow,
         )
 
-    def _label_multiphase(self: BndUcvMod):
+    def _label_multiphase(self: BndUcvMod) -> None:
         self.tc.enqueue(
             self.clear_and_copy_bounds,
             arg1=self.arg1,
@@ -192,7 +192,7 @@ class BndUcvMod(GamsClass):
         arg13: str,
         stages: str,
         sow: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -251,7 +251,7 @@ class BndUcvMod(GamsClass):
         arg9: str,
         arg13: str,
         sow: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -269,7 +269,7 @@ class BndUcvMod(GamsClass):
 
     def deviation_bounds_check(
         self: BndUcvMod, arg2: str, arg3: str, arg4: str, arg5: str, arg9: str
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -297,7 +297,7 @@ class BndUcvMod(GamsClass):
         arg13: str,
         swd: str,
         sow: str,
-    ):
+    ) -> None:
         if arg1_defined:
             self.tc.add_gams_code(
                 module=self,
@@ -335,7 +335,7 @@ class BndUcvMod(GamsClass):
         arg5: str,
         arg7: str,
         arg9: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -361,7 +361,7 @@ class BndUcvMod(GamsClass):
         arg8: str,
         arg9: str,
         sow: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

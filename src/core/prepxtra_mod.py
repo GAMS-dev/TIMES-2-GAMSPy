@@ -235,7 +235,7 @@ class PrepxtraMod(GamsClass):
                     gdate=py_gdate,
                 )
 
-    def exec1(self: PrepxtraMod, condition: bool):
+    def exec1(self: PrepxtraMod, condition: bool) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -248,7 +248,7 @@ MODLYEAR(LL) = T(LL)+PASTYEAR(LL);
 """,
         )
 
-    def exec2(self: PrepxtraMod, dflbl: str):
+    def exec2(self: PrepxtraMod, dflbl: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -271,7 +271,7 @@ MODLYEAR(LL) = T(LL)+PASTYEAR(LL);
 """,
         )
 
-    def exec3(self: PrepxtraMod, gdxpath: str, run_name: str):
+    def exec3(self: PrepxtraMod, gdxpath: str, run_name: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -281,12 +281,8 @@ Z=CARD("{gdxpath}{run_name}")+16;
         )
 
     def exec4(
-        self: PrepxtraMod,
-        gdxpath: str,
-        run_name: str,
-        gtime: str,
-        gdate: str,
-    ):
+        self: PrepxtraMod, gdxpath: str, run_name: str, gtime: str, gdate: str
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -296,12 +292,8 @@ PUT QLOG; FILE.PW=512; PUT_UTILITY 'SHELL' / 'mv -f _dd_.gdx ' '{gdxpath}{run_na
         )
 
     def comp1(
-        self: PrepxtraMod,
-        gdxpath: str,
-        run_name: str,
-        gtime: str,
-        gdate: str,
-    ):
+        self: PrepxtraMod, gdxpath: str, run_name: str, gtime: str, gdate: str
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",

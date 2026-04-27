@@ -125,8 +125,9 @@ class BndmainMod(GamsClass):
                 env=self.env,
                 arg1=f"{self.env.var}_CAP",
                 arg2="R,T,P",
-                arg3="CAP_BND RTP(R,T,P)",
-                arg4=f"{self.env.swt}",
+                arg3="CAP_BND",
+                arg4="RTP(R,T,P)",
+                arg5=self.env.swt,
             )
         )
 
@@ -188,12 +189,12 @@ class BndmainMod(GamsClass):
         if not self.env.rts == "S":
             self.include(DynsliteVda(tc=self.tc, env=self.env, arg1="BOUNDS"))
 
-    def bounds_for_obj_components(self: BndmainMod, var: str, sow: str):
+    def bounds_for_obj_components(self: BndmainMod, var: str, sow: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"""
-        * Bounds for OBJ components
+* Bounds for OBJ components
         UC_TS_SUM(R,UC_N(OBV),S) = NO;
         {var}_OBJ.LO(R,OBV(UC_N),CUR {sow})$UC_RHS(UC_N,'N') = -INF;
         {var}_OBJ.LO(R,OBV(UC_N),CUR {sow}) $= UC_RHS(UC_N,'LO');
@@ -204,12 +205,12 @@ class BndmainMod(GamsClass):
 """,
         )
 
-    def set_upper_bound_on_var_elast(self: BndmainMod, var: str, swd: str):
+    def set_upper_bound_on_var_elast(self: BndmainMod, var: str, swd: str) -> None:
         self.tc.add_gams_code(
             module=self, phase="run", code=f"{var}_ELAST.UP(R,T,C,S,J,BD {swd}) = INF;"
         )
 
-    def prevent_new_investment(self: BndmainMod):
+    def prevent_new_investment(self: BndmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -219,7 +220,7 @@ class BndmainMod(GamsClass):
 """,
         )
 
-    def limit_on_total_installed_capacity(self: BndmainMod):
+    def limit_on_total_installed_capacity(self: BndmainMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -228,7 +229,7 @@ CAP_BND(RTP(RTP_VARP),'LO')$CAP_BND(RTP,'UP') = SMIN(BDNEQ,CAP_BND(RTP,BDNEQ));
 """,
         )
 
-    def limit_on_commodities(self: BndmainMod, var: str, sow: str):
+    def limit_on_commodities(self: BndmainMod, var: str, sow: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

@@ -89,11 +89,7 @@ class DynsliteVda(GamsClass):
                 var_uc_yes=self.env.var_uc == "YES",
             )
 
-    def prelev_exec(
-        self: DynsliteVda,
-        ducyes: bool,
-        tmp: str,
-    ) -> None:
+    def prelev_exec(self: DynsliteVda, ducyes: bool, tmp: str) -> None:
         if self.tc.container["NORTS"].number_records > 0:
             if ducyes:
                 raise Exception("TS_OFF cannot be used with DUC")
@@ -130,11 +126,7 @@ class DynsliteVda(GamsClass):
 """,
             )
 
-    def clear_exec(
-        self: DynsliteVda,
-        tmp: str,
-        rts: str,
-    ) -> None:
+    def clear_exec(self: DynsliteVda, tmp: str, rts: str) -> None:
         if self.tc.container["NORTS"].number_records > 0:
             self.tc.add_gams_code(
                 module=self,
@@ -179,10 +171,7 @@ class DynsliteVda(GamsClass):
 """,
             )
 
-    def reduce_exec(
-        self: DynsliteVda,
-        tmp: str,
-    ) -> None:
+    def reduce_exec(self: DynsliteVda, tmp: str) -> None:
         if self.tc.container["NORTS"].number_records > 0:
             self.tc.add_gams_code(
                 module=self,
@@ -202,9 +191,38 @@ class DynsliteVda(GamsClass):
 
     def run_fillparm(
         self: DynsliteVda,
-        t: tuple,
+        arg1: str,
+        arg2: str,
+        arg3: str,
+        arg4: str,
+        arg5: str,
+        arg6: str,
+        arg7: str,
+        arg8: str,
+        arg9: str,
+        dflbl: str,
+        item: str,
+        data: str,
+        add: str,
+        reset: str,
     ) -> None:
-        fillparm(self, *t)
+        fillparm(
+            module=self,
+            arg1=arg1,
+            arg2=arg2,
+            arg3=arg3,
+            arg4=arg4,
+            arg5=arg5,
+            arg6=arg6,
+            arg7=arg7,
+            arg8=arg8,
+            arg9=arg9,
+            dflbl=dflbl,
+            item=item,
+            data=data,
+            add=add,
+            reset=reset,
+        )
 
     def postlev_exec(
         self: DynsliteVda,
@@ -225,14 +243,30 @@ class DynsliteVda(GamsClass):
 """,
             )
             # fmt: off
-            tl = [
+            tl: list[tuple[str, str, str, str, str, str, str, str, str, str, str, str, str]] = [
                 ( dflbl, item, data, add, reset, "FLO_FUNC", "R", "P,CG,CG2,ANNUAL",     ",'',''",    "V", "RVP(R,V,P)" ">0", "X_RPGGS",   "X_RPGGS"  ),
                 ( dflbl, item, data, add, reset, "ACT_EFF",  "R", "P,CG,ANNUAL",         ",'','',''", "V", "RVP(R,V,P)" ">0", "X_RPGS",    "X_RPGS"   ),
                 ( dflbl, item, data, add, reset, "ACT_FLO",  "R", "P,CG,ANNUAL",         ",'','',''", "V", "RVP(R,V,P)" ">0", "X_RPGS",    "X_RPGS"   ),
                 ( dflbl, item, data, add, reset, "FLO_SUM",  "R", "P,CG1,C,CG2,ANNUAL",  ",''",       "V", "RVP(R,V,P)" ">0", "X_RPGCGS",  "X_RPGCGS" )
             ]
             # fmt: on
-            self.run_fillparm(tl[0])
+            dflbl, item, data, add, reset, a1, a2, a3, a4, a5, a6, a7, a8, a9 = tl[0]
+            self.run_fillparm(
+                arg1=a1,
+                arg2=a2,
+                arg3=a3,
+                arg4=a4,
+                arg5=a5,
+                arg6=a6,
+                arg7=a7,
+                arg8=a8,
+                arg9=a9,
+                dflbl=dflbl,
+                item=item,
+                data=data,
+                add=add,
+                reset=reset,
+            )
             self.tc.add_gams_code(
                 module=self,
                 phase="run",
@@ -244,7 +278,25 @@ class DynsliteVda(GamsClass):
 """,
             )
             for i in range(3):
-                self.run_fillparm(tl[i + 1])
+                dflbl, item, data, add, reset, a1, a2, a3, a4, a5, a6, a7, a8, a9 = tl[
+                    i + 1
+                ]
+                self.run_fillparm(
+                    arg1=a1,
+                    arg2=a2,
+                    arg3=a3,
+                    arg4=a4,
+                    arg5=a5,
+                    arg6=a6,
+                    arg7=a7,
+                    arg8=a8,
+                    arg9=a9,
+                    dflbl=dflbl,
+                    item=item,
+                    data=data,
+                    add=add,
+                    reset=reset,
+                )
             self.tc.add_gams_code(
                 module=self,
                 phase="run",

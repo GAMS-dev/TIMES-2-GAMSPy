@@ -119,7 +119,7 @@ class EqdamageMod(GamsClass):
 
         self._label_lpdam()
 
-    def exec1(self):
+    def exec1(self) -> None:
         self.tc.add_gams_code(module=self, phase="run", code="OPTION CLEAR=RXX;")
 
     def exec2(
@@ -128,7 +128,7 @@ class EqdamageMod(GamsClass):
         stages: str,
         swx: str,
         swtx: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -192,14 +192,12 @@ LOOP(RDCUR(R,CUR), RXX(RTC)$DAM_COST(RTC,CUR) = YES);
 """,
         )
 
-    def exec3(self):
+    def exec3(self) -> None:
         self.tc.add_gams_code(
             module=self, phase="run", code="SUM_OBJ('OBJDAM',ITEM)=0;"
         )
 
-    def emission_balance_equation(
-        self: EqdamageMod,
-    ):
+    def emission_balance_equation(self: EqdamageMod) -> None:
         equation = rf"""
 * Emission balance equation
 
@@ -220,16 +218,16 @@ SUM(CM_VAR(C),{self.env.vart}_CLITOT(CM_VAR,T{self.env.sws})$CM_KIND(CM_VAR)+{se
 """
         self.tc.add_gams_code(module=self, phase="init", code=equation)
 
-    def _label_lpdam(self):
+    def _label_lpdam(self) -> None:
         self.damage_cost_equation()
 
         self._label_bound()
 
-    def _label_nlpdam(self):
+    def _label_nlpdam(self) -> None:
         self.damage_cost_equation_nlp()
         self._label_bound()
 
-    def _label_bound(self):
+    def _label_bound(self) -> None:
         if self.env.damage == "NLP":
             self._label_bdnlp()
             return
@@ -243,7 +241,7 @@ SUM(CM_VAR(C),{self.env.vart}_CLITOT(CM_VAR,T{self.env.sws})$CM_KIND(CM_VAR)+{se
         )
         self._label_finish()
 
-    def _label_bdnlp(self):
+    def _label_bdnlp(self) -> None:
         self.tc.enqueue(
             self.damage_var_bounds_bdnlp,
             var=self.env.var,
@@ -253,10 +251,10 @@ SUM(CM_VAR(C),{self.env.vart}_CLITOT(CM_VAR,T{self.env.sws})$CM_KIND(CM_VAR)+{se
         )
         self._label_finish()
 
-    def _label_finish(self):
+    def _label_finish(self) -> None:
         self.tc.enqueue(self.finish)
 
-    def finish(self):
+    def finish(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -266,7 +264,7 @@ SUM(CM_VAR(C),{self.env.vart}_CLITOT(CM_VAR,T{self.env.sws})$CM_KIND(CM_VAR)+{se
 """,
         )
 
-    def damage_var_bounds(self, var: str, swd: str, sow: str, swx: str):
+    def damage_var_bounds(self, var: str, swd: str, sow: str, swx: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -281,7 +279,7 @@ LOOP(SAMEAS(J,'1'),DAM_NUM(TRACKC(R,C),J+(DAM_STEP(R,C,BD)-1),BD) = YES);
 """,
         )
 
-    def damage_var_bounds_bdnlp(self, var: str, swd: str, sow: str, swx: str):
+    def damage_var_bounds_bdnlp(self, var: str, swd: str, sow: str, swx: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -295,7 +293,7 @@ LOOP(SAMEAS(J,'1'),DAM_NUM(TRACKC(R,C),J+(DAM_STEP(R,C,BD)-1),BD) = YES);
 """,
         )
 
-    def damage_cost_equation(self: EqdamageMod):
+    def damage_cost_equation(self: EqdamageMod) -> None:
         equation = rf"""
 {self.arg2}  {self.env.eq}_OBJDAM(RDCUR(R,CUR){self.env.sow})..
     SUM(RTC(R,T,C)$(DAM_STEP(R,C,'FX')$DAM_COST(R,T,C,CUR)),
@@ -330,7 +328,7 @@ SUM(SWW(SOW,WW)$(SW_TSW(SOW,T,WW)$(NOT WWDAM(C))+SWW(WW,SOW)$WWDAM(C)),
 
         self.tc.add_gams_code(module=self, phase="init", code=equation)
 
-    def damage_cost_equation_nlp(self: EqdamageMod):
+    def damage_cost_equation_nlp(self: EqdamageMod) -> None:
         equation = rf"""
 * Damage cost equation
   {self.env.eq}_OBJDAM(RDCUR(R,CUR){self.env.sow})..

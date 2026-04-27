@@ -62,7 +62,7 @@ class CoefAltLin(GamsClass):
             )
         self._label_prepro()
 
-    def _label_prepro(self):
+    def _label_prepro(self) -> None:
         arg1 = self.arg1.upper()
 
         if arg1 == "FIX":
@@ -105,7 +105,7 @@ class CoefAltLin(GamsClass):
 
         self._label_cpt()
 
-    def pre_establish_perdinv(self):
+    def pre_establish_perdinv(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -121,14 +121,14 @@ class CoefAltLin(GamsClass):
 """,
         )
 
-    def exec1(self):
+    def exec1(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code="OPTION CLEAR=PERDINV,CLEAR=TPULSE,CLEAR=TPULSEYR;",
         )
 
-    def exec2(self):
+    def exec2(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -139,7 +139,7 @@ OBJ_JD(RDCUR(R,CUR),KAGE(LL,JOT)) = ORD(JOT)/SUM(INVSPRED(LL,JOT,YEAR,K),OBJ_DIS
 """,
         )
 
-    def exec4(self):
+    def exec4(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -150,7 +150,7 @@ OPTION CLEAR=KAGE;
 """,
         )
 
-    def exec5(self):
+    def exec5(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -161,7 +161,7 @@ OBJ_DIVIV(OBJ_YES(R,T,P))$RTP_CAPVL(R,T,P) = OBJ_DIVIV(R,T,P) / (1+RTP_CAPVL(R,T
 """,
         )
 
-    def exec6(self):
+    def exec6(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -172,7 +172,7 @@ LOOP((OBJ_SUMIV(V,R,V,P,JOT,LIFE),G_RCUR(R,CUR))$PRC_RESID(R,'0',P),
 """,
         )
 
-    def exec7(self):
+    def exec7(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -184,7 +184,7 @@ RTP_CAPVL(R,T,P)$PASTSUM(R,T,P) = (1+RTP_CAPVL(R,T,P)) / (1+PASTSUM(R,T,P)) - 1;
 """,
         )
 
-    def exec8(self):
+    def exec8(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -204,7 +204,7 @@ RTP_CAPVL(R,T,P)$PASTSUM(R,T,P) = (1+RTP_CAPVL(R,T,P)) / (1+PASTSUM(R,T,P)) - 1;
 """,
         )
 
-    def exec9(self):
+    def exec9(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -215,12 +215,12 @@ RTP_CAPVL(R,T,P)$PASTSUM(R,T,P) = (1+RTP_CAPVL(R,T,P)) / (1+PASTSUM(R,T,P)) - 1;
 """,
         )
 
-    def exec10(self):
+    def exec10(self) -> None:
         self.tc.add_gams_code(
             module=self, phase="run", code="OPTION CLEAR=PASTSUM,CLEAR=YK1;"
         )
 
-    def _complete_obj_pvt_and_fpd(self, linflo: str):
+    def _complete_obj_pvt_and_fpd(self, linflo: str) -> None:
         if linflo == "1":
             self.tc.add_gams_code(
                 module=self,
@@ -247,7 +247,7 @@ OBJ_PVT(R,T,CUR)$RDCUR(R,CUR) = SUM(TPULSEYR(T,Y_EOH),TPULSE(T,Y_EOH)*OBJ_DISC(R
   ));""",
         )
 
-    def _prepare_linearized_cost_coeffs(self, obj: str, linacc: str):
+    def _prepare_linearized_cost_coeffs(self, obj: str, linacc: str) -> None:
         param_definition = "OBJ_LINT(R,T,TT,CUR)$RDCUR(R,CUR) ="
         if obj.upper() == "ALT":
             param_definition += "  OBJ_ALTV(R,T) *"
@@ -259,7 +259,7 @@ OBJ_PVT(R,T,CUR)$RDCUR(R,CUR) = SUM(TPULSEYR(T,Y_EOH),TPULSE(T,Y_EOH)*OBJ_DISC(R
 
         self.tc.add_gams_code(module=self, phase="run", code=param_definition)
 
-    def _label_cpt(self):
+    def _label_cpt(self) -> None:
         if self.arg1.upper() == "STP":
             self._label_stp()
             return
@@ -267,7 +267,9 @@ OBJ_PVT(R,T,CUR)$RDCUR(R,CUR) = SUM(TPULSEYR(T,Y_EOH),TPULSE(T,Y_EOH)*OBJ_DISC(R
         linflo, iled, oblong = self.env.linflo, self.env.iled, self.env.oblong
         self.tc.enqueue(self._square_objective_formulation, linflo, iled, oblong)
 
-    def _square_objective_formulation(self, linflo: str, iled: str, oblong: str):
+    def _square_objective_formulation(
+        self, linflo: str, iled: str, oblong: str
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -324,7 +326,7 @@ LOOP(G_RCUR(R,CUR),
         )
         self._label_done()
 
-    def _label_dofix(self):
+    def _label_dofix(self) -> None:
         self.env.set_global("capwd", "OBJ_WD(R,CUR,K_EOH,JOT,K)*")
 
         self.tc.enqueue(self.exec11)
@@ -346,7 +348,7 @@ LOOP(G_RCUR(R,CUR),
 
         self.tc.enqueue(self.exec6)
 
-    def exec11(self):
+    def exec11(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -357,7 +359,7 @@ KAGE(FIL(LL-FLOOR(ORD(JOT)/2)),JOT)$((ORD(JOT) GT 1)$INVSTEP(FIL,JOT,FIL,JOT)$FI
 """,
         )
 
-    def _calculate_change_in_capacity(self, iled: str):
+    def _calculate_change_in_capacity(self, iled: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -376,30 +378,30 @@ KAGE(FIL(LL-FLOOR(ORD(JOT)/2)),JOT)$((ORD(JOT) GT 1)$INVSTEP(FIL,JOT,FIL,JOT)$FI
 """,
         )
 
-    def _label_stp(self):
+    def _label_stp(self) -> None:
         if self.env.linflo != "1":
-            self.tc.enqueue(self._label_done())
+            self.tc.enqueue(self._label_done)
             return
 
         self.tc.enqueue(self._calculate_change_in_capacity, iled=self.env.iled)
 
         if self.env.oblong.upper() == "YES":
             self._label_update()
-            self.tc.enqueue(self._label_done())
+            self.tc.enqueue(self._label_done)
             return
 
         self.tc.enqueue(self.exec7)
         self._label_update()
-        self.tc.enqueue(self._label_done())
+        self.tc.enqueue(self._label_done)
 
-    def _label_doinv(self):
+    def _label_doinv(self) -> None:
         self.env.set_global("capjd", "OBJ_JD(R,CUR,K_EOH,JOT)*")
         self.tc.enqueue(self.exec8)
         self._label_dofix()
 
-    def _label_update(self):
+    def _label_update(self) -> None:
         self.tc.enqueue(self.exec9)
-        self.tc.enqueue(self._label_done())
+        self.tc.enqueue(self._label_done)
 
-    def _label_done(self):
+    def _label_done(self) -> None:
         self.exec10

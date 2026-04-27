@@ -22,7 +22,7 @@ from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from .compile_environment import CompileEnvironment
-    from .times_model_class import TimesModelClass
+    from .times_model_class import GamsPhase, TimesModelClass
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ class ErrStatMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        phase = "init"
+        phase: GamsPhase = "init"
         # $ IFI %SHELL%==ANSWER     $SET TMP END_GAMS.STA
         if self.env.shell == "ANSWER":
             self.env.set_scoped("tmp", "END_GAMS.STA")
@@ -66,13 +66,11 @@ class ErrStatMod(GamsClass):
         done = False
         # $  IF "%1" == SOLVE        $GOTO SOLVE
         if self.arg1 == "SOLVE":
-            done = self.queue_solve(tc=self.tc)
+            done = self.queue_solve()
 
         # $ IF DEFINED SOLVESTAT    $GOTO ACTION
-        elif "SOLVESTAT" in self.tc.container.listSymbols():
-            solvestat = self.tc.container["SOLVESTAT"]
-            if solvestat.number_records:
-                done = self.queue_action(tc=self.tc)
+        elif self.tc.defined("SOLVESTAT"):
+            done = self.queue_action()
 
         if not done:
             self.tc.add_gams_code(
@@ -103,15 +101,15 @@ SET SOLVESTAT(J) /
 """,
             )
             tmp = self.env.tmp
-            self.prep_file(self.tc, tmp)
+            self.prep_file(tmp)
 
-    def queue_solve(self, tc):
+    def queue_solve(self) -> bool:
         "No relevance to compilation"
-        tc.enqueue(self.solve, tc=self.tc)
+        self.tc.enqueue(self.solve, model_name=self.env.model_name, err_abort="")
         return True  # Signal done
 
-    def queue_action(self, tc):
-        phase = "init"
+    def queue_action(self) -> bool:
+        phase: GamsPhase = "init"
         """
         Most of the GAMS code is GAMSPy irrelevant.
 
@@ -123,13 +121,13 @@ SET SOLVESTAT(J) /
         %1 $%2  "%3"
         $GOTO DONE
         """
-        tc.add_gams_code(module=self, phase=phase, code=f"{self.arg4};")
+        self.tc.add_gams_code(module=self, phase=phase, code=f"{self.arg4};")
 
         return True  # Signal done
 
-    def prep_file(self, tc, tmp):
-        phase = "run"
-        tc.add_gams_code(
+    def prep_file(self, tmp: str) -> None:
+        phase: GamsPhase = "run"
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=rf"""
@@ -138,25 +136,25 @@ FILE END_GAMS / {tmp} /;
 """,
         )
 
-    def solve(self, tc, err_abort):
-        phase = "run"
-        tc.add_gams_code(
+    def solve(self, err_abort: str, model_name: str) -> None:
+        phase: GamsPhase = "run"
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
-            code=r"""
- Z = MIN(14,%MODEL_NAME%.MODELSTAT)-1; IF(Z > 18, Z=11);
+            code=rf"""
+ Z = MIN(14,{model_name}.MODELSTAT)-1; IF(Z > 18, Z=11);
  IF(Z>=0,PUT SCREEN /"--- TIMES Solve status: ";
    LOOP(SAMEAS(J,'1'), PUT SOLVESTAT.TE(J+Z));
    PUTCLOSE;
    PUT END_GAMS "Solve status: ";
    LOOP(SAMEAS(J,'1'), PUT SOLVESTAT.TE(J+Z) /);
    PUTCLOSE;
-   Z = ABS(ABS(2*%MODEL_NAME%.MODELSTAT-9)-6));
- IF(Z>1.5 OR %MODEL_NAME%.MODELSTAT=7,execerror=1);
+   Z = ABS(ABS(2*{model_name}.MODELSTAT-9)-6));
+ IF(Z>1.5 OR {model_name}.MODELSTAT=7,execerror=1);
 """,
         )
 
-        z = tc.container["Z"]
+        z = self.tc.container["Z"]
         if not err_abort:
             z[...] = 0
 
@@ -166,7 +164,7 @@ FILE END_GAMS / {tmp} /;
         # ABORT$(Z>1.5) '%2';
         if z.records.iloc[0] > 1.5:
             raise ValueError(self.arg2)
-        tc.add_gams_code(
+        self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=r"""
