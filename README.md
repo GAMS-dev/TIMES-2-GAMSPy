@@ -259,6 +259,7 @@ Example execution: `python src/main.py`
 | #199    | readbprice.mod     |      48 |
 | #200    | recurrin.stc       |     182 |
 | #201    | resloadc.vda       |     154 |
+| #202    | rptlite.rpt        |     176 |
 | #203    | rptmain.mod        |      48 |
 | #204    | rptmain.rpt        |     282 |
 | #205    | rptmain.stc        |     125 |
