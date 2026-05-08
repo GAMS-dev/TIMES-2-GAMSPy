@@ -42,47 +42,42 @@ class BndActMod(GamsClass):
 
     def compile(self) -> None:
         self.tc.enqueue(
-            self.reset_any_existing_bounds,
+            self.exec_bnd_act_mod,
             var=self.env.var,
             swd=self.env.swd,
-            swt=self.env.swt,
+            swt=f"SW_T(T{self.env.swd})$" if self.env.stages == "YES" else self.env.swt,
             r_t=self.env.r_t,
         )
 
-        # assign from user data - only set bounds directly at the PRC_TS level
-        if self.env.stages == "YES":
-            self.env.set_local("swt", f"SW_T(T{self.env.swd})$")
-
-        self.tc.enqueue(
-            self.reset_any_existing_bounds2,
-            var=self.env.var,
-            swd=self.env.swd,
-            swt=self.env.swt,
-            r_t=self.env.r_t,
-        )
-
-    def reset_any_existing_bounds(self: BndActMod, var: str, swd: str):
+    def exec_bnd_act_mod(
+        self: "BndActMod",
+        var: str,
+        swd: str,
+        swt: str,
+        r_t: str,
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf"""
+            code=bnd_act_mod(var=var, swd=swd, swt=swt, r_t=r_t),
+        )
+
+
+def bnd_act_mod(
+    *,
+    var: str,
+    swd: str,
+    swt: str,
+    r_t: str,
+) -> str:
+    return rf"""
 * reset any existing bounds
   {var}_ACT.LO(R,V,T,P,S{swd}) = 0;
   {var}_ACT.UP(R,V,T,P,S{swd}) = INF;
-""",
-        )
 
-    def reset_any_existing_bounds2(
-        self: BndActMod, var: str, swd: str, swt: str, r_t: str
-    ):
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
   {var}_ACT.LO(RTP_VINTYR(R,T,T,P),S{swd})$({swt} PRC_TS(R,P,S) * (NOT PRC_VINT(R,P))) $= ACT_BND(R,T,P,S,'LO');
   {var}_ACT.UP(RTP_VINTYR(R,T,T,P),S{swd})$({swt} PRC_TS(R,P,S) * (NOT PRC_VINT(R,P))) $= ACT_BND(R,T,P,S,'UP');
   {var}_ACT.FX(RTP_VINTYR({r_t},T,P),S{swd})$({swt}PRC_TS(R,P,S)* (NOT PRC_VINT(R,P))) $= ACT_BND(R,T,P,S,'FX');
 * for upper bounds of zero, activity variables of all vintages can be bounded to zero
   {var}_ACT.UP(RTP_VINTYR(R,V,T,P),S{swd})$({swt} PRC_TS(R,P,S) * PRC_VINT(R,P)$RTPS_OFF(R,T,P,S)) = EPS;
-""",
-        )
+"""

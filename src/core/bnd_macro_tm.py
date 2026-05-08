@@ -35,14 +35,19 @@ class BndMacroTm(GamsClass):
         self._sub_modules = {}
         self.compile()
 
-    def compile(self: BndMacroTm) -> None:
-        self.tc.enqueue(self.set_cut_off_point)
+    def compile(self) -> None:
+        self.tc.enqueue(self.exec_bnd_macro_tm)
 
-    def set_cut_off_point(self: BndMacroTm):
+    def exec_bnd_macro_tm(self: "BndMacroTm") -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
+            code=bnd_macro_tm(),
+        )
+
+
+def bnd_macro_tm() -> str:
+    return r"""
 *  Set the Cut-off Point for Applying the Market Penetration Cost Penalty    *
 *============================================================================*
   TM_CAPTB(R,P) = SUM(RTP(R,T,P),TM_EXPBND(RTP));
@@ -76,5 +81,4 @@ class BndMacroTm(GamsClass):
 *SK* V0.4 set MM_C for base year
 * VAR_C.FX(R,T(MIYR_1)) = TM_C0(R);
   VAR_C.LO(R,TT) = TM_C0(R)*.5;
-""",
-        )
+"""
