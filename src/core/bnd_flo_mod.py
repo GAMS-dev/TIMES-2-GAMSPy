@@ -41,33 +41,53 @@ class BndFloMod(GamsClass):
 
     def compile(self) -> None:
         self.tc.enqueue(
-            self.step_one,
+            self.exec_bnd_flo_mod,
             stages=self.env.stages,
             reduce=self.env.reduce,
             var=self.env.var,
             swd=self.env.swd,
-            swt=self.env.swt,
+            swt=(
+                f"{self.env.swd})$SW_T(T{self.env.swd}"
+                if self.env.reduce == "YES" and self.env.stages == "YES"
+                else self.env.swt
+            ),
         )
 
-        if self.env.reduce != "YES":
-            return
-
-        if self.env.stages == "YES":
-            self.env.set_local("swt", f"{self.env.swd})$SW_T(T{self.env.swd}")
-
-        self.tc.enqueue(
-            self.step_two,
-            var=self.env.var,
-            swt=self.env.swt,
-        )
-
-    def step_one(
-        self: BndFloMod, stages: str, reduce: str, var: str, swd: str, swt: str
-    ):
+    def exec_bnd_flo_mod(
+        self: "BndFloMod",
+        stages: str,
+        reduce: str,
+        var: str,
+        swd: str,
+        swt: str,
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf"""
+            code=bnd_flo_mod(
+                stages=stages,
+                reduce=reduce,
+                var=var,
+                swd=swd,
+                swt=swt,
+            ),
+        )
+
+
+def bnd_flo_mod(
+    *,
+    stages: str,
+    reduce: str,
+    var: str,
+    swd: str,
+    swt: str,
+) -> str:
+    base_statement = rf"""
+  {var}_FLO.LO(RTP_VINTYR(R,T,T,P),C,S{swd})$((RTPCS_VARF(R,T,P,C,S)*TRACKPC(R,P,C))$FLO_BND(R,T,P,C,S,'LO')) = FLO_BND(R,T,P,C,S,'LO');
+  {var}_FLO.UP(RTP_VINTYR(R,T,T,P),C,S{swd})$((RTPCS_VARF(R,T,P,C,S)*TRACKPC(R,P,C))$FLO_BND(R,T,P,C,S,'UP')) = FLO_BND(R,T,P,C,S,'UP');
+  {var}_FLO.FX(RTP_VINTYR(R,T,T,P),C,S{swd})$((RTPCS_VARF(R,T,P,C,S)*TRACKPC(R,P,C))$FLO_BND(R,T,P,C,S,'FX')) = FLO_BND(R,T,P,C,S,'FX');
+"""
+    return rf"""
 * reset any existing bounds
   {var}_FLO.LO(R,V,T,P,C,S{swd}) = 0;
   {var}_FLO.UP(R,V,T,P,C,S{swd}) = INF;
@@ -82,38 +102,17 @@ class BndFloMod(GamsClass):
   LOOP(T,FLO_BND(R,'%DFLBL%',P,C,S,BD)$FLO_BND(R,T,P,C,S,BD) = EPS$(NOT TRACKPC(R,P,C));
          FLO_BND(R,'%DFLBL%',P,CG,S,BD)$((NOT C(CG))$FLO_BND(R,T,P,CG,S,BD)) = EPS);
   TRACKPC(RPC_ACT(R,P,C)) = NO;
-""",
-        )
-
-        base_statement = rf"""
-  {var}_FLO.LO(RTP_VINTYR(R,T,T,P),C,S{swd})$((RTPCS_VARF(R,T,P,C,S)*TRACKPC(R,P,C))$FLO_BND(R,T,P,C,S,'LO')) = FLO_BND(R,T,P,C,S,'LO');
-  {var}_FLO.UP(RTP_VINTYR(R,T,T,P),C,S{swd})$((RTPCS_VARF(R,T,P,C,S)*TRACKPC(R,P,C))$FLO_BND(R,T,P,C,S,'UP')) = FLO_BND(R,T,P,C,S,'UP');
-  {var}_FLO.FX(RTP_VINTYR(R,T,T,P),C,S{swd})$((RTPCS_VARF(R,T,P,C,S)*TRACKPC(R,P,C))$FLO_BND(R,T,P,C,S,'FX')) = FLO_BND(R,T,P,C,S,'FX');
-"""
-        if stages == "YES":
-            code_block = f"LOOP(SW_T(T{swd}), {base_statement} );"
-        else:
-            code_block = base_statement
-
-        self.tc.add_gams_code(module=self, phase="run", code=code_block)
-
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
+{f"LOOP(SW_T(T{swd}), {base_statement} );" if stages == "YES" else base_statement}
 OPTION CLEAR=TRACKPC;
 
-""",
-        )
-
-    def step_two(self: BndFloMod, var: str, swt: str):
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
+{
+        rf'''
 * As BND_ACT has been set before this, MAX/MIN can be used; FX bound consistency cannot be guaranteed
  LOOP(RTPCS_VARF(R,T,P,C,S)$(((NOT PRC_VINT(R,P))*RPC_ACT(R,P,C))$FLO_BND(R,T,P,C,S,'LO')),{var}_ACT.LO(R,T,T,P,S{swt}) = MAX({var}_ACT.LO(R,T,T,P,S{swt}),FLO_BND(R,T,P,C,S,'LO')/PRC_ACTFLO(R,T,P,C)));
  LOOP(RTPCS_VARF(R,T,P,C,S)$(((NOT PRC_VINT(R,P))*RPC_ACT(R,P,C))$FLO_BND(R,T,P,C,S,'UP')),{var}_ACT.UP(R,T,T,P,S{swt}) = MIN({var}_ACT.UP(R,T,T,P,S{swt}),FLO_BND(R,T,P,C,S,'UP')/PRC_ACTFLO(R,T,P,C)));
  LOOP(RTPCS_VARF(R,T,P,C,S)$(((NOT PRC_VINT(R,P))*RPC_ACT(R,P,C))$FLO_BND(R,T,P,C,S,'FX')),{var}_ACT.FX(R,T,T,P,S{swt}) = FLO_BND(R,T,P,C,S,'FX')/PRC_ACTFLO(R,T,P,C));
-""",
-        )
+'''
+        if reduce == "YES"
+        else ""
+    }
+"""

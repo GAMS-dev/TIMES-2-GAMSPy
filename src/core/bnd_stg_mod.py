@@ -47,69 +47,74 @@ class BndStgMod(GamsClass):
 
     def compile(self) -> None:
         self.tc.enqueue(
-            self.reset_any_existing_bounds,
+            self.exec_bnd_stg_mod,
             arg1=self.arg1,
+            arg2=self.arg2,
             arg3=self.arg3,
             var=self.env.var,
             swd=self.env.swd,
             pgprim=self.env.pgprim,
-        )
-
-        self.tc.enqueue(
-            self.set_bounds_at_process_activity_level,
-            arg1=self.arg1,
-            arg2=self.arg2,
-            var=self.env.var,
-            swd=self.env.swd,
             stages=self.env.stages,
         )
 
-    def reset_any_existing_bounds(
-        self: BndStgMod, arg1: str, arg3: str, var: str, swd: str, pgprim: str
-    ):
+    def exec_bnd_stg_mod(
+        self: "BndStgMod",
+        arg1: str,
+        arg2: str,
+        arg3: str,
+        var: str,
+        swd: str,
+        pgprim: str,
+        stages: str,
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf"""
-* reset any existing bounds
-
-  {var}_{arg1}.LO(R,V,T,P,C,S{swd})$PRC_MAP(R,'STG',P) = 0;
-  {var}_{arg1}.UP(R,V,T,P,C,S{swd})$PRC_MAP(R,'STG',P) = INF;
-  {var}_{arg1}.LO(RTP_VINTYR(R,V,T,P),{pgprim},S{swd})$((RPS_STG(R,P,S)->0)$RP_STS(R,P)) = {arg3};
-""",
+            code=bnd_stg_mod(
+                arg1=arg1,
+                arg2=arg2,
+                arg3=arg3,
+                var=var,
+                swd=swd,
+                pgprim=pgprim,
+                stages=stages,
+            ),
         )
 
-    def set_bounds_at_process_activity_level(
-        self: BndStgMod, arg1: str, arg2: str, var: str, swd: str, stages: str
-    ):
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-* set bounds at process activity level
-  TRACKP(RP(R,P))$((NOT PRC_VINT(R,P))$PRC_MAP(R,'STG',P)) = YES;
-  STG{arg2}_BND(R,T,P,C,S,BD)$((NOT TOP(R,P,C,'{arg2}'))$RP_STG(R,P)) = 0;
-""",
-        )
 
-        gams_statement = rf"""
+def bnd_stg_mod(
+    *,
+    arg1: str = "",
+    arg2: str = "",
+    arg3: str = "",
+    var: str,
+    swd: str,
+    pgprim: str,
+    stages: str,
+) -> str:
+    gams_statement = rf"""
   {var}_{arg1}.LO(RTP_VINTYR(R,T,T,P),C,S{swd})$(RPCS_VAR(R,P,C,S)$TRACKP(R,P)) $= STG{arg2}_BND(R,T,P,C,S,'LO');
   {var}_{arg1}.UP(RTP_VINTYR(R,T,T,P),C,S{swd})$(RPCS_VAR(R,P,C,S)$TRACKP(R,P)) $= STG{arg2}_BND(R,T,P,C,S,'UP');
   {var}_{arg1}.FX(RTP_VINTYR(R,T,T,P),C,S{swd})$(RPCS_VAR(R,P,C,S)$TRACKP(R,P)) $= STG{arg2}_BND(R,T,P,C,S,'FX');
 """
-        if stages == "YES":
-            code_block = f"LOOP(SW_T(T{swd}),\n{gams_statement});"
-        else:
-            code_block = gams_statement
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=code_block,
-        )
+    if stages == "YES":
+        bounds_block = rf"""
+  LOOP(SW_T(T{swd}),
+{gams_statement}
+  );
+"""
+    else:
+        bounds_block = gams_statement
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="OPTION CLEAR=TRACKP;",
-        )
+    return rf"""
+* reset any existing bounds
+  {var}_{arg1}.LO(R,V,T,P,C,S{swd})$PRC_MAP(R,'STG',P) = 0;
+  {var}_{arg1}.UP(R,V,T,P,C,S{swd})$PRC_MAP(R,'STG',P) = INF;
+  {var}_{arg1}.LO(RTP_VINTYR(R,V,T,P),{pgprim},S{swd})$((RPS_STG(R,P,S)->0)$RP_STS(R,P)) = {arg3};
+* set bounds at process activity level
+  TRACKP(RP(R,P))$((NOT PRC_VINT(R,P))$PRC_MAP(R,'STG',P)) = YES;
+  STG{arg2}_BND(R,T,P,C,S,BD)$((NOT TOP(R,P,C,'{arg2}'))$RP_STG(R,P)) = 0;
+{bounds_block}
+OPTION CLEAR=TRACKP;
+"""

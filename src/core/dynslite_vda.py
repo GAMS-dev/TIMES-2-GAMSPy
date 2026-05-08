@@ -82,8 +82,8 @@ class DynsliteVda(GamsClass):
             )
             self.tc.enqueue(
                 self.bounds_exec,
-                tmp=self.env.tmp,
-                swt=self.env.swt,
+                swd=self.env.swd,
+                stages=self.env.stages,
                 model_name=self.env.model_name,
                 var=self.env.var,
                 var_uc_yes=self.env.var_uc == "YES",
@@ -253,17 +253,41 @@ class DynsliteVda(GamsClass):
 
     def bounds_exec(
         self: DynsliteVda,
-        tmp: str,
-        swt: str,
+        swd: str,
+        stages: str,
         model_name: str,
         var: str,
         var_uc_yes: bool,
     ) -> None:
-        if self.tc.container["NORTS"].number_records > 0:
-            self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code=rf"""
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=dynslite_vda_bounds(
+                swd=swd,
+                stages=stages,
+                model_name=model_name,
+                var=var,
+                var_uc_yes=var_uc_yes,
+            ),
+        )
+
+
+def dynslite_vda_bounds(
+    *,
+    swd: str,
+    stages: str,
+    model_name: str,
+    var: str,
+    var_uc_yes: bool,
+) -> str:
+    tmp = "$NORTS(R,T,S)"
+    swt = ""
+    if stages == "YES":
+        swt = f"SW_T(T{swd})$"
+    swt = f"{swd})$({swt}RT_PP(R,T){tmp}"
+
+    return rf"""
+  IF(CARD(NORTS),
    OPTION RTC_NET<RHS_COMBAL,RTC_PRD<RHS_COMPRD;
    {model_name}.HOLDFIXED=1;
    {model_name}.SOLVEOPT=1;
@@ -278,5 +302,5 @@ class DynsliteVda(GamsClass):
    {var}_COMNET.FX(RTC_NET(R,T,C),S{swt}$COM_TS(R,C,S)) = 0;
    {var}_COMPRD.FX(RTC_PRD(R,T,C),S{swt}$COM_TS(R,C,S)) = 0;
    {f"UC_RHSMAP(R,T,UCN,UC_NUMBER,S){tmp} = NO;" if var_uc_yes else ""}
-""",
-            )
+  );
+"""
