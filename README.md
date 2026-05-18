@@ -264,6 +264,7 @@ Example execution: `python src/main.py`
 | #204    | rptmain.rpt        |     282 |
 | #205    | rptmain.stc        |     125 |
 | #206    | rptmain.tm         |     140 |
+| #207    | rptmisc.rpt        |     276 |
 | #208    | rpt_dam.mod        |      56 |
 | #209    | rpt_ext.cli        |      52 |
 | #210    | rpt_ext.ecb        |      70 |
