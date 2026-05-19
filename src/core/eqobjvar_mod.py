@@ -78,6 +78,9 @@ class EqobjvarMod(GamsClass):
             self.env.set_scoped("sowtmpend", self.env.sow)
 
         # TODO need to figure out what todo if arg2 = *
+        if self.arg2 == "*":
+            raise NotImplementedError("No implementation for arg2 = *")
+
         eqobjvar = eqobjvar_mod(
             tpulse=self.env.tpulse,
             var=self.env.var,

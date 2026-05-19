@@ -59,12 +59,19 @@ class TimesModelClass:
     p: Set
     prc: Set
     uc_cost: Set
+    RpUx: Set
+    RpPl: Set
+    RtpPl: Set
+    RpsUps: Set
+
+    container: Container
 
     def __init__(
         self,
         env: CompileEnvironment,
         output_compile: Path,
         output_execute: Path,
+        output_convert: Path,
         test: bool,
     ):
         self.env = env
@@ -73,6 +80,7 @@ class TimesModelClass:
         ] = []
         self.output_compile = output_compile
         self.output_execute = output_execute
+        self.output_convert = output_convert
         self.test_run = test
         self.compile_states: dict[str, Any] = {}
         # self.container = Container(debugging_level="keep")

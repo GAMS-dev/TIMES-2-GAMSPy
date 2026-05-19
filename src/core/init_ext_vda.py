@@ -14,6 +14,8 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from gamspy import Set
+
 from core import equcrtp_vda
 
 from .base_class import GamsClass
@@ -45,16 +47,21 @@ class InitExtVda(GamsClass):
         self.compile()
 
     def compile(self: InitExtVda) -> None:
-        m = self.tc.container
+        g = self.tc
+        m = g.container
+
+        # Internal SETs
+        ll = m["L"]
+        s = m["S"]
+        g.RpUx = Set(m, name="RP_UX", domain=[g.r, g.p])
+        g.RpPl = Set(m, name="RP_PL", domain=[g.r, g.p, ll])
+        g.RtpPl = Set(m, name="RTP_PL", domain=[g.r, g.ll, g.p])
+        g.RpsUps = Set(m, name="RPS_UPS", domain=[g.r, g.p, s])
+
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=r"""
-* Internal SETs
- SET RP_UX(R,P);
- SET RP_PL(R,P,L);
- SET RTP_PL(R,LL,P);
- SET RPS_UPS(R,P,S);
  SET RP_UPC(R,P,TSL,L);
  SET AFUPS(R,T,P,S);
  SET RP_DP(R,P) //;

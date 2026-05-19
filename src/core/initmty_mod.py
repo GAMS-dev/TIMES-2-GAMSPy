@@ -222,7 +222,7 @@ class InitmtyMod(GamsClass):
 """,
             )
             # ALIAS(UC_N,UCN);
-            uc_n = self.tc.container["UC_n"]
+            uc_n = self.tc.container["UC_N"]
             Alias(container=self.tc.container, name="UCN", alias_with=uc_n)
 
             self.tc.add_gams_code(
@@ -742,6 +742,17 @@ PARAMETER IE_DEFAULT(*) //;
             # $IF %DATAGDXI%%INTEXT_ONLY%==YESyes $SET VAR *
             if self.env.datagdxi == "YES" and self.env.intext_only == "YES":
                 self.env.set_scoped("var", "*")
+            self.include(
+                ErrStatMod(
+                    tc=self.tc,
+                    env=self.env,
+                    arg1="$IF NOT ERRORFREE",
+                    arg2="ABORT",
+                    arg3="Errors in Compile",
+                    arg4=self.env.var,
+                    arg5=": Required _TIMES.g00 Restart File Missing",
+                )
+            )
             # $IF ERRORFREE $BATINCLUDE err_stat.mod '$IF NOT ERRORFREE' ABORT 'Errors in Compile' '%VAR%' ': Required _TIMES.g00 Restart File Missing'
             self.include(
                 ErrStatMod(

@@ -55,37 +55,24 @@ class EqobjvarRpt(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        if self.arg1.upper() != "MOD":
-            if self.arg5.upper() == "":
-                self.env.set_scoped("tpulse", "")
-                self.env.set_scoped("tmp", "")
+        self.tc.enqueue(
+            self.exec_eqobjvar_rpt,
+            arg1=self.arg1,
+            arg2=self.arg2,
+            arg3=self.arg3,
+            arg4=self.arg4,
+            arg5=self.arg5,
+            pgprim=self.env.pgprim,
+            tpulse=self.env.tpulse,
+            tmp=self.env.tmp,
+            stages=self.env.stages,
+            is_vnret_defined=self.tc.defined("VNRET"),
+            varv=self.env.varv,
+            sws=self.env.sws,
+            varm=self.env.varm,
+        )
 
-            self.tc.enqueue(
-                self.exec1,
-                arg1=self.arg1,
-                arg2=self.arg2,
-                arg3=self.arg3,
-                arg4=self.arg4,
-                arg5=self.arg5,
-                pgprim=self.env.pgprim,
-                tpulse=self.env.tpulse,
-                tmp=self.env.tmp,
-                condition=self.env.stages.upper() == "YES",
-                is_vnret_defined=self.tc.defined("VNRET"),
-                varv=self.env.varv,
-                sws=self.env.sws,
-                varm=self.env.varm,
-            )
-        else:  # LEGACY
-            self.tc.enqueue(
-                self.execute_legacy_behavior,
-                is_vnret_defined=self.tc.defined("VNRET"),
-                varv=self.env.varv,
-                sws=self.env.sws,
-                varm=self.env.varm,
-            )
-
-    def exec1(
+    def exec_eqobjvar_rpt(
         self: EqobjvarRpt,
         arg1: str,
         arg2: str,
@@ -95,38 +82,117 @@ class EqobjvarRpt(GamsClass):
         pgprim: str,
         tpulse: str,
         tmp: str,
-        condition: bool,
+        stages: str,
         is_vnret_defined: bool,
         varv: str,
         sws: str,
         varm: str,
     ) -> None:
-        include_cal_caps_1 = cal_caps_mod(
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=eqobjvar_rpt(
+                arg1=arg1,
+                arg2=arg2,
+                arg3=arg3,
+                arg4=arg4,
+                arg5=arg5,
+                pgprim=pgprim,
+                tpulse=tpulse,
+                tmp=tmp,
+                stages=stages,
+                is_vnret_defined=is_vnret_defined,
+                varv=varv,
+                sws=sws,
+                varm=varm,
+            ),
+        )
+
+
+def eqobjvar_rpt(
+    arg1: str,
+    arg2: str,
+    arg3: str,
+    arg4: str,
+    arg5: str,
+    pgprim: str,
+    tpulse: str,
+    tmp: str,
+    stages: str,
+    is_vnret_defined: bool,
+    varv: str,
+    sws: str,
+    varm: str,
+) -> str:
+    return_str = ""
+    if arg1.upper() != "MOD":
+        if arg5.upper() == "":
+            tpulse = ""
+            tmp = ""
+        return_str = eqobjvar_rpt_current(
+            arg1=arg1,
+            arg2=arg2,
+            arg3=arg3,
+            arg4=arg4,
+            arg5=arg5,
+            pgprim=pgprim,
+            tpulse=tpulse,
+            tmp=tmp,
+            stages=stages,
             is_vnret_defined=is_vnret_defined,
-            arg1="T",
-            arg2=f"SUM(TS_ANN(TS,SL),{arg5}({tpulse}(OBJ_FCOST(R,{arg4},P,C,SL,CUR)+OBJ_FDELV(R,{arg4},P,C,SL,CUR))))",
-            arg3="TS",
-            arg4=".L",
             varv=varv,
             sws=sws,
             varm=varm,
         )
-        include_cal_caps_2 = cal_caps_mod(
+    else:
+        return_str = eqobjvar_rpt_legacy(
             is_vnret_defined=is_vnret_defined,
-            arg1="T",
-            arg2=f"SUM(TS_ANN(TS,SL),{arg5}({tpulse} OBJ_FTAX(R,{arg4},P,C,SL,CUR)))",
-            arg3="TS",
-            arg4=".L",
             varv=varv,
             sws=sws,
             varm=varm,
         )
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-{"Z=SUM(W(SOW),SW_PROB(W));" if condition else ""}
+    return return_str
+
+
+def eqobjvar_rpt_current(
+    arg1: str,
+    arg2: str,
+    arg3: str,
+    arg4: str,
+    arg5: str,
+    pgprim: str,
+    tpulse: str,
+    tmp: str,
+    stages: str,
+    is_vnret_defined: bool,
+    varv: str,
+    sws: str,
+    varm: str,
+) -> str:
+    include_cal_caps_1 = cal_caps_mod(
+        is_vnret_defined=is_vnret_defined,
+        arg1="T",
+        arg2=f"SUM(TS_ANN(TS,SL),{arg5}({tpulse}(OBJ_FCOST(R,{arg4},P,C,SL,CUR)+OBJ_FDELV(R,{arg4},P,C,SL,CUR))))",
+        arg3="TS",
+        arg4=".L",
+        varv=varv,
+        sws=sws,
+        varm=varm,
+    )
+    include_cal_caps_2 = cal_caps_mod(
+        is_vnret_defined=is_vnret_defined,
+        arg1="T",
+        arg2=f"SUM(TS_ANN(TS,SL),{arg5}({tpulse} OBJ_FTAX(R,{arg4},P,C,SL,CUR)))",
+        arg3="TS",
+        arg4=".L",
+        varv=varv,
+        sws=sws,
+        varm=varm,
+    )
+
+    return rf"""
+{"Z=SUM(W(SOW),SW_PROB(W));" if stages.upper() == "YES" else ""}
 *------------------------------------------------------------------------------
   OPTION CLEAR={arg1}_ACTC,CLEAR={arg1}_COMC,CLEAR={arg1}_FLOC;
 *------------------------------------------------------------------------------
@@ -150,7 +216,7 @@ class EqobjvarRpt(GamsClass):
   {arg1}_COMC({arg3}R,T,C,CUR)$RDCUR(R,CUR) $=
         SUM(RHS_COMBAL(R,T,C,S), VAR_COMNET.L(R,T,C,S) * {arg5}({tpulse} (OBJ_COMNT(R,{arg4},C,S,'TAX',CUR)+OBJ_COMNT(R,{arg4},C,S,'SUB',CUR)))) +
         SUM(RHS_COMPRD(R,T,C,S), VAR_COMPRD.L(R,T,C,S) * {arg5}({tpulse} (OBJ_COMPD(R,{arg4},C,S,'TAX',CUR)+OBJ_COMPD(R,{arg4},C,S,'SUB',CUR))));
-{f"{arg1}_COMC({arg3}RTC(R,T,C),CUR)$RDCUR(R,CUR) $= SUM((RTCS_VARC(RTC,S),COM_VAR,SW_TSW(SOW,T,W))$S_COM_TAX(RTC,S,COM_VAR,CUR,'1',W),({arg5}({tmp}S_COM_TAX(R,{arg4},C,S,COM_VAR,CUR,'1',W))*(VAR_COMPRD.L(RTC,S)$DIAG('PRD',COM_VAR)+VAR_COMNET.L(RTC,S)$DIAG('NET',COM_VAR))+{arg1}_COMC(J,RTC,CUR)*G_YRFR(R,S))*SW_PROB(W)/Z);" if condition else ""}
+{f"{arg1}_COMC({arg3}RTC(R,T,C),CUR)$RDCUR(R,CUR) $= SUM((RTCS_VARC(RTC,S),COM_VAR,SW_TSW(SOW,T,W))$S_COM_TAX(RTC,S,COM_VAR,CUR,'1',W),({arg5}({tmp}S_COM_TAX(R,{arg4},C,S,COM_VAR,CUR,'1',W))*(VAR_COMPRD.L(RTC,S)$DIAG('PRD',COM_VAR)+VAR_COMNET.L(RTC,S)$DIAG('NET',COM_VAR))+{arg1}_COMC(J,RTC,CUR)*G_YRFR(R,S))*SW_PROB(W)/Z);" if stages.upper() == "YES" else ""}
 
 *------------------------------------------------------------------------------
 * Commodity costs associated with imports/exports from outside study area
@@ -217,26 +283,26 @@ class EqobjvarRpt(GamsClass):
      SUM(BLE_OPR(R,BLE,OPR), {arg5}({tpulse} OBJ_BLNDV(R,{arg4},BLE,OPR,CUR)) * VAR_BLND.L(R,T,BLE,OPR));
 
 *------------------------------------------------------------------------------
-""",
-        )
+"""
 
-    def execute_legacy_behavior(
-        self: EqobjvarRpt, is_vnret_defined: bool, varv: str, sws: str, varm: str
-    ) -> None:
-        include_cal_caps = cal_caps_mod(
-            is_vnret_defined=is_vnret_defined,
-            arg1="T",
-            arg2="SUM(TS_ANN(TS,SL),OBJ_FCOST(R,Y_EOH,P,C,SL,CUR)+OBJ_FDELV(R,Y_EOH,P,C,SL,CUR)+OBJ_FTAX(R,Y_EOH,P,C,SL,CUR))",
-            arg3="TS",
-            arg4=".L",
-            varv=varv,
-            sws=sws,
-            varm=varm,
-        )
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
+
+def eqobjvar_rpt_legacy(
+    is_vnret_defined: bool,
+    varv: str,
+    sws: str,
+    varm: str,
+) -> str:
+    include_cal_caps = cal_caps_mod(
+        is_vnret_defined=is_vnret_defined,
+        arg1="T",
+        arg2="SUM(TS_ANN(TS,SL),OBJ_FCOST(R,Y_EOH,P,C,SL,CUR)+OBJ_FDELV(R,Y_EOH,P,C,SL,CUR)+OBJ_FTAX(R,Y_EOH,P,C,SL,CUR))",
+        arg3="TS",
+        arg4=".L",
+        varv=varv,
+        sws=sws,
+        varm=varm,
+    )
+    return rf"""
 *==============================================================================
 * Legacy reporting (by every year and timeslice, discounted):
 * Generate Variable cost formulas summing over all active indexes by region and currency
@@ -311,5 +377,4 @@ OBJ_C = SUM((R,V,Y_EOH,P,S,CUR)$PAR_OBJACT(R,V,Y_EOH,P,S,CUR),PAR_OBJACT(R,V,Y_E
    SUM((R,Y_EOH,C,S,CUR)$PAR_OBJCOM(R,Y_EOH,C,S,CUR),PAR_OBJCOM(R,Y_EOH,C,S,CUR));
 OBJ_D = SUM(RDCUR(R,CUR),SUM(OBV,SUM_OBJ('OBJVAR',OBV)*VAR_OBJ.L(R,OBV,CUR)));
 DISPLAY OBJ_C,OBJ_D;
-""",
-        )
+"""

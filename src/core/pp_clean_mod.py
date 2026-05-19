@@ -40,7 +40,10 @@ class PpCleanMod(GamsClass):
         if self.env.memclean == "NO":
             return
 
-        self.tc.enqueue(self.exec1)
+        self.tc.enqueue(
+            self.exec_pp_clean_mod,
+            memclean=self.env.memclean,
+        )
 
         if not self.env.is_set("bencost"):
             self.env.set_global("bencost", "NO")
@@ -48,11 +51,27 @@ class PpCleanMod(GamsClass):
             # TODO: clarify what this file is about
             shutil.move("timesrng_inc.py", "timesrng_inc_bak.py")
 
-    def exec1(self: PpCleanMod) -> None:
+    def exec_pp_clean_mod(
+        self: PpCleanMod,
+        memclean: str,
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code="""
+            code=pp_clean_mod(memclean=memclean),
+        )
+
+
+def pp_clean_mod(
+    *,
+    memclean: str,
+) -> str:
+    # TODO: in pp_clean.mod there is $IF NOT SET BENCOST $SETGLOBAL BENCOST NO
+    # how should this be done in this string-returning function?
+    if memclean == "NO":
+        return ""
+
+    return """
 FLO_SUM(R,ALLYEAR,P,CG1,C,CG2,S) = 0;
 FLO_FUNC(R,ALLYEAR,P,CG1,CG2,S) = 0;
 NCAP_AF(R,ALLYEAR,P,S,BD) = 0;
@@ -65,5 +84,4 @@ FLO_TAX(R,ALLYEAR,P,C,S,CUR) = 0;
 FLO_SUB(R,ALLYEAR,P,C,S,CUR) = 0;
 FLO_COST(R,ALLYEAR,P,C,S,CUR) = 0;
 FLO_DELIV(R,ALLYEAR,P,C,S,CUR) = 0;
-""",
-        )
+"""

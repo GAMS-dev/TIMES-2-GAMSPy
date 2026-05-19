@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# TODO: the ErrStatMod class is not correctly translated yet. err_stat_solve() is translated
 class ErrStatMod(GamsClass):
     """Translation unit for err_stat.mod."""
 
@@ -162,7 +163,7 @@ FILE END_GAMS / {tmp} /;
         # * -- allow even "intermediate non-optimal" for investigation
         # *ABORT$((%MODEL_NAME%.MODELSTAT GT 1) OR (%MODEL_NAME%.SOLVESTAT GT 1)) '*** ERRORS IN OPTIMIZATION ***'
         # ABORT$(Z>1.5) '%2';
-        if z.records.iloc[0] > 1.5:
+        if z.toValue() > 1.5:
             raise ValueError(self.arg2)
         self.tc.add_gams_code(
             module=self,
@@ -171,3 +172,29 @@ FILE END_GAMS / {tmp} /;
 IF(execerror,execerror=0);
 """,
         )
+
+
+def err_stat_solve(
+    *,
+    arg1: str = "",
+    arg2: str,
+    model_name: str,
+    err_abort: str,
+) -> str:
+    return rf"""
+ Z = MIN(14,{model_name}.MODELSTAT)-1; IF(Z > 18, Z=11);
+ IF(Z>=0,PUT SCREEN /"--- TIMES Solve status: ";
+   LOOP(SAMEAS(J,'1'), PUT SOLVESTAT.TE(J+Z));
+   PUTCLOSE;
+   PUT END_GAMS "Solve status: ";
+   LOOP(SAMEAS(J,'1'), PUT SOLVESTAT.TE(J+Z) /);
+   PUTCLOSE;
+   Z = ABS(ABS(2*{model_name}.MODELSTAT-9)-6));
+ IF(Z>1.5 OR {model_name}.MODELSTAT=7,execerror=1);
+ {"Z=0;" if err_abort == "NO" else ""}
+* [UR] allow solution "optimal with unscaled infeasibilities"
+* -- allow even "intermediate non-optimal" for investigation
+*ABORT$(({model_name}.MODELSTAT GT 1) OR ({model_name}.SOLVESTAT GT 1)) '*** ERRORS IN OPTIMIZATION ***'
+ ABORT$(Z>1.5) '{arg2}';
+ IF(execerror,execerror=0);
+"""

@@ -83,7 +83,7 @@ class EqcombalMod(GamsClass):
             condition1=self.arg4 == "BAL",
             condition2=self.arg4 == "PRD",
             condition3=self.env.timesed == "YES",
-            condition4=f"{self.arg4},{self.arg3}" == "BALFX",
+            condition4=f"{self.arg4}{self.arg3}" == "BALFX",
         )
 
     def define_equation(

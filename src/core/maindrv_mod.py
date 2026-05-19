@@ -65,8 +65,11 @@ from core.ppm_ext_vda import PpmExtVda
 from core.ppmain_mod import PpmainMod
 from core.readbprice_mod import ReadbpriceMod
 from core.setglobs_gms import SetglobsGms
+from core.solve_mod import SolveMod
+from core.solve_stc import SolveStc
 from core.spoint_mod import SpointMod
 from core.stages_stc import StagesStc
+from core.utils import EscapeStack
 
 from .base_class import GamsClass
 
@@ -350,20 +353,20 @@ class MainDrvMod(GamsClass):
             requested_exts = set(self.env.extend.split())
             if "ABS" in requested_exts:
                 mod_ext_abs(equations=equations, obmac=self.env.obmac)
-            elif "CLI" in requested_exts:
+            if "CLI" in requested_exts:
                 mod_ext_cli(equations=equations, eq=self.env.eq)
-            elif "DSC" in requested_exts:
+            if "DSC" in requested_exts:
                 mod_ext_dsc(
                     equations=equations,
                     eq=self.env.eq,
                     dsc=self.env.dsc,
                     solmip=self.env.solmip,
                 )
-            elif "ETL" in requested_exts:
+            if "ETL" in requested_exts:
                 mod_ext_etl(equations=equations, eq=self.env.eq)
-            elif "IER" in requested_exts:
+            if "IER" in requested_exts:
                 mod_ext_ier(equations=equations, chp_mode=self.env.chp_mode)
-            elif "VDA" in requested_exts:
+            if "VDA" in requested_exts:
                 mod_ext_vda(
                     equations=equations,
                     eq=self.env.eq,
@@ -413,6 +416,46 @@ MODEL {model_name} / {", ".join(equations)} /;
         )
 
         self.include(SpointMod(tc=self.tc, env=self.env, arg1="1"))
+
+        if self.env.rpoint == "NO":
+            # *-----------------------------------------------------------------------------
+            # * solve the appropriate model & report solver status
+            # *-----------------------------------------------------------------------------
+            self.env.set_local("ext", self.arg1)
+            if self.env.stages.upper() == "YES":
+                self.env.set_local("ext", "stc")
+            if self.env.is_set("stepped"):
+                self.env.set_local("ext", "stp")
+            if self.env.merge.upper() == "YES":
+                self.env.set_local("ext", "mrg")
+
+            ext = self.env.ext
+            if ext == "mod":
+                self.include(
+                    SolveMod(
+                        tc=self.tc,
+                        env=self.env,
+                        arg1=self.arg1,
+                        model_name=model_name,
+                        equations=equations,
+                    )
+                )
+            elif ext == "stc":
+                self.include(SolveStc(tc=self.tc, env=self.env, arg1=self.arg1))
+            elif ext == "stp":
+                raise NotImplementedError("solve.stp not yet implemented.")
+            elif ext == "mrg":
+                raise FileNotFoundError("solve.mrg does not exist.")
+            elif ext == "msa":
+                raise NotImplementedError("solve.msa not yet implemented.")
+
+            if self.env.solve_now == "NO":
+                return
+
+        raise EscapeStack(self.module_name)
+        # *-----------------------------------------------------------------------------
+        # * produce the reports
+        # *-----------------------------------------------------------------------------
 
         # TODO: Keep translating
 
