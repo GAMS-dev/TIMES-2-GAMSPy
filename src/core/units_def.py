@@ -17,7 +17,7 @@ from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from .compile_environment import CompileEnvironment
-    from .times_model_class import TimesModelClass
+    from .times_model_class import GamsPhase, TimesModelClass
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ class Units(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        phase = "init"
+        phase: GamsPhase = "init"
         # Easy container access
         m = self.tc.container
 

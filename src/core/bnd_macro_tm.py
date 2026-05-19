@@ -38,7 +38,7 @@ class BndMacroTm(GamsClass):
     def compile(self) -> None:
         self.tc.enqueue(self.exec_bnd_macro_tm)
 
-    def exec_bnd_macro_tm(self: "BndMacroTm") -> None:
+    def exec_bnd_macro_tm(self: BndMacroTm) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

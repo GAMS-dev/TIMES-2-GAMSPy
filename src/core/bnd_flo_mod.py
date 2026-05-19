@@ -29,11 +29,7 @@ class BndFloMod(GamsClass):
     module_name: str = "bnd_flo"
     gams_source: str = "bnd_flo.mod"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
         self.env = env.fork()
         self.tc = tc
         self._sub_modules = {}
@@ -43,9 +39,10 @@ class BndFloMod(GamsClass):
         self.tc.enqueue(
             self.exec_bnd_flo_mod,
             stages=self.env.stages,
-            reduce=self.env.reduce,
             var=self.env.var,
             swd=self.env.swd,
+            reduce=self.env.reduce,
+            dflbl=self.env.dflbl,
             swt=(
                 f"{self.env.swd})$SW_T(T{self.env.swd}"
                 if self.env.reduce == "YES" and self.env.stages == "YES"
@@ -54,22 +51,19 @@ class BndFloMod(GamsClass):
         )
 
     def exec_bnd_flo_mod(
-        self: "BndFloMod",
+        self: BndFloMod,
         stages: str,
         reduce: str,
         var: str,
         swd: str,
         swt: str,
+        dflbl: str,
     ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code=bnd_flo_mod(
-                stages=stages,
-                reduce=reduce,
-                var=var,
-                swd=swd,
-                swt=swt,
+                stages=stages, reduce=reduce, var=var, swd=swd, swt=swt, dflbl=dflbl
             ),
         )
 
@@ -81,6 +75,7 @@ def bnd_flo_mod(
     var: str,
     swd: str,
     swt: str,
+    dflbl: str,
 ) -> str:
     base_statement = rf"""
   {var}_FLO.LO(RTP_VINTYR(R,T,T,P),C,S{swd})$((RTPCS_VARF(R,T,P,C,S)*TRACKPC(R,P,C))$FLO_BND(R,T,P,C,S,'LO')) = FLO_BND(R,T,P,C,S,'LO');
@@ -99,8 +94,8 @@ def bnd_flo_mod(
   TRACKPC(RPC_FFUNC(R,P,C))= NO;
   TRACKPC(RPC_EMIS(R,P,C)) = NO;
 * Mark all tuples that definitely cannot be handled by VAR bounds
-  LOOP(T,FLO_BND(R,'%DFLBL%',P,C,S,BD)$FLO_BND(R,T,P,C,S,BD) = EPS$(NOT TRACKPC(R,P,C));
-         FLO_BND(R,'%DFLBL%',P,CG,S,BD)$((NOT C(CG))$FLO_BND(R,T,P,CG,S,BD)) = EPS);
+  LOOP(T,FLO_BND(R,'{dflbl}',P,C,S,BD)$FLO_BND(R,T,P,C,S,BD) = EPS$(NOT TRACKPC(R,P,C));
+         FLO_BND(R,'{dflbl}',P,CG,S,BD)$((NOT C(CG))$FLO_BND(R,T,P,CG,S,BD)) = EPS);
   TRACKPC(RPC_ACT(R,P,C)) = NO;
 {f"LOOP(SW_T(T{swd}), {base_statement} );" if stages == "YES" else base_statement}
 OPTION CLEAR=TRACKPC;

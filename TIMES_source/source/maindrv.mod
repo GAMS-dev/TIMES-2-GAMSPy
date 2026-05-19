@@ -99,9 +99,6 @@ $   BATINCLUDE mod_vars.%SRC%
 $   IF NOT '%EXTEND%' == '' $BATINCLUDE main_ext.mod mod_vars %EXTEND%
 $   BATINCLUDE eqmain.%1 %1
 $   IF NOT '%EXTEND%' == '' $BATINCLUDE main_ext.mod equ_ext %EXTEND%
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop
 *-----------------------------------------------------------------------------
 $   BATINCLUDE mod_equa.%SRC%
 $   IFI %MERGE% == YES      $GOTO BNDSET
@@ -114,7 +111,6 @@ $LABEL BNDSET
 * establish bounds
 *-----------------------------------------------------------------------------
 $   BATINCLUDE bndmain.%1 %1 0
-
 *-----------------------------------------------------------------------------
 * do quality assurance checks
 *-----------------------------------------------------------------------------
@@ -136,6 +132,10 @@ $   IF SET STEPPED           $SETLOCAL EXT stp
 $   IFI %MERGE% == YES       $SETLOCAL EXT mrg
 $   BATINCLUDE solve.%EXT% %1
 $   IF %SOLVE_NOW% == NO     $GOTO SKIPTOEND
+
+$gdxUnload %COMPILE_GDX%
+execute_unload "%EXECUTE_GDX%";
+$stop
 
 *-----------------------------------------------------------------------------
 * produce the reports

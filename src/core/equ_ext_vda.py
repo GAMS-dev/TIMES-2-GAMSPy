@@ -15,6 +15,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from core.equcrtp_vda import EqucrtpPhases
+
 from core.bnd_ire_vda import BndIreVda
 from core.eqactups_vda import EqactupsVda
 from core.eqashar_vda import EqasharVda
@@ -103,19 +106,19 @@ class EquExtVda(GamsClass):
 
         # * ASHAR equations:
         # fmt: off
-        eqashar_batinclude = [
+        eqashar_batinclude: list[tuple[str, str]] = [
             ("E", "FX"),
             ("L", "LO"),
             ("G", "UP")
         ]
         # fmt: on
-        for args in eqashar_batinclude:
+        for arg1, arg2 in eqashar_batinclude:
             self.include(
                 EqasharVda(
                     self.tc,
                     self.env,
-                    arg1=args[0],
-                    arg2=args[1],
+                    arg1=arg1,
+                    arg2=arg2,
                 )
             )
 
@@ -130,23 +133,23 @@ class EquExtVda(GamsClass):
             self.include(ResloadcVda(self.tc, self.env, arg1="EQUA"))
 
         # * EQUCRTP equations
-        equcrtp_batinclude = [
+        equcrtp_batinclude: list[tuple[EqucrtpPhases, str, str, str]] = [
             ("EQU_EXT", "N", "L", "BDNEQ"),
             ("EQU_EXT", "E", "E", "'FX'"),
         ]
-        for args in equcrtp_batinclude:
+        for arg1, arg2, arg3, arg4 in equcrtp_batinclude:
             self.include(
                 EqucrtpVda(
                     self.tc,
                     self.env,
-                    arg1=args[0],
-                    arg2=args[1],
-                    arg3=args[2],
-                    arg4=args[3],
+                    arg1=arg1,
+                    arg2=arg2,
+                    arg3=arg3,
+                    arg4=arg4,
                 )
             )
 
-    def equations(self: EquExtVda, eq: str, swtd: str, swd: str):
+    def equations(self: EquExtVda, eq: str, swtd: str, swd: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -207,7 +210,7 @@ EQUATIONS
 """,
         )
 
-    def define_param_dp_uns(self: EquExtVda):
+    def define_param_dp_uns(self: EquExtVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

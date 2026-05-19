@@ -20,17 +20,19 @@ from __future__ import annotations
 def cal_nored_red(
     var: str,
     sow: str,
+    pgprim: str,
     shff: str,
-    arg1: str = "",
-    arg2: str = "",
-    arg3: str = "",
-    arg4: str = "",
-    arg5: str = "",
+    def_rtp_ffcs: bool,
+    arg1: str,
+    arg2: str,
+    arg3: str,
+    arg4: str,
+    arg5: str,
     arg6: str = "",
     arg7: str = "",
     arg8: str = "",
     arg9: str = "",
-    def_rtp_ffcs: bool = False,
+    arg10: str = "",
 ) -> str:
     shp3 = ""
     vnt = arg5
@@ -39,7 +41,7 @@ def cal_nored_red(
 
     if arg7 == "V":
         tst = ""
-    if not arg7 == "T":
+    if arg7 != "T":
         vnt = "V"
     if def_rtp_ffcs:
         shp3 = f"*({shff}S(R,{vnt}{shg}{sow}))"

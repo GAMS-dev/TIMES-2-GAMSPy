@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import copy
 import logging
 from typing import Any, Literal
@@ -7,26 +9,26 @@ import pandas as pd
 # Setup a specific logger for GAMS environment issues
 gams_logger = logging.getLogger("gams_env")
 
+ScopeType = Literal["local", "global", "scoped"]
+
 
 class CompileEnvironment:
-    scopes = Literal["local", "global", "scoped"]
-
-    def __init__(self, globals_dict=None):
+    def __init__(self, globals_dict: dict[str, Any] | None = None) -> None:
         # Global: Reference to a shared dictionary ($setglobal)
-        self._globals = globals_dict if globals_dict is not None else {}
+        self._globals: dict[str, str] = globals_dict if globals_dict is not None else {}
         # Scoped: Inherited by children, but isolated ($set)
-        self._scoped = {}
+        self._scoped: dict[str, str] = {}
         # Local: Specific to THIS file only ($setlocal)
-        self._local = {}
+        self._local: dict[str, str] = {}
 
-    def set_global(self, key, value):
-        self._globals[str(key)] = value
+    def set_global(self, key: str, value: str) -> None:
+        self._globals[key] = value
 
-    def set_scoped(self, key, value):
-        self._scoped[str(key)] = value
+    def set_scoped(self, key: str, value: str) -> None:
+        self._scoped[key] = value
 
-    def set_local(self, key, value):
-        self._local[str(key)] = value
+    def set_local(self, key: str, value: str) -> None:
+        self._local[key] = value
 
     def drop_local(self, key: str) -> bool:
         """
@@ -41,8 +43,7 @@ class CompileEnvironment:
             return True
         return False
 
-    def get(self, key):
-        key = str(key)
+    def get(self, key: str) -> str | None:
         # GAMS Priority: Local -> Scoped -> Global
         if key in self._local:
             return self._local[key]
@@ -50,7 +51,7 @@ class CompileEnvironment:
             return self._scoped[key]
         return self._globals.get(key)
 
-    def fork(self):
+    def fork(self) -> CompileEnvironment:
         """
         Used in every __init__ of a class. The fork is passed down to children.
         1. Shares Globals.
@@ -79,11 +80,12 @@ class CompileEnvironment:
             return False
 
         # Return False if value is %key%
-        if isinstance(val, str) and val.startswith("%") and val.endswith("%"):
-            if val.upper() == f"%{key}%":
-                return False
-
-        return True
+        return not (
+            isinstance(val, str)
+            and val.startswith("%")
+            and val.endswith("%")
+            and val.upper() == f"%{key}%"
+        )
 
     def is_set_local(self, key: str) -> bool:
         """
@@ -97,11 +99,12 @@ class CompileEnvironment:
             return False
 
         # Return False if value is %key%
-        if isinstance(val, str) and val.startswith("%") and val.endswith("%"):
-            if val.upper() == f"%{key}%":
-                return False
-
-        return True
+        return not (
+            isinstance(val, str)
+            and val.startswith("%")
+            and val.endswith("%")
+            and val.upper() == f"%{key}%"
+        )
 
     def is_set_global(self, key: str) -> bool:
         """
@@ -115,13 +118,14 @@ class CompileEnvironment:
             return False
 
         # Return False if value is %key%
-        if isinstance(val, str) and val.startswith("%") and val.endswith("%"):
-            if val.upper() == f"%{key}%":
-                return False
+        return not (
+            isinstance(val, str)
+            and val.startswith("%")
+            and val.endswith("%")
+            and val.upper() == f"%{key}%"
+        )
 
-        return True
-
-    def set_if_not_exists(self, key: str, value: Any, scope: scopes):
+    def set_if_not_exists(self, key: str, value: str, scope: ScopeType) -> bool:
         """
         Mimics '$IF NOT set VAL $SET VAL 100'.
         """
@@ -135,7 +139,7 @@ class CompileEnvironment:
             return True
         return False
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> str:
         """Allows direct env.var access during compile time with a warning fallback."""
         val = self.get(name)
         # Fallback for undefined compile time variables
@@ -144,7 +148,7 @@ class CompileEnvironment:
             return f"%{name}%"
         return val
 
-    def get_test_state(self):
+    def get_test_state(self) -> pd.DataFrame:
         """Returns the current state of variables categorized by scope."""
         data = []
         scopes = {"GLOBAL": self._globals, "SCOPED": self._scoped, "LOCAL": self._local}

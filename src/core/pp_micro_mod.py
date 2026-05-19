@@ -71,7 +71,7 @@ class PpMicroMod(GamsClass):
         else:
             raise Exception(f"No label {self.arg1.upper()} in PpMicroMod")
 
-    def pre_exec(self: PpMicroMod):
+    def pre_exec(self: PpMicroMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -115,7 +115,7 @@ class PpMicroMod(GamsClass):
 """,
         )
 
-    def nlp_exec(self: PpMicroMod):
+    def nlp_exec(self: PpMicroMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

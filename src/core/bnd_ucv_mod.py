@@ -43,19 +43,19 @@ class BndUcvMod(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
-        arg4: str = "",
-        arg5: str = "",
-        arg6: str = "",
-        arg7: str = "",
-        arg8: str = "",
-        arg9: str = "",
-        arg10: str = "",
-        arg11: str = "",
-        arg12: str = "",
-        arg13: str = "",
+        arg1: str,
+        arg2: str,
+        arg3: str,
+        arg4: str,
+        arg5: str,
+        arg6: str,
+        arg7: str,
+        arg8: str,
+        arg9: str,
+        arg10: str,
+        arg11: str,
+        arg12: str,
+        arg13: str,
     ):
         self.env = env.fork()
         self.tc = tc
@@ -76,18 +76,9 @@ class BndUcvMod(GamsClass):
         self._sub_modules = {}
         self.compile()
 
-    def compile(self: BndUcvMod):
-        # $IF '%10'=='M' $GOTO MULTIPHASE
-        if self.arg10 == "M":
-            self._label_multiphase()
-
-        else:
-            self._single_phase()
-
-    def _single_phase(self: BndUcvMod):
+    def compile(self: BndUcvMod) -> None:
         self.tc.enqueue(
-            self.clear_and_set_bounds,
-            arg1_defined=self.tc.defined(self.arg1),
+            self.exec_bnd_ucv_mod,
             arg1=self.arg1,
             arg2=self.arg2,
             arg3=self.arg3,
@@ -97,88 +88,17 @@ class BndUcvMod(GamsClass):
             arg7=self.arg7,
             arg8=self.arg8,
             arg9=self.arg9,
+            arg10=self.arg10,
+            arg11=self.arg11,
             arg12=self.arg12,
             arg13=self.arg13,
+            stages=self.env.stages,
             swd=self.env.swd,
             sow=self.env.sow,
-        )
-        if self.env.stages.upper() != "YES":
-            return
-
-        self.tc.enqueue(
-            self.deviation_bounds_check,
-            arg2=self.arg2,
-            arg3=self.arg3,
-            arg4=self.arg4,
-            arg5=self.arg5,
-            arg9=self.arg9,
+            arg1_defined=self.tc.defined(self.arg1),
         )
 
-        if self.arg10 not in ["", "I"]:
-            raise Exception(f"Unhandled argument arg10={self.arg10}.")
-        if self.arg10 == "" and not self.env.stages == "YES":
-            return
-        elif self.arg10 == "I" and not self.env.stages.upper() == "YES":
-            return
-
-        self.tc.enqueue(
-            self.handle_uncertain_rhs,
-            arg1=self.arg1,
-            arg2=self.arg2,
-            arg3=self.arg3,
-            arg4=self.arg4,
-            arg5=self.arg5,
-            arg6=self.arg6,
-            arg7=self.arg7,
-            arg8=self.arg8,
-            arg9=self.arg9,
-            arg13=self.arg13,
-            sow=self.env.sow,
-        )
-
-        if self.arg10 != "I":
-            return
-
-        self.tc.enqueue(
-            self.set_more_bounds,
-            arg1=self.arg1,
-            arg2=self.arg2,
-            arg3=self.arg3,
-            arg4=self.arg4,
-            arg5=self.arg5,
-            arg6=self.arg6,
-            arg7=self.arg7,
-            arg8=self.arg8,
-            arg9=self.arg9,
-            arg13=self.arg13,
-            stages=self.env.stages,
-            sow=self.env.sow,
-        )
-
-    def _label_multiphase(self: BndUcvMod):
-        self.tc.enqueue(
-            self.clear_and_copy_bounds,
-            arg1=self.arg1,
-            arg2=self.arg2,
-            arg3=self.arg3,
-            arg4=self.arg4,
-            arg5=self.arg5,
-            arg7=self.arg7,
-            arg9=self.arg9,
-        )
-        self.tc.enqueue(
-            self.add_flags_indicating_new_deviation_bounds,
-            arg1=self.arg1,
-            arg2=self.arg2,
-            arg3=self.arg3,
-            arg4=self.arg4,
-            arg5=self.arg5,
-            arg8=self.arg8,
-            arg9=self.arg9,
-            sow=self.env.sow,
-        )
-
-    def set_more_bounds(
+    def exec_bnd_ucv_mod(
         self: BndUcvMod,
         arg1: str,
         arg2: str,
@@ -189,157 +109,62 @@ class BndUcvMod(GamsClass):
         arg7: str,
         arg8: str,
         arg9: str,
-        arg13: str,
-        stages: str,
-        sow: str,
-    ):
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-  IF(SW_PHASE EQ 2,
-*------------------------------------------------------------------------------
-* Copy UC slack levels for missing first phase runs if necessary
-{
-                "LOOP((SOW(WW),W(WW-1))$(S_UCOBJ('OBJ1',SOW) EQ 4),"
-                f"{arg1}.L(UC_N{arg2}{arg3}{arg4}{arg9},SOW) $= "
-                f"{arg1}.L(UC_N{arg2}{arg3}{arg4}{arg9},W));"
-                if stages.upper() == "YES"
-                else f"{arg1}.L(UC_N{arg2}{arg3}{arg4}{arg9}{sow}) $= "
-                f"SPAR_UCSL(SOW,UC_N{arg2}{arg3}{arg4}{arg9}{arg1}1);"
-            }
-*------------------------------------------------------------------------------
-{arg7}
-* Set the deviation bounds for the variables - copy defaults to SOW if not specified
-   S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N','1',SOW)$(NOT S_{arg5}({arg3}{arg2}UC_N{
-                arg4
-            }{arg9},'N','1',SOW)) $= {arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N');
-*------------------------------------------------------------------------------
-* Set deviation uncertain bounds for variables - for SOW that have bound specified
-   {arg1}.LO(UC_N{arg2}{arg3}{arg4}{arg13}{arg9}{sow})$(((S_{arg5}({arg3}{arg2}UC_N{
-                arg4
-            }{arg9},'N','1',SOW) GE 0){arg6})$S_{arg5}({arg3}{arg2}UC_N{arg4}{
-                arg9
-            },'N','1',SOW)) =
-      {arg1}.L(UC_N{arg2}{arg3}{arg4}{arg9}{sow})-ABS({arg1}.L(UC_N{arg2}{arg3}{arg4}{
-                arg9
-            }{sow})*S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N','1',SOW));
-   {arg1}.UP(UC_N{arg2}{arg3}{arg4}{arg13}{arg9}{sow})$(((S_{arg5}({arg3}{arg2}UC_N{
-                arg4
-            }{arg9},'N','1',SOW) GE 0){arg6})$S_{arg5}({arg3}{arg2}UC_N{arg4}{
-                arg9
-            },'N','1',SOW)) =
-      {arg1}.L(UC_N{arg2}{arg3}{arg4}{arg9}{sow})+ABS({arg1}.L(UC_N{arg2}{arg3}{arg4}{
-                arg9
-            }{sow})*S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N','1',SOW));
-{arg8}
-*------------------------------------------------------------------------------
-  );
-""",
-        )
-
-    def handle_uncertain_rhs(
-        self: BndUcvMod,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-        arg4: str,
-        arg5: str,
-        arg6: str,
-        arg7: str,
-        arg8: str,
-        arg9: str,
-        arg13: str,
-        sow: str,
-    ):
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-* Handle uncertain RHS if stochastic mode: Set uncertain bounds for variables
-  IF(SW_PHASE NE -2,
-{arg7}
-   {arg1}.LO(UC_N{arg2}{arg3}{arg4}{arg13}{arg9}{sow}){arg6} $= S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'LO','1',SOW);
-   {arg1}.UP(UC_N{arg2}{arg3}{arg4}{arg13}{arg9}{sow}){arg6} $= S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'UP','1',SOW);
-   {arg1}.FX(UC_N{arg2}{arg3}{arg4}{arg13}{arg9}{sow}){arg6} $= S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'FX','1',SOW);
-{arg8}
-  );
-""",
-        )
-
-    def deviation_bounds_check(
-        self: BndUcvMod, arg2: str, arg3: str, arg4: str, arg5: str, arg9: str
-    ):
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
- IF(SW_PHASE EQ -9,
-   CNT=CNT+SUM(({arg3}{arg2}UC_N{arg4}{arg9})$(({arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N') GE 0)${arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N')),1);
-   CNT=CNT+SUM(({arg3}{arg2}UC_N{arg4}{arg9},W)$((S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N','1',W) GE 0)$S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N','1',W)),1);
- );
-""",
-        )
-
-    def clear_and_set_bounds(
-        self: BndUcvMod,
-        arg1_defined: bool,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-        arg4: str,
-        arg5: str,
-        arg6: str,
-        arg7: str,
-        arg8: str,
-        arg9: str,
+        arg10: str,
+        arg11: str,
         arg12: str,
         arg13: str,
+        stages: str,
         swd: str,
         sow: str,
-    ):
-        if arg1_defined:
-            self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code=rf"""
-* Clear the bounds for the variables
-   {arg1}.LO(UC_N{arg2}{arg3}{arg4}{arg9}{swd}){arg12} = -INF;
-""",
-            )
+        arg1_defined: bool,
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf"""
-   {arg1}.UP(UC_N{arg2}{arg3}{arg4}{arg9}{swd})    =  INF;
-*------------------------------------------------------------------------------
-* Set the bounds for the variables
-{arg7}
-   {arg1}.LO(UC_N{arg2}{arg3}{arg4}{arg13}{arg9}{sow}){arg6} $= {arg5}({arg3}{arg2}UC_N{arg4}{arg9},'LO');
-   {arg1}.UP(UC_N{arg2}{arg3}{arg4}{arg13}{arg9}{sow}){arg6} $= {arg5}({arg3}{arg2}UC_N{arg4}{arg9},'UP');
-   {arg1}.FX(UC_N{arg2}{arg3}{arg4}{arg13}{arg9}{sow}){arg6} $= {arg5}({arg3}{arg2}UC_N{arg4}{arg9},'FX');
-{arg8}
-*------------------------------------------------------------------------------
-* Set INF upper bound for N type constraints to activate them (DYN too!)
-   {arg5}({arg3}{arg2}UC_N{arg4}{arg9},'UP')$((NOT {arg5}({arg3}{arg2}UC_N{arg4}{arg9},'UP'))${arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N')) = INF;
-
-""",
+            code=bnd_ucv_mod(
+                arg1=arg1,
+                arg2=arg2,
+                arg3=arg3,
+                arg4=arg4,
+                arg5=arg5,
+                arg6=arg6,
+                arg7=arg7,
+                arg8=arg8,
+                arg9=arg9,
+                arg10=arg10,
+                arg11=arg11,
+                arg12=arg12,
+                arg13=arg13,
+                stages=stages,
+                swd=swd,
+                sow=sow,
+                arg1_defined=arg1_defined,
+            ),
         )
 
-    def clear_and_copy_bounds(
-        self: BndUcvMod,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-        arg4: str,
-        arg5: str,
-        arg7: str,
-        arg9: str,
-    ):
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
+
+def bnd_ucv_mod(
+    *,
+    arg1: str,
+    arg2: str,
+    arg3: str,
+    arg4: str,
+    arg5: str,
+    arg6: str,
+    arg7: str,
+    arg8: str,
+    arg9: str,
+    arg10: str,
+    arg11: str,
+    arg12: str,
+    arg13: str,
+    stages: str,
+    swd: str,
+    sow: str,
+    arg1_defined: bool,
+) -> str:
+    if arg10 == "M":
+        return rf"""
   OPTION CLEAR=UNCD1; UNCD1(UC_N)=YES; UNCD1('OBJ1') = NO;
 * Initally clear any deterministic N RHS bounds
  LOOP(SOW(WW), IF(ORD(WW)=1, {arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N')=0);
@@ -348,24 +173,6 @@ class BndUcvMod(GamsClass):
    {arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N')$S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N','1',SOW) = 0;
    {arg1}.LO(UC_N(UNCD1){arg2}{arg3}{arg4}{arg9},ALLSOW)${arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N') = {arg1}.LO(UC_N{arg2}{arg3}{arg4}{arg9},SOW);
    {arg1}.UP(UC_N(UNCD1){arg2}{arg3}{arg4}{arg9},ALLSOW)${arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N') = {arg1}.UP(UC_N{arg2}{arg3}{arg4}{arg9},SOW);
-""",
-        )
-
-    def add_flags_indicating_new_deviation_bounds(
-        self: BndUcvMod,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-        arg4: str,
-        arg5: str,
-        arg8: str,
-        arg9: str,
-        sow: str,
-    ):
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
 * Add flags indicating the new deviation bounds in force
    {arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N')$((S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N','1',SOW) GE 0)$S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N','1',SOW)) = -1;
 * Set deviation uncertain bounds for variables - for SOW that have bound specified
@@ -375,5 +182,76 @@ class BndUcvMod(GamsClass):
       {arg1}.L(UC_N{arg2}{arg3}{arg4}{arg9}{sow})+ABS({arg1}.L(UC_N{arg2}{arg3}{arg4}{arg9}{sow})*S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N','1',SOW));
 {arg8}
  );
-""",
-        )
+"""
+
+    if arg10 not in ("", "I"):
+        raise ValueError(f"Unhandled argument arg10={arg10!r}.")
+
+    code = rf"""
+{
+        rf'''* Clear the bounds for the variables
+   {arg1}.LO(UC_N{arg2}{arg3}{arg4}{arg9}{swd}){arg12} = -INF;'''
+        if arg1_defined
+        else ""
+    }
+   {arg1}.UP(UC_N{arg2}{arg3}{arg4}{arg9}{swd})    =  INF;
+*------------------------------------------------------------------------------
+* Set the bounds for the variables
+{arg7}
+   {arg1}.LO(UC_N{arg2}{arg3}{arg4}{arg13}{arg9}{sow}){arg6} $= {arg5}({arg3}{arg2}UC_N{
+        arg4
+    }{arg9},'LO');
+   {arg1}.UP(UC_N{arg2}{arg3}{arg4}{arg13}{arg9}{sow}){arg6} $= {arg5}({arg3}{arg2}UC_N{
+        arg4
+    }{arg9},'UP');
+   {arg1}.FX(UC_N{arg2}{arg3}{arg4}{arg13}{arg9}{sow}){arg6} $= {arg5}({arg3}{arg2}UC_N{
+        arg4
+    }{arg9},'FX');
+{arg8}
+*------------------------------------------------------------------------------
+* Set INF upper bound for N type constraints to activate them (DYN too!)
+   {arg5}({arg3}{arg2}UC_N{arg4}{arg9},'UP')$((NOT {arg5}({arg3}{arg2}UC_N{arg4}{
+        arg9
+    },'UP'))${arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N')) = INF;
+"""
+
+    if stages.upper() != "YES":
+        return code
+
+    code += rf"""
+ IF(SW_PHASE EQ -9,
+   CNT=CNT+SUM(({arg3}{arg2}UC_N{arg4}{arg9})$(({arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N') GE 0)${arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N')),1);
+   CNT=CNT+SUM(({arg3}{arg2}UC_N{arg4}{arg9},W)$((S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N','1',W) GE 0)$S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N','1',W)),1);
+ );
+* Handle uncertain RHS if stochastic mode: Set uncertain bounds for variables
+  IF(SW_PHASE NE -2,
+{arg7}
+   {arg1}.LO(UC_N{arg2}{arg3}{arg4}{arg13}{arg9}{sow}){arg6} $= S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'LO','1',SOW);
+   {arg1}.UP(UC_N{arg2}{arg3}{arg4}{arg13}{arg9}{sow}){arg6} $= S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'UP','1',SOW);
+   {arg1}.FX(UC_N{arg2}{arg3}{arg4}{arg13}{arg9}{sow}){arg6} $= S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'FX','1',SOW);
+{arg8}
+  );
+"""
+
+    if arg10 == "I":
+        code += rf"""
+  IF(SW_PHASE EQ 2,
+*------------------------------------------------------------------------------
+* Copy UC slack levels for missing first phase runs if necessary
+{f"LOOP((SOW(WW),W(WW-1))$(S_UCOBJ('OBJ1',SOW) EQ 4),{arg1}.L(UC_N{arg2}{arg3}{arg4}{arg9},SOW) $= {arg1}.L(UC_N{arg2}{arg3}{arg4}{arg9},W));" if stages == "YES" else f"{arg1}.L(UC_N{arg2}{arg3}{arg4}{arg9}{sow}) $= SPAR_UCSL(SOW,UC_N{arg2}{arg3}{arg4}{arg9}{arg11});"}
+*------------------------------------------------------------------------------
+{arg7}
+* Set the deviation bounds for the variables - copy defaults to SOW if not specified
+   S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N','1',SOW)$(NOT S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N','1',SOW)) $= {arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N');
+*------------------------------------------------------------------------------
+* Set deviation uncertain bounds for variables - for SOW that have bound specified
+   {arg1}.LO(UC_N{arg2}{arg3}{arg4}{arg13}{arg9}{sow})$(((S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N','1',SOW) GE 0){arg6})$S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N','1',SOW)) =
+      {arg1}.L(UC_N{arg2}{arg3}{arg4}{arg9}{sow})-ABS({arg1}.L(UC_N{arg2}{arg3}{arg4}{arg9}{sow})*S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N','1',SOW));
+   {arg1}.UP(UC_N{arg2}{arg3}{arg4}{arg13}{arg9}{sow})$(((S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N','1',SOW) GE 0){arg6})$S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N','1',SOW)) =
+      {arg1}.L(UC_N{arg2}{arg3}{arg4}{arg9}{sow})+ABS({arg1}.L(UC_N{arg2}{arg3}{arg4}{arg9}{sow})*S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N','1',SOW));
+{arg8}
+*------------------------------------------------------------------------------
+  );
+"""
+
+    return code

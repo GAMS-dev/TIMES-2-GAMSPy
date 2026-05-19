@@ -21,6 +21,7 @@ import os
 import re
 from typing import TYPE_CHECKING
 
+from core.bndmain_mod import BndmainMod
 from core.coef_ext_abs import CoefExtAbs
 from core.coef_ext_cli import CoefExtCli
 from core.coef_ext_etl import CoefExtEtl
@@ -40,6 +41,14 @@ from core.init_ext_abs import InitExtAbs
 from core.init_ext_dsc import InitExtDsc
 from core.init_ext_vda import InitExtVda
 from core.main_ext_mod import include_extension
+from core.mod_equa_mod import mod_equa_mod
+from core.mod_equa_tm import mod_equa_tm
+from core.mod_ext_abs import mod_ext_abs
+from core.mod_ext_cli import mod_ext_cli
+from core.mod_ext_dsc import mod_ext_dsc
+from core.mod_ext_etl import mod_ext_etl
+from core.mod_ext_ier import mod_ext_ier
+from core.mod_ext_vda import mod_ext_vda
 from core.mod_vars_abs import ModVarsAbs
 from core.mod_vars_cli import ModVarsCli
 from core.mod_vars_dsc import ModVarsDsc
@@ -47,7 +56,8 @@ from core.mod_vars_etl import ModVarsEtl
 from core.mod_vars_mod import ModVarsMod
 from core.mod_vars_msa import ModVarsMsa
 from core.mod_vars_tm import ModVarsTm
-from core.ppm_ext_cli import PpmEctCli
+from core.pp_qack_mod import PpQackMod
+from core.ppm_ext_cli import PpmExtCli
 from core.ppm_ext_dsc import PpmExtDsc
 from core.ppm_ext_ecb import PpmExtEcb
 from core.ppm_ext_mlf import PpmExtMlf
@@ -55,7 +65,11 @@ from core.ppm_ext_vda import PpmExtVda
 from core.ppmain_mod import PpmainMod
 from core.readbprice_mod import ReadbpriceMod
 from core.setglobs_gms import SetglobsGms
+from core.solve_mod import SolveMod
+from core.solve_stc import SolveStc
+from core.spoint_mod import SpointMod
 from core.stages_stc import StagesStc
+from core.utils import EscapeStack
 
 from .base_class import GamsClass
 
@@ -77,7 +91,7 @@ class MainDrvMod(GamsClass):
         self.env = env.fork()
         self.arg1 = arg1
         self.tc = tc
-        self._sub_modules = {}
+        self._sub_modules: dict[str, GamsClass] = {}
         if tc.test_run:
             tc.save_test_state(env=self.env, checkpoint="maindrv_mod_start")
         self.compile()
@@ -87,15 +101,14 @@ class MainDrvMod(GamsClass):
 
         if self.tc.test_run:
             self.tc.save_test_state(env=self.env, checkpoint="setglobs_gms_start")
-        self.include(SetglobsGms(tc=self.tc, env=self.env, arg1=1))
+        self.include(SetglobsGms(tc=self.tc, env=self.env, arg1="1"))
         if self.tc.test_run:
             self.tc.save_test_state(env=self.env, checkpoint="setglobs_gms_end")
 
         self.env.set_scoped("model_name", "TIMES")
 
-        if self.env.micro.upper() == "YES":
-            if self.env.timesed == "0":
-                self.env.set_scoped("timesed", "YES")
+        if self.env.micro.upper() == "YES" and self.env.timesed == "0":
+            self.env.set_scoped("timesed", "YES")
 
         if self.env.macro.upper() == "YES":
             self.env.set_scoped("macro", "YES")
@@ -104,9 +117,8 @@ class MainDrvMod(GamsClass):
         if os.name != "nt":
             self.env.set_scoped("model_name", "times")
 
-        if self.env.timesed.upper() != "NO":
-            if self.env.timesed != "0":
-                self.include(ReadbpriceMod(tc=self.tc, env=self.env))
+        if self.env.timesed.upper() != "NO" and self.env.timesed != "0":
+            self.include(ReadbpriceMod(tc=self.tc, env=self.env))
 
         # TODO: $   %MX% SETGLOBAL MX --> How to handle %MX% here?
         self.env.set_global("mx", "")
@@ -160,7 +172,7 @@ class MainDrvMod(GamsClass):
 
         # perform preprocessor tasks
         if self.env.extend != "":
-            extensions = {
+            init_extensions = {
                 "ABS": InitExtAbs,
                 "DSC": InitExtDsc,
                 "VDA": InitExtVda,
@@ -168,7 +180,7 @@ class MainDrvMod(GamsClass):
             requested_exts = set(self.env.extend.split())
             include_extension(
                 module=self,
-                extensions=extensions,
+                extensions=init_extensions,
                 requested_exts=requested_exts,
                 source="maindrv",
             )
@@ -179,8 +191,8 @@ class MainDrvMod(GamsClass):
             return
 
         if self.env.extend != "":
-            extensions = {
-                "CLI": PpmEctCli,
+            ppm_extensions = {
+                "CLI": PpmExtCli,
                 "DSC": PpmExtDsc,
                 "ECB": PpmExtEcb,
                 "MLF": PpmExtMlf,
@@ -189,7 +201,7 @@ class MainDrvMod(GamsClass):
             requested_exts = set(self.env.extend.split())
             include_extension(
                 module=self,
-                extensions=extensions,
+                extensions=ppm_extensions,
                 requested_exts=requested_exts,
                 source="maindrv",
             )
@@ -216,7 +228,7 @@ class MainDrvMod(GamsClass):
         self.include(CoefmainMod(tc=self.tc, env=self.env, arg1=self.arg1))
 
         if self.env.extend != "":
-            extensions = {
+            coef_extensions = {
                 "ABS": CoefExtAbs,
                 "CLI": CoefExtCli,
                 "ETL": CoefExtEtl,
@@ -225,12 +237,12 @@ class MainDrvMod(GamsClass):
             requested_exts = set(self.env.extend.split())
             include_extension(
                 module=self,
-                extensions=extensions,
+                extensions=coef_extensions,
                 requested_exts=requested_exts,
                 source="maindrv",
             )
 
-        #         *-----------------------------------------------------------------------------
+        # *-----------------------------------------------------------------------------
         # * establish model (use different .ext?)
         # *-----------------------------------------------------------------------------
         src = self.env.src.upper()
@@ -252,7 +264,7 @@ class MainDrvMod(GamsClass):
             raise Exception(f"Unknown extension {src} for mod_vars<ext>.py.")
 
         if self.env.extend != "":
-            extensions = {
+            mod_var_extensions = {
                 "ABS": ModVarsAbs,
                 "CLI": ModVarsCli,
                 "DSC": ModVarsDsc,
@@ -264,7 +276,7 @@ class MainDrvMod(GamsClass):
             requested_exts = set(self.env.extend.split())
             include_extension(
                 module=self,
-                extensions=extensions,
+                extensions=mod_var_extensions,
                 requested_exts=requested_exts,
                 source="maindrv",
             )
@@ -272,24 +284,179 @@ class MainDrvMod(GamsClass):
         self.include(EqmainMod(tc=self.tc, env=self.env, arg1=self.arg1))
 
         if self.env.extend != "":
-            extensions = {
+            equ_extensions = {
                 "ABS": EquExtAbs,
                 "CLI": EquExtCli,
                 "DSC": EquExtDsc,
                 "ECB": EquExtEcb,
                 "ETL": EquExtEtl,
                 "IER": EquExtIer,
-                "MLF": "",
                 "MSA": EquExtMsa,
                 "VDA": EquExtVda,
             }
             requested_exts = set(self.env.extend.split())
             include_extension(
                 module=self,
-                extensions=extensions,
+                extensions=equ_extensions,
                 requested_exts=requested_exts,
                 source="maindrv",
             )
+
+        src = self.env.src.upper()
+        def_prc_simv = self.tc.defined("PRC_SIMV")
+        def_dam_cost = self.tc.defined("DAM_COST")
+        def_vnret = self.tc.defined("VNRET")
+
+        equations: list[str] = []
+        if src == "MOD":
+            model_name = "TIMES"
+            mod_equa_mod(
+                equations=equations,
+                arg1="",
+                stages=self.env.stages,
+                eq=self.env.eq,
+                timesed=self.env.timesed,
+                objann=self.env.objann,
+                var_uc=self.env.var_uc,
+                damage=self.env.damage,
+                spines=self.env.spines,
+                def_prc_simv=def_prc_simv,
+                def_dam_cost=def_dam_cost,
+                def_vnret=def_vnret,
+            )
+        elif src == "TM":
+            model_name = "TIMES_MACRO"
+            mod_equa_tm(
+                equations=equations,
+                merge=self.env.merge,
+                eq=self.env.eq,
+                timesed=self.env.timesed,
+                var_uc=self.env.var_uc,
+                damage=self.env.damage,
+                spines=self.env.spines,
+                macro=self.env.macro,
+                nonlp=self.env.nonlp,
+                def_prc_simv=def_prc_simv,
+                def_dam_cost=def_dam_cost,
+                def_vnret=def_vnret,
+            )
+        else:
+            raise Exception(f"Unknown extension {src} for mod_equa_<ext>.py.")
+
+        def_uc_flobet = self.tc.defined("UC_FLOBET")
+        def_com_cstbal = self.tc.defined("COM_CSTBAL")
+        def_gr_vargen = self.tc.defined("GR_VARGEN")
+        def_rtc_ms = self.tc.defined("RTC_MS")
+        def_gg_mm = self.tc.defined("GG_MM")
+
+        if self.env.merge.upper() != "YES" and self.env.extend != "":
+            requested_exts = set(self.env.extend.split())
+            if "ABS" in requested_exts:
+                mod_ext_abs(equations=equations, obmac=self.env.obmac)
+            if "CLI" in requested_exts:
+                mod_ext_cli(equations=equations, eq=self.env.eq)
+            if "DSC" in requested_exts:
+                mod_ext_dsc(
+                    equations=equations,
+                    eq=self.env.eq,
+                    dsc=self.env.dsc,
+                    solmip=self.env.solmip,
+                )
+            if "ETL" in requested_exts:
+                mod_ext_etl(equations=equations, eq=self.env.eq)
+            if "IER" in requested_exts:
+                mod_ext_ier(equations=equations, chp_mode=self.env.chp_mode)
+            if "VDA" in requested_exts:
+                mod_ext_vda(
+                    equations=equations,
+                    eq=self.env.eq,
+                    obmac=self.env.obmac,
+                    duc=self.env.duc,
+                    solmip=self.env.solmip,
+                    ecb=self.env.ecb,
+                    powerflo=self.env.powerflo,
+                    def_uc_flobet=def_uc_flobet,
+                    def_com_cstbal=def_com_cstbal,
+                    def_gr_vargen=def_gr_vargen,
+                    def_rtc_ms=def_rtc_ms,
+                    def_gg_mm=def_gg_mm,
+                )
+
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=rf"""
+MODEL {model_name} / {", ".join(equations)} /;
+""",
+        )
+
+        # establish bounds
+        self.include(BndmainMod(tc=self.tc, env=self.env, arg1=self.arg1, arg2="0"))
+
+        # do quality assurance checks
+        self.include(PpQackMod(tc=self.tc, env=self.env, arg1=self.arg1))
+
+        self.include(
+            ErrStatMod(
+                tc=self.tc,
+                env=self.env,
+                arg1="$IF NOT ERRORFREE",
+                arg2="ABORT",
+                arg3="*** ERRORS IN GAMS COMPILE ***",
+            )
+        )
+        self.include(
+            ErrStatMod(
+                tc=self.tc,
+                env=self.env,
+                arg1="ABORT",
+                arg2="EXECERROR",
+                arg3="*** ERRORS IN GAMS EXECUTION ***",
+            )
+        )
+
+        self.include(SpointMod(tc=self.tc, env=self.env, arg1="1"))
+
+        if self.env.rpoint == "NO":
+            # *-----------------------------------------------------------------------------
+            # * solve the appropriate model & report solver status
+            # *-----------------------------------------------------------------------------
+            self.env.set_local("ext", self.arg1)
+            if self.env.stages.upper() == "YES":
+                self.env.set_local("ext", "stc")
+            if self.env.is_set("stepped"):
+                self.env.set_local("ext", "stp")
+            if self.env.merge.upper() == "YES":
+                self.env.set_local("ext", "mrg")
+
+            ext = self.env.ext
+            if ext == "mod":
+                self.include(
+                    SolveMod(
+                        tc=self.tc,
+                        env=self.env,
+                        arg1=self.arg1,
+                        model_name=model_name,
+                        equations=equations,
+                    )
+                )
+            elif ext == "stc":
+                self.include(SolveStc(tc=self.tc, env=self.env, arg1=self.arg1))
+            elif ext == "stp":
+                raise NotImplementedError("solve.stp not yet implemented.")
+            elif ext == "mrg":
+                raise FileNotFoundError("solve.mrg does not exist.")
+            elif ext == "msa":
+                raise NotImplementedError("solve.msa not yet implemented.")
+
+            if self.env.solve_now == "NO":
+                return
+
+        raise EscapeStack(self.module_name)
+        # *-----------------------------------------------------------------------------
+        # * produce the reports
+        # *-----------------------------------------------------------------------------
+
         # TODO: Keep translating
 
     def apply_inline_sets(self: MainDrvMod, set_string: str) -> None:

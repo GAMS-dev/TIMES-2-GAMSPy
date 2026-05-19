@@ -62,10 +62,10 @@ class PpQafsMod(GamsClass):
             rl=self.env.rl,
             pl=self.env.pl,
             sharetol=self.env.sharetol,
-            notsharerelaxno=self.env.notsharerelaxno,
+            notsharerelaxno=(self.env.sharelax != "NO"),
         )
 
-    def pp_qafs_exec1(self: PpQafsMod, rl: str, pl: str):
+    def pp_qafs_exec1(self: PpQafsMod, rl: str, pl: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -104,7 +104,7 @@ class PpQafsMod(GamsClass):
         pl: str,
         sharetol: str,
         notsharerelaxno: bool,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

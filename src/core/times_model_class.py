@@ -1,24 +1,20 @@
 # times_model_class.py
+from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, Any, Literal, ParamSpec
 
-from gamspy import Container
+from gamspy import Container, Options, Set
 
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from .compile_environment import CompileEnvironment
 
-
-@dataclass(frozen=True)
-class GamsCodeChunk:
-    module_name: str
-    phase: str
-    gams_source: str
-    code: str
+GamsPhase = Literal["init", "run"]
+P = ParamSpec("P")
 
 
 class TimesModelClass:
@@ -26,28 +22,74 @@ class TimesModelClass:
     Central orchestrator / shared state ("tc") for the TIMES model embedding workflow.
     """
 
+    r: Set
+    c: Set
+    cg: Set
+    cg1: Set
+    cg2: Set
+    com: Set
+    com1: Set
+    com2: Set
+    com_grp: Set
+    cur: Set
+    curr: Set
+    sow: Set
+    w: Set
+    costagg: Set
+    costcat: Set
+    allyear: Set
+    all_reg: Set
+    all_r: Set
+    all_ts: Set
+    reg: Set
+    item: Set
+    year: Set
+    ll: Set
+    impexp: Set
+    in_out: Set
+    ie: Set
+    io: Set
+    lim: Set
+    lim_type: Set
+    bnd_type: Set
+    j: Set
+    jj: Set
+    bd: Set
+    costype: Set
+    p: Set
+    prc: Set
+    uc_cost: Set
+    RpUx: Set
+    RpPl: Set
+    RtpPl: Set
+    RpsUps: Set
+
+    container: Container
+
     def __init__(
         self,
-        env: "CompileEnvironment",
+        env: CompileEnvironment,
         output_compile: Path,
         output_execute: Path,
+        output_convert: Path,
         test: bool,
     ):
         self.env = env
-        self.execution_list = []
+        self.execution_list: list[
+            tuple[Callable[..., Any], tuple[Any, ...], dict[str, Any]]
+        ] = []
         self.output_compile = output_compile
         self.output_execute = output_execute
+        self.output_convert = output_convert
         self.test_run = test
-        self.compile_states = {}
+        self.compile_states: dict[str, Any] = {}
         # self.container = Container(debugging_level="keep")
         self.container = Container()
+        self._solve_options: Options
         self.logger = logging.getLogger("TimesModel")
 
         # Ordered list of registered modules
-        self._modules: List[GamsClass] = []
-
-        # Optional: collect embedded code for debugging / traceability
-        self._gams_chunks: List[GamsCodeChunk] = []
+        self._modules: list[GamsClass] = []
 
     def register_module(self, module: GamsClass) -> None:
         """Register a module object."""
@@ -63,7 +105,7 @@ class TimesModelClass:
     def add_gams_code(
         self,
         module: GamsClass,
-        phase: str,
+        phase: GamsPhase,
         code: str,
     ) -> None:
         """
@@ -78,9 +120,6 @@ class TimesModelClass:
         )
 
         self.container.addGamsCode(header + code)
-        self._gams_chunks.append(
-            GamsCodeChunk(module.module_name, phase, module.gams_source, code)
-        )
 
     def dump_generated_gams(self, path: str = "generated_times.gms") -> None:
         """
@@ -90,7 +129,7 @@ class TimesModelClass:
         with open(path, "w", encoding="utf-8") as f:
             f.write(gms)
 
-    def save_test_state(self, env, checkpoint):
+    def save_test_state(self, env: CompileEnvironment, checkpoint: str) -> None:
         """
         Saves the state of all compile time variables for later testing.
 
@@ -109,11 +148,13 @@ class TimesModelClass:
         # self.container.write(self.output_compile, eps_to_zero=False)
         self.container.addGamsCode(f"execute_unload '{self.output_compile}';")
 
-    def enqueue(self, func, *args, **kwargs):
+    def enqueue(
+        self, func: Callable[P, Any], *args: P.args, **kwargs: P.kwargs
+    ) -> None:
         """Adds a function call to the end of the execution queue."""
         self.execution_list.append((func, args, kwargs))
 
-    def run(self):
+    def run(self) -> None:
         """Executes all queued functions in order."""
         self.logger.info("Phase: run")
         for func, args, kwargs in self.execution_list:
@@ -124,7 +165,7 @@ class TimesModelClass:
     # -----------------------
     # Utils
     # -----------------------
-    def defined(self, symbol) -> bool:
+    def defined(self, symbol: str) -> bool:
         return symbol.upper() in self.container.listSymbols() and (
             self.container[symbol.upper()].number_records > 0
         )

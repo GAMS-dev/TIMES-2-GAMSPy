@@ -76,7 +76,7 @@ class PrepparmGms(GamsClass):
         self.env.set_local("data", f"MY_FIL2({self.arg5})")
         self.env.set_local("opt", "*")
         self.env.set_local("ll", "")
-        if not self.arg7 == "0":
+        if self.arg7 != "0":
             self.env.set_local("ll", f",'{self.env.dflbl}'")
             self.env.set_local("opt", "")
         if len(self.arg8):
@@ -126,7 +126,7 @@ class PrepparmGms(GamsClass):
         dflbl: str,
         def_iebd: str,
         reset: str,
-    ):
+    ) -> None:
         prepparm(
             module=self,
             arg1=arg1,
@@ -236,13 +236,13 @@ LOOP(UNCD7({arg2}{ll},{arg3}{arg4}), DFUNC = CNT; DFUNC $= ROUND({arg1}({arg2},'
         IF((NOT {arg7})$LAST_VAL, {data}$({arg6}$(NOT {data}+MY_ARRAY({arg5})))=EPS);
     ));
 """
-    if 0 == len(arg9):
+    if len(arg9) == 0:
         code += f"{arg1}({arg2},{arg5},{arg3})   $= {data};"
     else:
         code += f"{arg9}({arg2},{arg3},{arg5})$({arg6}) $= {data};"
     code += ");\n"
 
-    if not arg10 == "+":
+    if arg10 != "+":
         code += f"{arg1}({arg2},'0',{arg3})$(MAX(0,{arg1}({arg2},'0',{arg3})-MAX({arg7},{reset}))${arg1}({arg2},'0',{arg3})) = {reset};"
     if len(arg9):
         code += f"{arg1}({arg2},{arg5},{arg3}) $= {arg9}({arg2},{arg3},{arg5}); OPTION KILL={arg9};"

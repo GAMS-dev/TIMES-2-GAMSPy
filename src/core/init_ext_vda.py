@@ -11,7 +11,10 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING
+
+from gamspy import Set
 
 from core import equcrtp_vda
 
@@ -44,16 +47,21 @@ class InitExtVda(GamsClass):
         self.compile()
 
     def compile(self: InitExtVda) -> None:
-        m = self.tc.container
+        g = self.tc
+        m = g.container
+
+        # Internal SETs
+        ll = m["L"]
+        s = m["S"]
+        g.RpUx = Set(m, name="RP_UX", domain=[g.r, g.p])
+        g.RpPl = Set(m, name="RP_PL", domain=[g.r, g.p, ll])
+        g.RtpPl = Set(m, name="RTP_PL", domain=[g.r, g.ll, g.p])
+        g.RpsUps = Set(m, name="RPS_UPS", domain=[g.r, g.p, s])
+
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=r"""
-* Internal SETs
- SET RP_UX(R,P);
- SET RP_PL(R,P,L);
- SET RTP_PL(R,LL,P);
- SET RPS_UPS(R,P,S);
  SET RP_UPC(R,P,TSL,L);
  SET AFUPS(R,T,P,S);
  SET RP_DP(R,P) //;
@@ -103,7 +111,7 @@ class InitExtVda(GamsClass):
             self.peaking_and_storage_stuff,
         )
 
-        if not self.env.obmac == "YES":
+        if self.env.obmac != "YES":
             self.tc.add_gams_code(
                 module=self,
                 phase="init",
@@ -138,7 +146,7 @@ class InitExtVda(GamsClass):
             )
         )
 
-        uc_actbet_defined = True if self.tc.defined("UC_ACTBET") else False
+        uc_actbet_defined = self.tc.defined("UC_ACTBET")
         self.tc.enqueue(
             self.prepare_uc_cli_uc_dynbnd_uc_actbet_cont,
             cli=self.env.cli,
@@ -204,7 +212,7 @@ $LOAD RPC_IREIN=RPC_IREIO PREMILE=MILESTONYR PAR_IRE
     def label_ifprice(self: InitExtVda) -> None:
         if not self.env.is_set("gdx_ipric"):
             return
-        if not os.exists(f"{self.env.gdxpath}{self.env.gdx_ipric}.gdx"):
+        if not Path(f"{self.env.gdxpath}{self.env.gdx_ipric}.gdx").exists():
             return
         self.label_load2()
 

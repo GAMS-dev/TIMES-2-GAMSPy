@@ -28,7 +28,7 @@ class PpChpIer(GamsClass):
     module_name: str = "pp_chp_ier"
     gams_source: str = "pp_chp.ier"
 
-    def __init__(self, tc: TimesModelClass, env: CompileEnvironment, arg1: str):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment, arg1: str = ""):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
@@ -42,7 +42,7 @@ class PpChpIer(GamsClass):
         self.tc.enqueue(self.convert_input_capacity)
         self.tc.enqueue(self.extrapolate_past_years)
 
-    def electricity_commodity_pg(self: PpChpIer):
+    def electricity_commodity_pg(self: PpChpIer) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -53,7 +53,7 @@ RP_PG(ECT_ELC(R,P,C))     = NO;
 """,
         )
 
-    def commodity_group(self: PpChpIer):
+    def commodity_group(self: PpChpIer) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -69,7 +69,7 @@ RP_PG(ECT_CGIN) = YES; OPTION CLEAR=CG_GRP;
 """,
         )
 
-    def calculate_electricity_heat_ratio(self: PpChpIer):
+    def calculate_electricity_heat_ratio(self: PpChpIer) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -79,7 +79,7 @@ ECT_REH(R,T,P)$ECT_CHP(R,P) $= 1/SUM((ECT_CGOUT(R,P,CG1),ECT_ELC(R,P,COM))$FLO_S
             """,
         )
 
-    def convert_input_capacity(self: PpChpIer):
+    def convert_input_capacity(self: PpChpIer) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -101,7 +101,7 @@ ECT_INP2DHT(R,T,P)$(ECT_CHP(R,P)*ECT_REH(R,T,P)) $= ECT_INP2ELC(R,T,P)/ECT_REH(R
 """,
         )
 
-    def extrapolate_past_years(self: PpChpIer):
+    def extrapolate_past_years(self: PpChpIer) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

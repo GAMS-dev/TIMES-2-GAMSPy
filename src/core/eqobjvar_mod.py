@@ -78,6 +78,9 @@ class EqobjvarMod(GamsClass):
             self.env.set_scoped("sowtmpend", self.env.sow)
 
         # TODO need to figure out what todo if arg2 = *
+        if self.arg2 == "*":
+            raise NotImplementedError("No implementation for arg2 = *")
+
         eqobjvar = eqobjvar_mod(
             tpulse=self.env.tpulse,
             var=self.env.var,
@@ -89,6 +92,7 @@ class EqobjvarMod(GamsClass):
             condition1=self.env.stages.upper() == "YES",
             condition2=self.env.stages == "YES",
             is_vnret_defined=self.tc.defined("VNRET"),
+            is_def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
             varv=self.env.varv,
             varm=self.env.varm,
             cal_red=self.env.cal_red,
@@ -125,6 +129,7 @@ def eqobjvar_mod(
     condition1: bool,
     condition2: bool,
     is_vnret_defined: bool,
+    is_def_rtp_ffcs: bool,
     varv: str,
     varm: str,
     cal_red: str,
@@ -152,6 +157,7 @@ def eqobjvar_mod(
             sow=sow,
             pgprim=pgprim,
             shff=shff,
+            def_rtp_ffcs=is_def_rtp_ffcs,
         )
     elif cal_red == "cal_nored.red":
         include_cal_red = cal_nored_red(
@@ -160,6 +166,11 @@ def eqobjvar_mod(
             arg3="S",
             arg4="P",
             arg5="T",
+            var=var,
+            sow=sow,
+            shff=shff,
+            pgprim=pgprim,
+            def_rtp_ffcs=is_def_rtp_ffcs,
         )
     else:
         raise ValueError(f"Unexpected value for cal_red: {cal_red}")

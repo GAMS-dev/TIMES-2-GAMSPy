@@ -62,12 +62,11 @@ class EqcombalMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        if self.arg4 == "BAL":
-            if self.env.stages.upper() == "YES":
-                self.env.set_local(
-                    "sws",
-                    "PROD(SW_MAP(T,SOW,J,WW)$S_COM_PROJ(R,T,C,J,WW),S_COM_PROJ(R,T,C,J,WW))*",
-                )
+        if self.arg4 == "BAL" and self.env.stages.upper() == "YES":
+            self.env.set_local(
+                "sws",
+                "PROD(SW_MAP(T,SOW,J,WW)$S_COM_PROJ(R,T,C,J,WW),S_COM_PROJ(R,T,C,J,WW))*",
+            )
 
         self.define_equation(
             arg2=self.arg2,
@@ -84,7 +83,7 @@ class EqcombalMod(GamsClass):
             condition1=self.arg4 == "BAL",
             condition2=self.arg4 == "PRD",
             condition3=self.env.timesed == "YES",
-            condition4=f"{self.arg4},{self.arg3}" == "BALFX",
+            condition4=f"{self.arg4}{self.arg3}" == "BALFX",
         )
 
     def define_equation(
@@ -104,7 +103,7 @@ class EqcombalMod(GamsClass):
         condition2: bool,
         condition3: bool,
         condition4: bool,
-    ):
+    ) -> None:
         include_cal_fflo_1 = cal_fflo_mod(
             reduce=self.env.reduce,
             shff=self.env.shff,

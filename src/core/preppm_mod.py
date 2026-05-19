@@ -238,107 +238,107 @@ class PreppmMod(GamsClass):
         # ***** REGULAR NON-COST PARAMETERS: Interpolated over DM_YEAR by default ******
 
         # fmt: off
-        batincludes2 = [
+        batincludes2: list[tuple[str, str, str, str, str, str, str, str, str, str, str]] = [
             # *-----------------------------------------------------------------------------
             # * Capacity related attributes
             # *-----------------------------------------------------------------------------
-            ("fillparm", "NCAP_AF", "R", "P,TS,BD", ",'0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RPSB", ""),
-            ("fillparm", "NCAP_AFA", "R", "P,BD", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RPB", ""),
-            ("fillparm", "NCAP_AFS", "R", "P,TS,BD", ",'0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RPSB", ""),
-            ("fillparm", "NCAP_BPME", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", ""),
-            ("fillparm", "NCAP_CDME", "R", "P", ",'0','0','0','0','0'", "V", "RVP(R,V,P)", "GE 0", "", ""),
-            ("fillparm", "NCAP_CEH", "R", "P", ",'0','0','0','0','0'", "V", "RVP(R,V,P)", "GE 0", "X_RP", ""),
-            ("fillparm", "NCAP_CHPR", "R", "P,BD", ",'0','0','0','0'", "V", "RVP(R,V,P)", "GE 0", "X_RPB", ""),
-            ("fillparm", "NCAP_CLED", "R", "P,C", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", ""),
-            ("fillparm", "NCAP_CLAG", "R", "P,C,IO", ",'0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", ""),
-            ("fillparm", "NCAP_COM", "R", "P,C,IO", ",'0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", ""),
-            ("fillparm", "NCAP_DELIF", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", ""),
-            ("fillparm", "NCAP_DLAG", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", ""),
-            ("fillparm", "NCAP_DLIFE", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", ""),
-            ("fillparm", "NCAP_DRATE", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", ""),
-            ("fillparm", "NCAP_FDR", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", ""),
-            ("fillparm", "NCAP_ELIFE", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", ""),
-            ("fillparm", "NCAP_ICOM", "R", "P,C", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", ""),
-            ("fillparm", "NCAP_ILED", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", ""),
-            ("fillparm", "NCAP_OCOM", "R", "P,C", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", ""),
-            ("fillparm", "NCAP_PKCNT", "R", "P,TS", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", ""),
-            ("fillparm", "NCAP_TLIFE", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", ""),
+            ("fillparm", "NCAP_AF", "R", "P,TS,BD", ",'0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RPSB", "", ""),
+            ("fillparm", "NCAP_AFA", "R", "P,BD", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RPB", "", ""),
+            ("fillparm", "NCAP_AFS", "R", "P,TS,BD", ",'0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RPSB", "", ""),
+            ("fillparm", "NCAP_BPME", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
+            ("fillparm", "NCAP_CDME", "R", "P", ",'0','0','0','0','0'", "V", "RVP(R,V,P)", "GE 0", "", "", ""),
+            ("fillparm", "NCAP_CEH", "R", "P", ",'0','0','0','0','0'", "V", "RVP(R,V,P)", "GE 0", "X_RP", "", ""),
+            ("fillparm", "NCAP_CHPR", "R", "P,BD", ",'0','0','0','0'", "V", "RVP(R,V,P)", "GE 0", "X_RPB", "", ""),
+            ("fillparm", "NCAP_CLED", "R", "P,C", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
+            ("fillparm", "NCAP_CLAG", "R", "P,C,IO", ",'0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
+            ("fillparm", "NCAP_COM", "R", "P,C,IO", ",'0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
+            ("fillparm", "NCAP_DELIF", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", "", ""),
+            ("fillparm", "NCAP_DLAG", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", "", ""),
+            ("fillparm", "NCAP_DLIFE", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", "", ""),
+            ("fillparm", "NCAP_DRATE", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", "", ""),
+            ("fillparm", "NCAP_FDR", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", "", ""),
+            ("fillparm", "NCAP_ELIFE", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", "", ""),
+            ("fillparm", "NCAP_ICOM", "R", "P,C", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
+            ("fillparm", "NCAP_ILED", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", "", ""),
+            ("fillparm", "NCAP_OCOM", "R", "P,C", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
+            ("fillparm", "NCAP_PKCNT", "R", "P,TS", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
+            ("fillparm", "NCAP_TLIFE", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", "", ""),
             # *-----------------------------------------------------------------------------
             # * Commodity related attributes
             # *-----------------------------------------------------------------------------
-            ("fillparm", "COM_AGG", "R", "C,COM", ",'0','0','0','0'", "T", "1", "GE 0", "", ""),
-            ("fillparm", "COM_ELAST", "R", "C,TS,L", ",'0','0','0'", "T", "1", "GE 0", "", ""),
-            ("fillparm", "COM_FR", "R", "C,TS", ",'0','0','0','0'", "T", "1", "GE 0", "X_RCS", ""),
-            ("fillparm", "COM_IE", "R", "C,TS", ",'0','0','0','0'", "T", "1", "GE 0", "", ""),
-            ("fillparm", "COM_PKFLX", "R", "C,TS", ",'0','0','0','0'", "T", "1", "GE 0", "", ""),
-            ("fillparm", "COM_PKRSV", "R", "C", ",'0','0','0','0','0'", "T", "1", "GE 0", "", ""),
-            ("fillparm", "COM_PROJ", "R", "C", ",'0','0','0','0','0'", "T", "1", "GE 0", "", ""),
-            ("fillparm", "COM_VOC", "R", "C,BD", ",'0','0','0','0'", "T", "1", "GE 0", "", ""),
+            ("fillparm", "COM_AGG", "R", "C,COM", ",'0','0','0','0'", "T", "1", "GE 0", "", "", ""),
+            ("fillparm", "COM_ELAST", "R", "C,TS,L", ",'0','0','0'", "T", "1", "GE 0", "", "", ""),
+            ("fillparm", "COM_FR", "R", "C,TS", ",'0','0','0','0'", "T", "1", "GE 0", "X_RCS", "", ""),
+            ("fillparm", "COM_IE", "R", "C,TS", ",'0','0','0','0'", "T", "1", "GE 0", "", "", ""),
+            ("fillparm", "COM_PKFLX", "R", "C,TS", ",'0','0','0','0'", "T", "1", "GE 0", "", "", ""),
+            ("fillparm", "COM_PKRSV", "R", "C", ",'0','0','0','0','0'", "T", "1", "GE 0", "", "", ""),
+            ("fillparm", "COM_PROJ", "R", "C", ",'0','0','0','0','0'", "T", "1", "GE 0", "", "", ""),
+            ("fillparm", "COM_VOC", "R", "C,BD", ",'0','0','0','0'", "T", "1", "GE 0", "", "", ""),
             # *-----------------------------------------------------------------------------
             # * Flow related attributes & inter-regional exchange
             # *-----------------------------------------------------------------------------
-            ("fillparm", "ACT_CSTUP", "R", "P,TSL,CUR", ",'0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", ""),
-            ("fillparm", "ACT_CSTSD", "R", "P,UPT,BD,CUR", ",'0','0'", "V", "RTP(R,V,P)", "GE 0", "", ""),
-            ("fillparm", "ACT_CSTRMP", "R", "P,BD,CUR", ",'0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", ""),
-            ("fillparm", "ACT_TIME", "R", "P,LIM", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", ""),
-            ("fillparm", "FLO_FUNC", "R", "P,CG1,CG2,TS", ",'0','0'", "V", "RVP(R,V,P)", "GE 0", "X_RPGGS", ""),
-            ("fillparm", "FLO_PKCOI", "R", "P,C,TS", ",'0','0','0'", "V", "RVP(R,V,P)", "GE 0", "", ""),
-            ("fillparm", "FLO_SUM", "R", "P,CG1,C,CG2,TS", ",'0'", "V", "RVP(R,V,P)", "GE 0", "X_RPGCGS", ""),
-            ("fillparm", "PRC_ACTFLO", "R", "P,CG", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RPG", ""),
-            ("prepparm", "FLO_MARK", "R", "P,C,BD", ",'0','0'", "T", "1", "1", "3", "X_RPCL"),
-            ("prepparm", "PRC_MARK", "R", "P,ITEM,C,BD", ",'0'", "T", "1", "1", "11", "X_MARK"),
-            ("fillparm", "IRE_FLO", "R", "P,C,REG,COM,TS", ",'0'", "V", "(RVP(R,V,P) OR RTP(REG,V,P))", "GE 0", "", ""),
-            ("fillparm", "IRE_FLOSUM", "R", "P,C,TS,IE,COM,IO", "", "V", "RVP(R,V,P)", "GE 0", "", ""),
+            ("fillparm", "ACT_CSTUP", "R", "P,TSL,CUR", ",'0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
+            ("fillparm", "ACT_CSTSD", "R", "P,UPT,BD,CUR", ",'0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
+            ("fillparm", "ACT_CSTRMP", "R", "P,BD,CUR", ",'0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
+            ("fillparm", "ACT_TIME", "R", "P,LIM", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
+            ("fillparm", "FLO_FUNC", "R", "P,CG1,CG2,TS", ",'0','0'", "V", "RVP(R,V,P)", "GE 0", "X_RPGGS", "", ""),
+            ("fillparm", "FLO_PKCOI", "R", "P,C,TS", ",'0','0','0'", "V", "RVP(R,V,P)", "GE 0", "", "", ""),
+            ("fillparm", "FLO_SUM", "R", "P,CG1,C,CG2,TS", ",'0'", "V", "RVP(R,V,P)", "GE 0", "X_RPGCGS", "", ""),
+            ("fillparm", "PRC_ACTFLO", "R", "P,CG", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RPG", "", ""),
+            ("prepparm", "FLO_MARK", "R", "P,C,BD", ",'0','0'", "T", "1", "1", "3", "X_RPCL", ""),
+            ("prepparm", "PRC_MARK", "R", "P,ITEM,C,BD", ",'0'", "T", "1", "1", "11", "X_MARK", ""),
+            ("fillparm", "IRE_FLO", "R", "P,C,REG,COM,TS", ",'0'", "V", "(RVP(R,V,P) OR RTP(REG,V,P))", "GE 0", "", "", ""),
+            ("fillparm", "IRE_FLOSUM", "R", "P,C,TS,IE,COM,IO", "", "V", "RVP(R,V,P)", "GE 0", "", "", ""),
             # *-----------------------------------------------------------------------------
             # * Storage attributes
             # *-----------------------------------------------------------------------------
-            ("fillparm", "STG_CHRG", "R", "P,S", ",'0','0','0','0'", "V", "(M(V) GE MIYR_V1-1)", "GE 0", "", ""),
-            ("fillparm", "STG_EFF", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", ""),
-            ("fillparm", "STG_LOSS", "R", "P,S", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", ""),
-            ("fillparm", "STG_SIFT", "R", "P,C,S", ",'0','0','0'", "T", "RTP(R,T,P)", "GE 0", "", ""),
+            ("fillparm", "STG_CHRG", "R", "P,S", ",'0','0','0','0'", "V", "(M(V) GE MIYR_V1-1)", "GE 0", "", "", ""),
+            ("fillparm", "STG_EFF", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
+            ("fillparm", "STG_LOSS", "R", "P,S", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
+            ("fillparm", "STG_SIFT", "R", "P,C,S", ",'0','0','0'", "T", "RTP(R,T,P)", "GE 0", "", "", ""),
             # *-----------------------------------------------------------------------------
             # * User constraints
             # *-----------------------------------------------------------------------------
-            ("fillparm", "UC_ACT", "UC_N,SIDE,R", "P,TS", ",'0','0'", "T", "RTP(R,T,P)", "GE 0", "", ""),
-            ("fillparm", "UC_CAP", "UC_N,SIDE,R", "P", ",'0','0','0'", "T", "1", "GE 0", "", ""),
-            ("fillparm", "UC_COM", "UC_N,COM_VAR,SIDE,R", "C,TS,UC_GRPTYPE", "", "T", "1", "GE 0", "", ""),
-            ("fillparm", "UC_FLO", "UC_N,SIDE,R", "P,C,TS", ",'0'", "T", "1", "GE 0", "X_UZRPCS", ""),
-            ("fillparm", "UC_IRE", "UC_N,SIDE,R", "P,C,TS,IE", "", "T", "RTP(R,T,P)", "GE 0", "", ""),
-            ("fillparm", "UC_NCAP", "UC_N,SIDE,R", "P", ",'0','0','0'", "T", "RTP(R,T,P)", "GE 0", "", ""),
-            ("fillparm", "UC_UCN", "UC_N,SIDE,R", "UCN", ",'0','0','0'", "T", "1", "GE 0", "", ""),
+            ("fillparm", "UC_ACT", "UC_N,SIDE,R", "P,TS", ",'0','0'", "T", "RTP(R,T,P)", "GE 0", "", "", ""),
+            ("fillparm", "UC_CAP", "UC_N,SIDE,R", "P", ",'0','0','0'", "T", "1", "GE 0", "", "", ""),
+            ("fillparm", "UC_COM", "UC_N,COM_VAR,SIDE,R", "C,TS,UC_GRPTYPE", "", "T", "1", "GE 0", "", "", ""),
+            ("fillparm", "UC_FLO", "UC_N,SIDE,R", "P,C,TS", ",'0'", "T", "1", "GE 0", "X_UZRPCS", "", ""),
+            ("fillparm", "UC_IRE", "UC_N,SIDE,R", "P,C,TS,IE", "", "T", "RTP(R,T,P)", "GE 0", "", "", ""),
+            ("fillparm", "UC_NCAP", "UC_N,SIDE,R", "P", ",'0','0','0'", "T", "RTP(R,T,P)", "GE 0", "", "", ""),
+            ("fillparm", "UC_UCN", "UC_N,SIDE,R", "UCN", ",'0','0','0'", "T", "1", "GE 0", "", "", ""),
             ("filparam", "UC_TIME", "UC_N,R,", "", ",'0','0','0'", "DATAYEAR", "T", "", "", "", "YEAR,"),
             # *=============================================================================
             # ******* NON-REGULAR NON-COST PARAMETERS: NOT interpolated by default *********
             # *-----------------------------------------------------------------------------
             # * Capacity and commodity related attributes
             # *-----------------------------------------------------------------------------
-            ("prepparm", "CAP_BND", "R", "P,BD", ",'0','0','0'", "T", "RTP(R,T,P)", "1", "", "X_RPB"),
-            ("prepparm", "NCAP_BND", "R", "P,BD", ",'0','0','0'", "T", "RTP(R,T,P)", "1", "", "X_RPB"),
-            ("prepparm", "COM_BNDNET", "R", "C,TS,BD", ",'0','0'", "T", "1", "1", "", ""),
-            ("prepparm", "COM_BNDPRD", "R", "C,TS,BD", ",'0','0'", "T", "1", "1", "", ""),
+            ("prepparm", "CAP_BND", "R", "P,BD", ",'0','0','0'", "T", "RTP(R,T,P)", "1", "", "X_RPB", ""),
+            ("prepparm", "NCAP_BND", "R", "P,BD", ",'0','0','0'", "T", "RTP(R,T,P)", "1", "", "X_RPB", ""),
+            ("prepparm", "COM_BNDNET", "R", "C,TS,BD", ",'0','0'", "T", "1", "1", "", "", ""),
+            ("prepparm", "COM_BNDPRD", "R", "C,TS,BD", ",'0','0'", "T", "1", "1", "", "", ""),
             # *-----------------------------------------------------------------------------
             # * Flow related attributes & inter-regional exchange
             # *-----------------------------------------------------------------------------
-            ("prepparm", "ACT_BND", "R", "P,TS,BD", ",'0','0'", "T", "RTP(R,T,P)", "1", "", "X_RPSB"),
-            ("prepparm", "FLO_BND", "R", "P,CG,TS,BD", ",'0'", "T", "RTP(R,T,P)", "1", "", "X_RPGSB"),
-            ("prepparm", "FLO_BDLVL", "R", "P,CG,S,BD", ",'0'", "T", "RTP(R,T,P)", "1", "", "X_RPGSB"),
-            ("prepparm", "FLO_FR", "R", "P,C,TS,LIM", ",'0'", "T", "RTP(R,T,P)", "1", "", "X_RPCSL"),
+            ("prepparm", "ACT_BND", "R", "P,TS,BD", ",'0','0'", "T", "RTP(R,T,P)", "1", "", "X_RPSB", ""),
+            ("prepparm", "FLO_BND", "R", "P,CG,TS,BD", ",'0'", "T", "RTP(R,T,P)", "1", "", "X_RPGSB", ""),
+            ("prepparm", "FLO_BDLVL", "R", "P,CG,S,BD", ",'0'", "T", "RTP(R,T,P)", "1", "", "X_RPGSB", ""),
+            ("prepparm", "FLO_FR", "R", "P,C,TS,LIM", ",'0'", "T", "RTP(R,T,P)", "1", "", "X_RPCSL", ""),
             ("prepparm", "FLO_SHAR", "R", "P,C,CG,TS,BD", "", "V", "RVP(R,V,P)", "1", "", "X_RPCGSB", "+"),
-            ("prepparm", "IRE_BND", "R", "C,TS,ALL_REG,IE,BD", "", "T", "1", "1", "", ""),
-            ("prepparm", "IRE_XBND", "ALL_REG", "C,TS,IE,BD", ",'0'", "T", "1", "1", "", ""),
+            ("prepparm", "IRE_BND", "R", "C,TS,ALL_REG,IE,BD", "", "T", "1", "1", "", "", ""),
+            ("prepparm", "IRE_XBND", "ALL_REG", "C,TS,IE,BD", ",'0'", "T", "1", "1", "", "", ""),
             # *-----------------------------------------------------------------------------
             # * Storage attributes
             # *-----------------------------------------------------------------------------
-            ("prepparm", "STGIN_BND", "R", "P,C,S,BD", ",'0'", "T", "RTP(R,T,P)", "1", "", ""),
-            ("prepparm", "STGOUT_BND", "R", "P,C,S,BD", ",'0'", "T", "RTP(R,T,P)", "1", "", ""),
+            ("prepparm", "STGIN_BND", "R", "P,C,S,BD", ",'0'", "T", "RTP(R,T,P)", "1", "", "", ""),
+            ("prepparm", "STGOUT_BND", "R", "P,C,S,BD", ",'0'", "T", "RTP(R,T,P)", "1", "", "", ""),
             # *-----------------------------------------------------------------------------
             # * User constraints
             # *-----------------------------------------------------------------------------
-            ("prepparm", "UC_RHSRT", "ALL_R,UC_N", "LIM", ",'0','0','0'", "T", "1", "1", "", "X_RUL"),
-            ("prepparm", "UC_RHSRTS", "ALL_R,UC_N", "TS,L", ",'0','0'", "T", "1", "1", "", "X_RUSL"),
-            ("prepparm", "UC_RHST", "UC_N", "LIM", ",'0','0','0','0'", "T", "1", "1", "", ""),
-            ("prepparm", "UC_RHSTS", "UC_N", "TS,LIM", ",'0','0','0'", "T", "1", "1", "", ""),
-            ("prepparm", "REG_BNDCST", "R", "COSTAGG,CUR,BD", ",'0','0'", "T", "1", "1", "", ""),
+            ("prepparm", "UC_RHSRT", "ALL_R,UC_N", "LIM", ",'0','0','0'", "T", "1", "1", "", "X_RUL", ""),
+            ("prepparm", "UC_RHSRTS", "ALL_R,UC_N", "TS,L", ",'0','0'", "T", "1", "1", "", "X_RUSL", ""),
+            ("prepparm", "UC_RHST", "UC_N", "LIM", ",'0','0','0','0'", "T", "1", "1", "", "", ""),
+            ("prepparm", "UC_RHSTS", "UC_N", "TS,LIM", ",'0','0','0'", "T", "1", "1", "", "", ""),
+            ("prepparm", "REG_BNDCST", "R", "COSTAGG,CUR,BD", ",'0','0'", "T", "1", "1", "", "", ""),
             # *-----------------------------------------------------------------------------
             # * Parameters that are by default inter/extrapolated over PASTYEARS
             # *----------------------------------------------------------------------------
@@ -346,56 +346,56 @@ class PreppmMod(GamsClass):
         ]
         # fmt: on
 
-        for arg in batincludes2:
-            if arg[0] == "prepparm":
+        for cmd, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10 in batincludes2:
+            if cmd == "prepparm":
                 self.include(
                     PrepparmGms(
                         self.tc,
                         self.env,
-                        arg1=arg[1],
-                        arg2=arg[2],
-                        arg3=arg[3],
-                        arg4=arg[4],
-                        arg5=arg[5],
-                        arg6=arg[6],
-                        arg7=arg[7],
-                        arg8=arg[8],
-                        arg9=arg[9],
-                        arg10=arg[10] if len(arg) > 10 else "",
+                        arg1=a1,
+                        arg2=a2,
+                        arg3=a3,
+                        arg4=a4,
+                        arg5=a5,
+                        arg6=a6,
+                        arg7=a7,
+                        arg8=a8,
+                        arg9=a9,
+                        arg10=a10,
                     )
                 )
-            elif arg[0] == "fillparm":
+            elif cmd == "fillparm":
                 self.include(
                     FillparmGms(
                         self.tc,
                         self.env,
-                        arg1=arg[1],
-                        arg2=arg[2],
-                        arg3=arg[3],
-                        arg4=arg[4],
-                        arg5=arg[5],
-                        arg6=arg[6],
-                        arg7=arg[7],
-                        arg8=arg[8],
-                        arg9=arg[9],
-                        arg10=arg[10] if len(arg) > 10 else "",
+                        arg1=a1,
+                        arg2=a2,
+                        arg3=a3,
+                        arg4=a4,
+                        arg5=a5,
+                        arg6=a6,
+                        arg7=a7,
+                        arg8=a8,
+                        arg9=a9,
+                        arg10=a10,
                     )
                 )
-            elif arg[0] == "filparam":
+            elif cmd == "filparam":
                 self.include(
                     FilparamGms(
                         self.tc,
                         self.env,
-                        arg1=arg[1],
-                        arg2=arg[2],
-                        arg3=arg[3],
-                        arg4=arg[4],
-                        arg5=arg[5],
-                        arg6=arg[6],
-                        arg7=arg[7],
-                        arg8=arg[8],
-                        arg9=arg[9],
-                        arg10=arg[10],
+                        arg1=a1,
+                        arg2=a2,
+                        arg3=a3,
+                        arg4=a4,
+                        arg5=a5,
+                        arg6=a6,
+                        arg7=a7,
+                        arg8=a8,
+                        arg9=a9,
+                        arg10=a10,
                     )
                 )
 
@@ -429,7 +429,7 @@ class PreppmMod(GamsClass):
         # *=============================================================================
         # ***************************** SHAPE/MULTI INDEXES ****************************
         # *-----------------------------------------------------------------------------
-        preshapes = [
+        preshapes: list[tuple[str, str, str, str, str, str, str, str]] = [
             ("NCAP_AFX", "R", "P", "", "V", "RXX", "RTP(R,V,P)", ""),
             ("NCAP_AFSX", "R", "P,BD", ",'0','0','0'", "V", "UNCD7", "RTP(R,V,P)", ""),
             ("NCAP_AFM", "R", "P", "", "V", "RXX", "RTP(R,V,P)", ""),
@@ -444,19 +444,19 @@ class PreppmMod(GamsClass):
             ("NCAP_CPX", "R", "P", "", "V", "RXX", "RTP(R,V,P)", ""),
         ]
 
-        for arg in preshapes:
+        for a1, a2, a3, a4, a5, a6, a7, a8 in preshapes:
             self.include(
                 PreshapeGms(
                     self.tc,
                     self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
-                    arg5=arg[4],
-                    arg6=arg[5],
-                    arg7=arg[6],
-                    arg8=arg[7],
+                    arg1=a1,
+                    arg2=a2,
+                    arg3=a3,
+                    arg4=a4,
+                    arg5=a5,
+                    arg6=a6,
+                    arg7=a7,
+                    arg8=a8,
                 )
             )
 
@@ -464,7 +464,7 @@ class PreppmMod(GamsClass):
 
         # * Optional weighting of vintaged attributes
         if self.env.vintopt == "1":
-            fillvints = [
+            fillvints: list[tuple[str, str, str, str]] = [
                 ("FLO_FUNC", "R", "P,CG1,CG2,TS", "X_RPGGS"),
                 ("FLO_SUM", "R", "P,CG1,C,CG2,TS", "X_RPGCGS"),
                 ("NCAP_CDME", "R", "P", "X_RP"),
@@ -472,15 +472,15 @@ class PreppmMod(GamsClass):
                 ("FLO_SHAR", "R", "P,C,CG,TS,BD", "X_RPCGSB"),
             ]
 
-            for arg in fillvints:
+            for a1, a2, a3, a4 in fillvints:
                 self.include(
                     FillvintGms(
                         self.tc,
                         self.env,
-                        arg1=arg[0],
-                        arg2=arg[1],
-                        arg3=arg[2],
-                        arg4=arg[3],
+                        arg1=a1,
+                        arg2=a2,
+                        arg3=a3,
+                        arg4=a4,
                     )
                 )
 
@@ -545,7 +545,7 @@ UC_COM(UC_N,'NET',SIDE,R,DATAYEAR,C,S,'COMNET') $= UC_COMNET(UC_N,SIDE,R,DATAYEA
 """,
         )
 
-    def prepare_flags_for_flow_tax_sub(self: PreppmMod, dflbl: str):
+    def prepare_flags_for_flow_tax_sub(self: PreppmMod, dflbl: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

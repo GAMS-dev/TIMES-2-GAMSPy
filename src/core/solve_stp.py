@@ -50,28 +50,30 @@ class SolveStp(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
+        model_name: str,
+        equations: list[str],
         arg1: str = "",
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
         self.arg1 = arg1
+        self.model_name = model_name
+        self.equations = equations
         self.compile()
 
     def compile(self) -> None:
         self.env.set_scoped("stepped", "YES")
-        if not self.env.spines.upper() == "YES":
-            if not self.env.stages.upper() == "YES":
-                self.env.set_scoped("stepped", "NO")
+        if (self.env.spines.upper() != "YES") and (self.env.stages.upper() != "YES"):
+            self.env.set_scoped("stepped", "NO")
 
-        if self.env.stepped == "NO":
-            if self.env.is_set("timestep"):
-                raise Exception("Stepped TIMES Not available with STAGES/SENSIS!")
+        if self.env.stepped == "NO" and self.env.is_set("timestep"):
+            raise Exception("Stepped TIMES Not available with STAGES/SENSIS!")
 
         if not self.env.var_uc == "YES":
             raise Exception("Invalid VAR_UC setting for stepped mode.")
 
-        if not self.env.rpoint == "NO":
+        if self.env.rpoint != "NO":
             self.env.set_scoped("solve_now", "NO")
 
         if not self.env.is_set("timestep"):
@@ -182,6 +184,7 @@ class SolveStp(GamsClass):
                 cli=self.env.cli,
                 abs_=self.env.abs,
                 reduce=self.env.reduce,
+                dflbl=self.env.dflbl,
                 mx=self.env.mx,
                 pgprim=self.env.pgprim,
                 r_t=self.env.r_t,
@@ -217,7 +220,15 @@ class SolveStp(GamsClass):
             if ext == "stc":
                 self.include(SolveStc(self.tc, self.env))
             else:
-                self.include(SolveMod(self.tc, self.env))
+                self.include(
+                    SolveMod(
+                        self.tc,
+                        self.env,
+                        arg1=self.arg1,
+                        model_name=self.model_name,
+                        equations=self.equations,
+                    )
+                )
 
             self.tc.enqueue(self.exec_solve_stp_nonstepped_after_solve)
 
@@ -758,6 +769,7 @@ class SolveStp(GamsClass):
         eotime: str,
         cufscal: str,
         cucscal: str,
+        dflbl: str,
         bnd_ucw_defined: dict[str, bool],
     ) -> None:
         self.tc.add_gams_code(
@@ -832,6 +844,7 @@ class SolveStp(GamsClass):
                     stages=stages,
                     timesed=timesed,
                     reduce=reduce,
+                    dflbl=dflbl,
                     mx=mx,
                     pgprim=pgprim,
                     eotime=eotime,

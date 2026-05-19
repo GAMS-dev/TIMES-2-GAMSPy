@@ -168,7 +168,7 @@ class EqbndcstMod(GamsClass):
         shff: str,
         sow: str,
         def_rtp_ffcs: bool,
-    ):
+    ) -> None:
         include_cal_red = ""
 
         # only set in pp_reduce.red
@@ -196,6 +196,7 @@ class EqbndcstMod(GamsClass):
                 shff=shff,
                 sow=sow,
                 var=var,
+                pgprim=pgprim,
             )
         else:
             raise ValueError(f"Unexpected value for cal_red: {cal_red}")
@@ -333,10 +334,7 @@ class EqbndcstMod(GamsClass):
 """,
         )
 
-    def exec1(
-        self: EqbndcstMod,
-        declif: str,
-    ):
+    def exec1(self: EqbndcstMod, declif: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

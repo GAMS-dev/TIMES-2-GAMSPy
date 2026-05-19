@@ -8,3 +8,7 @@ __pycache__
 *.lxi
 *.gdx
 .env
+*.egg-info
+build
+*.opt
+end_gams

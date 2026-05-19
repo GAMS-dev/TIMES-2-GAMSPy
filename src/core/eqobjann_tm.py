@@ -34,8 +34,8 @@ class EqobjannTm(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str,
-        arg2: str,
+        arg1: str = "",
+        arg2: str = "",
     ):
         self.env = env.fork()
         self.arg1 = arg1
@@ -92,7 +92,7 @@ SET OBVANN(OBV) / OBJINV, OBJFIX, OBJVAR /;
 
         self._label_coef()
 
-    def exec1(self):
+    def exec1(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -101,7 +101,7 @@ SUM_OBJ(OBV('OBJSAL'),OBV)  =  0;
 """,
         )
 
-    def exec2(self):
+    def exec2(self) -> None:
         equation = """
   EQ_OBJANN(OBVANN,RDCUR(R,CUR))..
   VAR_OBJ(R,OBVANN,CUR) =E=  SUM(T, OBJ_PVT(R,T,CUR) * VAR_ANNCST(OBVANN,R,T,CUR))
@@ -113,7 +113,7 @@ SUM_OBJ(OBV('OBJSAL'),OBV)  =  0;
         equation += ";"
         self.tc.add_gams_code(module=self, phase="run", code=equation)
 
-    def exec3(self, arg1: str, CAPJD: str, arg2: str, ANNCOST: str, CAPWD: str):
+    def exec3(self, arg1: str, capjd: str, arg2: str, anncost: str, capwd: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -135,7 +135,7 @@ SUM_OBJ(OBV('OBJSAL'),OBV)  =  0;
 
 * Cases I - Investment Cost and II - Taxes/Subsidies
 
-    SUM(OBJ_SUMII(R,V,P,LIFE,K_EOH,JOT), {CAPJD}
+    SUM(OBJ_SUMII(R,V,P,LIFE,K_EOH,JOT), {capjd}
       SUM(INVSPRED(K_EOH,JOT,LL,K), OBJ_DISC(R,K,CUR) * (1-SALV_INV(R,V,P,LL)$T(V)) *
         (OBJ_ICOST(R,K,P,CUR) + (OBJ_ITAX(R,K,P,CUR) - OBJ_ISUB(R,K,P,CUR)){arg2})) *
       COR_SALVI(R,V,P,CUR) / OBJ_DIVI(R,V,P))
@@ -155,7 +155,7 @@ SUM_OBJ(OBV('OBJSAL'),OBV)  =  0;
 """,
         )
 
-        if ANNCOST.upper() != "LEV":
+        if anncost.upper() != "LEV":
             self.tc.add_gams_code(
                 module=self,
                 phase="run",
@@ -175,12 +175,12 @@ COEF_CRF(OBJ_FCUR(R,PASTMILE(V),P,CUR)) = SUM(OBJ_SUMIV(K_EOH,R,V,P,JOT,LIFE),OB
 * Case IV - Fixed O&M Cost and Taxes
 
       SUM(OBJ_SUMIV(K_EOH,R,V,P,JOT,LIFE)$(NOT RTP_ISHPR(R,V,P)),
-       SUM(INVSPRED(K_EOH,JOT,LL,K), OBJ_LIFE(LL,R,JOT,LIFE,CUR) * {CAPWD}
+       SUM(INVSPRED(K_EOH,JOT,LL,K), OBJ_LIFE(LL,R,JOT,LIFE,CUR) * {capwd}
         (OBJ_FOM(R,K,P,CUR)+(OBJ_FTX(R,K,P,CUR)-OBJ_FSB(R,K,P,CUR)){arg2})) / OBJ_DIVIV(R,V,P)) +
 
       SUM(OBJ_SUMIV(K_EOH,RTP_ISHPR(R,V,P),JOT,LIFE),
         SUM((INVSPRED(K_EOH,JOT,LL,K),OPYEAR(LIFE,AGE),Y_EOH(LL+(ORD(AGE)-1))),
-             OBJ_DISC(R,Y_EOH,CUR) * (1+SUM(PERIODYR(T,Y_EOH),RTP_CPX(R,V,P,T))$NCAP_CPX(R,V,P)) * {CAPWD}
+             OBJ_DISC(R,Y_EOH,CUR) * (1+SUM(PERIODYR(T,Y_EOH),RTP_CPX(R,V,P,T))$NCAP_CPX(R,V,P)) * {capwd}
                 (
                    OBJ_FOM(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'1',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) +
                    OBJ_FTX(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'2',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)){arg2} -
@@ -201,7 +201,7 @@ COEF_CRF(OBJ_FCUR(R,PASTMILE(V),P,CUR)) = SUM(OBJ_SUMIV(K_EOH,R,V,P,JOT,LIFE),OB
 """,
         )
 
-    def _label_coef(self):
+    def _label_coef(self) -> None:
         self.tc.enqueue(
             self.exec3,
             arg1=self.arg1,

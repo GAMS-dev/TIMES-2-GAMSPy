@@ -60,12 +60,12 @@ class RecurrinStc(GamsClass):  # FilenameExt
             ):
                 self.env.set_scoped("need", "YES")
 
-            if not self.env.need == "NO":
+            if self.env.need != "NO":
                 if not self.env.tst == "TST":
                     raise Exception("Macro support needed. Upgrade your GAMS system.")
                 self.env.set_scoped("sw1", "")
                 self.env.set_scoped("sw2", "")
-                if not self.env.stages == "YES":
+                if self.env.stages != "YES":
                     self.env.set_scoped("sw1", "SUM")
                     self.env.set_scoped("sw2", "SOW,")
                 self.env.set_global("mx", "MX")
@@ -81,7 +81,7 @@ class RecurrinStc(GamsClass):  # FilenameExt
                         code=r"""$MACRO RTCS_FRMX RTCS_FR
 $MACRO COM_FRMX COM_FR""",
                     )
-                if not self.env.spines.upper() == "YES":
+                if self.env.spines.upper() != "YES":
                     self.tc.add_gams_code(
                         module=self, phase="init", code=r"$MACRO PRC_DYNUCMX PRC_DYNUC"
                     )
@@ -152,7 +152,7 @@ $macro QE_UCRTS  ESE_UCRTS
 """,
                 )
 
-                if not self.env.solveda == "1":
+                if self.env.solveda != "1":
                     self.env.set_global(
                         "sw_stvars",
                         f"{self.env.sw_stvars} SET VARTT '{self.env.vsum}TT,W),Z' SET SWSW SW_TSW(SOW,T,WW),",
@@ -239,7 +239,7 @@ $macro Z_UCTS VAS_UCTS
 $macro Z_UCRTS VAS_UCRTS
 """,
                 )
-                if not self.env.solveda == "1":
+                if self.env.solveda != "1":
                     self.tc.add_gams_code(
                         module=self,
                         phase="init",
@@ -272,7 +272,7 @@ $macro Z_CLIBOX VAS_CLIBOX
 """,
                 )
 
-    def spines_exec(self: RecurrinStc):
+    def spines_exec(self: RecurrinStc) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

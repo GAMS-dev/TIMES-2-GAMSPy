@@ -63,10 +63,11 @@ class TimsliceMod(GamsClass):
         self.env.set_scoped("mx", "(MIYR_1)")
         self.env.set_global("rts", "S")
 
-        if (self.env.obmac + self.env.dynts).upper() == "YESYES":
-            if self.tc.defined("TS_OFF"):
-                self.env.set_scoped("mx", "")
-                self.env.set_global("rts", "S+NORTS(R,T,S)")
+        if (self.env.obmac + self.env.dynts).upper() == "YESYES" and self.tc.defined(
+            "TS_OFF"
+        ):
+            self.env.set_scoped("mx", "")
+            self.env.set_global("rts", "S+NORTS(R,T,S)")
 
         self.tc.add_gams_code(module=self, phase="init", code="SET TS_OFF //;")
 
@@ -84,7 +85,7 @@ class TimsliceMod(GamsClass):
 
         self.tc.enqueue(self.exec2)
 
-    def exec1(self):
+    def exec1(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -103,7 +104,7 @@ class TimsliceMod(GamsClass):
   """,
         )
 
-    def prepare_dynamic_timeslice_tree(self: TimsliceMod, mx: str):
+    def prepare_dynamic_timeslice_tree(self: TimsliceMod, mx: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -115,7 +116,7 @@ class TimsliceMod(GamsClass):
 """,
         )
 
-    def exec2(self: TimsliceMod):
+    def exec2(self: TimsliceMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

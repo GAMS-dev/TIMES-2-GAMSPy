@@ -56,7 +56,7 @@ class PpmExtMlf(GamsClass):
         )
         self.tc.enqueue(self.exec2)
 
-    def exec1(self: PpmExtMlf):
+    def exec1(self: PpmExtMlf) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -71,7 +71,7 @@ class PpmExtMlf(GamsClass):
 """,
         )
 
-    def exec2(self: PpmExtMlf):
+    def exec2(self: PpmExtMlf) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

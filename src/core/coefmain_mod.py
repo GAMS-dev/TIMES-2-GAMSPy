@@ -58,7 +58,7 @@ class CoefmainMod(GamsClass):
         self.include(CoefAltLin(tc=self.tc, env=self.env, arg1=f"VAR{self.env.csts}"))
         self.include(CoefShpMod(tc=self.tc, env=self.env))
 
-    def exec(self):
+    def exec(self) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

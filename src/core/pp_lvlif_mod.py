@@ -49,7 +49,7 @@ class PpLvlifMod(GamsClass):
     def compile(self) -> None:
         self.tc.enqueue(self.exec1, rl=self.env.rl, pl=self.env.pl)
 
-    def exec1(self: PpLvlifMod, rl: str, pl: str):
+    def exec1(self: PpLvlifMod, rl: str, pl: str) -> None:
         include_pp_qaput = pp_qaput(
             "PUTOUT", "PUTGRP", "02", "IRE_FLO import commodity not in TOP_IRE"
         )

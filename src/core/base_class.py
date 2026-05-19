@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Dict, List
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .compile_environment import CompileEnvironment
@@ -10,10 +10,13 @@ if TYPE_CHECKING:
 
 
 class GamsClass(ABC):
+    module_name: str
+    gams_source: str
+
     def __init__(self, tc: TimesModelClass, env: CompileEnvironment) -> None:
         self.env: CompileEnvironment = env.fork()
         self.tc: TimesModelClass = tc
-        self._sub_modules: Dict[str, GamsClass] = {}  # Dict containing sub modules
+        self._sub_modules: dict[str, GamsClass] = {}  # Dict containing sub modules
 
     def include(self, module_instance: GamsClass) -> None:
         """
@@ -22,7 +25,7 @@ class GamsClass(ABC):
         """
         self._sub_modules[module_instance.module_name] = module_instance
 
-    def add_records_to_universe_item(self, records: List) -> None:
+    def add_records_to_universe_item(self, records: list[str]) -> None:
         """
         ITEM is a UniverseSet
         GAMSPy does not support adding records to UniverseSet

@@ -80,7 +80,7 @@ class EqasharVda(GamsClass):
                 )
             )
 
-    def collect_all_flo_ashar_groups(self: EqasharVda):
+    def collect_all_flo_ashar_groups(self: EqasharVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -125,6 +125,7 @@ class EqasharVda(GamsClass):
                 shff=self.env.shff,
                 sow=self.env.sow,
                 var=self.env.var,
+                pgprim=self.env.pgprim,
             )
         else:
             cal_red_code = cal_red_red.cal_red_red(

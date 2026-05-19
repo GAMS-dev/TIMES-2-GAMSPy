@@ -83,7 +83,7 @@ class PreshapeGms(GamsClass):
             self.main_loop,
             tail=self.env.tail,
             dflbl=self.env.dflbl,
-            DEF=self.env.get("def"),
+            DEF=self.env.__getattr__("def"),
             arg1=self.arg1,
             arg2=self.arg2,
             arg4=self.arg4,
@@ -93,13 +93,8 @@ class PreshapeGms(GamsClass):
         )
 
     def exec1(
-        self: PreshapeGms,
-        tail: str,
-        arg1: str,
-        arg2: str,
-        arg6: str,
-        arg4: str,
-    ):
+        self: PreshapeGms, tail: str, arg1: str, arg2: str, arg6: str, arg4: str
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -120,7 +115,7 @@ OPTION CLEAR = {arg6};
         arg5: str,
         arg6: str,
         arg7: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

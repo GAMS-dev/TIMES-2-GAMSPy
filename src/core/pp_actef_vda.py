@@ -73,14 +73,8 @@ SCALAR MICRO / 1E-6 /;
             )
 
     def define_equation(
-        self: PpActefVda,
-        eq: str,
-        r_v_t: str,
-        swt: str,
-        var: str,
-        sow: str,
-        shp1: str,
-    ):
+        self: PpActefVda, eq: str, r_v_t: str, swt: str, var: str, sow: str, shp1: str
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -113,7 +107,7 @@ SCALAR MICRO / 1E-6 /;
 """,
         )
 
-    def exec1(self: PpActefVda):
+    def exec1(self: PpActefVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

@@ -34,8 +34,15 @@ $  IF     %METHOD% == P     $SETLOCAL METHOD LP
 $  IFI    '%MACRO%'==YES    SOLVE %MODEL_NAME% MAXIMIZING VAR_UTIL USING %METHOD%;
 $  IFI    '%MACRO%'==YES    $GOTO CHECK
 * solve TIMES as an LP/MIP
+$onEcho > convert.opt
+DumpGDX %CONVERT_GDX%
+$offEcho
+%MODEL_NAME%.optfile=1;
+option lp=convert;
 SOLVE %MODEL_NAME% MINIMIZING objZ USING %METHOD%;
 
+option lp=cbc;
+SOLVE %MODEL_NAME% MINIMIZING objZ USING %METHOD%;
 $LABEL CHECK
 * do an check on solution errors
 $  BATINCLUDE err_stat.mod SOLVE '*** ERRORS DURING SOLUTION ***'

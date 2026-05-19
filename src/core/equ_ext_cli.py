@@ -108,7 +108,7 @@ class EquExtCli(GamsClass):
 
     def balance_equation_for_total_emission(
         self: EquExtCli, eq: str, var: str, sow: str, swt: str, cpar: str
-    ):
+    ) -> None:
         """Balance equation for the total emissions/forcing in each T"""
 
         self.tc.add_gams_code(
@@ -139,7 +139,7 @@ class EquExtCli(GamsClass):
         swt: str,
         swtd: str,
         send: str,
-    ):
+    ) -> None:
         """Balance equation for the mass of CO2 in each box in each T"""
 
         self.tc.add_gams_code(
@@ -173,7 +173,7 @@ class EquExtCli(GamsClass):
         sws: str,
         swtd: str,
         send: str,
-    ):
+    ) -> None:
         """Balance equation for the temperature"""
 
         self.tc.add_gams_code(
@@ -204,7 +204,7 @@ class EquExtCli(GamsClass):
         swo: str,
         swd: str,
         swts: str,
-    ):
+    ) -> None:
         """Balance equation for the temperature"""
 
         self.tc.add_gams_code(
@@ -240,7 +240,7 @@ class EquExtCli(GamsClass):
         sow: str,
         sws: str,
         cpar: str,
-    ):
+    ) -> None:
         """Constraint for the maximum atmospheric concentration of GHGs"""
 
         self.tc.add_gams_code(
@@ -255,7 +255,7 @@ class EquExtCli(GamsClass):
                            (YEARVAL(T)-YEARVAL(LL)) / LEAD(T)) / CM_PPM(CM_EMIS))$(NOT CM_TKIND(CM_HISTS)) +
 * Bound on temperature
    SUM(CM_BOXMAP('FORCING',CM_VAR,'ATM')$CM_ATMAP('FORCING',CM_HISTS),
-{"VAR_CLIBOX(CM_VAR,'ATM',T)+(VAR_CLIBOX(CM_VAR,'ATM',TT)-VAR_CLIBOX(CM_VAR,'ATM',T)) * (YEARVAL(T)-YEARVAL(LL))" if not stages == "YES" else ""}
+{"VAR_CLIBOX(CM_VAR,'ATM',T)+(VAR_CLIBOX(CM_VAR,'ATM',TT)-VAR_CLIBOX(CM_VAR,'ATM',T)) * (YEARVAL(T)-YEARVAL(LL))" if stages != "YES" else ""}
 {"(SUM(SW_TSW(W,T,SOW),SW_PROB(W)*{var}_CLIBOX(CM_VAR,'ATM',T,W))/SW_TPROB(T,SOW) * (LEAD(T)+YEARVAL(LL)-YEARVAL(T)) +" if stages == "YES" else ""}
 {"SUM(SW_TSW(WW,TT,W)$SW_TSW(SOW,TT,W),SW_PROB(WW)*{var}_CLIBOX(CM_VAR,'ATM',TT,WW)/SW_TPROB(TT,W)) * (YEARVAL(T)-YEARVAL(LL)))" if stages == "YES" else ""}
        / LEAD(T)) +

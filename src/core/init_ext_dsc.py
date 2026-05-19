@@ -57,9 +57,8 @@ class InitExtDsc(GamsClass):
 
         self.env.set_scoped("dsc", "NO")
 
-        if self.env.dscauto.upper() == "YES":
-            if self.tc.defined("NCAP_DISC"):
-                self.tc.enqueue(self.project_prc_dsncap)
+        if self.env.dscauto.upper() == "YES" and self.tc.defined("NCAP_DISC"):
+            self.tc.enqueue(self.project_prc_dsncap)
 
         if self.tc.defined("PRC_DSCNCAP"):
             self.env.set_scoped("dsc", "YES")

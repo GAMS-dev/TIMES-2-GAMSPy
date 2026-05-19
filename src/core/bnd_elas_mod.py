@@ -52,7 +52,7 @@ class BndElasMod(GamsClass):
         )
 
     def exec_bnd_elas_mod(
-        self: "BndElasMod",
+        self: BndElasMod,
         stages: str,
         var: str,
         mx: str,
@@ -77,14 +77,15 @@ def bnd_elas_mod(
       (MAX(DDF_QREF(R,T,C) * COM_FR{mx}(R,T,C,S), COM_BQTY(R,C,S)) * COM_VOC(R,T,C,BD)) / COM_STEP(R,C,BD);
 """
 
-    if stages == "YES":
-        elas_block = rf"""
+    elas_block = (
+        rf"""
   LOOP(SW_T(T{sow}),
 {base_statement}
   );
 """
-    else:
-        elas_block = base_statement
+        if stages == "YES"
+        else base_statement
+    )
 
     return rf"""
   OPTION CLEAR=MI_DOPE;

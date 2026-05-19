@@ -18,14 +18,14 @@ from typing import TYPE_CHECKING
 
 from gamspy import Alias, Set, UniverseAlias
 
+from core import globals_def, maplists_def, units_def
 from core.utils import expand_set
 
-from . import globals_def, maplists_def, units_def
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from .compile_environment import CompileEnvironment
-    from .times_model_class import TimesModelClass
+    from .times_model_class import GamsPhase, TimesModelClass
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class InitsysMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        phase = "init"
+        phase: GamsPhase = "init"
         # Easy access gamspy.Container
         m = self.tc.container
 
@@ -75,12 +75,16 @@ $ ONMULTI
 
         # $IF NOT %SHELL%==ANSWER
         # $IF SET MAXSOW SET ITEM /BOH, 1*%EOTIME%/;
-        if self.env.is_set("shell"):
-            if not self.env.shell == "ANSWER":
-                if self.env.is_set("maxsow"):
-                    # Expand the universe alias item
-                    item_records = ["BOH"] + [i for i in range(1, self.env.eotime + 1)]
-                    self.add_records_to_universe_item(records=item_records)
+        if (
+            self.env.is_set("shell")
+            and self.env.shell != "ANSWER"
+            and self.env.is_set("maxsow")
+        ):
+            # Expand the universe alias item
+            item_records = ["BOH"] + [
+                str(i) for i in range(1, int(self.env.eotime) + 1)
+            ]
+            self.add_records_to_universe_item(records=item_records)
 
         self.tc.add_gams_code(
             module=self,
@@ -160,7 +164,7 @@ $ ONMULTI
 
         self.tc.lim = m["LIM"]
         self.tc.bnd_type = m["BND_TYPE"]
-        self.tc.l = Alias(m, name="L", alias_with=self.tc.lim)
+        self.tc.ll = Alias(m, name="L", alias_with=self.tc.lim)
         self.tc.lim_type = Alias(m, name="LIM_TYPE", alias_with=self.tc.lim)
         self.tc.bd = Alias(m, name="BD", alias_with=self.tc.bnd_type)
 
@@ -176,7 +180,7 @@ $ ONMULTI
 
         # * Numbered sets
         # SET ALLYEAR                                                       / 0 /;
-        expand_set(symbol=self.tc.allyear, elements=[0])
+        expand_set(symbol=self.tc.allyear, elements=["0"])
 
         self.tc.add_gams_code(
             module=self,
@@ -370,8 +374,8 @@ $ ONMULTI
         # # get default global scalars and parameters
         self.include(globals_def.Globals(tc=self.tc, env=self.env))
 
-    def assign_yearval(self, botime):
-        phase = "run"
+    def assign_yearval(self, botime: str) -> None:
+        phase: GamsPhase = "run"
         self.tc.add_gams_code(
             module=self,
             phase=phase,

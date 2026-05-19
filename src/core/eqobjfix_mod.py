@@ -22,8 +22,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core import prepret_dsc
 from core.coef_alt_lin import CoefAltLin
-from core.prepret_dsc import PrepretDsc
 
 from .base_class import GamsClass
 
@@ -49,8 +49,8 @@ class EqobjfixMod(GamsClass):
         arg2: str = "",
     ):
         self.env = env.fork()
-        self._sub_modules = {}
         self.tc = tc
+        self._sub_modules: dict[str, GamsClass] = {}
         self.arg1 = arg1
         self.arg2 = arg2
         self.compile()
@@ -64,7 +64,7 @@ class EqobjfixMod(GamsClass):
         )
         self.env.set_scoped("zhalf", "CEIL(Z/2-.5)")
         self.env.set_scoped("istep", "IPD(T)")
-        if not self.env.ctst == "":
+        if self.env.ctst != "":
             self.env.set_scoped("istep", "MIN(IPD(T),ROUND(Z))")
             self.env.set_scoped("zhalf", "FLOOR(ROUND(Z)/2)")
 
@@ -77,7 +77,7 @@ class EqobjfixMod(GamsClass):
         )
 
         # * Commissioning years
-        if not self.env.ctst.upper() == "":
+        if self.env.ctst.upper() != "":
             self.include(
                 CoefAltLin(
                     self.tc,
@@ -91,7 +91,7 @@ class EqobjfixMod(GamsClass):
 
         # * Reset OBJ_DIVIV to be the year divisor in the equation
         # * Only single commissioning year B(V)+ILED is taken for PASTMILE
-        if not self.env.ctst.upper() == "":
+        if self.env.ctst.upper() != "":
             pass
         else:
             self.tc.enqueue(
@@ -120,9 +120,7 @@ class EqobjfixMod(GamsClass):
             condition2=self.tc.defined("VNRET"),
         )
 
-    def declarations(
-        self: EqobjfixMod,
-    ):
+    def declarations(self: EqobjfixMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -142,10 +140,7 @@ class EqobjfixMod(GamsClass):
 """,
         )
 
-    def exec1(
-        self: EqobjfixMod,
-        condition: bool,
-    ):
+    def exec1(self: EqobjfixMod, condition: bool) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -177,12 +172,8 @@ LOOP(SAMEAS(J,'1'),
         )
 
     def exec_loop(
-        self: EqobjfixMod,
-        ctst: str,
-        zhalf: str,
-        istep: str,
-        condition: bool,
-    ):
+        self: EqobjfixMod, ctst: str, zhalf: str, istep: str, condition: bool
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -307,9 +298,7 @@ LOOP(SAMEAS(J,'1'),
 """,
         )
 
-    def exec2(
-        self: EqobjfixMod,
-    ):
+    def exec2(self: EqobjfixMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -318,11 +307,7 @@ LOOP(SAMEAS(J,'1'),
 """,
         )
 
-    def exec3(
-        self: EqobjfixMod,
-        ctst: str,
-        condtion: bool,
-    ):
+    def exec3(self: EqobjfixMod, ctst: str, condition: bool) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -330,7 +315,7 @@ LOOP(SAMEAS(J,'1'),
     OBJ_DIVIV(OBJ_YES(R,PASTMILE,P)) = 1;
     OBJ_DIVIV(OBJ_YES(R,T,P))$(NOT OBJ_1B(R,T,P)) = 1+(IPD(T)-1)$OBJ_1A(R,T,P);
     IF(ALTOBJ, OBJ_DIVIV(OBJ_1B(OBJ_YES(R,T,P)))$((ROUND(NCAP_TLIFE(R,T,P))-IPD(T){ctst}) GT 0) = IPD(T));
-{"OBJ_DIVIV(OBJ_YES(R,T,P)) = 1;" if condtion else ""}
+{"OBJ_DIVIV(OBJ_YES(R,T,P)) = 1;" if condition else ""}
 *-----------------------------------------------------------------------------*
   OPTION CLEAR=OBJ_YES, CLEAR=YKAGE;
 """,
@@ -345,10 +330,10 @@ LOOP(SAMEAS(J,'1'),
         sws: str,
         vart: str,
         var: str,
-        condition1: str,
-        condition2: str,
-    ):
-        include_prepret = self.include(PrepretDsc(self.tc, self.env, arg1="OBJFIX"))
+        condition1: bool,
+        condition2: bool,
+    ) -> None:
+        include_prepret = prepret_dsc.objfix(capwd=capwd, vart=vart, sws=sws)
         self.tc.add_gams_code(
             module=self,
             phase="init",

@@ -112,7 +112,7 @@ class FilparamGms(GamsClass):
         tail1: str,
         tail2: str,
         src: str,
-    ):
+    ) -> None:
         if arg10 == "":
             code_block = (
                 f"IF(YES, OPTION CLEAR = UNCD7; "
@@ -142,7 +142,7 @@ class FilparamGms(GamsClass):
         tail2: str,
         src: str,
         dflbl: str,
-    ):
+    ) -> None:
         # TODO: EOLINE does not work -> therefore comments starting with ! in {} if False else ""
         code_block = rf"""
  LOOP(UNCD7({arg2}{arg10}{tail1}{arg4}), F=0; Z=INF; MY_FYEAR=9999;

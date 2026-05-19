@@ -67,6 +67,7 @@ class EqptransMod(GamsClass):
             sow=self.env.sow,
             pgprim=self.env.pgprim,
             shff=self.env.shff,
+            def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
         )
 
     def comp1(
@@ -80,7 +81,8 @@ class EqptransMod(GamsClass):
         sow: str,
         pgprim: str,
         shff: str,
-    ):
+        def_rtp_ffcs: bool,
+    ) -> None:
         include_cal_red = ""
         # only set in pp_reduce.red
         if cal_red == "cal_red.red":
@@ -94,6 +96,7 @@ class EqptransMod(GamsClass):
                 sow=sow,
                 pgprim=pgprim,
                 shff=shff,
+                def_rtp_ffcs=def_rtp_ffcs,
             )
         elif cal_red == "cal_nored.red":
             include_cal_red = cal_nored_red(
@@ -102,6 +105,11 @@ class EqptransMod(GamsClass):
                 arg3="TS",
                 arg4="P",
                 arg5="T",
+                var=var,
+                sow=sow,
+                shff=shff,
+                pgprim=pgprim,
+                def_rtp_ffcs=def_rtp_ffcs,
             )
         else:
             raise ValueError(f"Unexpected value for cal_red: {cal_red}")

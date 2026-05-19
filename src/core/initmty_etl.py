@@ -17,7 +17,7 @@ from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from .compile_environment import CompileEnvironment
-    from .times_model_class import TimesModelClass
+    from .times_model_class import GamsPhase, TimesModelClass
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class InitmtyEtl(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        phase = "init"
+        phase: GamsPhase = "init"
         # OPTCR from default 0.1 to 0.000001, may want to adjust in *.RUN file
         self.tc.enqueue(self.exec1)
 
@@ -124,5 +124,5 @@ SCALAR CCDIFCRIT /0.1/;
 """,
         )
 
-    def exec1(self: InitmtyEtl):
+    def exec1(self: InitmtyEtl) -> None:
         self.tc.add_gams_code(module=self, phase="run", code="OPTION OPTCR = 0.000001;")

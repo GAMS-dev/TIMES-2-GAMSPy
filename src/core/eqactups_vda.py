@@ -138,7 +138,7 @@ class EqactupsVda(GamsClass):
             pgprim=self.env.pgprim,
         )
 
-    def set_indicators(self: EqactupsVda, pgprim: str):
+    def set_indicators(self: EqactupsVda, pgprim: str) -> None:
         m = self.tc.container
         RpUpl = m["RP_UPL"]
         RpPl = m["RP_PL"]
@@ -214,7 +214,7 @@ class EqactupsVda(GamsClass):
         capon: str,
         upscaps: str,
         arg1: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -241,7 +241,7 @@ class EqactupsVda(GamsClass):
         sow: str,
         mx: str,
         tmp: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -272,7 +272,7 @@ class EqactupsVda(GamsClass):
         sow: str,
         mx: str,
         tmp: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -311,7 +311,7 @@ class EqactupsVda(GamsClass):
         sow: str,
         capon: str,
         upscaps: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -342,7 +342,7 @@ class EqactupsVda(GamsClass):
         sow: str,
         mx: str,
         tmp: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -371,7 +371,7 @@ class EqactupsVda(GamsClass):
         swt: str,
         var: str,
         sow: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -396,7 +396,7 @@ class EqactupsVda(GamsClass):
         sow: str,
         swx: str,
         swtx: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -419,7 +419,7 @@ class EqactupsVda(GamsClass):
         var: str,
         sow: str,
         pgprim: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",

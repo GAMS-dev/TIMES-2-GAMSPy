@@ -85,6 +85,7 @@ class EqcaflacVda(GamsClass):
             cal_red=self.env.cal_red,
             pgprim=self.env.pgprim,
             shff=self.env.shff,
+            def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
             arg1=self.arg1,
             arg2=self.arg2,
         )
@@ -103,7 +104,7 @@ class EqcaflacVda(GamsClass):
         arg1: str,
         arg2: str,
         arg4: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -147,12 +148,13 @@ class EqcaflacVda(GamsClass):
         cal_red: str,
         pgprim: str,
         shff: str,
+        def_rtp_ffcs: bool,
         arg1: str,
         arg2: str,
-    ):
+    ) -> None:
         if cal_red == "cal_red.red":
             from core.cal_red_red import cal_red_red as cal_red_func
-        elif cal_red == "cal":
+        elif cal_red == "cal_nored.red":
             from core.cal_nored_red import cal_nored_red as cal_red_func
         else:
             raise ValueError(f"Unexpected value for cal_red: {self.env.cal_red}")
@@ -167,6 +169,7 @@ class EqcaflacVda(GamsClass):
             arg3="TS",
             arg4="P",
             arg5="T",
+            def_rtp_ffcs=def_rtp_ffcs,
         )
         self.tc.add_gams_code(
             module=self,

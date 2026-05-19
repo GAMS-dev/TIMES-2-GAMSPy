@@ -52,7 +52,7 @@ class PpLvlffMod(GamsClass):  # FilenameExt
         )
         self.tc.enqueue(self.pp_lvlff_exec)
 
-    def pp_lvlff_exec(self: PpLvlffMod):
+    def pp_lvlff_exec(self: PpLvlffMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

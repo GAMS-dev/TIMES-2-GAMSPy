@@ -28,7 +28,8 @@ docs = [
 
 dev = [
     "pre-commit",
-    "detect-secrets"
+    "detect-secrets",
+    "mypy>=1.19.1",
 ]
 
 [tool.pytest.ini_options]
@@ -55,9 +56,14 @@ src = ["src"]
 target-version = "py313"
 
 [tool.ruff.lint]
-select = ["E4", "E7", "E9", "F"]
+extend-select = ["B", "SIM", "UP", "I", "RUF"]
 ignore = []
 
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.mypy]
+warn_unused_configs = true
+strict = true
+disable_error_code = ["misc", "import-untyped"]

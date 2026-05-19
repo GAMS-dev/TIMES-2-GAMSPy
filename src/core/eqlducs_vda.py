@@ -43,10 +43,10 @@ class EqlducsVda(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        if not self.env.obmac == "YES":
+        if self.env.obmac != "YES":
             return
 
-        if not (self.arg1 == "EQU"):
+        if self.arg1 != "EQU":
             # * Internal attributes for equation control
             self.tc.add_gams_code(
                 module=self,
@@ -77,7 +77,7 @@ class EqlducsVda(GamsClass):
                 upscaps=self.env.upscaps,
             )
             # * Discrete Unit Commitment
-            if not (self.env.duc.upper() == "YES"):
+            if self.env.duc.upper() != "YES":
                 return
 
             self.env.set_global("solmip", "YES")
@@ -101,9 +101,7 @@ class EqlducsVda(GamsClass):
                 capon=self.env.capon,
             )
 
-    def exec1(
-        self: EqlducsVda,
-    ):
+    def exec1(self: EqlducsVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -139,9 +137,7 @@ class EqlducsVda(GamsClass):
 """,
         )
 
-    def disable_linear_dispatch(
-        self: EqlducsVda,
-    ):
+    def disable_linear_dispatch(self: EqlducsVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -156,12 +152,7 @@ class EqlducsVda(GamsClass):
 """,
         )
 
-    def set_macros(
-        self: EqlducsVda,
-        var: str,
-        sow: str,
-        condition: bool,
-    ):
+    def set_macros(self: EqlducsVda, var: str, sow: str, condition: bool) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -179,13 +170,8 @@ $ macro SPRSV \
         )
 
     def define_equation1(
-        self: EqlducsVda,
-        capon: str,
-        r_v_t: str,
-        swx: str,
-        swtx: str,
-        upscaps: str,
-    ):
+        self: EqlducsVda, capon: str, r_v_t: str, swx: str, swtx: str, upscaps: str
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -255,11 +241,7 @@ $macro CAPUPS ({capon}-SUM(rs_below(r,all_ts,s)$rps_ups(r,p,all_ts),var_off(r,v,
 """,
         )
 
-    def prepare_unit_size(
-        self: EqlducsVda,
-        condition1: bool,
-        condition2: bool,
-    ):
+    def prepare_unit_size(self: EqlducsVda, condition1: bool, condition2: bool) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -278,9 +260,7 @@ $macro CAPUPS ({capon}-SUM(rs_below(r,all_ts,s)$rps_ups(r,p,all_ts),var_off(r,v,
 """,
         )
 
-    def var_equ_indicators(
-        self: EqlducsVda,
-    ):
+    def var_equ_indicators(self: EqlducsVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -297,9 +277,7 @@ $macro CAPUPS ({capon}-SUM(rs_below(r,all_ts,s)$rps_ups(r,p,all_ts),var_off(r,v,
   """,
         )
 
-    def exec2(
-        self: EqlducsVda,
-    ):
+    def exec2(self: EqlducsVda) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -309,11 +287,7 @@ $macro CAPUPS ({capon}-SUM(rs_below(r,all_ts,s)$rps_ups(r,p,all_ts),var_off(r,v,
    """,
         )
 
-    def define_equation2(
-        self: EqlducsVda,
-        r_v_t: str,
-        capon: str,
-    ):
+    def define_equation2(self: EqlducsVda, r_v_t: str, capon: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",

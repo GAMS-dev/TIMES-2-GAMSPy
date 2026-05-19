@@ -19,7 +19,7 @@ from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from .compile_environment import CompileEnvironment
-    from .times_model_class import TimesModelClass
+    from .times_model_class import GamsPhase, TimesModelClass
 
 logger = logging.getLogger(__name__)
 
@@ -44,10 +44,10 @@ class InitmtyStc(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        phase = "init"
+        phase: GamsPhase = "init"
         self.env.set_global("stages", "YES")
 
-        def input_control_parameters():
+        def input_control_parameters() -> None:
             self.tc.add_gams_code(
                 module=self,
                 phase=phase,
@@ -63,7 +63,7 @@ $onMulti
 """,
             )
 
-        def internal_sets_and_parameters():
+        def internal_sets_and_parameters() -> None:
             m = self.tc.container
             # ALIAS (ALLSOW,WW);
             allsow = m["ALLSOW"]
@@ -85,7 +85,7 @@ $onMulti
  """,
             )
 
-        def available_sows_per_period():
+        def available_sows_per_period() -> None:
             self.tc.add_gams_code(
                 module=self,
                 phase=phase,
@@ -98,7 +98,7 @@ $onMulti
                              """,
             )
 
-        def stochastic_input_parameters():
+        def stochastic_input_parameters() -> None:
             self.tc.add_gams_code(
                 module=self,
                 phase=phase,
@@ -127,7 +127,7 @@ $onMulti
 """,
             )
 
-        def internal_work_sets_and_parameters():
+        def internal_work_sets_and_parameters() -> None:
             self.tc.add_gams_code(
                 module=self,
                 phase=phase,
@@ -148,7 +148,7 @@ $onMulti
  """,
             )
 
-        def reporting():
+        def reporting() -> None:
             self.tc.add_gams_code(
                 module=self,
                 phase=phase,

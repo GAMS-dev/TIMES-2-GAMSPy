@@ -72,10 +72,8 @@ class FillvintGms(GamsClass):
             )
 
     def initialization(
-        self: FillvintGms,
-        vintopteq2: bool,
-        prc_simv_defined: bool,
-    ):
+        self: FillvintGms, vintopteq2: bool, prc_simv_defined: bool
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -97,7 +95,7 @@ class FillvintGms(GamsClass):
         arg3: str,
         arg4: str,
         prc_simv_defined: bool,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

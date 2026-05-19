@@ -63,9 +63,13 @@ class PrepExtStc(GamsClass):
         ]
         # fmt: on
         for arg in batincludes:
-            if arg[1] in ["S_DAM_COST", "S_FLO_FUNC", "S_NCAP_AFS", "S_COM_FR"]:
-                if not self.tc.defined(arg[1]):
-                    continue
+            if arg[1] in [
+                "S_DAM_COST",
+                "S_FLO_FUNC",
+                "S_NCAP_AFS",
+                "S_COM_FR",
+            ] and not self.tc.defined(arg[1]):
+                continue
             if arg[0] == "fp":
                 self.include(
                     FillparmGms(
@@ -120,10 +124,7 @@ class PrepExtStc(GamsClass):
             have_s_flo_func=self.tc.defined("S_FLO_FUNC"),
         )
 
-    def prep_ext_stc_exec(
-        self: PrepExtStc,
-        have_s_flo_func: bool,
-    ):
+    def prep_ext_stc_exec(self: PrepExtStc, have_s_flo_func: bool) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",

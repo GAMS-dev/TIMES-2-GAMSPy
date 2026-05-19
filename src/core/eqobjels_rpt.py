@@ -53,40 +53,52 @@ class EqobjelsRpt(GamsClass):
 
     def compile(self) -> None:
         self.tc.enqueue(
-            self.exec1,
+            self.exec_eqobjels_rpt,
             arg1=self.arg1,
             arg2=self.arg2,
             arg3=self.arg3,
-            condition=self.tc.defined("MI_AGC"),
+            micro=self.env.micro,
+            if_mi_agc_defined=self.tc.defined("MI_AGC"),
         )
-        if not (self.env.micro.upper() == "YES"):
-            pass
-        else:
-            self.tc.enqueue(
-                self.exec2,
-                arg1=self.arg1,
-                arg2=self.arg2,
-                arg3=self.arg3,
-            )
 
-    def exec1(
+    def exec_eqobjels_rpt(
         self: EqobjelsRpt,
         arg1: str,
         arg2: str,
         arg3: str,
-        condition: bool,
-    ):
+        micro: str,
+        if_mi_agc_defined: bool,
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf"""
+            code=eqobjels_rpt(
+                arg1=arg1,
+                arg2=arg2,
+                arg3=arg3,
+                micro=micro,
+                if_mi_agc_defined=if_mi_agc_defined,
+            ),
+        )
+
+
+def eqobjels_rpt(
+    arg1: str,
+    arg2: str,
+    arg3: str,
+    micro: str,
+    if_mi_agc_defined: bool,
+) -> str:
+    return rf"""
 *V0.5a 980729 control the inner sums according to the years in the periods
 
   {arg1}$SUM(RCJ(R,C,'1',BDNEQ),1) = {arg3}
 
     SUM((RDCUR(R,CUR),BDNEQ(BD)), BDSIG(BD) *
 *V0.5b 980824 - correct ORD adjustment
-      SUM((PERIODYR(T,{arg2}),COM_TS(R,C,S))$COM_ELAST(R,T,C,S,BD), COM_BPRICE(R,T,C,S,CUR) *
+      SUM((PERIODYR(T,{
+        arg2
+    }),COM_TS(R,C,S))$COM_ELAST(R,T,C,S,BD), COM_BPRICE(R,T,C,S,CUR) *
         (SUM(RCJ(R,C,J,BD), VAR_ELAST.L(R,T,C,S,J,BD) *
           ((1-BDSIG(BD)*(ORD(J)-.5)*COM_VOC(R,T,C,BD)/COM_STEP(R,C,BD))**(1/COM_ELAST(R,T,C,S,BD))))$(NOT COM_ELASTX(R,T,C,BD)) +
          SUM(RTC_SHED(R,T,C,BD,JJ(AGE)),
@@ -94,29 +106,30 @@ class EqobjelsRpt(GamsClass):
              (SHAPED(BD,JJ,SPAN) *
               ((1-BDSIG(BD)*(ORD(J)-.5)*COM_VOC(R,T,C,BD)/COM_STEP(R,C,BD))/SHAPED(BD,'1',SPAN))**(1/MAX(1E-3,SHAPE(JJ,SPAN)))
              )**(1/COM_ELAST(R,T,C,S,BD)) * VAR_ELAST.L(R,T,C,S,J,BD)))
-{"+SUM(MI_DMAS(R,COM,C)$MI_DOPE(R,T,C),SUM(RCJ(R,C,J,BD),VAR_ELAST.L(R,T,C,S,J,BD)*MI_AGC(R,T,COM,C,J,BD)))" if condition else ""}
+{
+        "+SUM(MI_DMAS(R,COM,C)$MI_DOPE(R,T,C),SUM(RCJ(R,C,J,BD),VAR_ELAST.L(R,T,C,S,J,BD)*MI_AGC(R,T,COM,C,J,BD)))"
+        if if_mi_agc_defined
+        else ""
+    }
         ))
     );
-""",
-        )
-
-    def exec2(
-        self: EqobjelsRpt,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-    ):
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
+{
+        ""
+        if micro.upper() != "YES"
+        else (
+            f'''
 * NLP utility loss
   {arg1}$RD_NLP(R,C) = {arg3}
     SUM(RDCUR(R,CUR),
-      SUM((PERIODYR(T,{arg2}),COM_TS(R,C,S))$(COM_BPRICE(R,T,C,S,CUR)$MI_ELASP(R,T,C)), -COM_FR(R,T,C,S) * MI_CCONS(R,T,C) *
+      SUM((PERIODYR(T,{
+                arg2
+            }),COM_TS(R,C,S))$(COM_BPRICE(R,T,C,S,CUR)$MI_ELASP(R,T,C)), -COM_FR(R,T,C,S) * MI_CCONS(R,T,C) *
           ((VAR_DEM.L(R,T,C)**MI_ELASP(R,T,C))$(RD_NLP(R,C)=1) +
            ((SUM(MI_DMAS(R,C,COM),RD_SHAR(R,T,C,COM)**(1/MI_ESUB(R,T,C))*(COM_AGG(R,T,COM,C)*VAR_DEM.L(R,T,COM))**MI_RHO(R,T,C))**(1/MI_RHO(R,T,C)))**MI_ELASP(R,T,C))$(RD_NLP(R,C)>2) -
            DDF_QREF(R,T,C)**MI_ELASP(R,T,C))$(RD_NLP(R,C)>0))
     );
-""",
+'''
         )
+    }
+
+"""

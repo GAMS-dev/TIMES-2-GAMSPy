@@ -50,7 +50,7 @@ class BndActMod(GamsClass):
         )
 
     def exec_bnd_act_mod(
-        self: "BndActMod",
+        self: BndActMod,
         var: str,
         swd: str,
         swt: str,

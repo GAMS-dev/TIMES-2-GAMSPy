@@ -73,9 +73,7 @@ class PrepExtAbs(GamsClass):
             )
         self.tc.enqueue(self.intermediate_qa_clean_up)
 
-    def add_reserve_commodities(
-        self: PrepExtAbs,
-    ):
+    def add_reserve_commodities(self: PrepExtAbs) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -92,9 +90,7 @@ class PrepExtAbs(GamsClass):
 """,
         )
 
-    def intermediate_qa_clean_up(
-        self: PrepExtAbs,
-    ):
+    def intermediate_qa_clean_up(self: PrepExtAbs) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

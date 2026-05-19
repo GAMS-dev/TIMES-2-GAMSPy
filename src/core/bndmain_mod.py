@@ -70,6 +70,7 @@ class BndmainMod(GamsClass):
             sow=self.env.sow,
             swt=self.env.swt,
             r_t=self.env.r_t,
+            dflbl=self.env.dflbl,
             stages=self.env.stages,
             timesed=self.env.timesed,
             reduce=self.env.reduce,
@@ -99,7 +100,7 @@ class BndmainMod(GamsClass):
         )
 
     def exec_bndmain_mod(
-        self: "BndmainMod",
+        self: BndmainMod,
         arg1: str,
         arg2: str,
         var: str,
@@ -117,6 +118,7 @@ class BndmainMod(GamsClass):
         cucscal: str,
         macro: str,
         var_uc: str,
+        dflbl: str,
         rts: str,
         model_name: str,
         bnd_ucw_defined: dict[str, bool],
@@ -136,6 +138,7 @@ class BndmainMod(GamsClass):
                 stages=stages,
                 timesed=timesed,
                 reduce=reduce,
+                dflbl=dflbl,
                 mx=mx,
                 pgprim=pgprim,
                 eotime=eotime,
@@ -171,6 +174,7 @@ def bndmain_mod(
     macro: str,
     var_uc: str,
     rts: str,
+    dflbl: str,
     model_name: str,
     bnd_ucw_defined: dict[str, bool],
     stochastic_symbols_declared: dict[str, bool],
@@ -213,6 +217,7 @@ def bndmain_mod(
             stages=stages,
             reduce=reduce,
             var=var,
+            dflbl=dflbl,
             swd=swd,
             swt=f"{swd})$SW_T(T{swd}" if reduce == "YES" and stages == "YES" else swt,
         )

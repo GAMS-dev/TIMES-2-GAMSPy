@@ -127,7 +127,7 @@ $GDXIN
         if self.env.macro.upper() != "MLF":
             pass
 
-    def exec1(self: ReadbpriceMod):
+    def exec1(self: ReadbpriceMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -144,7 +144,7 @@ OPTION CLEAR=DEM;
 """,
         )
 
-    def exec2(self: ReadbpriceMod):
+    def exec2(self: ReadbpriceMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -156,7 +156,7 @@ TRACKC(R,C)$(NOT DAM_ELAST(R,C,'N')) = NO;
 """,
         )
 
-    def exec3(self: ReadbpriceMod):
+    def exec3(self: ReadbpriceMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -165,7 +165,7 @@ LOOP((R,T,C,CUR)$DAM_COST(R,T,C,CUR), TRACKC(R,C) = NO);
 """,
         )
 
-    def exec4(self: ReadbpriceMod):
+    def exec4(self: ReadbpriceMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

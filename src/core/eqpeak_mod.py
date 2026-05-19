@@ -98,7 +98,7 @@ class EqpeakMod(GamsClass):
         is_ireauxbal: bool,
         reduce: str,
         pgprim: str,
-    ):
+    ) -> None:
         include_cal_ire_1 = cal_ire_mod(
             var=var,
             sow=sow,
@@ -157,6 +157,7 @@ class EqpeakMod(GamsClass):
                 shff=shff,
                 sow=sow,
                 var=var,
+                pgprim=pgprim,
                 is_rtp_ffcs_defined=is_rtp_ffcs_defined,
             )
         include_cal_fflo_2 = cal_fflo_mod(

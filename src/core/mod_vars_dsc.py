@@ -67,7 +67,7 @@ SOS1 VARIABLE {self.env.var}_DNCAP(R,ALLYEAR,P{self.env.swd},UNIT);
         self: ModVarsDsc,
         var: str,
         sow: str,
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

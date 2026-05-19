@@ -16,7 +16,7 @@ from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from .compile_environment import CompileEnvironment
-    from .times_model_class import TimesModelClass
+    from .times_model_class import GamsPhase, TimesModelClass
 
 logger = logging.getLogger(__name__)
 
@@ -41,15 +41,15 @@ class InitmtyTm(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        phase = "init"
+        phase: GamsPhase = "init"
         print(self.module_name, phase)
-        self.env.set_global("spoint", 3)
+        self.env.set_global("spoint", "3")
 
         # * As in original IER implementation, disable warm start in MACRO
         # * This may be overridden in the RUN file after the INITMTY call
         self.tc.add_gams_code(module=self, phase=phase, code="OPTION BRATIO=1;")
 
-        def input_parameters():
+        def input_parameters() -> None:
             self.tc.add_gams_code(
                 module=self,
                 phase=phase,
@@ -72,7 +72,7 @@ PARAMETER TM_EXPF(R,ALLYEAR)           'Annual percent expansion factor'        
 """,
             )
 
-        def calibration_parameters():
+        def calibration_parameters() -> None:
             self.tc.add_gams_code(
                 module=self,
                 phase=phase,
@@ -84,7 +84,7 @@ PARAMETER TM_DDF(R,ALLYEAR,C)          'Demand decoupling factor'               
    """,
             )
 
-        def internal_parameters():
+        def internal_parameters() -> None:
             self.tc.add_gams_code(
                 module=self,
                 phase=phase,

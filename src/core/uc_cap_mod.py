@@ -72,7 +72,7 @@ def uc_cap_mod(
 
 {
         ""
-        if not f"{vda}{arg5}" == "YESS"
+        if f"{vda}{arg5}" != "YESS"
         else (
             f'''
 * Subtract offline capacity if requested
@@ -88,7 +88,7 @@ def uc_cap_mod(
    )
    {
                 ""
-                if not abs.upper() == "YES"
+                if abs.upper() != "YES"
                 else (
                     f"""
 * Add reserve flows if requested

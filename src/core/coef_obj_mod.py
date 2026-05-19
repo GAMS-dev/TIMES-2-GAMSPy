@@ -228,20 +228,18 @@ class CoefObjMod(GamsClass):
         # *    OBJ_CRFD(RTP(R,V,P),CUR)$NCAP_DELIF(RTP)  = (1-(1/(1+(G_DRATE(R,V,CUR)$(NOT NCAP_DRATE(RTP)) + NCAP_DRATE(RTP))))) /
         # *                                 (1-(1/(1+G_DRATE(R,V,CUR)$(NOT NCAP_DRATE(RTP)) + NCAP_DRATE(RTP)))**NCAP_DELIF(RTP));
 
-        if (not self.env.validate == "YES") and (not self.env.timesed == "YES"):
+        if (self.env.validate != "YES") and (self.env.timesed != "YES"):
             # * ignore investment cost for learned technologies when ETL active: COEF_EXT.ETL
             pass
         else:
             self.tc.enqueue(self.exec5)
-            if not self.env.validate == "YES":
+            if self.env.validate != "YES":
                 # * ignore investment cost for learned technologies when ETL active: COEF_EXT.ETL
                 pass
             else:
                 self.tc.enqueue(self.exec6)
 
-    def declaration1(
-        self: CoefObjMod,
-    ):
+    def declaration1(self: CoefObjMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -254,9 +252,7 @@ class CoefObjMod(GamsClass):
 """,
         )
 
-    def declaration2(
-        self: CoefObjMod,
-    ):
+    def declaration2(self: CoefObjMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -270,9 +266,7 @@ class CoefObjMod(GamsClass):
 """,
         )
 
-    def exec1(
-        self: CoefObjMod,
-    ):
+    def exec1(self: CoefObjMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -283,10 +277,8 @@ class CoefObjMod(GamsClass):
         )
 
     def check_year_matches_doc(
-        self: CoefObjMod,
-        condition1: bool,
-        condition2: bool,
-    ):
+        self: CoefObjMod, condition1: bool, condition2: bool
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -307,9 +299,7 @@ class CoefObjMod(GamsClass):
 """,
         )
 
-    def set_obj_disc(
-        self: CoefObjMod,
-    ):
+    def set_obj_disc(self: CoefObjMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -369,10 +359,7 @@ class CoefObjMod(GamsClass):
 """,
         )
 
-    def determine_min_max_year(
-        self: CoefObjMod,
-        condition: bool,
-    ):
+    def determine_min_max_year(self: CoefObjMod, condition: bool) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -394,9 +381,7 @@ class CoefObjMod(GamsClass):
 """,
         )
 
-    def exec2(
-        self: CoefObjMod,
-    ):
+    def exec2(self: CoefObjMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -405,11 +390,7 @@ class CoefObjMod(GamsClass):
 """,
         )
 
-    def exec3(
-        self: CoefObjMod,
-        condition1: bool,
-        condition2: bool,
-    ):
+    def exec3(self: CoefObjMod, condition1: bool, condition2: bool) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -420,9 +401,7 @@ OPTION CLEAR=FIL; FIL(Y_EOH)$(YEARVAL(Y_EOH) GE MIYR_V1) = YES;
 """,
         )
 
-    def exec4(
-        self: CoefObjMod,
-    ):
+    def exec4(self: CoefObjMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -432,9 +411,7 @@ OPTION CLEAR=FIL; FIL(Y_EOH)$(YEARVAL(Y_EOH) GE MIYR_V1) = YES;
 """,
         )
 
-    def compile_macros(
-        self: CoefObjMod,
-    ):
+    def compile_macros(self: CoefObjMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -454,9 +431,7 @@ $macro OBJ_FTAX(r,y,p,c,s,m) OB_FTAX(r,p,c,s,m,y)
 """,
         )
 
-    def exec5(
-        self: CoefObjMod,
-    ):
+    def exec5(self: CoefObjMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -472,9 +447,7 @@ $macro OBJ_FTAX(r,y,p,c,s,m) OB_FTAX(r,p,c,s,m,y)
 """,
         )
 
-    def exec6(
-        self: CoefObjMod,
-    ):
+    def exec6(self: CoefObjMod) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

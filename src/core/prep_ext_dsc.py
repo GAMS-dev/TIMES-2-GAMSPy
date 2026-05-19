@@ -66,7 +66,7 @@ class PrepExtDsc(GamsClass):
             )
             self.tc.enqueue(self.process_semicontinuous_requests)
 
-    def process_semicontinuous_requests(self: PrepExtDsc):
+    def process_semicontinuous_requests(self: PrepExtDsc) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -77,7 +77,7 @@ class PrepExtDsc(GamsClass):
 """,
         )
 
-    def prepextdsc_exec(self: PrepExtDsc):
+    def prepextdsc_exec(self: PrepExtDsc) -> None:
         self.tc.add_gams_code(
             module=self, phase="run", code="PRC_DSCNCAP(R,P) $= PRC_SEMI(R,P);"
         )

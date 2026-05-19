@@ -102,18 +102,14 @@ class PrepExtMlf(GamsClass):
         )
         self.tc.enqueue(self.period_stuff)
 
-    def prep_ext_mlf_exec(
-        self: PrepExtMlf,
-    ):
+    def prep_ext_mlf_exec(self: PrepExtMlf) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"MINYR = MIYR_V1;",
         )
 
-    def period_stuff(
-        self: PrepExtMlf,
-    ):
+    def period_stuff(self: PrepExtMlf) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

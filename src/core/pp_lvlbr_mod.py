@@ -72,7 +72,7 @@ class PpLvlbrMod(GamsClass):
         arg7: str = "",
         rl: str = "",
         pl: str = "",
-    ):
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

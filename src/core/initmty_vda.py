@@ -16,7 +16,7 @@ from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from .compile_environment import CompileEnvironment
-    from .times_model_class import TimesModelClass
+    from .times_model_class import GamsPhase, TimesModelClass
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ class InitmtyVda(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        phase = "init"
+        phase: GamsPhase = "init"
         self.env.set_global("vda", "YES")
         self.tc.add_gams_code(
             module=self,
@@ -125,7 +125,7 @@ $onMulti
 
         # SET ITEM / OBJ /;
         # Remember: ITEM is a UniverseSet
-        item_records = set(["OBJ"])
+        item_records = ["OBJ"]
         self.add_records_to_universe_item(records=item_records)
 
         self.tc.add_gams_code(

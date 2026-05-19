@@ -67,7 +67,7 @@ class CalibaseMlf(GamsClass):
         )
         self.tc.enqueue(self.exec3)
 
-    def exec1(self: CalibaseMlf):
+    def exec1(self: CalibaseMlf) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -77,7 +77,7 @@ class CalibaseMlf(GamsClass):
 """,
         )
 
-    def exec2(self: CalibaseMlf):
+    def exec2(self: CalibaseMlf) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -89,7 +89,7 @@ class CalibaseMlf(GamsClass):
 """,
         )
 
-    def exec3(self: CalibaseMlf):
+    def exec3(self: CalibaseMlf) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

@@ -75,7 +75,7 @@ class BndSetMod(GamsClass):
         )
 
     def exec_bnd_set_mod(
-        self: "BndSetMod",
+        self: BndSetMod,
         arg1: str,
         arg2: str,
         arg3: str,

@@ -114,7 +114,7 @@ class PpLvlfcMod(GamsClass):
         )
 
 
-def clear_uncd7(module: GamsClass):
+def clear_uncd7(module: GamsClass) -> None:
     module.tc.add_gams_code(module=module, phase="run", code=r"OPTION CLEAR=UNCD7;")
 
 
@@ -134,7 +134,7 @@ def all_exec(
     arg8: str,
     arg10: str,
     arg11: str,
-):
+) -> None:
     if arg11 == "N":
         module.tc.add_gams_code(
             module=module,
@@ -184,6 +184,7 @@ LOOP(UNCD7({regy},{arg2}{arg10}{arg4}{arg5}), TS_ARRAY(S) = {arg1}({regy},{arg2}
 
 
 def pp_lvlfc_mod(
+    module: GamsClass,
     arg1: str,
     arg2: str,
     arg3: str,
@@ -196,8 +197,8 @@ def pp_lvlfc_mod(
     arg10: str,
     arg11: str,
     arg12: str,
-):
-    clear_uncd7()
+) -> None:
+    clear_uncd7(module=module)
 
     take = arg12
     regy = f"R,{arg7}"
@@ -212,9 +213,10 @@ def pp_lvlfc_mod(
         awgt = "1"
         iwgt = f"*G_YRFR(R,S)/G_YRFR(R,{arg6})"
     if arg11 == "N":
-        take = (f"${arg1}(R,'0',{arg2}{arg10},'ANNUAL'{arg4})",)
+        take = f"${arg1}(R,'0',{arg2}{arg10},'ANNUAL'{arg4})"
 
     all_exec(
+        module=module,
         take=take,
         regy=regy,
         ts=ts,
