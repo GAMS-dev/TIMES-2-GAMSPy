@@ -98,7 +98,7 @@ $ CLEAR VAR_CUMFLO VAR_CUMCOM VAR_CUMCST VAR_ACT VAR_FLO VAR_IRE VAR_SIN VAR_SOU
         )
 
 
-def clearsol_stc(
-    var: str, sow: str, cli: str, abs_: str, macro: str, stages: str
+def clearsol_stc_func(
+    *, var: str, sow: str, cli: str, abs_: str, macro: str, stages: str
 ) -> str:
     return ""

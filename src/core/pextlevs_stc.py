@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.clearsol_stc import clearsol_stc
+from core.clearsol_stc import clearsol_stc_func
 
 from .base_class import GamsClass
 
@@ -114,7 +114,7 @@ def pextlevs_stc(
     stages: str,
 ) -> str:
     return rf"""
-{clearsol_stc(var=var, sow=sow, cli=cli, abs_=abs_, macro=macro, stages=stages)}
+{clearsol_stc_func(var=var, sow=sow, cli=cli, abs_=abs_, macro=macro, stages=stages)}
 * Get the sum of weighted Marginals
   EQG_COMBAL.M(R,T{arg2},C,S) $= SUM(SW_T(T,W), {eq}G_COMBAL.M(R,T,C,S,T,W));
   EQE_COMBAL.M(R,T{arg2},C,S) $= SUM(SW_T(T,W), {eq}E_COMBAL.M(R,T,C,S,T,W));
