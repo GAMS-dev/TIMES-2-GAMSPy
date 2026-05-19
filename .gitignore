@@ -10,3 +10,5 @@ __pycache__
 .env
 *.egg-info
 build
+*.opt
+end_gams

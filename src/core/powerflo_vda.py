@@ -298,7 +298,7 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
             elif label == "RPTB":
                 # ends with $EXIT
                 self.tc.enqueue(
-                    self.exec8,
+                    self.exec_powerflo_vda_rptb,
                     arg4=self.arg4,
                     arg5=self.arg5,
                     arg6=self.arg6,
@@ -827,7 +827,7 @@ OPTION CLEAR=RC_GRID,CLEAR=GR_ALLMAP,CLEAR=GR_ALGMAP,CLEAR=GR_DEMMAP,CLEAR=GR_PR
 """,
         )
 
-    def exec8(
+    def exec_powerflo_vda_rptb(
         self: PowerfloVda,
         arg4: str,
         arg5: str,
@@ -839,30 +839,14 @@ OPTION CLEAR=RC_GRID,CLEAR=GR_ALLMAP,CLEAR=GR_ALGMAP,CLEAR=GR_DEMMAP,CLEAR=GR_PR
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf"""
- {arg4}REG_WOBJ({arg5}R,'VAR',CUR) = {arg4}REG_WOBJ({arg5}R,'VAR',CUR) + {var}_OBJ.L(R,'OBJBAL',CUR{arg6});
- OPTION TRACKC < COM_CSTBAL;
- {arg4}CST_COMC({arg5}RTC(R,T,C))$TRACKC(R,C) = {arg4}CST_COMC({arg5}RTC) +
-   SUM((RTCS_VARC(RTC,S),RDCUR(R,CUR))$OBJ_COMBAL(RTC,S,'PRD',CUR),OBJ_COMBAL(RTC,S,'PRD',CUR)*VAR_COMPRD.L(RTC,S)) +
-   SUM((RPCS_VAR(R,P,C,S),RPC_IRE(R,P,C,IE),RDCUR(R,CUR))$OBJ_COMBAL(RTC,S,IE,CUR),
-     SUM(RTP_VINTYR(R,V,T,P),OBJ_COMBAL(RTC,S,IE,CUR)*PAR_IRE(R,V,T,P,C,S,IE))) +
-* Cost on generation to grid
-   SUM((RTCS_VARC(RC_GRID(RTC),S),RDCUR(R,CUR))$OBJ_COMBAL(RTC,S,'GEN',CUR),
-     OBJ_COMBAL(RTC,S,'GEN',CUR) *
-     (SUM(GR_ALGMAP(R,CG,COM),{vart}_GRIDIO.L(R,T,COM,C,S,'OUT' {sws}) + {vart}_GRIDIO.L(R,T,COM,C,S,'IN'{sws})$GR_ALGMAP(R,COM,COM))+
-      SUM((GR_PRCMAP(RP_STD(R,P),COM,ITEM),GR_ENDC(R,COM)), GR_GENMAP(R,P,ITEM)*GR_GENFR(RTC,ITEM) *
-        SUM((RTP_VINTYR(R,V,T,P),RPCS_VAR(R,P,C,TS))$RS_FR(R,S,TS),
-          PAR_FLO(R,V,T,P,C,TS)*RS_FR(R,S,TS))))) +
-* Costs on net imports to grid node
-   SUM((RTCS_VARC(RC_GRID(RTC),S),RDCUR(R,CUR))$OBJ_COMBAL(RTC,S,'NTX',CUR),
-     SUM(GR_DEMMAP(R,C,COM),{vart}_GRIDIO.L(R,T,COM,C,S,'IN'{sws})$GR_ALGMAP(R,'NRG',COM) - {vart}_GRIDIO.L(R,T,COM,C,S,'OUT'{sws})) *
-     OBJ_COMBAL(RTC,S,'NTX',CUR)) +
-* Costs on Net Positive Generation (NPG)
-   SUM((RTCS_VARC(RC_GRID(RTC),S),RDCUR(R,CUR))$OBJ_COMBAL(RTC,S,'NPG',CUR),
-     {vart}_GRIDIO.L(RTC,C,S,'OUT'{sws}) * OBJ_COMBAL(RTC,S,'NPG',CUR));
-
- OPTION CLEAR=TRACKC;
-""",
+            code=powerflo_vda_rptb(
+                arg4=arg4,
+                arg5=arg5,
+                arg6=arg6,
+                var=var,
+                vart=vart,
+                sws=sws,
+            ),
         )
 
 
@@ -888,4 +872,38 @@ def powerflo_vda_ireaux(
     SUM(GR_DEMMAP(R,COM,C), {mx}({var}_GRIDIO(R,T,C,COM,S,'OUT'{sow}) - {var}_GRIDIO(R,T,C,COM,S,'IN'{sow})$GR_ALGMAP(R,'NRG',C))) +
 * For balance of grid node C
     SUM(GR_DEMMAP(R,C,COM), {mx}({var}_GRIDIO(R,T,COM,C,S,'IN'{sow})$GR_ALGMAP(R,'NRG',COM) - {var}_GRIDIO(R,T,COM,C,S,'OUT'{sow}))) +
+"""
+
+
+def powerflo_vda_rptb(
+    arg4: str,
+    arg5: str,
+    arg6: str,
+    var: str,
+    vart: str,
+    sws: str,
+) -> str:
+    return rf"""
+ {arg4}REG_WOBJ({arg5}R,'VAR',CUR) = {arg4}REG_WOBJ({arg5}R,'VAR',CUR) + {var}_OBJ.L(R,'OBJBAL',CUR{arg6});
+ OPTION TRACKC < COM_CSTBAL;
+ {arg4}CST_COMC({arg5}RTC(R,T,C))$TRACKC(R,C) = {arg4}CST_COMC({arg5}RTC) +
+   SUM((RTCS_VARC(RTC,S),RDCUR(R,CUR))$OBJ_COMBAL(RTC,S,'PRD',CUR),OBJ_COMBAL(RTC,S,'PRD',CUR)*VAR_COMPRD.L(RTC,S)) +
+   SUM((RPCS_VAR(R,P,C,S),RPC_IRE(R,P,C,IE),RDCUR(R,CUR))$OBJ_COMBAL(RTC,S,IE,CUR),
+     SUM(RTP_VINTYR(R,V,T,P),OBJ_COMBAL(RTC,S,IE,CUR)*PAR_IRE(R,V,T,P,C,S,IE))) +
+* Cost on generation to grid
+   SUM((RTCS_VARC(RC_GRID(RTC),S),RDCUR(R,CUR))$OBJ_COMBAL(RTC,S,'GEN',CUR),
+     OBJ_COMBAL(RTC,S,'GEN',CUR) *
+     (SUM(GR_ALGMAP(R,CG,COM),{vart}_GRIDIO.L(R,T,COM,C,S,'OUT' {sws}) + {vart}_GRIDIO.L(R,T,COM,C,S,'IN'{sws})$GR_ALGMAP(R,COM,COM))+
+      SUM((GR_PRCMAP(RP_STD(R,P),COM,ITEM),GR_ENDC(R,COM)), GR_GENMAP(R,P,ITEM)*GR_GENFR(RTC,ITEM) *
+        SUM((RTP_VINTYR(R,V,T,P),RPCS_VAR(R,P,C,TS))$RS_FR(R,S,TS),
+          PAR_FLO(R,V,T,P,C,TS)*RS_FR(R,S,TS))))) +
+* Costs on net imports to grid node
+   SUM((RTCS_VARC(RC_GRID(RTC),S),RDCUR(R,CUR))$OBJ_COMBAL(RTC,S,'NTX',CUR),
+     SUM(GR_DEMMAP(R,C,COM),{vart}_GRIDIO.L(R,T,COM,C,S,'IN'{sws})$GR_ALGMAP(R,'NRG',COM) - {vart}_GRIDIO.L(R,T,COM,C,S,'OUT'{sws})) *
+     OBJ_COMBAL(RTC,S,'NTX',CUR)) +
+* Costs on Net Positive Generation (NPG)
+   SUM((RTCS_VARC(RC_GRID(RTC),S),RDCUR(R,CUR))$OBJ_COMBAL(RTC,S,'NPG',CUR),
+     {vart}_GRIDIO.L(RTC,C,S,'OUT'{sws}) * OBJ_COMBAL(RTC,S,'NPG',CUR));
+
+ OPTION CLEAR=TRACKC;
 """

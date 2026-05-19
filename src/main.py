@@ -54,13 +54,14 @@ def load_data(model: TimesModelClass, gdx_file: Path) -> None:
 def main(
     output_compile: Path = Path("compile_gamspy.gdx"),
     output_execute: Path = Path("execute_gamspy.gdx"),
+    output_convert: Path = Path("convert_gamspy.gdx"),
     test: bool = False,
 ) -> TimesModelClass:
     logging.info("Starting TIMES.")
 
     # Initialize Core
     env = CompileEnvironment()
-    model = TimesModelClass(env, output_compile, output_execute, test)
+    model = TimesModelClass(env, output_compile, output_execute, output_convert, test)
 
     # Set Options
     model._solve_options = Options(

@@ -33,7 +33,6 @@ logger = logging.getLogger(__name__)
 class BndSetMod(GamsClass):
     """Translation unit for bnd_set.mod."""
 
-    # Instance attributes
     module_name: str = "bnd_set"
     gams_source: str = "bnd_set.mod"
 
@@ -41,11 +40,11 @@ class BndSetMod(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-        arg4: str,
-        arg5: str,
+        arg1: str = "",
+        arg2: str = "",
+        arg3: str = "",
+        arg4: str = "",
+        arg5: str = "",
         arg6: str = "",
     ):
         self.env = env.fork()
@@ -61,17 +60,7 @@ class BndSetMod(GamsClass):
 
     def compile(self) -> None:
         self.tc.enqueue(
-            self.set_bounds,
-            arg1=self.arg1,
-            arg2=self.arg2,
-            arg3=self.arg3,
-            arg4=self.arg4,
-            arg5=self.arg5,
-            swd=self.env.swd,
-            sow=self.env.sow,
-        )
-        self.tc.enqueue(
-            self.stochastic_bounds,
+            self.exec_bnd_set_mod,
             arg1=self.arg1,
             arg2=self.arg2,
             arg3=self.arg3,
@@ -79,34 +68,14 @@ class BndSetMod(GamsClass):
             arg5=self.arg5,
             arg6=self.arg6,
             stages=self.env.stages,
+            swd=self.env.swd,
             sow=self.env.sow,
+            stochastic_symbol_declared=(
+                f"S_{self.arg3}" in self.tc.container.listSymbols()
+            ),
         )
 
-    def set_bounds(
-        self: BndSetMod,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-        arg4: str,
-        arg5: str,
-        swd: str,
-        sow: str,
-    ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-* reset any existing bounds
-  {arg1}.LO({arg2}{swd}) = 0;
-  {arg1}.UP({arg2}{swd}) = INF;
-* assign from user data
-  {arg1}.LO({arg4}{sow}){arg5}  $=  {arg3}({arg2},'LO');
-  {arg1}.UP({arg4}{sow}){arg5}  $=  {arg3}({arg2},'UP');
-  {arg1}.FX({arg4}{sow}){arg5}  $=  {arg3}({arg2},'FX');
-""",
-        )
-
-    def stochastic_bounds(
+    def exec_bnd_set_mod(
         self: BndSetMod,
         arg1: str,
         arg2: str,
@@ -115,28 +84,65 @@ class BndSetMod(GamsClass):
         arg5: str,
         arg6: str,
         stages: str,
+        swd: str,
         sow: str,
+        stochastic_symbol_declared: bool,
     ) -> None:
-        # $IF%6 NOT %STAGES%==YES $EXIT
-        if arg6 == "":
-            stop = bool(stages != "YES")
-        elif arg6 == "I":
-            stop = stages.upper() != "YES"
-        else:
-            raise Exception(f"Unhandled argument arg6={arg6} passed.")
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=bnd_set_mod(
+                arg1=arg1,
+                arg2=arg2,
+                arg3=arg3,
+                arg4=arg4,
+                arg5=arg5,
+                arg6=arg6,
+                stages=stages,
+                swd=swd,
+                sow=sow,
+                stochastic_symbol_declared=stochastic_symbol_declared,
+            ),
+        )
 
-        # $IF NOT DECLARED S_%3 $EXIT
-        symbol_declared = f"S_{arg3}" in self.tc.container.listSymbols()
 
-        if not stop and symbol_declared:
-            self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code=rf"""
+def bnd_set_mod(
+    *,
+    arg1: str,
+    arg2: str,
+    arg3: str,
+    arg4: str,
+    arg5: str,
+    arg6: str,
+    stages: str,
+    swd: str,
+    sow: str,
+    stochastic_symbol_declared: bool,
+) -> str:
+    if arg6 == "":
+        stop = stages != "YES"
+    elif arg6 == "I":
+        stop = stages.upper() != "YES"
+    else:
+        raise ValueError(f"Unhandled argument arg6={arg6!r}.")
+
+    stochastic_bounds = ""
+    if not stop and stochastic_symbol_declared:
+        stochastic_bounds = rf"""
 *-----------------------------------------------------------------------------
 * Stochastic bounds
   {arg1}.LO({arg4}{sow}){arg5}  $=  S_{arg3}({arg2},'LO','1',SOW);
   {arg1}.UP({arg4}{sow}){arg5}  $=  S_{arg3}({arg2},'UP','1',SOW);
   {arg1}.FX({arg4}{sow}){arg5}  $=  S_{arg3}({arg2},'FX','1',SOW);
-""",
-            )
+"""
+
+    return rf"""
+* reset any existing bounds
+  {arg1}.LO({arg2}{swd}) = 0;
+  {arg1}.UP({arg2}{swd}) = INF;
+* assign from user data
+  {arg1}.LO({arg4}{sow}){arg5}  $=  {arg3}({arg2},'LO');
+  {arg1}.UP({arg4}{sow}){arg5}  $=  {arg3}({arg2},'UP');
+  {arg1}.FX({arg4}{sow}){arg5}  $=  {arg3}({arg2},'FX');
+{stochastic_bounds}
+"""

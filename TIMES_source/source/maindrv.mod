@@ -122,9 +122,6 @@ $   BATINCLUDE pp_qack.%1 %1
 $   BATINCLUDE err_stat.%1 '$IF NOT ERRORFREE' ABORT '*** ERRORS IN GAMS COMPILE ***'
 $   BATINCLUDE err_stat.%1 ABORT EXECERROR '*** ERRORS IN GAMS EXECUTION ***'
 $   BATINCLUDE spoint.%1 1
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop
 $   IF NOT %RPOINT%==NO $GOTO REPORT
 *-----------------------------------------------------------------------------
 * solve the appropriate model & report solver status
@@ -135,6 +132,10 @@ $   IF SET STEPPED           $SETLOCAL EXT stp
 $   IFI %MERGE% == YES       $SETLOCAL EXT mrg
 $   BATINCLUDE solve.%EXT% %1
 $   IF %SOLVE_NOW% == NO     $GOTO SKIPTOEND
+
+$gdxUnload %COMPILE_GDX%
+execute_unload "%EXECUTE_GDX%";
+$stop
 
 *-----------------------------------------------------------------------------
 * produce the reports

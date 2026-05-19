@@ -15,7 +15,7 @@ from core.filparam_gms import FilparamGms
 from core.forcupd_cli import ForcupdCli
 
 # from core.MSADDF_dd import MSADDF
-from core.rpt_dam_mod import RptDamMod
+from core.rpt_dam_mod import rpt_dam_mod
 
 from .base_class import GamsClass
 
@@ -168,7 +168,17 @@ LOOP(PP(T+1),TM_GDPGOAL(R,PP) = TM_GDPGOAL(R,T)*(1+TM_GR(R,T)/100)**NYPER(T));
             self.tc.enqueue(self.label_tonlp_exec1)
 
         if self.tc.defined("DAM_COST"):
-            self.include(RptDamMod(self.tc, self.env))
+            self.tc.enqueue(
+                rpt_dam_mod,
+                stages=self.env.stages,
+                var=self.env.var,
+                cli=self.env.cli,
+                vart=self.env.vart,
+                sws=self.env.sws,
+                sow=self.env.sow,
+                solveda=self.env.solveda,
+                scum=self.env.scum,
+            )
 
         if self.env.cli.upper() != "YES":
             return
