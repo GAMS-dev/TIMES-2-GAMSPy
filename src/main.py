@@ -8,8 +8,11 @@ from pathlib import Path
 
 from gamspy import Alias, Container, Options, Set, UniverseAlias
 
-from core import demo12_dd, initmty_mod, initsys_mod, maindrv_mod
 from core.compile_environment import CompileEnvironment
+from core.demo12_dd import Demo12DD
+from core.initmty_mod import InitmtyMod
+from core.initsys_mod import InitsysMod
+from core.maindrv_mod import MainDrvMod
 from core.times_model_class import TimesModelClass
 from core.utils import EscapeStack
 
@@ -59,12 +62,8 @@ def main(
 ) -> TimesModelClass:
     logging.info("Starting TIMES.")
 
-    # Initialize Core
-    env = CompileEnvironment()
-    model = TimesModelClass(env, output_compile, output_execute, output_convert, test)
-
     # Set Options
-    model._solve_options = Options(
+    solve_options = Options(
         time_limit=50000,
         profile=1,
         merge_strategy="replace",
@@ -74,6 +73,17 @@ def main(
         report_solution=0,
         lp="CBC",
         basis_detection_threshold=1,
+    )
+
+    # Initialize Core
+    env = CompileEnvironment()
+    model = TimesModelClass(
+        env=env,
+        output_compile=output_compile,
+        output_execute=output_execute,
+        output_convert=output_convert,
+        test_run=test,
+        solve_options=solve_options,
     )
 
     # User settings
@@ -96,56 +106,34 @@ def main(
 
     # load demo12ts.dd
     # the times-slices MUST come 1st to ensure ordering OK
-    model.all_ts = Set(
+    model.allts = Set(
         container=model.container,
         name="ALL_TS",
-        records=[
-            "ANNUAL",
-            "S",
-            "W",
-            "SD",
-            "SN",
-            "WD",
-            "WN",
-        ],
+        records=["ANNUAL", "S", "W", "SD", "SN", "WD", "WN"],
     )
 
     env.set_scoped("botime", "1960")
-    if model.test_run:
-        model.save_test_state(
-            env=env, checkpoint="demo12_run_prior_batinclude_initsys_mod"
-        )
-
-    # perform fixed declarations
-    model.register_module(initsys_mod.InitsysMod(tc=model, env=env))
-
-    if model.test_run:
-        model.save_test_state(
-            env=env, checkpoint="demo12_run_prior_batinclude_initmty_mod"
-        )
-
-    # declare the (system/user) empties
-    model.register_module(initmty_mod.InitmtyMod(tc=model, env=env))
-
-    if model.test_run:
-        model.save_test_state(env=env, checkpoint="demo12_run_prior_dd_files")
-
-    # Central data load (DD files)
-    model.register_module(demo12_dd.Demo12DD(tc=model, env=env))
-
-    # Reduced model to fit with GAMS community license
-    # SET MILESTONYR /2005,2010,2015,2020,2030,2050/;
-    milestonyr = model.container["MILESTONYR"]
-    milestonyr.setRecords([2005, 2010, 2015, 2020, 2030, 2050])
-
-    env.set_scoped("run_name", "demo12")
-    env.set_scoped("vedavdd", "YES")
-
-    if model.test_run:
-        model.save_test_state(env=env, checkpoint="demo12_run_prior_maindrv_mod")
+    env.set_scoped("botimeGP", 1960)
 
     try:
-        model.register_module(maindrv_mod.MainDrvMod(tc=model, env=env, arg1="mod"))
+        # perform fixed declarations
+        model.register_module(InitsysMod(tc=model, env=env))
+
+        # declare the (system/user) empties
+        model.register_module(InitmtyMod(tc=model, env=env))
+
+        # Central data load (DD files)
+        model.register_module(Demo12DD(tc=model, env=env))
+
+        # Reduced model to fit with GAMS community license
+        # SET MILESTONYR /2005,2010,2015,2020,2030,2050/;
+        milestonyr = model.container["MILESTONYR"]
+        milestonyr.setRecords([2005, 2010, 2015, 2020, 2030, 2050])
+
+        env.set_scoped("run_name", "demo12")
+        env.set_scoped("vedavdd", "YES")
+
+        model.register_module(MainDrvMod(tc=model, env=env, arg1="mod"))
     except EscapeStack as e:
         print("Escape Stack", e)
 

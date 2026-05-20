@@ -157,7 +157,7 @@ SOLVE {model_name} MAXIMIZING VAR_UTIL USING {method};
         )
 
         # regular solve
-        model.solve(solver="cbc", output=sys.stdout, options=self.tc._solve_options)
+        model.solve(solver="cbc", output=sys.stdout, options=self.tc.solve_options)
 
 
 def solve_mod(

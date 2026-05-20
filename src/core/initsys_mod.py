@@ -16,9 +16,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Alias, Set, UniverseAlias
+from gamspy import Alias, Ord, Parameter, Set, UniverseAlias
 
-from core import globals_def, maplists_def, units_def
+from core.globals_def import Globals
+from core.maplists_def import Maplists
+from core.units_def import Units
 from core.utils import expand_set
 
 from .base_class import GamsClass
@@ -47,13 +49,14 @@ class InitsysMod(GamsClass):
         phase: GamsPhase = "init"
         # Easy access gamspy.Container
         m = self.tc.container
+        g = self.tc
 
         self.env.set_scoped("tmp", "restart")
         # TODO: $ IF %SYSTEM.LICENSELEVEL%==2 $SET TMP Runtime
         # TODO: $ IF SET RunTimes $TITLE %SYSTEM.TITLE% -- %TMP% (v%RunTimes%)
 
         # $ PHANTOM EMPTY
-        Set(m, "PHANTOM", records=["EMPTY"])
+        g.phantom = Set(m, "PHANTOM", records=["EMPTY"])
 
         self.tc.add_gams_code(
             module=self,
@@ -61,17 +64,23 @@ class InitsysMod(GamsClass):
             code="""
 $ PHANTOM EMPTY
 $ ONEMPTY
-$ ONMULTI
 """,
         )
 
-        self.tc.item = UniverseAlias(m, name="ITEM")
+        g.item = UniverseAlias(m, name="ITEM")
 
         # $IF NOT SET BOTIME $SETGLOBAL BOTIME 1850
         self.env.set_if_not_exists("botime", "1850", "global")
+        self.env.set_if_not_exists("botimeGP", 1850, "global")
 
         # $IF NOT SET EOTIME $SETGLOBAL EOTIME 2200
         self.env.set_if_not_exists("eotime", "2200", "global")
+        self.env.set_if_not_exists("eotimeGP", 2200, "global")
+
+        eotime = self.env.eotimeGP
+        assert isinstance(eotime, int), "EOTIME is not an integer"
+        botime = self.env.botimeGP
+        assert isinstance(botime, int), "BOTIME is not an integer"
 
         # $IF NOT %SHELL%==ANSWER
         # $IF SET MAXSOW SET ITEM /BOH, 1*%EOTIME%/;
@@ -81,264 +90,371 @@ $ ONMULTI
             and self.env.is_set("maxsow")
         ):
             # Expand the universe alias item
-            item_records = ["BOH"] + [
-                str(i) for i in range(1, int(self.env.eotime) + 1)
-            ]
+            item_records = ["BOH"] + [str(i) for i in range(1, eotime + 1)]
             self.add_records_to_universe_item(records=item_records)
 
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=rf"""
-  SET BOHYEAR                        'BOH + years'                  / BOH, {self.env.botime}*{self.env.eotime} /
-  SET ALLYEAR                        'All Years'                    / {self.env.botime}*{self.env.eotime} /
-  PARAMETER YEARVAL(ALLYEAR)         'Value of each year';
-  """,
+        allyear_records = [i for i in range(botime, eotime + 1)]
+        g.bohyear = Set(
+            container=m,
+            name="BOHYEAR",
+            description="BOH + years",
+            records=["BOH", *allyear_records],
+        )
+        g.allyear = Set(
+            container=m,
+            name="ALLYEAR",
+            description="All Years",
+            records=allyear_records,
+        )
+        g.yearval = Parameter(
+            m, name="YEARVAL", description="Value of each year", domain=[g.allyear]
         )
 
         # catch botime now and store with queue
-        botime = self.env.botime
         self.tc.enqueue(self.assign_yearval, botime=botime)
 
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=r"""
-  SET EOHYEAR                        "'BOH/EOH' + years"            / SET.BOHYEAR, EOH /
-  Parameter BEOH(*)                  'BOH / EOH offset'             / BOH +1, EOH -1 /;
-  SET PERIODYR(ALLYEAR,ALLYEAR)      'All years in each period'     //;
-""",
+        eoh_records = [*g.bohyear.toList(), "EOH"]
+        g.eohyear = Set(
+            m, name="EOHYEAR", description="'BOH/EOH' + years", records=eoh_records
+        )
+        g.beoh = Parameter(
+            m,
+            name="BEOH",
+            description="BOH / EOH offset",
+            domain=["*"],
+            records=[("BOH", "+1"), ("EOH", -1)],
+        )
+        g.Periodyr = Set(
+            m,
+            name="PERIODYR",
+            description="All years in each period",
+            domain=[g.allyear, g.allyear],
+        )
+        expand_set(g.allts, ["ANNUAL"])
+
+        g.Annual = Set(
+            m,
+            name="ANNUAL",
+            domain=[g.allts],
+            description="Annual identifier",
+            records=["ANNUAL"],
+        )
+        g.tslvl = Set(
+            m,
+            name="TSLVL",
+            description="Timeslice levels",
+            records=["ANNUAL", "SEASON", "WEEKLY", "DAYNITE"],
+        )
+        g.tslvlnum = Parameter(
+            m,
+            name="TSLVLNUM",
+            domain=[g.tslvl],
+            description="Timeslice level values",
+            records=[
+                ("ANNUAL", "  1"),
+                ("SEASON", "  2"),
+                ("WEEKLY", "  3"),
+                ("DAYNITE", " 4"),
+            ],
         )
 
-        # SET ALL_TS                         'The universe for time-slices' / ANNUAL /
-        expand_set(m["ALL_TS"], ["ANNUAL"])
+        # g.Season = Set(m, name="SEASON", description="Seasons", domain=[g.Reg, g.allts])
+        # g.Week = Set(
+        #     m, name="WEEK", description="Week Sub-divisions ", domain=[g.Reg, g.allts]
+        # )
+        # g.Daynite = Set(
+        #     m,
+        #     name="DAYNITE",
+        #     description="Daily Sub-divisions",
+        #     domain=[g.Reg, g.allts],
+        # )
 
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=r"""
-  SET ANNUAL(ALL_TS)                 'Annual identifier'            / ANNUAL /
-  SET TSLVL                          'Timeslice levels'             / ANNUAL, SEASON, WEEKLY, DAYNITE /;
-  PARAMETER TSLVLNUM(TSLVL)          'Timeslice level values'
-          / ANNUAL  1
-            SEASON  2
-            WEEKLY  3
-            DAYNITE 4 /;
-*  SET SEASON(REG,ALL_TS)             'Seasons'                     //;
-*  SET WEEK(REG,ALL_TS)               'Week Sub-divisions '         //;
-*  SET DAYNITE(REG,ALL_TS)            'Daily Sub-divisions'         //;
-""",
+        g.year = Alias(m, name="YEAR", alias_with=g.allyear)
+        g.ll = Alias(m, name="LL", alias_with=g.allyear)
+
+        # topology
+        g.impexp = Set(
+            m, name="IMPEXP", description="Imports/Exports", records=["IMP", "EXP"]
         )
-        self.tc.allyear = m["ALLYEAR"]
-        self.tc.year = Alias(m, name="YEAR", alias_with=self.tc.allyear)
-        self.tc.ll = Alias(m, name="LL", alias_with=self.tc.allyear)
-
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=r"""
-
-* topology
-  SET IMPEXP       'Imports/Exports'                                / IMP, EXP /
-  SET IMP          'Imports'                                        / IMP /
-  SET XPT          'Exports'                                        / EXP /
-  SET IN_OUT       'Input/Output'                                   / IN, OUT /
-""",
+        g.imp = Set(
+            m,
+            name="IMP",
+            description="Imports",
+            records=["IMP"],
+        )
+        g.xpt = Set(m, name="XPT", description="Exports", records=["EXP"])
+        g.inout = Set(
+            m,
+            name="IN_OUT",
+            description="Input/Output",
+            records=["IN", "OUT"],
         )
 
-        self.tc.impexp = m["IMPEXP"]
-        self.tc.in_out = m["IN_OUT"]
-        self.tc.ie = Alias(m, name="IE", alias_with=self.tc.impexp)
-        self.tc.io = Alias(m, name="IO", alias_with=self.tc.in_out)
+        g.ie = Alias(m, name="IE", alias_with=g.impexp)
+        g.io = Alias(m, name="IO", alias_with=g.inout)
 
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=r"""
-
-* limits
-  SET LIM           'Limit Types'                                   / LO, FX, UP, N /
-  SET BND_TYPE(LIM) 'Bound Types'                                   / LO, FX, UP /
-""",
+        # limits
+        g.lim = Set(
+            m,
+            name="LIM",
+            description="Limit Types",
+            records=["LO", "FX", "UP", "N"],
+        )
+        g.BndType = Set(
+            m,
+            name="BND_TYPE",
+            domain=[g.lim],
+            description="Bound Types",
+            records=["LO", "FX", "UP"],
         )
 
-        self.tc.lim = m["LIM"]
-        self.tc.bnd_type = m["BND_TYPE"]
-        self.tc.ll = Alias(m, name="L", alias_with=self.tc.lim)
-        self.tc.lim_type = Alias(m, name="LIM_TYPE", alias_with=self.tc.lim)
-        self.tc.bd = Alias(m, name="BD", alias_with=self.tc.bnd_type)
+        g.lA = Alias(m, name="L", alias_with=g.lim)
+        g.limtype = Alias(m, name="LIM_TYPE", alias_with=g.lim)
+        g.bd = Alias(m, name="BD", alias_with=g.BndType)
 
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=r"""
-
-* Start-up types
-  SET UPT          'Start-up types'                                 / COLD, WARM, HOT /
-""",
+        g.upt = Set(
+            m,
+            name="UPT",
+            description="Start-up types",
+            records=["COLD", "WARM", "HOT"],
         )
 
-        # * Numbered sets
-        # SET ALLYEAR                                                       / 0 /;
-        expand_set(symbol=self.tc.allyear, elements=["0"])
+        # Numbered sets
+        expand_set(symbol=g.allyear, elements=["0"])
 
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=r"""
-  SET AGE          'Age for SHAPEing'                               / 1*200 /
-  SET J            'Supply/demand steps 1*COM_STEP and SHAPE/MULTI' / 1*999 /
-""",
+        g.age = Set(
+            m,
+            name="AGE",
+            description="Age for SHAPEing",
+            records=range(1, 201),
+        )
+        g.j = Set(
+            m,
+            name="J",
+            description="Supply/demand steps 1*COM_STEP and SHAPE/MULTI",
+            records=range(1, 1000),
         )
 
-        self.tc.j = m["J"]
-        self.tc.jj = Alias(m, name="JJ", alias_with=self.tc.j)
+        g.jj = Alias(m, name="JJ", alias_with=g.j)
 
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=r"""
+        # Master Set declarations
+        g.allreg = Set(
+            m, name="ALL_REG", description="External + Internal Regions", domain=["*"]
+        )
+        g.Reg = Set(m, name="REG", description="Region", domain=[g.allreg])
+        g.allr = Alias(m, name="ALL_R", alias_with=g.allreg)
+        g.r = Alias(m, name="R", alias_with=g.Reg)
 
-* Master Set declarations
-  SET ALL_REG(*)   'External + Internal Regions'                    //
-  SET REG(ALL_REG) 'Region'                                         //
-""",
+        g.comgrp = Set(
+            m,
+            name="COM_GRP",
+            description="Commodities & Groups",
+            records=[
+                ("DEM", "Demands"),
+                ("NRG", "Energy"),
+                ("MAT", "Material"),
+                ("ENV", "Environmental Indicators"),
+                ("FIN", "Financial"),
+            ],
         )
 
-        self.tc.all_reg = m["ALL_REG"]
-        self.tc.reg = m["REG"]
-        self.tc.all_r = Alias(m, name="ALL_R", alias_with=self.tc.all_reg)
-        self.tc.r = Alias(m, name="R", alias_with=self.tc.reg)
+        g.cg = Alias(m, name="CG", alias_with=g.comgrp)
+        g.cg1 = Alias(m, name="CG1", alias_with=g.comgrp)
+        g.cg2 = Alias(m, name="CG2", alias_with=g.comgrp)
 
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=r"""
+        g.Com = Set(m, name="COM", description="Commodities", domain=[g.comgrp])
 
-  SET COM_GRP      'Commodities & Groups'
-    / DEM          'Demands',
-      NRG          'Energy',
-      MAT          'Material',
-      ENV          'Environmental Indicators',
-      FIN          'Financial' /;
-""",
-        )
+        g.c = Alias(m, name="C", alias_with=g.Com)
+        g.com1 = Alias(m, name="COM1", alias_with=g.Com)
+        g.com2 = Alias(m, name="COM2", alias_with=g.Com)
 
-        self.tc.com_grp = m["COM_GRP"]
-        self.tc.cg = Alias(m, name="CG", alias_with=self.tc.com_grp)
-        self.tc.cg1 = Alias(m, name="CG1", alias_with=self.tc.com_grp)
-        self.tc.cg2 = Alias(m, name="CG2", alias_with=self.tc.com_grp)
+        g.prc = Set(m, name="PRC", description="Processes", domain=["*"])
+        g.p = Alias(m, name="P", alias_with=g.prc)
 
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=r"""
-
-  SET COM(COM_GRP) 'Commodities'                                    //
-""",
-        )
-
-        self.tc.com = m["COM"]
-        self.tc.c = Alias(m, name="C", alias_with=self.tc.com)
-        self.tc.com1 = Alias(m, name="COM1", alias_with=self.tc.com)
-        self.tc.com2 = Alias(m, name="COM2", alias_with=self.tc.com)
-
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=r"""
-
-  SET PRC(*)       'Processes'                                      //
-""",
-        )
-
-        self.tc.prc = m["PRC"]
-        self.tc.p = Alias(m, name="P", alias_with=self.tc.prc)
-
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=r"""
-  SET CUR(*)       'Currencies = c$'                                //
-""",
-        )
-
-        self.tc.cur = m["CUR"]
-        self.tc.curr = Alias(m, name="CURR", alias_with=self.tc.cur)
+        g.cur = Set(m, name="CUR", description="Currencies = c$", domain=["*"])
+        g.curr = Alias(m, name="CURR", alias_with=g.cur)
 
         # Stochastics
-        # $ SETGLOBAL MAXSOW 96
         self.env.set_global("maxsow", "96")
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=rf"""
+        g.allsow = Set(
+            m,
+            name="ALLSOW",
+            description="State-of-the-World",
+            records=range(1, int(self.env.maxsow) + 1),
+        )
+        g.Sow = Set(m, name="SOW", description="State-of-the-World", domain=[g.allsow])
+        g.w = Alias(m, name="W", alias_with=g.Sow)
 
-  SET ALLSOW       'State-of-the-World'                             / 1*{self.env.maxsow} /
-  SET SOW(ALLSOW)  'State-of-the-World'                             //
-""",
+        # *-------------------------------------------------------------------------------
+        # * UC facility - fixed sets and controls for user-constraints
+        # *-------------------------------------------------------------------------------
+
+        g.side = Set(
+            m,
+            name="SIDE",
+            description="LHS and RHS of an equation",
+            records=["LHS", "RHS"],
+        )
+        g.uc_sign = Parameter(
+            m,
+            name="UC_SIGN",
+            domain=[g.side],
+            description="Sign of LHS and RHS expression",
+            records=[("LHS", " 1"), ("RHS", "-1")],
+        )
+        g.comvar = Set(
+            m,
+            name="COM_VAR",
+            records=["NET", "PRD"],
+        )
+        g.CovMap = Set(
+            m,
+            name="COV_MAP",
+            domain=["*", "*"],
+            records=[("NET", "COMNET"), ("PRD", "COMPRD")],
         )
 
-        self.tc.sow = m["SOW"]
-        self.tc.w = Alias(m, name="W", alias_with=self.tc.sow)
-
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=r"""
-
-*-------------------------------------------------------------------------------
-* UC facility - fixed sets and controls for user-constraints
-*-------------------------------------------------------------------------------
-  SET SIDE                 'LHS and RHS of an equation'        / LHS, RHS /
-  PARAMETER UC_SIGN(SIDE)  'Sign of LHS and RHS expression'    / LHS 1, RHS -1 /;
-  SETS COM_VAR / NET, PRD /, COV_MAP / NET.COMNET, PRD.COMPRD /;
-
-* List of parameters that can be used in user-constraints
-  SET UC_NAME   'Allowed parameters in user-constraints'
-    / COST, DELIV, TAX, SUB
-      EFF, NET, N
-      GROWTH, PERIOD, PERDISC, BUILDUP
-      CUMSUM, CUM+, SYNC, YES
-      CAPACT, CAPFLO, NEWFLO, ONLINE
-      ANNUL, INVCOST, INVTAX, INVSUB
-      FLO_COST, FLO_DELIV, FLO_SUB, FLO_TAX
-      NCAP_COST, NCAP_ITAX, NCAP_ISUB
-    /;
-
-  SET UC_COST(UC_NAME) 'UC cost attributes'
-    / COST, DELIV, TAX, SUB, ANNUL /;
-
-  SET UC_MAPCOST(UC_COST,UC_NAME) 'Compatibility map for cost attributes'
-    / COST.(FLO_COST,NCAP_COST)
-      DELIV.FLO_DELIV
-      ANNUL.(INVCOST,INVTAX,INVSUB)
-      TAX.(FLO_TAX,NCAP_ITAX)
-      SUB.(FLO_SUB,NCAP_ISUB) /;
-
-  SET UC_ANNUL(UC_NAME) / INVCOST, INVTAX, INVSUB /;
-  SET UC_DYNT(UC_NAME) / N, CUMSUM, CUM+, SYNC /;
-
-  SET UC_NUMBER 'Determines way of handling REG,T and TS'
-    / SEVERAL, SUCC, EACH, DYNAMIC /;
-
-  SET UC_PERDS(UC_NAME) / PERIOD, NEWFLO /;
-  SET UC_NEWFLO(UC_NAME) / NEWFLO /;
-
-  SET UC_GRPTYPE 'Type of components within UC_GRP'
-    / ACT, FLO, IRE, CAP, NCAP, COMNET, COMPRD, COMCON, UCN /;
-
-  SET COSTAGG 'Types of cost aggregations'
-    / INV, INVTAX, INVSUB, FOM, FOMTAX, FOMSUB, COMTAX, COMSUB, FLOTAX, FLOSUB,
-      INVTAXSUB, INVALL, FOMTAXSUB, FOMALL, FIX, FIXTAX, FIXSUB, FIXTAXSUB, FIXALL,
-      COMTAXSUB, FLOTAXSUB, ALLTAX, ALLSUB, ALLTAXSUB /;
-""",
+        # List of parameters that can be used in user-constraints
+        uc_names = [
+            "COST",
+            "DELIV",
+            "TAX",
+            "SUB",
+            "EFF",
+            "NET",
+            "N",
+            "GROWTH",
+            "PERIOD",
+            "PERDISC",
+            "BUILDUP",
+            "CUMSUM",
+            "CUM+",
+            "SYNC",
+            "YES",
+            "CAPACT",
+            "CAPFLO",
+            "NEWFLO",
+            "ONLINE",
+            "ANNUL",
+            "INVCOST",
+            "INVTAX",
+            "INVSUB",
+            "FLO_COST",
+            "FLO_DELIV",
+            "FLO_SUB",
+            "FLO_TAX",
+            "NCAP_COST",
+            "NCAP_ITAX",
+            "NCAP_ISUB",
+        ]
+        g.ucname = Set(
+            m,
+            name="UC_NAME",
+            description="Allowed parameters in user-constraints",
+            records=uc_names,
         )
 
-        self.tc.costagg = m["COSTAGG"]
-        self.tc.uc_cost = m["UC_COST"]
-        self.tc.costcat = Alias(m, name="COSTCAT", alias_with=self.tc.costagg)
-        self.tc.costype = Alias(m, name="COSTYPE", alias_with=self.tc.uc_cost)
+        g.UcCost = Set(
+            m,
+            name="UC_COST",
+            domain=[g.ucname],
+            description="UC cost attributes",
+            records=["COST", "DELIV", "TAX", "SUB", "ANNUL"],
+        )
+        g.UcMapcost = Set(
+            m,
+            name="UC_MAPCOST",
+            domain=[g.UcCost, g.ucname],
+            description="Compatibility map for cost attributes",
+            records=[
+                ("COST", "FLO_COST"),
+                ("COST", "NCAP_COST"),
+                ("DELIV", "FLO_DELIV"),
+                ("ANNUL", "INVCOST"),
+                ("ANNUL", "INVTAX"),
+                ("ANNUL", "INVSUB"),
+                ("TAX", "FLO_TAX"),
+                ("TAX", "NCAP_ITAX"),
+                ("SUB", "FLO_SUB"),
+                ("SUB", "NCAP_ISUB"),
+            ],
+        )
+
+        g.UcAnnul = Set(
+            m,
+            name="UC_ANNUL",
+            domain=[g.ucname],
+            records=["INVCOST", "INVTAX", "INVSUB"],
+        )
+        g.UcDynt = Set(
+            m,
+            name="UC_DYNT",
+            domain=[g.ucname],
+            records=["N", "CUMSUM", "CUM+", "SYNC"],
+        )
+        g.ucnumber = Set(
+            m,
+            name="UC_NUMBER",
+            description="Determines way of handling REG, T and TS",
+            records=["SEVERAL", "SUCC", "EACH", "DYNAMIC"],
+        )
+        g.UcPerds = Set(
+            m,
+            name="UC_PERDS",
+            domain=[g.ucname],
+            records=["PERIOD", "NEWFLO"],
+        )
+        g.UcNewflo = Set(m, name="UC_NEWFLO", domain=[g.ucname], records=["NEWFLO"])
+        g.ucgrptype = Set(
+            m,
+            name="UC_GRPTYPE",
+            description="Type of components within UC_GRP",
+            records=[
+                "ACT",
+                "FLO",
+                "IRE",
+                "CAP",
+                "NCAP",
+                "COMNET",
+                "COMPRD",
+                "COMCON",
+                "UCN",
+            ],
+        )
+        g.costagg = Set(
+            m,
+            name="COSTAGG",
+            description="Types of cost aggregations",
+            records=[
+                "INV",
+                "INVTAX",
+                "INVSUB",
+                "FOM",
+                "FOMTAX",
+                "FOMSUB",
+                "COMTAX",
+                "COMSUB",
+                "FLOTAX",
+                "FLOSUB",
+                "INVTAXSUB",
+                "INVALL",
+                "FOMTAXSUB",
+                "FOMALL",
+                "FIX",
+                "FIXTAX",
+                "FIXSUB",
+                "FIXTAXSUB",
+                "FIXALL",
+                "COMTAXSUB",
+                "FLOTAXSUB",
+                "ALLTAX",
+                "ALLSUB",
+                "ALLTAXSUB",
+            ],
+        )
+
+        g.costcat = Alias(m, name="COSTCAT", alias_with=g.costagg)
+        g.costype = Alias(m, name="COSTYPE", alias_with=g.UcCost)
 
         # *-------------------------------------------------------------------------------
         # * control sets
@@ -349,9 +465,8 @@ $ ONMULTI
         self.env.set_scoped("model_name", "TIMES")
         self.env.set_scoped("run_name", "TEST")
         # * control of whether all 0 lines are dumped in *.PUT files; user provides 0 to NOT print lines with all 0s (or empty)
-        self.tc.add_gams_code(
-            module=self, phase=phase, code="SCALAR DUMP0 /1/, OPTFILEID /1/;"
-        )
+        g.dump0 = Parameter(m, name="DUMP0", records=1)
+        g.optfileid = Parameter(m, name="OPTFILEID", records=1)
 
         # * user set to 'YES' to activate
         self.env.set_scoped("debug", "NO")
@@ -366,18 +481,14 @@ $ ONMULTI
         self.env.set_scoped("solve_now", "YES")
 
         # get list of default units
-        self.include(units_def.Units(tc=self.tc, env=self.env))
+        self.include(Units(tc=self.tc, env=self.env))
 
         # get list of default mapping group lists
-        self.include(maplists_def.Maplists(tc=self.tc, env=self.env))
+        self.include(Maplists(tc=self.tc, env=self.env))
 
         # # get default global scalars and parameters
-        self.include(globals_def.Globals(tc=self.tc, env=self.env))
+        self.include(Globals(tc=self.tc, env=self.env))
 
-    def assign_yearval(self, botime: str) -> None:
-        phase: GamsPhase = "run"
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=rf"""YEARVAL(ALLYEAR) = {botime} + ORD(ALLYEAR)-1;""",
-        )
+    def assign_yearval(self, botime: int) -> None:
+        g = self.tc
+        g.yearval[g.allyear] = botime + Ord(g.allyear) - 1

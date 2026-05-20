@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, ParamSpec
 
-from gamspy import Container, Options, Set
+from gamspy import Alias, Container, Equation, Options, Parameter, Set, Variable
 
 from .base_class import GamsClass
 
@@ -17,79 +18,1204 @@ GamsPhase = Literal["init", "run"]
 P = ParamSpec("P")
 
 
+@dataclass(slots=True)
 class TimesModelClass:
     """
     Central orchestrator / shared state ("tc") for the TIMES model embedding workflow.
     """
 
-    r: Set
-    c: Set
-    cg: Set
-    cg1: Set
-    cg2: Set
-    com: Set
-    com1: Set
-    com2: Set
-    com_grp: Set
-    cur: Set
-    curr: Set
-    sow: Set
-    w: Set
-    costagg: Set
-    costcat: Set
-    allyear: Set
-    all_reg: Set
-    all_r: Set
-    all_ts: Set
-    reg: Set
-    item: Set
-    year: Set
-    ll: Set
-    impexp: Set
-    in_out: Set
-    ie: Set
-    io: Set
-    lim: Set
-    lim_type: Set
-    bnd_type: Set
-    j: Set
-    jj: Set
-    bd: Set
-    costype: Set
-    p: Set
-    prc: Set
-    uc_cost: Set
-    RpUx: Set
-    RpPl: Set
-    RtpPl: Set
-    RpsUps: Set
+    # REQUIRED ARGUMENTS
+    env: CompileEnvironment
+    output_compile: Path
+    output_execute: Path
+    output_convert: Path
+    test_run: bool
+    solve_options: Options
 
-    container: Container
+    # AUTO-GENERATED FACTORIES
+    execution_list: list[tuple[Callable[..., Any], tuple[Any, ...], dict[str, Any]]] = (
+        field(default_factory=list)
+    )
+    compile_states: dict[str, Any] = field(default_factory=dict)
+    _modules: list[GamsClass] = field(default_factory=list)
+    container: Container = field(default_factory=Container)
 
-    def __init__(
-        self,
-        env: CompileEnvironment,
-        output_compile: Path,
-        output_execute: Path,
-        output_convert: Path,
-        test: bool,
-    ):
-        self.env = env
-        self.execution_list: list[
-            tuple[Callable[..., Any], tuple[Any, ...], dict[str, Any]]
-        ] = []
-        self.output_compile = output_compile
-        self.output_execute = output_execute
-        self.output_convert = output_convert
-        self.test_run = test
-        self.compile_states: dict[str, Any] = {}
-        # self.container = Container(debugging_level="keep")
-        self.container = Container()
-        self._solve_options: Options
+    # POST-INIT VARIABLES
+    logger: logging.Logger = field(init=False)
+
+    # region TIMES symbols
+    allts: Set = None  # type: ignore[assignment] # [*] ALL_TS: The universe for time-slices
+    phantom: Set = None  # type: ignore[assignment] # [*] PHANTOM:
+    item: Alias = None  # type: ignore[assignment] # [*] ITEM: Aliased with *
+    bohyear: Set = None  # type: ignore[assignment] # [*] BOHYEAR: BOH + years
+    allyear: Set = None  # type: ignore[assignment] # [*] ALLYEAR: All Years
+    yearval: Parameter = None  # type: ignore[assignment] # [allyear] YEARVAL: Value of each year
+    eohyear: Set = None  # type: ignore[assignment] # [*] EOHYEAR: 'BOH/EOH' + years
+    beoh: Parameter = None  # type: ignore[assignment] # [*] BEOH: BOH / EOH offset
+    Periodyr: Set = None  # type: ignore[assignment] # [allyear,allyear] PERIODYR: All years in each period
+    Annual: Set = None  # type: ignore[assignment] # [allts] ANNUAL: Annual identifier
+    tslvl: Set = None  # type: ignore[assignment] # [*] TSLVL: Timeslice levels
+    tslvlnum: Parameter = None  # type: ignore[assignment] # [tslvl] TSLVLNUM: Timeslice level values
+    year: Alias = None  # type: ignore[assignment] # [*] YEAR: Aliased with ALLYEAR
+    ll: Alias = None  # type: ignore[assignment] # [*] LL: Aliased with ALLYEAR
+    impexp: Set = None  # type: ignore[assignment] # [*] IMPEXP: Imports/Exports
+    imp: Set = None  # type: ignore[assignment] # [*] IMP: Imports
+    xpt: Set = None  # type: ignore[assignment] # [*] XPT: Exports
+    inout: Set = None  # type: ignore[assignment] # [*] IN_OUT: Input/Output
+    ie: Alias = None  # type: ignore[assignment] # [*] IE: Aliased with IMPEXP
+    io: Alias = None  # type: ignore[assignment] # [*] IO: Aliased with IN_OUT
+    lim: Set = None  # type: ignore[assignment] # [*] LIM: Limit Types
+    BndType: Set = None  # type: ignore[assignment] # [lim] BND_TYPE: Bound Types
+    lA: Alias = None  # type: ignore[assignment] # [*] L: Aliased with LIM
+    limtype: Alias = None  # type: ignore[assignment] # [*] LIM_TYPE: Aliased with LIM
+    bd: Alias = None  # type: ignore[assignment] # [*] BD: Aliased with BND_TYPE
+    upt: Set = None  # type: ignore[assignment] # [*] UPT: Start-up types
+    age: Set = None  # type: ignore[assignment] # [*] AGE: Age for SHAPEing
+    j: Set = None  # type: ignore[assignment] # [*] J: Supply/demand steps 1*COM_STEP and SHAPE/MULTI
+    jj: Alias = None  # type: ignore[assignment] # [*] JJ: Aliased with J
+    allreg: Set = None  # type: ignore[assignment] # [*] ALL_REG: External + Internal Regions
+    Reg: Set = None  # type: ignore[assignment] # [allreg] REG: Region
+    allr: Alias = None  # type: ignore[assignment] # [*] ALL_R: Aliased with ALL_REG
+    r: Alias = None  # type: ignore[assignment] # [*] R: Aliased with REG
+    comgrp: Set = None  # type: ignore[assignment] # [*] COM_GRP: Commodities & Groups
+    cg: Alias = None  # type: ignore[assignment] # [*] CG: Aliased with COM_GRP
+    cg1: Alias = None  # type: ignore[assignment] # [*] CG1: Aliased with COM_GRP
+    cg2: Alias = None  # type: ignore[assignment] # [*] CG2: Aliased with COM_GRP
+    Com: Set = None  # type: ignore[assignment] # [comgrp] COM: Commodities
+    c: Alias = None  # type: ignore[assignment] # [*] C: Aliased with COM
+    com1: Alias = None  # type: ignore[assignment] # [*] COM1: Aliased with COM
+    com2: Alias = None  # type: ignore[assignment] # [*] COM2: Aliased with COM
+    prc: Set = None  # type: ignore[assignment] # [*] PRC: Processes
+    p: Alias = None  # type: ignore[assignment] # [*] P: Aliased with PRC
+    cur: Set = None  # type: ignore[assignment] # [*] CUR: Currencies = c$
+    curr: Alias = None  # type: ignore[assignment] # [*] CURR: Aliased with CUR
+    allsow: Set = None  # type: ignore[assignment] # [*] ALLSOW: State-of-the-World
+    Sow: Set = None  # type: ignore[assignment] # [allsow] SOW: State-of-the-World
+    w: Alias = None  # type: ignore[assignment] # [*] W: Aliased with SOW
+    side: Set = None  # type: ignore[assignment] # [*] SIDE: LHS and RHS of an equation
+    uc_sign: Parameter = None  # type: ignore[assignment] # [side] UC_SIGN: Sign of LHS and RHS expression
+    comvar: Set = None  # type: ignore[assignment] # [*] COM_VAR:
+    CovMap: Set = None  # type: ignore[assignment] # [*,*] COV_MAP:
+    ucname: Set = None  # type: ignore[assignment] # [*] UC_NAME: Allowed parameters in user-constraints
+    UcCost: Set = None  # type: ignore[assignment] # [ucname] UC_COST: UC cost attributes
+    UcMapcost: Set = None  # type: ignore[assignment] # [UcCost,ucname] UC_MAPCOST: Compatibility map for cost attributes
+    UcAnnul: Set = None  # type: ignore[assignment] # type: ignore[assignment] # [ucname] UC_ANNUL:
+    UcDynt: Set = None  # type: ignore[assignment] # [ucname] UC_DYNT:
+    ucnumber: Set = None  # type: ignore[assignment] # [*] UC_NUMBER: Determines way of handling REG,T and TS
+    UcPerds: Set = None  # type: ignore[assignment] # [ucname] UC_PERDS:
+    UcNewflo: Set = None  # type: ignore[assignment] # [ucname] UC_NEWFLO:
+    ucgrptype: Set = None  # type: ignore[assignment] # [*] UC_GRPTYPE: Type of components within UC_GRP
+    costagg: Set = None  # type: ignore[assignment] # [*] COSTAGG: Types of cost aggregations
+    costcat: Alias = None  # type: ignore[assignment] # [*] COSTCAT: Aliased with COSTAGG
+    costype: Alias = None  # type: ignore[assignment] # [*] COSTYPE: Aliased with UC_COST
+    dump0: Parameter = None  # type: ignore[assignment] # DUMP0:
+    optfileid: Parameter = None  # type: ignore[assignment] # OPTFILEID:
+    units: Set = None  # type: ignore[assignment] # [*] UNITS: Units
+    u: Alias = None  # type: ignore[assignment] # [*] U: Aliased with UNITS
+    UnitsCom: Set = None  # type: ignore[assignment] # [units] UNITS_COM: Commodity Units
+    UnitsCap: Set = None  # type: ignore[assignment] # [units] UNITS_CAP: Capacity Units
+    UnitsAct: Set = None  # type: ignore[assignment] # [units] UNITS_ACT: Activity Units
+    UnitsMony: Set = None  # type: ignore[assignment] # [units] UNITS_MONY: Monatary Units
+    g_unca: Parameter = None  # type: ignore[assignment] # [units,UnitsAct] G_UNCA: Cap-to-Act conversions
+    ComType: Set = None  # type: ignore[assignment] # [comgrp] COM_TYPE: List of main commodity types groups
+    PgSmap: Set = None  # type: ignore[assignment] # [cg,j,cg] PG_SMAP: Map from PG to SPG
+    curgrp: Set = None  # type: ignore[assignment] # [*] CUR_GRP: List of currency groups
+    demsect: Set = None  # type: ignore[assignment] # [*] DEM_SECT: List of demand sectors
+    envgrp: Set = None  # type: ignore[assignment] # [*] ENV_GRP: List of emission groups
+    fingrp: Set = None  # type: ignore[assignment] # [*] FIN_GRP: List of financial groups
+    matgrp: Set = None  # type: ignore[assignment] # [*] MAT_GRP: List of material groups
+    mattype: Set = None  # type: ignore[assignment] # [*] MAT_TYPE: List of material types
+    nrgform: Set = None  # type: ignore[assignment] # [*] NRG_FORM: List of energy forms
+    nrggrid: Set = None  # type: ignore[assignment] # [*] NRG_GRID: List of grid types
+    nrgtype: Set = None  # type: ignore[assignment] # [*] NRG_TYPE: List of energy types
+    prcgrp: Set = None  # type: ignore[assignment] # [*] PRC_GRP: List of process groups
+    prcrsourc: Set = None  # type: ignore[assignment] # [*] PRC_RSOURC: List of domestic resource supply groups
+
+    g_dyear: Parameter = None  # type: ignore[assignment] # G_DYEAR: Year to discount to
+    g_iledno: Parameter = None  # type: ignore[assignment] # G_ILEDNO: 1/threshold at which to ignore ILED
+    g_tlife: Parameter = None  # type: ignore[assignment] #  G_TLIFE: Default technology life if not provided
+    g_vint: Parameter = None  # type: ignore[assignment] #  G_VINT: % annual change in input data for vintaging
+
+    g_nointerp: Parameter = None  # type: ignore[assignment] # G_NOINTERP: Turn off interplation
+    g_cycle: Parameter = None  # type: ignore[assignment]   # [tslvl] G_CYCLE: Number of cycles in average year
+    ComDesc: Set = None  # type: ignore[assignment] # [Reg,Com] COM_DESC: Region-based commodity descriptions
+    ComGmap: Set = None  # type: ignore[assignment] # [Reg,comgrp,Com] COM_GMAP: User groups of individual commodities
+    ComLim: Set = None  # type: ignore[assignment] # [Reg,Com,lim] COM_LIM: List of equation type for balance
+    ComOff: Set = None  # type: ignore[assignment] # [Reg,Com,*,*] COM_OFF: Periods for which a commodity is unavailable
+    ComTmap: Set = None  # type: ignore[assignment] # [Reg,ComType,Com] COM_TMAP: Primary grouping of commodities
+    ComTs: Set = None  # type: ignore[assignment] # [Reg,Com,allts] COM_TS: List of commodity timeslices
+    ComTsl: Set = None  # type: ignore[assignment] # [Reg,Com,tslvl] COM_TSL: Level at which a commodity tracked
+    ComUnit: Set = None  # type: ignore[assignment] # [Reg,Com,UnitsCom] COM_UNIT: Units associated with each commodity
+    CurMap: Set = None  # type: ignore[assignment] # [Reg,curgrp,cur] CUR_MAP: Grouping of the currenies
+    DemSmap: Set = None  # type: ignore[assignment] # [Reg,demsect,Com] DEM_SMAP: Grouping of DEMs (commodities) to their sector
+    EnvMap: Set = None  # type: ignore[assignment] # [Reg,envgrp,Com] ENV_MAP: Grouping of ENVs (commodities) to their emissions group
+    FinMap: Set = None  # type: ignore[assignment] # [Reg,fingrp,Com] FIN_MAP: Grouping of FINs (commodities) to their financial group
+    MatGmap: Set = None  # type: ignore[assignment] # [Reg,matgrp,Com] MAT_GMAP: Grouping of materials
+    MatTmap: Set = None  # type: ignore[assignment] # [Reg,mattype,Com] MAT_TMAP: Material by type
+    MatVol: Set = None  # type: ignore[assignment] # [Reg,Com] MAT_VOL: Material accounted for by volume
+    MatWt: Set = None  # type: ignore[assignment] # [Reg,Com] MAT_WT: Material accounted for by weight
+    NrgFmap: Set = None  # type: ignore[assignment] # [Reg,nrgform,Com] NRG_FMAP: Grouping of NRG by Solid/Liquid/Gas
+    NrgGmap: Set = None  # type: ignore[assignment] # [Reg,nrggrid,Com] NRG_GMAP: Association of energy carriers to grids
+    NrgTmap: Set = None  # type: ignore[assignment] # [Reg,nrgtype,Com] NRG_TMAP: Grouping of energy carriers by type
+    PrcAoff: Set = None  # type: ignore[assignment] # [Reg,prc,*,*] PRC_AOFF: Periods for which activity is unavailable
+    PrcActunt: Set = None  # type: ignore[assignment] # [Reg,prc,cg,UnitsAct] PRC_ACTUNT: Primary commodity (or group) & activity unit
+    PrcCapunt: Set = None  # type: ignore[assignment] # [Reg,prc,cg,UnitsCap] PRC_CAPUNT: Unit of capacity
+    PrcCg: Set = None  # type: ignore[assignment] # [r,prc,comgrp] PRC_CG: Commodity groups for a process
+    PrcDesc: Set = None  # type: ignore[assignment] # [r,p] PRC_DESC: Process descriptions by region
+    PrcFoff: Set = None  # type: ignore[assignment] # [Reg,prc,Com,allts,*,*] PRC_FOFF: Periods/timeslices for which flow is not possible
+    PrcMap: Set = None  # type: ignore[assignment] # [Reg,prcgrp,prc] PRC_MAP: Grouping of processes to nature
+    PrcNoff: Set = None  # type: ignore[assignment] # [Reg,prc,*,*] PRC_NOFF: Periods for which new capacity can NOT be built
+    PrcRmap: Set = None  # type: ignore[assignment] # [Reg,prcrsourc,prc] PRC_RMAP: Grouping of XTRACT processes
+    PrcSpg: Set = None  # type: ignore[assignment] # [Reg,prc,comgrp] PRC_SPG: Shadow Primary Group
+    PrcTs: Set = None  # type: ignore[assignment] # [allreg,prc,allts] PRC_TS: Timeslices for a process
+    PrcTsl: Set = None  # type: ignore[assignment] # [Reg,prc,tslvl] PRC_TSL: Timeslice level for a process
+    PrcVint: Set = None  # type: ignore[assignment] # [Reg,prc] PRC_VINT: Process is to be vintaged
+    PrcDscncap: Set = None  # type: ignore[assignment] # [r,p] PRC_DSCNCAP: Process with discrete capacity additions
+    PrcRcap: Set = None  # type: ignore[assignment] # [Reg,prc] PRC_RCAP: Process with early retirement
+    PrcSimv: Set = None  # type: ignore[assignment] # [Reg,prc] PRC_SIMV: Process is to be vintage-simulated
+    reggrp: Set = None  # type: ignore[assignment] # [*] REG_GRP: List of regional groups
+    RegRmap: Set = None  # type: ignore[assignment] # [reggrp,allreg] REG_RMAP: Grouping of regions in/out of area of study
+    ts: Alias = None  # type: ignore[assignment] # [*] TS: Aliased with ALL_TS
+    s: Alias = None  # type: ignore[assignment] # [*] S: Aliased with ALL_TS
+    sl: Alias = None  # type: ignore[assignment] # [*] SL: Aliased with ALL_TS
+    s2: Alias = None  # type: ignore[assignment] # [*] S2: Aliased with ALL_TS
+    kp2: Alias = None  # type: ignore[assignment] # [*] KP1: Aliased with KP
+    TsOff: Set = None  # type: ignore[assignment] # [Reg,ts,bohyear,eohyear] TS_OFF: Timeslices turned off
+    TsGroup: Set = None  # type: ignore[assignment] # [allreg,tslvl,ts] TS_GROUP: Timeslice Level assignment
+    TsMap: Set = None  # type: ignore[assignment] # [allreg,allts,allts] TS_MAP: Timeslice hierarchy tree: node+below
+
+    Milestonyr: Set = None  # type: ignore[assignment] # [allyear] MILESTONYR: Projection years for which model to be run
+    t: Alias = None  # type: ignore[assignment] # [*] T: Aliased with MILESTONYR
+    tt: Alias = None  # type: ignore[assignment] # [*] TT: Aliased with MILESTONYR
+    Datayear: Set = None  # type: ignore[assignment] # [allyear] DATAYEAR: Years for which user data is provided
+    Pastyear: Set = None  # type: ignore[assignment] # [allyear] PASTYEAR: Years before 1st MILESTONYR for which PASTI needs to be handled
+    Modlyear: Set = None  # type: ignore[assignment] # [allyear] MODLYEAR: Years for which the model is to be run (MILESTONYR+PASTYEAR)
+    tsl: Alias = None  # type: ignore[assignment] # [*] TSL: Aliased with TSLVL
+    Top: Set = None  # type: ignore[assignment] # [Reg,prc,Com,io] TOP: Topology for all process
+    TopIre: Set = None  # type: ignore[assignment] # [allreg,Com,allreg,Com,prc] TOP_IRE: Trade within area of study
+    ComPeak: Set = None  # type: ignore[assignment] # [Reg,comgrp] COM_PEAK: Peaking required flag
+    ComPkts: Set = None  # type: ignore[assignment] # [Reg,comgrp,ts] COM_PKTS: Peaking time-slices
+    PrcPkno: Set = None  # type: ignore[assignment] # [allreg,prc] PRC_PKNO: Processes which cannot be involved in peaking
+    PrcPkaf: Set = None  # type: ignore[assignment] # [allreg,prc] PRC_PKAF: Flag for default value of NCAP_PKCNT
+    PrcNstts: Set = None  # type: ignore[assignment] # [Reg,prc,allts] PRC_NSTTS: Night storage process and time-slice for storaging
+    PrcStgtss: Set = None  # type: ignore[assignment] # [Reg,prc,Com] PRC_STGTSS: Storage process and stored commodity for time-slice storage
+    PrcStgips: Set = None  # type: ignore[assignment] # [Reg,prc,Com] PRC_STGIPS: Storage process and stored commodity for inter-period storage
+    ucn: Set = None  # type: ignore[assignment] # [*] UC_N: Names of all manual constraints
+    UcTSucc: Set = None  # type: ignore[assignment] # [allr,ucn,allyear] UC_T_SUCC: Specification of periods, if UC_DYN=SUCC
+    UcTSum: Set = None  # type: ignore[assignment] # [allr,ucn,allyear] UC_T_SUM: Specification of periods, if UC_DYN=SEVERAL
+    UcTEach: Set = None  # type: ignore[assignment] # [allr,ucn,allyear] UC_T_EACH: Specification of periods, if UC_DYN=EACH
+    UcRSum: Set = None  # type: ignore[assignment] # [allr,ucn] UC_R_SUM: Specification of regions, if UC_REG=SUM
+    UcREach: Set = None  # type: ignore[assignment] # [allr,ucn] UC_R_EACH: Specification of regions, if UC_REG=EACH
+    UcTsSum: Set = None  # type: ignore[assignment] # [allr,ucn,allts] UC_TS_SUM: Specification of time-slices, if UC_TS=SUM
+    UcTsEach: Set = None  # type: ignore[assignment] # [allr,ucn,allts] UC_TS_EACH: Specification of time-slices, if UC_TS=EACH
+    UcAttr: Set = None  # type: ignore[assignment] # [allr,ucn,side,ucgrptype,ucname] UC_ATTR: Mapping of parameter names to groups
+    UcTsl: Set = None  # type: ignore[assignment] # [allr,ucn,side,tslvl] UC_TSL: UC timeslice level
+    ucnA: Alias = None  # type: ignore[assignment] # [*] UCN: Aliased with UC_N
+    SwT: Set = None  # type: ignore[assignment] # [allyear,allsow] SW_T: Stochastic state indexes by period
+    GUamat: Set = None  # type: ignore[assignment] # [u] G_UAMAT: Unit for activity of material process
+    GUanrg: Set = None  # type: ignore[assignment] # [u] G_UANRG: Unit for activity of energy process
+    GUcmat: Set = None  # type: ignore[assignment] # [u] G_UCMAT: Unit for capacity of material process
+    GUcnrg: Set = None  # type: ignore[assignment] # [u] G_UCNRG: Unit for capacity of energy process
+    GRcur: Set = None  # type: ignore[assignment] # [Reg,cur] G_RCUR: Main currency unit by region
+    Actcg: Set = None  # type: ignore[assignment] # [cg] ACTCG:
+    b: Parameter = None  # type: ignore[assignment] # [allyear] B: Beginning year of each model period
+    e: Parameter = None  # type: ignore[assignment] # [allyear] E: Ending year of each model period
+    m: Parameter = None  # type: ignore[assignment] # [allyear] M: Middle year of each Period
+    d: Parameter = None  # type: ignore[assignment] # [allyear] D: Length of each period
+    act_bnd: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,ts,bd] ACT_BND: Bound on activity of a process
+    act_cost: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cur] ACT_COST: Variable costs associated with activity of a process
+    act_cstup: Parameter = None  # type: ignore[assignment] # [r,allyear,p,tslvl,cur] ACT_CSTUP: Variable costs associated with startup of a process
+    act_cstsd: Parameter = None  # type: ignore[assignment] # [r,allyear,p,upt,bd,cur] ACT_CSTSD: Start-up (BD=UP) and shutdown costs (BD=LO) per unit of started-up capacity, by start-up type
+    act_cstrmp: Parameter = None  # type: ignore[assignment] # [r,allyear,p,l,cur] ACT_CSTRMP: Ramp-up (L=UP) or ramp-down (L=LO) cost per unit of load change
+    act_flo: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cg,s] ACT_FLO: General process transformation parameter
+    act_time: Parameter = None  # type: ignore[assignment] # [r,allyear,p,l] ACT_TIME: Minimum online/offline hours
+    act_cum: Parameter = None  # type: ignore[assignment] # [Reg,prc,item,item,lim] ACT_CUM: Bound on cumulative activity
+    ncap_af: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,ts,bd] NCAP_AF: Availability of capacity
+    ncap_afa: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,bd] NCAP_AFA: Annual Availability of capacity
+    ncap_afs: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,ts,bd] NCAP_AFS: Seasonal Availability of capacity
+    ncap_afx: Parameter = None  # type: ignore[assignment] # [r,allyear,p] NCAP_AFX: Change in capacity availability
+    ncap_afsx: Parameter = None  # type: ignore[assignment] # [r,allyear,p,bd] NCAP_AFSX: Change in seasonal capacity availability
+    ncap_afm: Parameter = None  # type: ignore[assignment] # [r,allyear,p] NCAP_AFM: Pointer to availity change multiplier
+    ncap_bnd: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,lim] NCAP_BND: Bound on overall capacity in a period
+    ncap_bpme: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_BPME: Back pressure mode efficiency (or total eff.)
+    ncap_cdme: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_CDME: Condensing mode efficiency
+    ncap_ceh: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_CEH: Coefficient of electricity to heat
+    ncap_chpr: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,lim] NCAP_CHPR: Combined heat:power ratio
+    ncap_cled: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com] NCAP_CLED: Leadtime of a commodity before new capacity ready
+    ncap_clag: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com,io] NCAP_CLAG: Lagtime of a commodity after new capacity ready
+    ncap_com: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com,io] NCAP_COM: Use (but +) of commodity based upon capacity
+    ncap_cost: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cur] NCAP_COST: Investment cost for new capacity
+    ncap_cpx: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_CPX: Pointer to capacity transfer multiplier
+    ncap_drate: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_DRATE: Process specific discount (hurdle) rate
+    ncap_fdr: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_FDR: Functional depreciation rate of process
+    ncap_elife: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_ELIFE: Economic (payback) lifetime
+    ncap_fom: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cur] NCAP_FOM: Fixed annual O&M costs
+    ncap_fomx: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_FOMX: Change in fixed O&M
+    ncap_fomm: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_FOMM: Pointer to fixed O&M change multiplier
+    ncap_fsub: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cur] NCAP_FSUB: Fixed tax on installed capacity
+    ncap_fsubx: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_FSUBX: Change in fixed tax
+    ncap_fsubm: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_FSUBM: Pointer to fixed subsidy change multiplier
+    ncap_ftax: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cur] NCAP_FTAX: Fixed tax on installed capacity
+    ncap_ftaxx: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_FTAXX: Change in fixed tax
+    ncap_ftaxm: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_FTAXM: Pointer to fixed tax change multiplier
+    ncap_icom: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com] NCAP_ICOM: Input of commodity for install of new capacity
+    ncap_iled: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_ILED: Lead-time required for building a new capacity
+    ncap_isub: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cur] NCAP_ISUB: Subsidy for a new investment in capacity
+    ncap_itax: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cur] NCAP_ITAX: Tax on a new investment in capacity
+    ncap_ispct: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_ISPCT: Subsidy as % of new investment cost
+    ncap_lcost: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_LCOST: % labor cost of new investment
+    ncap_lfom: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_LFOM: % labor cost of fixed O&M
+    ncap_pasti: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_PASTI: Capacity install prior to study years
+    ncap_pasty: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_PASTY: Buildup years for past investments
+    ncap_tlife: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_TLIFE: Technical lifetime of a process
+    ncap_olife: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_OLIFE: Operating lifetime of a process
+    rcap_blk: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] RCAP_BLK: Retirement block size
+    rcap_bnd: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,lim] RCAP_BND: Retirement bounds
+    ncap_dcost: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cur] NCAP_DCOST: Cost of decomissioning
+    ncap_dlag: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_DLAG: Delay to begin decomissioning
+    ncap_dlagc: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cur] NCAP_DLAGC: Cost of decomissioning delay
+    ncap_delif: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_DELIF: Economic lifetime to pay for decomissioning
+    ncap_dlife: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] NCAP_DLIFE: Time for the actual decomissioning
+    ncap_ocom: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com] NCAP_OCOM: Commodity release during decomissioning
+    ncap_valu: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com,cur] NCAP_VALU: Value of material released during decomissioning
+    ncap_start: Parameter = None  # type: ignore[assignment] # [Reg,prc] NCAP_START: Start year for new investments
+    ncap_semi: Parameter = None  # type: ignore[assignment] # [r,allyear,p] NCAP_SEMI: Semi-continuous capacity, lower bound
+    cap_bnd: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,bd] CAP_BND: Bound on total installed capacity in a period
+    com_bndnet: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,ts,lim] COM_BNDNET: Net bound on commodity (e.g., emissions)
+    com_bndprd: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,ts,lim] COM_BNDPRD: Limit on production of a commodity
+    com_cumnet: Parameter = None  # type: ignore[assignment] # [Reg,bohyear,eohyear,Com,lim] COM_CUMNET: Cumulative net bound on commodity (e.g. emissions)
+    com_cumprd: Parameter = None  # type: ignore[assignment] # [Reg,bohyear,eohyear,Com,lim] COM_CUMPRD: Cumulative limit on production of a commodity
+    com_cstnet: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,ts,cur] COM_CSTNET: Cost on Net of commodity (e.g. emissions tax)
+    com_cstprd: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,ts,cur] COM_CSTPRD: Cost on production of a commodity
+    com_fr: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,ts] COM_FR: Seasonal distribution of a commodity
+    com_ie: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,ts] COM_IE: Seasonal efficiency of commodity
+    com_subnet: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,ts,cur] COM_SUBNET: Subsidy on a commodity net
+    com_subprd: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,ts,cur] COM_SUBPRD: Subsidy on production of a commodity net
+    com_taxnet: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,ts,cur] COM_TAXNET: Tax on a commodity net
+    com_taxprd: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,ts,cur] COM_TAXPRD: Tax on production of a commodity net
+    com_agg: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,Com] COM_AGG: Commodity aggregation parameter
+    com_bprice: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,ts,cur] COM_BPRICE: Base price of elastic demands
+    com_bqty: Parameter = None  # type: ignore[assignment] # [Reg,Com,ts] COM_BQTY: Base quantity for elastic demands
+    com_elast: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,ts,lim] COM_ELAST: Elasticity of demand
+    com_elastx: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,bd] COM_ELASTX: Elasticity shape of demand
+    com_proj: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com] COM_PROJ: Demand baseline projection
+    com_step: Parameter = None  # type: ignore[assignment] # [Reg,Com,lim] COM_STEP: Step size for elastic demand
+    com_voc: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,bd] COM_VOC: Variance of elastic demand
+    flo_bnd: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cg,ts,bd] FLO_BND: Bound on the flow variable
+    flo_bdlvl: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cg,s,bd] FLO_BDLVL: Bound on the flow variable by hourly rate level
+    flo_cost: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com,ts,cur] FLO_COST: Added variable O&M of using a commodity
+    flo_deliv: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com,ts,cur] FLO_DELIV: Delivery cost for using a commodity
+    flo_feq: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com] FLO_FEQ: Fossil equivalent of a commodity in a process
+    flo_fr: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com,ts,lim] FLO_FR: Load-curve limitations for a process commodity flow
+    flo_func: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cg,cg,ts] FLO_FUNC: Relationship between 2 (group of) flows
+    flo_funcx: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cg,cg] FLO_FUNCX: Change in FLO_FUNC/FLO_SUM by age
+    flo_shar: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,c,cg,ts,bd] FLO_SHAR: Relationship between members of the same flow group
+    flo_sub: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com,ts,cur] FLO_SUB: Subsidy for the production/use of a commodity
+    flo_sum: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cg,c,cg,ts] FLO_SUM: Multipier for commodity in cg1 where each is summed into cg2
+    flo_tax: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com,ts,cur] FLO_TAX: Tax on the production/use of a commodity
+    flo_cum: Parameter = None  # type: ignore[assignment] # [Reg,prc,Com,item,item,lim] FLO_CUM: Bound on cumulative flow
+    flo_mark: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com,bd] FLO_MARK: Process-wise market share in total commodity production
+    prc_mark: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,item,c,lim] PRC_MARK: Process group-wise market share
+    prc_resid: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] PRC_RESID: Residual capacity available in each period
+    prc_refit: Parameter = None  # type: ignore[assignment] # [Reg,prc,prc] PRC_REFIT: Process with retrofit or life-extension
+    ncap_pkcnt: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,allts] NCAP_PKCNT: Fraction of capacity contributing to peaking in time-slice TS
+    com_pkrsv: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com] COM_PKRSV: Peaking reserve margin
+    com_pkflx: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,ts] COM_PKFLX: Peaking flux ratio
+    flo_pkcoi: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com,allts] FLO_PKCOI: Factor increasing the average demand
+    stg_eff: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] STG_EFF: Storage efficiency
+    stg_loss: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,s] STG_LOSS: Annual energy loss from a storage technology
+    stg_chrg: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,s] STG_CHRG: Exogeneous charging of a storage technology
+    stg_sift: Parameter = None  # type: ignore[assignment] # [r,allyear,p,c,s] STG_SIFT: Max load sifting in proportion to total load
+    stgout_bnd: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,c,s,bd] STGOUT_BND: Bound on output-flow of storage process
+    stgin_bnd: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,c,s,bd] STGIN_BND: Bound on output-flow of storage process
+    prc_actflo: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cg] PRC_ACTFLO: Convert from process activity to particular commodity flow
+    prc_capact: Parameter = None  # type: ignore[assignment] # [Reg,prc] PRC_CAPACT: Factor for going from capacity to activity
+    prc_gmap: Parameter = None  # type: ignore[assignment] # [Reg,prc,item] PRC_GMAP: User-defined groupings of processes
+    g_chngmony: Parameter = None  # type: ignore[assignment] # [Reg,allyear,cur] G_CHNGMONY: Exchange rate for currency
+    g_drate: Parameter = None  # type: ignore[assignment] # [Reg,allyear,cur] G_DRATE: Discount rate for a currency
+    g_rfrir: Parameter = None  # type: ignore[assignment] # [Reg,allyear] G_RFRIR: Riskfree real interest rate
+    g_yrfr: Parameter = None  # type: ignore[assignment] # [allreg,ts] G_YRFR: Seasonal fraction of the year
+    ts_cycle: Parameter = None  # type: ignore[assignment] # [Reg,ts] TS_CYCLE: Length of cycles below timeslice, in days
+    g_offthd: Parameter = None  # type: ignore[assignment] # [allyear] G_OFFTHD: Threshold for OFF ranges
+    g_overlap: Parameter = None  # type: ignore[assignment] #  G_OVERLAP: Overlap of stepped solutions (in years)
+    reg_fixt: Parameter = None  # type: ignore[assignment] # [allr] REG_FIXT: Year up to which periods are fixed
+    reg_bdncap: Parameter = None  # type: ignore[assignment] # [allr,l] REG_BDNCAP: Year up to which VAR_NCAPs are to be fixed
+    g_curex: Parameter = None  # type: ignore[assignment] # [cur,cur] G_CUREX: Global currency conversions
+    r_curex: Parameter = None  # type: ignore[assignment] # [allreg,cur,cur] R_CUREX: Regional currency conversions
+    ire_bnd: Parameter = None  # type: ignore[assignment] # [allr,allyear,Com,ts,allreg,ie,bd] IRE_BND: Limit on inter-reg exchange of commodity
+    ire_flo: Parameter = None  # type: ignore[assignment] # [allr,allyear,prc,Com,allr,Com,ts] IRE_FLO: Efficiency of exchange for inter-regional trade
+    ire_flosum: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com,ts,ie,Com,io] IRE_FLOSUM: Aux. consumption/emissions from inter-regional trade
+    ire_price: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com,ts,allr,ie,cur] IRE_PRICE: Exogenous price of import/export
+    ire_xbnd: Parameter = None  # type: ignore[assignment] # [allreg,allyear,Com,ts,ie,bd] IRE_XBND: Limit on all (external and inter-regional) exchange of commodity
+    ire_ccvt: Parameter = None  # type: ignore[assignment] # [allreg,Com,allreg,Com] IRE_CCVT: Commodity unit conversion factor between regions
+    ire_tscvt: Parameter = None  # type: ignore[assignment] # [allreg,allts,allreg,allts] IRE_TSCVT: Identification and TS-conversion factor between regions
+    shape: Parameter = None  # type: ignore[assignment] # [j,age] SHAPE: Shaping table
+    multi: Parameter = None  # type: ignore[assignment] # [j,allyear] MULTI: Multiplier table
+    reg_bndcst: Parameter = None  # type: ignore[assignment] # [Reg,allyear,costagg,cur,bd] REG_BNDCST: Bound on regional costs by type
+    reg_cumcst: Parameter = None  # type: ignore[assignment] # [Reg,allyear,allyear,costagg,cur,bd] REG_CUMCST: Cumulative bound on regional costs
+    uc_rhs: Parameter = None  # type: ignore[assignment] # [ucn,lim] UC_RHS: Constant in user constraint
+    uc_rhst: Parameter = None  # type: ignore[assignment] # [ucn,allyear,lim] UC_RHST: Constant in user constraint
+    uc_rhsr: Parameter = None  # type: ignore[assignment] # [allreg,ucn,lim] UC_RHSR: Constant in user constraint
+    uc_rhss: Parameter = None  # type: ignore[assignment] # [ucn,ts,lim] UC_RHSS: Constant in user constraint
+    uc_rhsrt: Parameter = None  # type: ignore[assignment] # [allreg,ucn,allyear,lim] UC_RHSRT: Constant in user constraint
+    uc_rhsrs: Parameter = None  # type: ignore[assignment] # [allreg,ucn,ts,lim] UC_RHSRS: Constant in user constraint
+    uc_rhsrts: Parameter = None  # type: ignore[assignment] # [allreg,ucn,allyear,ts,lim] UC_RHSRTS: Constant in user constraint
+    uc_rhsts: Parameter = None  # type: ignore[assignment] # [ucn,allyear,ts,lim] UC_RHSTS: Constant in user constraint
+    uc_flo: Parameter = None  # type: ignore[assignment] # [ucn,side,allreg,allyear,prc,Com,ts] UC_FLO: Multiplier of flow variables
+    uc_act: Parameter = None  # type: ignore[assignment] # [ucn,side,allreg,allyear,prc,allts] UC_ACT: Multiplier of activity variables
+    uc_cap: Parameter = None  # type: ignore[assignment] # [ucn,side,allreg,allyear,prc] UC_CAP: Multiplier of capacity variables
+    uc_ncap: Parameter = None  # type: ignore[assignment] # [ucn,side,allreg,allyear,prc] UC_NCAP: Multiplier of VAR_NCAP variables
+    uc_comcon: Parameter = None  # type: ignore[assignment] # [ucn,side,allreg,allyear,Com,ts] UC_COMCON: Multiplier of VAR_COMCON variables
+    uc_comprd: Parameter = None  # type: ignore[assignment] # [ucn,side,allreg,allyear,Com,ts] UC_COMPRD: Multiplier of VAR_COMPRD variables
+    uc_comnet: Parameter = None  # type: ignore[assignment] # [ucn,side,allreg,allyear,Com,ts] UC_COMNET: Multiplier of VAR_COMNET variables
+    uc_ire: Parameter = None  # type: ignore[assignment] # [ucn,side,allreg,allyear,prc,Com,ts,ie] UC_IRE: Multiplier of inter-regional exchange variables
+    uc_cumact: Parameter = None  # type: ignore[assignment] # [ucn,allreg,prc,item,item] UC_CUMACT: Multiplier of cumulative process activity variable
+    uc_cumflo: Parameter = None  # type: ignore[assignment] # [ucn,allreg,prc,Com,item,item] UC_CUMFLO: Multiplier of cumulative process flow variable
+    uc_cumcom: Parameter = None  # type: ignore[assignment] # [ucn,allreg,comvar,Com,item,item] UC_CUMCOM: Multiplier of cumulative commodity variable
+    uc_ucn: Parameter = None  # type: ignore[assignment] # [ucn,side,allr,allyear,ucn] UC_UCN: Multiplier of user constraint variable
+    uc_time: Parameter = None  # type: ignore[assignment] # [ucn,allr,allyear] UC_TIME: Multiplier of time in model periods (years)
+    dam_cost: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,cur] DAM_COST: Marginal damage cost of emissions
+    dam_bqty: Parameter = None  # type: ignore[assignment] # [Reg,Com] DAM_BQTY: Base quantity of emissions
+    dam_elast: Parameter = None  # type: ignore[assignment] # [Reg,Com,lim] DAM_ELAST: Elasticity of damage cost
+    dam_step: Parameter = None  # type: ignore[assignment] # [Reg,Com,lim] DAM_STEP: Step number for emissions up to base
+    dam_voc: Parameter = None  # type: ignore[assignment] # [Reg,Com,lim] DAM_VOC: Variance of emissions
+    dam_tqty: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com] DAM_TQTY: Base quantity of emissions by year
+    dam_tvoc: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,lim] DAM_TVOC: Variance of emissions by year
+    dam_coef: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,s] DAM_COEF: Coefficient from commodity to damage
+    rpt_opt: Parameter = None  # type: ignore[assignment] # [item,j] RPT_OPT: Reporting options
+    cst_dam: Parameter = None  # type: ignore[assignment] # [Reg,t,Com] CST_DAM: Damage costs
+    cm_result: Parameter = None  # type: ignore[assignment] # [item,item,allyear] CM_RESULT: Climate module results
+    cm_maxc_m: Parameter = None  # type: ignore[assignment] # [item,allyear] CM_MAXC_M: Shadow price of climate constraint
+    tm_result: Parameter = None  # type: ignore[assignment] # [item,r,allyear] TM_RESULT: MACRO results
+    miyr_v1: Parameter = None  # type: ignore[assignment] # MIYR_V1:
+    miyr_vl: Parameter = None  # type: ignore[assignment] # MIYR_VL:
+    pyr_v1: Parameter = None  # type: ignore[assignment] # PYR_V1:
+    my_f: Parameter = None  # type: ignore[assignment] # MY_F:
+    f: Parameter = None  # type: ignore[assignment] # F:
+    z: Parameter = None  # type: ignore[assignment] # Z:
+    cnt: Parameter = None  # type: ignore[assignment] # CNT:
+    dfunc: Parameter = None  # type: ignore[assignment] # DFUNC:
+    done: Parameter = None  # type: ignore[assignment] # DONE:
+    ifq: Parameter = None  # type: ignore[assignment] # IFQ:
+    dur_max: Parameter = None  # type: ignore[assignment] # DUR_MAX:
+    first_val: Parameter = None  # type: ignore[assignment] # FIRST_VAL:
+    last_val: Parameter = None  # type: ignore[assignment] # LAST_VAL:
+    my_fyear: Parameter = None  # type: ignore[assignment] # MY_FYEAR:
+    Lastll: Set = None  # type: ignore[assignment] # [ll] LASTLL:
+    intdefault: Set = None  # type: ignore[assignment] # [*] INT_DEFAULT:
+    uncd1: Set = None  # type: ignore[assignment] # [*] UNCD1: Non-domain-controlled set
+    ie_default: Parameter = None  # type: ignore[assignment] # [*] IE_DEFAULT:
+    Ble: Set = None  # type: ignore[assignment] # [Com] BLE:
+    Opr: Set = None  # type: ignore[assignment] # [Com] OPR:
+    spe: Set = None  # type: ignore[assignment] # [*] SPE:
+    Ref: Set = None  # type: ignore[assignment] # [r,prc] REF: Refineries
+    refunit: Parameter = None  # type: ignore[assignment] # [r] REFUNIT:
+    cvt: Set = None  # type: ignore[assignment] # [*] CVT:
+    convert: Parameter = None  # type: ignore[assignment] # [Opr,cvt] CONVERT:
+    bl_start: Parameter = None  # type: ignore[assignment] # [r,Com,spe] BL_START:
+    bl_unit: Parameter = None  # type: ignore[assignment] # [r,Com,spe] BL_UNIT:
+    bl_type: Parameter = None  # type: ignore[assignment] # [r,Com,spe] BL_TYPE:
+    bl_spec: Parameter = None  # type: ignore[assignment] # [r,Com,spe] BL_SPEC:
+    bl_com: Parameter = None  # type: ignore[assignment] # [r,Com,Opr,spe] BL_COM:
+    bl_inp: Parameter = None  # type: ignore[assignment] # [r,Com,Com] BL_INP:
+    bl_varomc: Parameter = None  # type: ignore[assignment] # [r,Com,cur] BL_VAROMC:
+    bl_delivc: Parameter = None  # type: ignore[assignment] # [r,Com,Com,cur] BL_DELIVC:
+    env_bl: Parameter = None  # type: ignore[assignment] # [r,Com,Com,Opr,year] ENV_BL:
+    peakda_bl: Parameter = None  # type: ignore[assignment] # [r,Com,year] PEAKDA_BL:
+    ru_cvt: Parameter = None  # type: ignore[assignment] # [r,Ble,spe,Opr] RU_CVT:
+    ru_feq: Parameter = None  # type: ignore[assignment] # [r,Com,year] RU_FEQ:
+    obj_blndv: Parameter = None  # type: ignore[assignment] # [r,year,c,c,cur] OBJ_BLNDV: annual variable costs for blending
+    altobj: Parameter = None  # type: ignore[assignment] # ALTOBJ:
+    unit: Set = None  # type: ignore[assignment] # [*] UNIT: Number of different units
+    ncap_disc: Parameter = None  # type: ignore[assignment] # [r,allyear,p,unit] NCAP_DISC: Unit size of discrete capacity addition
+    vda_flop: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cg,s] VDA_FLOP: General process transformation parameter
+    vda_emcb: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,Com] VDA_EMCB: Combustion emission parameter (aka EMI_comb)
+    vda_ceh: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] VDA_CEH: The slope of pass-out turbine (alias NCAP_CEH)
+    flo_emis: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cg,Com,s] FLO_EMIS: General process emission parameter
+    flo_eff: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cg,Com,s] FLO_EFF: General process flow-relation parameter
+    stl: Set = None  # type: ignore[assignment] # [*] STL:
+    ncap_afac: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cg] NCAP_AFAC: Annual availability of capacity for commodity group CG
+    ncap_afc: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cg,stl] NCAP_AFC: Availability of capacity for commodity group CG
+    ncap_afcs: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cg,ts] NCAP_AFCS: Availability of capacity for commodity group CG
+    UcDynbnd: Set = None  # type: ignore[assignment] # [ucn,lim] UC_DYNBND: Dynamic process-wise UC bounds
+    act_eff: Parameter = None  # type: ignore[assignment] # [Reg,year,prc,cg,ts] ACT_EFF: Activity efficiency for process
+    act_ups: Parameter = None  # type: ignore[assignment] # [r,allyear,p,s,l] ACT_UPS: Max. ramp rate, fraction of capacity per hour
+    act_minld: Parameter = None  # type: ignore[assignment] # [r,allyear,p] ACT_MINLD: Minimum stable operation level
+    act_lospl: Parameter = None  # type: ignore[assignment] # [r,allyear,p,l] ACT_LOSPL: Fuel consumption increase at minimum load
+    act_cstpl: Parameter = None  # type: ignore[assignment] # [r,allyear,p,cur] ACT_CSTPL: Partial load cost penalty
+    act_maxnon: Parameter = None  # type: ignore[assignment] # [r,ll,p,upt] ACT_MAXNON: Max. non-operational time before transition to next stand-by condition, by start-up type, in hours
+    act_sdtime: Parameter = None  # type: ignore[assignment] # [r,ll,p,upt,bd] ACT_SDTIME: Duration of start-up (BD=UP) and shut-down BD=LO) phases, by start-up type, in hours
+    act_lossd: Parameter = None  # type: ignore[assignment] # [r,ll,p,upt,bd] ACT_LOSSD: Efficiency at one hour from start-up (BD=UP) or at one hour to end of shut-down (BD=LO)
+    stg_maxcyc: Parameter = None  # type: ignore[assignment] # [r,year,p] STG_MAXCYC: Maximum number of storage cycles over lifetime
+    uc_actbet: Parameter = None  # type: ignore[assignment] # [ucn,allreg,allyear,prc] UC_ACTBET:
+    uc_flobet: Parameter = None  # type: ignore[assignment] # [ucn,allreg,allyear,prc,cg] UC_FLOBET:
+    com_cstbal: Parameter = None  # type: ignore[assignment] # [r,allyear,c,s,item,cur] COM_CSTBAL: Cost on specific component of node balance
+    prc_react: Parameter = None  # type: ignore[assignment] # [r,allyear,p] PRC_REACT: Reactance of transmission line
+    gr_ptdf: Parameter = None  # type: ignore[assignment] # [r,year,p,c,allr,c] GR_PTDF: PTDF of transmission line
+    gr_genlev: Parameter = None  # type: ignore[assignment] # [r,c] GR_GENLEV: Grid connection category for electricity generation commodity
+    gr_demfr: Parameter = None  # type: ignore[assignment] # [r,allyear,c,s] GR_DEMFR: Fraction of total electricity demand allocated to grid node
+    gr_endfr: Parameter = None  # type: ignore[assignment] # [r,allyear,c,cg] GR_ENDFR: Fraction of sectoral electricity demand allocated to grid node
+    gr_genfr: Parameter = None  # type: ignore[assignment] # [r,allyear,c,item] GR_GENFR: Fraction of electricity generation type allocated to grid node
+    gr_genmap: Parameter = None  # type: ignore[assignment] # [r,p,item] GR_GENMAP: Mapping of technology to generation type
+    gr_xbnd: Parameter = None  # type: ignore[assignment] # [r,allyear] GR_XBND: Maximum level of net imports to / exports from region
+    gr_thmin: Parameter = None  # type: ignore[assignment] # [r,ll,p] GR_THMIN: Thermal minimum level
+    gr_vargen: Parameter = None  # type: ignore[assignment] # [r,s,item,bd] GR_VARGEN: Variance in type of generation
+    gg_dens: Parameter = None  # type: ignore[assignment] # [r,c] GG_DENS: Density of gases
+    gg_gamma: Parameter = None  # type: ignore[assignment] # [r,year,p,c] GG_GAMMA: Comprossion factor
+    gg_kgf: Parameter = None  # type: ignore[assignment] # [r,year,p,c] GG_KGF: Weymouth constants
+    gg_klp: Parameter = None  # type: ignore[assignment] # [r,year,p,c] GG_KLP: Linepack constants
+    gg_prbd: Parameter = None  # type: ignore[assignment] # [r,year,c,lim] GG_PRBD: Nodal pressure bounds
+    gg_pp: Parameter = None  # type: ignore[assignment] # [r,year,p,c,l,j] GG_PP: Fixed pressure points
+    com_mshgv: Parameter = None  # type: ignore[assignment] # [r,year,c] COM_MSHGV: Choices heterogeneity parameter
+    ncap_msprf: Parameter = None  # type: ignore[assignment] # [r,year,c,p,lim] NCAP_MSPRF: Preference parameters in choice
+    Solvestat: Set = None  # type: ignore[assignment] # [j] SOLVESTAT:
+    OBJZ: Variable = None  # type: ignore[assignment]  #  OBJZ:
+    Rc: Set = None  # type: ignore[assignment] # [r,c] RC: Commodities in each region
+    Rcj: Set = None  # type: ignore[assignment] # [r,c,j,bd] RCJ: # of steps for elastic demands
+    RcAgp: Set = None  # type: ignore[assignment] # [Reg,Com,lim] RC_AGP: Commodity aggregation of production
+    RtcNet: Set = None  # type: ignore[assignment] # [r,allyear,c] RTC_NET: VAR_COMNETs within CUM constraint range
+    RtcPrd: Set = None  # type: ignore[assignment] # [r,allyear,c] RTC_PRD: VAR_COMPRDs within CUM constraint range
+    RhsCombal: Set = None  # type: ignore[assignment] # [r,allyear,c,s] RHS_COMBAL: VAR_COMNET needed on balance
+    RhsComprd: Set = None  # type: ignore[assignment] # [r,allyear,c,s] RHS_COMPRD: VAR_COMPRD needed on production
+    RcsCombal: Set = None  # type: ignore[assignment] # [r,allyear,c,s,lim] RCS_COMBAL: TS for balance given RHS requirements
+    RcsComprd: Set = None  # type: ignore[assignment] # [r,allyear,c,s,lim] RCS_COMPRD: TS for production given RHS requirements
+    RcsComts: Set = None  # type: ignore[assignment] # [r,c,allts] RCS_COMTS: All timeslices at/above the COM_TSL
+    RdAgg: Set = None  # type: ignore[assignment] # [Reg,Com] RD_AGG: Micro aggregated demands
+    MiDmas: Set = None  # type: ignore[assignment] # [Reg,Com,Com] MI_DMAS: Micro aggregation map
+    Ne: Set = None  # type: ignore[assignment] # [allr,Com] NE: Non-energy Demands
+    Rdcur: Set = None  # type: ignore[assignment] # [Reg,cur] RDCUR: Discounted currencies by region
+    ObjIcur: Set = None  # type: ignore[assignment] # [Reg,allyear,p,cur] OBJ_ICUR: Capacity-related cost indicator
+    Dem: Set = None  # type: ignore[assignment] # [Reg,Com] DEM: Demand commodities
+    Env: Set = None  # type: ignore[assignment] # [Reg,Com] ENV: Environmental indicator commodities
+    Fin: Set = None  # type: ignore[assignment] # [Reg,Com] FIN: Financial flow commodities
+    Mat: Set = None  # type: ignore[assignment] # [Reg,Com] MAT: Material commodities
+    Nrg: Set = None  # type: ignore[assignment] # [Reg,Com] NRG: Energy carrier commodities
+    Rp: Set = None  # type: ignore[assignment] # [r,p] RP: Processes in each region
+    RpFlo: Set = None  # type: ignore[assignment] # [r,p] RP_FLO: Processes with VAR_FLOs (not IRE)
+    RpStd: Set = None  # type: ignore[assignment] # [r,p] RP_STD: Standard processes with VAR_FLOs
+    RpStg: Set = None  # type: ignore[assignment] # [r,p] RP_STG: Storage processes
+    RpIre: Set = None  # type: ignore[assignment] # [allreg,p] RP_IRE: Processes involved in inter-regional trade
+    RpNrg: Set = None  # type: ignore[assignment] # [r,p] RP_NRG: Processes with an energy carrier PCG
+    RpInout: Set = None  # type: ignore[assignment] # [r,p,io] RP_INOUT: Indicator if process input/output normalized (according to PG side)
+    RpPg: Set = None  # type: ignore[assignment] # [Reg,prc,cg] RP_PG: Primary commodity group (PG)
+    RpPgtype: Set = None  # type: ignore[assignment] # [r,p,cg] RP_PGTYPE: Group type of the primary group
+    RpUpl: Set = None  # type: ignore[assignment] # [r,p,l] RP_UPL: Processes with dispatching equations
+    RpUpr: Set = None  # type: ignore[assignment] # [r,p,l] RP_UPR: Processes with ramping costs
+    RpUps: Set = None  # type: ignore[assignment] # [r,p,tslvl,l] RP_UPS: Timeslice levels for startup accounting
+    RpUpt: Set = None  # type: ignore[assignment] # [r,p,upt,bd] RP_UPT: Start-up types for unit commitment
+    RpDpl: Set = None  # type: ignore[assignment] # [r,p,tslvl] RP_DPL: Dispatching process timeslice levels
+    RpAire: Set = None  # type: ignore[assignment] # [r,p,ie] RP_AIRE: Exchange process activity directions
+    Rpc: Set = None  # type: ignore[assignment] # [r,p,c] RPC: Commodities in/out of a processes
+    RpcCapflo: Set = None  # type: ignore[assignment] # [r,allyear,p,c] RPC_CAPFLO: Commodities involved in capacity
+    RpcConly: Set = None  # type: ignore[assignment] # [r,allyear,p,c] RPC_CONLY: Commodities ONLY involved in capacity
+    RpcNoflo: Set = None  # type: ignore[assignment] # [r,p,c] RPC_NOFLO: Commodities ONLY involved in capacity
+    RpcIre: Set = None  # type: ignore[assignment] # [allreg,p,c,ie] RPC_IRE: Process/commodities involved in inter-regional trade
+    RpcEqire: Set = None  # type: ignore[assignment] # [r,p,c,ie] RPC_EQIRE: Indicator for EQIRE equation generation
+    RpcMarket: Set = None  # type: ignore[assignment] # [r,p,c,ie] RPC_MARKET: Market exchange process indicator
+    RpcPg: Set = None  # type: ignore[assignment] # [r,p,c] RPC_PG: Commodities in the primary group
+    RpcSpg: Set = None  # type: ignore[assignment] # [r,p,c] RPC_SPG: Commodities in the shadow primary group
+    RpcsVar: Set = None  # type: ignore[assignment] # [r,p,c,allts] RPCS_VAR: Timeslices at which VAR_FLOs are to be created
+    RpsS1: Set = None  # type: ignore[assignment] # [r,p,allts] RPS_S1: All timeslices at the PRC_TSL/COM_TSLspg
+    RpsS2: Set = None  # type: ignore[assignment] # [r,p,allts] RPS_S2: All timeslices at/above PRC_TSL/COM_TSLspg
+    RpsPrcts: Set = None  # type: ignore[assignment] # [r,p,allts] RPS_PRCTS: All timeslices at/above the PRC_TSL
+    Rtc: Set = None  # type: ignore[assignment] # [r,allyear,c] RTC: Commodity/time
+    RtcShed: Set = None  # type: ignore[assignment] # [r,year,c,bd,j] RTC_SHED: Elastic shape indexes
+    RtcsVarc: Set = None  # type: ignore[assignment] # [r,allyear,c,allts] RTCS_VARC: The VAR_COMNET/PRDs control set
+    Rtp: Set = None  # type: ignore[assignment] # [r,allyear,p] RTP: Process/time
+    Rtpc: Set = None  # type: ignore[assignment] # [r,allyear,p,c] RTPC: Commodities of process in period
+    RtpCptyr: Set = None  # type: ignore[assignment] # [r,allyear,allyear,p] RTP_CPTYR: Capcity transfer v/t years
+    RtpOff: Set = None  # type: ignore[assignment] # [r,allyear,p] RTP_OFF: Periods for which VAR_NCAP.UP = 0
+    RtpcsVarf: Set = None  # type: ignore[assignment] # [allreg,allyear,p,c,allts] RTPCS_VARF: The VAR_FLOs control set
+    RtpVara: Set = None  # type: ignore[assignment] # [r,allyear,p] RTP_VARA: The VAR_ACT control set
+    RtpVarp: Set = None  # type: ignore[assignment] # [r,t,p] RTP_VARP: RTPs that have a VAR_CAP
+    RtpVintyr: Set = None  # type: ignore[assignment] # [Reg,allyear,allyear,prc] RTP_VINTYR: v/t years according to vintaging
+    RtpVntbyr: Set = None  # type: ignore[assignment] # [Reg,allyear,prc,allyear] RTP_VNTBYR: RTP_VINTYR with years swapped
+    RtpTt: Set = None  # type: ignore[assignment] # [r,year,t,prc] RTP_TT: Retrofit control periods
+    Rvp: Set = None  # type: ignore[assignment] # [r,allyear,p] RVP: ALIAS(RTP) for Process/time
+    RtpCapyr: Set = None  # type: ignore[assignment] # [r,year,year,p] RTP_CAPYR: Capacity vintage years
+    RtpIshpr: Set = None  # type: ignore[assignment] # [Reg,allyear,prc] RTP_ISHPR: Attribute existence indicator
+    RtpCgc: Set = None  # type: ignore[assignment] # [r,year,p,cg,cg] RTP_CGC: Multi-purpose work set
+    RtpsBd: Set = None  # type: ignore[assignment] # [r,allyear,p,s,bd] RTPS_BD: Multi-purpose work set
+    CgGrp: Set = None  # type: ignore[assignment] # [Reg,prc,cg,cg] CG_GRP: Multi-purpose work set
+    Fsck: Set = None  # type: ignore[assignment] # [Reg,prc,cg,c,cg] FSCK: Multi-purpose work set
+    Fscks: Set = None  # type: ignore[assignment] # [Reg,prc,cg,c,cg,ts] FSCKS: Multi-purpose work set
+    RpcIreio: Set = None  # type: ignore[assignment] # [r,p,c,ie,io] RPC_IREIO: Types of trade flows
+    RpcLs: Set = None  # type: ignore[assignment] # [r,p,c] RPC_LS: Load sifting control
+    Ele: Set = None  # type: ignore[assignment] # [r,p] ELE: Electric Power Plants
+    Chp: Set = None  # type: ignore[assignment] # [r,p] CHP: Coupled Heat+Power Plants
+    Hpl: Set = None  # type: ignore[assignment] # [r,p] HPL: Heat and Steam Plants
+    Mreg: Set = None  # type: ignore[assignment] # [allr] MREG: Set of active regions
+    Rreg: Set = None  # type: ignore[assignment] # [allreg,allreg] RREG: Set of paired regions
+    Rhs: Set = None  # type: ignore[assignment] # [side] RHS:
+    UcOn: Set = None  # type: ignore[assignment] # [allr,ucn] UC_ON: Active UCs by region
+    UcGmapC: Set = None  # type: ignore[assignment] # [Reg,ucn,comvar,Com,ucgrptype] UC_GMAP_C: Assigning commodities to UC_GRP
+    UcGmapP: Set = None  # type: ignore[assignment] # [Reg,ucn,ucgrptype,prc] UC_GMAP_P: Assigning processes to UC_GRP
+    UcGmapU: Set = None  # type: ignore[assignment] # [allr,ucn,ucn] UC_GMAP_U: Assigning constraints to UC_GRP
+    UcJmap: Set = None  # type: ignore[assignment] # [j,ucn,side,Reg,t,prc,ucgrptype] UC_JMAP: Collecting all processes for GMAP
+    UcDyndir: Set = None  # type: ignore[assignment] # [allr,ucn,side] UC_DYNDIR: Direction of dynamic constraint
+    UcDs: Set = None  # type: ignore[assignment] # [allr,ucn,tslvl] UC_DS: Levels of TS-dynamic constraints
+    UcQaflo: Set = None  # type: ignore[assignment] # [j,ucn,side,r,p,c] UC_QAFLO: QA_checks for UC FLO/IRE tuples
+    UcRtsuc: Set = None  # type: ignore[assignment] # [allr,allyear,ucn] UC_RTSUC: RT-map for T_SUCC
+    GUds: Set = None  # type: ignore[assignment] # [s,side,s] G_UDS: Timeslice-dynamic candidates
+    RcCumcom: Set = None  # type: ignore[assignment] # [Reg,comvar,allyear,allyear,Com] RC_CUMCOM: Cumulative commodity PRD/NET
+    RpcCumflo: Set = None  # type: ignore[assignment] # [Reg,prc,Com,allyear,allyear] RPC_CUMFLO: Cumulative process flows
+    RsBelow: Set = None  # type: ignore[assignment] # [allreg,ts,ts] RS_BELOW: Timeslices stictly below a node
+    RsBelow1: Set = None  # type: ignore[assignment] # [allreg,ts,ts] RS_BELOW1: Timeslices strictly one level below
+    RsTree: Set = None  # type: ignore[assignment] # [allreg,ts,ts] RS_TREE: Timeslice subtree
+    RsPrev: Set = None  # type: ignore[assignment] # [r,s,s] RS_PREV: Previous timeslice in parent cycle
+    Finest: Set = None  # type: ignore[assignment] # [r,allts] FINEST: Set of the finest timeslices in use
+    Pastmile: Set = None  # type: ignore[assignment] # [allyear] PASTMILE: PAST years that are not MILESYONYR
+    Eachyear: Set = None  # type: ignore[assignment] # [allyear] EACHYEAR: Each year from 1st PASTYEAR to last MILESTONYR + DUR_MAX
+    Eohyears: Set = None  # type: ignore[assignment] # [allyear] EOHYEARS: Each year from 1st PASTYEAR to last MILESTONYR
+    pyr: Alias = None  # type: ignore[assignment] # [*] PYR: Aliased with PASTYEAR
+    v: Alias = None  # type: ignore[assignment] # [*] V: Aliased with MODLYEAR
+    Miyr1: Set = None  # type: ignore[assignment] # [allyear] MIYR_1: First T
+    MiyrL: Set = None  # type: ignore[assignment] # [allyear] MIYR_L: Last year
+    ips: Set = None  # type: ignore[assignment] # [*] IPS:
+    Lnx: Set = None  # type: ignore[assignment] # [l] LNX:
+    Bdupx: Set = None  # type: ignore[assignment] # [bd] BDUPX:
+    Bdlox: Set = None  # type: ignore[assignment] # [bd] BDLOX:
+    Bdneq: Set = None  # type: ignore[assignment] # [bd] BDNEQ:
+    RpPrc: Set = None  # type: ignore[assignment] # [r,p] RP_PRC:
+    RpgRed: Set = None  # type: ignore[assignment] # [r,p,cg,io] RPG_RED:
+    RpGrp: Set = None  # type: ignore[assignment] # [Reg,prc,cg] RP_GRP:
+    RpCcg: Set = None  # type: ignore[assignment] # [Reg,prc,c,cg] RP_CCG:
+    RpCgg: Set = None  # type: ignore[assignment] # [Reg,prc,c,cg,cg] RP_CGG:
+    Trackc: Set = None  # type: ignore[assignment] # [r,c] TRACKC:
+    Trackp: Set = None  # type: ignore[assignment] # [r,p] TRACKP:
+    Trackpc: Set = None  # type: ignore[assignment] # [r,p,c] TRACKPC:
+    Trackpg: Set = None  # type: ignore[assignment] # [r,p,cg] TRACKPG:
+    Rvt: Set = None  # type: ignore[assignment] # [r,allyear,t] RVT:
+    Rtpx: Set = None  # type: ignore[assignment] # [r,t,p] RTPX:
+    RtPp: Set = None  # type: ignore[assignment] # [r,t] RT_PP:
+    u2: Set = None  # type: ignore[assignment] # [*] U2
+    u3: Set = None  # type: ignore[assignment] # [*] U3
+    u4: Set = None  # type: ignore[assignment] # [*] U4
+    no_rt: Parameter = None  # type: ignore[assignment] # [allr,t] NO_RT:
+    lead: Parameter = None  # type: ignore[assignment] # [allyear] LEAD:
+    lagt: Parameter = None  # type: ignore[assignment] # [allyear] LAGT:
+    fpd: Parameter = None  # type: ignore[assignment] # [allyear] FPD:
+    ipd: Parameter = None  # type: ignore[assignment] # [allyear] IPD:
+    rs_fr: Parameter = None  # type: ignore[assignment] # [r,s,s] RS_FR:
+    js_ccl: Parameter = None  # type: ignore[assignment] # [r,j,s] JS_CCL:
+    uc_com: Parameter = None  # type: ignore[assignment] # [ucn,comvar,side,Reg,allyear,Com,s,ucgrptype] UC_COM: Multiplier of VAR_COM variables
+    com_cum: Parameter = None  # type: ignore[assignment] # [Reg,comvar,allyear,allyear,Com,lim] COM_CUM: Cumulative bound on commodity
+    coef_af: Parameter = None  # type: ignore[assignment] # [r,allyear,t,prc,s,bd] COEF_AF: Capacity/Activity relationship
+    coef_cpt: Parameter = None  # type: ignore[assignment] # [r,allyear,t,prc] COEF_CPT: Fraction of capacity available
+    coef_icom: Parameter = None  # type: ignore[assignment] # [r,allyear,t,prc,c] COEF_ICOM: Commodity flow at investment time
+    coef_ocom: Parameter = None  # type: ignore[assignment] # [r,allyear,t,prc,c] COEF_OCOM: Commodity flow at decommissioning time
+    coef_cio: Parameter = None  # type: ignore[assignment] # [r,allyear,t,p,c,io] COEF_CIO: Capacity-related commodity in/out flows
+    coef_ptran: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cg,c,cg,ts] COEF_PTRAN: Multiplier for EQ_PTRANS
+    coef_rpti: Parameter = None  # type: ignore[assignment] # [r,allyear,p] COEF_RPTI: Repeated investment cycles
+    coef_iled: Parameter = None  # type: ignore[assignment] # [r,allyear,p] COEF_ILED: Investment lead time
+    coef_pvt: Parameter = None  # type: ignore[assignment] # [r,t] COEF_PVT: Present value of time in periods
+    coef_vnt: Parameter = None  # type: ignore[assignment] # [r,t,prc,allyear] COEF_VNT: COEF_CPT with swapped indexes
+    coef_cap: Parameter = None  # type: ignore[assignment] # [r,allyear,ll,p] COEF_CAP: Generic re-usable work parameter
+    coef_rtp: Parameter = None  # type: ignore[assignment] # [r,allyear,p] COEF_RTP: Generic re-usable work parameter
+    coef_rvpt: Parameter = None  # type: ignore[assignment] # [r,allyear,prc,t] COEF_RVPT: Generic re-usable work parameter
+    rtp_cpx: Parameter = None  # type: ignore[assignment] # [r,allyear,p,ll] RTP_CPX: Shape multipliers for capacity transfer
+    ncap_afbx: Parameter = None  # type: ignore[assignment] # [r,allyear,p,bd] NCAP_AFBX: Shape multipliers for NCAP_AF factors
+    ncap_afsm: Parameter = None  # type: ignore[assignment] # [r,allyear,p] NCAP_AFSM:
+    rvprl: Parameter = None  # type: ignore[assignment] # [r,year,p] RVPRL:
+    obj_icost: Parameter = None  # type: ignore[assignment] # [r,allyear,p,cur] OBJ_ICOST: NCAP_COST for each year
+    obj_isub: Parameter = None  # type: ignore[assignment] # [r,allyear,p,cur] OBJ_ISUB: NCAP_ISUB for each year
+    obj_itax: Parameter = None  # type: ignore[assignment] # [r,allyear,p,cur] OBJ_ITAX: NCAP_ITAX for each year
+    obj_fom: Parameter = None  # type: ignore[assignment] # [r,allyear,p,cur] OBJ_FOM: NCAP_FOM for each year
+    obj_fsb: Parameter = None  # type: ignore[assignment] # [r,allyear,p,cur] OBJ_FSB: NCAP_FSUB for each year
+    obj_ftx: Parameter = None  # type: ignore[assignment] # [r,allyear,p,cur] OBJ_FTX: NCAP_FTX for each year
+    obj_dcost: Parameter = None  # type: ignore[assignment] # [r,allyear,p,cur] OBJ_DCOST: NCAP_DCOST for each year
+    obj_rfr: Parameter = None  # type: ignore[assignment] # [r,year,cur] OBJ_RFR: Risk-free rates
+    obj_pvt: Parameter = None  # type: ignore[assignment] # [r,year,cur] OBJ_PVT: Present value of period
+    obj_crf: Parameter = None  # type: ignore[assignment] # [r,allyear,p,cur] OBJ_CRF: Capital recovery factor
+    obj_crfd: Parameter = None  # type: ignore[assignment] # [r,allyear,p,cur] OBJ_CRFD: Capital recovery factor for Decommissioning
+    obj_disc: Parameter = None  # type: ignore[assignment] # [r,allyear,cur] OBJ_DISC: Discounting factor
+    obj_fsub: Parameter = None  # type: ignore[assignment] # [r,allyear,p,c,s,cur] OBJ_FSUB: FLO_SUB for each year
+    obj_comnt: Parameter = None  # type: ignore[assignment] # [r,allyear,c,s,costype,cur] OBJ_COMNT: CSTNET for each year
+    obj_compd: Parameter = None  # type: ignore[assignment] # [r,allyear,c,s,costype,cur] OBJ_COMPD: CSTPRD for each year
+    obj_ipric: Parameter = None  # type: ignore[assignment] # [r,allyear,p,c,s,ie,cur] OBJ_IPRIC: IRE_PRICE for each year
+    obj_dlagc: Parameter = None  # type: ignore[assignment] # [r,allyear,p,cur] OBJ_DLAGC: NCAP_DLAGC for each year
+    obj_acost: Parameter = None  # type: ignore[assignment] # [r,allyear,p,cur] OBJ_ACOST: ACT_COST for each year
+    obj_fcost: Parameter = None  # type: ignore[assignment] # [r,allyear,p,c,s,cur] OBJ_FCOST: FLO_COST for each year
+    obj_fdelv: Parameter = None  # type: ignore[assignment] # [r,allyear,p,c,s,cur] OBJ_FDELV: FLO_DELIV for each year
+    obj_ftax: Parameter = None  # type: ignore[assignment] # [r,allyear,p,c,s,cur] OBJ_FTAX: FLO_TAX for each year
+    prc_ymin: Parameter = None  # type: ignore[assignment] # [Reg,prc] PRC_YMIN: Generic process parameter
+    prc_ymax: Parameter = None  # type: ignore[assignment] # [Reg,prc] PRC_YMAX: Generic process parameter
+    prc_sc: Parameter = None  # type: ignore[assignment] # [Reg,prc] PRC_SC: Process storage cycles
+    prc_sgl: Parameter = None  # type: ignore[assignment] # [Reg,prc] PRC_SGL: Process shadow level (< DAYNITE)
+    prc_semi: Parameter = None  # type: ignore[assignment] # [r,p] PRC_SEMI: Semi-continuous indicator
+    rd_nlp: Parameter = None  # type: ignore[assignment] # [r,c] RD_NLP: NLP demand indicator
+    rd_shar: Parameter = None  # type: ignore[assignment] # [r,t,c,c] RD_SHAR: Demand aggregation share
+    rp_afb: Parameter = None  # type: ignore[assignment] # [Reg,prc,bd] RP_AFB: Processes with NCAP_AF by bound type
+    rs_stg: Parameter = None  # type: ignore[assignment] # [r,allts] RS_STG: Lead from previous storage timeslice
+    rs_stgprd: Parameter = None  # type: ignore[assignment] # [r,allts] RS_STGPRD: Number of storage periods for each timeslice
+    rs_stgav: Parameter = None  # type: ignore[assignment] # [r,allts] RS_STGAV: Average residence time for storage activity
+    rs_tslvl: Parameter = None  # type: ignore[assignment] # [r,allts] RS_TSLVL: Timeslice levels
+    ts_array: Parameter = None  # type: ignore[assignment] # [allts] TS_ARRAY: Array for leveling parameter values across timeslices
+    stoa: Parameter = None  # type: ignore[assignment] # [allts] STOA: ORD Lag from each timeslice to ANNUAL
+    stoal: Parameter = None  # type: ignore[assignment] # [allreg,ts] STOAL: ORD Lag from the LVL of each timeslice to ANNUAL
+    bdsig: Parameter = None  # type: ignore[assignment] # [lim] BDSIG: Bound signum
+    Fil: Set = None  # type: ignore[assignment] # [allyear] FIL:
+    MyFil: Set = None  # type: ignore[assignment] # [allyear] MY_FIL:
+    Vnt: Set = None  # type: ignore[assignment] # [allyear,allyear] VNT:
+    Yk1: Set = None  # type: ignore[assignment] # [allyear,allyear] YK1:
+    fil2: Parameter = None  # type: ignore[assignment] # [allyear] FIL2:
+    my_fil2: Parameter = None  # type: ignore[assignment] # [allyear] MY_FIL2:
+    my_array: Parameter = None  # type: ignore[assignment] # [allyear] MY_ARRAY:
+    ykval: Parameter = None  # type: ignore[assignment] # [allyear,allyear] YKVAL:
+    Backward: Set = None  # type: ignore[assignment] # [year] BACKWARD:
+    Forward: Set = None  # type: ignore[assignment] # [year] FORWARD:
+    DmYear: Set = None  # type: ignore[assignment] # [allyear] DM_YEAR:
+    PyrS: Set = None  # type: ignore[assignment] # [allyear] PYR_S: Residual vintage
+    MyTs: Set = None  # type: ignore[assignment] # [allts] MY_TS: Temporary set for timeslices
+    RUc: Set = None  # type: ignore[assignment] # [allr,ucn] R_UC: Temporary set for UCs by region
+    RUct: Set = None  # type: ignore[assignment] # [allreg,ucn,allyear] R_UCT: Set for UCs by reg & period
+    UcT: Set = None  # type: ignore[assignment] # [ucn,t] UC_T: Temporary set for UCs by period
+    Rxx: Set = None  # type: ignore[assignment] # [allr,*,*] RXX: General triples related to a region
+    Uncd7: Set = None  # type: ignore[assignment] # [*,*,*,*,*,*,*] UNCD7: Non-domain-controlled set of 7-tuples
+    life: Alias = None  # type: ignore[assignment] # [*] LIFE: Aliased with AGE
+    Opyear: Set = None  # type: ignore[assignment] # [age,life] OPYEAR:
+    NoAct: Set = None  # type: ignore[assignment] # [r,p] NO_ACT: Process not requiring activity variable
+    RpPgact: Set = None  # type: ignore[assignment] # [r,p] RP_PGACT: Process with PCG consisting of 1 commodity
+    RpPgflo: Set = None  # type: ignore[assignment] # [r,p] RP_PGFLO: Process with PCG having COM_FR
+    RpXred: Set = None  # type: ignore[assignment]# [Reg,prc] RP_XRED: Process with extended reducable pcg flows
+    RpcAct: Set = None  # type: ignore[assignment]# [Reg,prc,cg] RPC_ACT: PG commodity of Process with PCG consisting of 1
+    RpcAflo: Set = None  # type: ignore[assignment]# [Reg,prc,cg] RPC_AFLO: ACT_FLO residual groups to be handled specially
+    RpcAire: Set = None  # type: ignore[assignment]# [allreg,prc,Com] RPC_AIRE: Exchange process with only one commodity exchanged
+    RpcEmis: Set = None  # type: ignore[assignment] # [r,p,comgrp] RPC_EMIS: Process with emission COM_GRP
+    FsEmis: Set = None  # type: ignore[assignment]# [r,p,comgrp,c,Com] FS_EMIS: Indicator for emission related FLO_SUM
+    FsEmit: Set = None  # type: ignore[assignment]# [r,p,Com,comgrp,c] FS_EMIT: Indicator for emission related FLO_SUM
+    RcIop: Set = None  # type: ignore[assignment] # [r,c,io,p] RC_IOP: Processes associated with commodity
+    RtcsSing: Set = None  # type: ignore[assignment] # [r,t,c,s,io] RTCS_SING: Commodity not being consumed
+    RtpsOff: Set = None  # type: ignore[assignment] # [r,t,p,s] RTPS_OFF: Process being turned off
+    RtpcsOut: Set = None  # type: ignore[assignment]# [r,allyear,p,c,s] RTPCS_OUT: Process flows being turned off
+    RpcFfunc: Set = None  # type: ignore[assignment] # [r,p,c] RPC_FFUNC: RPC_ACT Commodity in FFUNC
+    RpccFfunc: Set = None  # type: ignore[assignment]# [Reg,prc,cg,cg] RPCC_FFUNC: Pair of FFUNC commodities with RPC_ACT commodity
+    PrcCap: Set = None  # type: ignore[assignment] # [Reg,prc] PRC_CAP: Process requiring capacity variable
+    PrcAct: Set = None  # type: ignore[assignment] # [Reg,prc] PRC_ACT: Process requiring activity equation
+    PrcTs2: Set = None  # type: ignore[assignment]# [Reg,prc,ts] PRC_TS2: Alias for PRC_TS of processes with RPC_ACT
+    RpcgPtran: Set = None  # type: ignore[assignment]# [r,p,Com,c,cg,cg] RPCG_PTRAN: Set for FLO_FUNC/FLO_SUM based substitution
+    KeepFlof: Set = None  # type: ignore[assignment]# [r,p,c] KEEP_FLOF: Set for FFUNC-defined flows retained
+    cg3: Alias = None  # type: ignore[assignment] # [*] CG3: Aliased with COM_GRP
+    cg4: Alias = None  # type: ignore[assignment] # [*] CG4: Aliased with COM_GRP
+    par_flo: Parameter = None  # type: ignore[assignment] # [r,allyear,allyear,p,c,s] PAR_FLO: Flow parameter
+    par_flom: Parameter = None  # type: ignore[assignment] # [r,allyear,allyear,p,c,s] PAR_FLOM: Reduced cost of flow variable
+    par_ire: Parameter = None  # type: ignore[assignment] # [r,allyear,allyear,p,c,s,impexp] PAR_IRE: Parameter for im/export flow
+    par_irem: Parameter = None  # type: ignore[assignment] # [r,allyear,allyear,p,c,s,impexp] PAR_IREM: Reduced cost of import/export flow
+    par_objinv: Parameter = None  # type: ignore[assignment] # [r,allyear,allyear,p,cur] PAR_OBJINV: Annual discounted investment costs
+    par_objdec: Parameter = None  # type: ignore[assignment] # [r,allyear,allyear,p,cur] PAR_OBJDEC: Annual discounted decommissioning costs
+    par_objfix: Parameter = None  # type: ignore[assignment] # [r,allyear,allyear,p,cur] PAR_OBJFIX: Annual discounted FOM cost
+    par_objsal: Parameter = None  # type: ignore[assignment] # [r,allyear,p,cur] PAR_OBJSAL: Annual discounted salvage value
+    par_objlat: Parameter = None  # type: ignore[assignment] # [r,allyear,p,cur] PAR_OBJLAT: Annual discounted late costs
+    par_objact: Parameter = None  # type: ignore[assignment] # [r,allyear,allyear,p,ts,cur] PAR_OBJACT: Annual discounted variable costs
+    par_objflo: Parameter = None  # type: ignore[assignment] # [r,allyear,allyear,p,c,ts,cur] PAR_OBJFLO: Annual discounted flow costs (incl import/export)
+    par_objcom: Parameter = None  # type: ignore[assignment] # [r,allyear,Com,ts,cur] PAR_OBJCOM: Annual discounted commodity costs
+    par_objble: Parameter = None  # type: ignore[assignment] # [r,allyear,Com,cur] PAR_OBJBLE: Annual discounted blending costs
+    par_objels: Parameter = None  # type: ignore[assignment] # [r,allyear,Com,cur] PAR_OBJELS: Annual discounted elastic demand cost term
+    RpUx: Set = None  # type: ignore[assignment] # [r,p] RP_UX:
+    RpPl: Set = None  # type: ignore[assignment] # [r,p,l] RP_PL:
+    RtpPl: Set = None  # type: ignore[assignment] # [r,ll,p] RTP_PL:
+    RpsUps: Set = None  # type: ignore[assignment] # [r,p,s] RPS_UPS:
+    RpUpc: Set = None  # type: ignore[assignment] # [r,p,tsl,l] RP_UPC:
+    Afups: Set = None  # type: ignore[assignment] # [r,t,p,s] AFUPS:
+    RpDp: Set = None  # type: ignore[assignment] # [r,p] RP_DP:
+    DpLosd: Set = None  # type: ignore[assignment] # [r,ll,p] DP_LOSD:
+    FsEmcb: Set = None  # type: ignore[assignment] # [r,p,c,c] FS_EMCB:
+    RpDcgg: Set = None  # type: ignore[assignment] # [r,p,c,cg,cg,l] RP_DCGG:
+    RpCgc: Set = None  # type: ignore[assignment] # [Reg,prc,cg,Com] RP_CGC:
+    RpcIrein: Set = None  # type: ignore[assignment] # [r,p,c,ie,io] RPC_IREIN:
+    Rvps: Set = None  # type: ignore[assignment] # [Reg,allyear,prc,ts] RVPS:
+    RpsCaflac: Set = None  # type: ignore[assignment] # [r,p,s,bd] RPS_CAFLAC:
+    Rvpcsl: Set = None  # type: ignore[assignment] # [r,year,p,c,s,l] RVPCSL:
+    RpgAce: Set = None  # type: ignore[assignment] # [r,p,cg,io] RPG_ACE:
+    RpgPace: Set = None  # type: ignore[assignment] # [r,p,cg] RPG_PACE:
+    Rpg1ace: Set = None  # type: ignore[assignment] # [r,p,cg,c] RPG_1ACE:
+    RpcAce: Set = None  # type: ignore[assignment] # [Reg,prc,cg] RPC_ACE:
+    RvpKmap: Set = None  # type: ignore[assignment] # [r,year,p,year] RVP_KMAP:
+    dumimp: Set = None  # type: ignore[assignment] # [*] DUMIMP:
+    Nrgelc: Set = None  # type: ignore[assignment] # [allr,c] NRGELC: Electricity
+    miyr_boh: Parameter = None  # type: ignore[assignment] # MIYR_BOH:
+    rtforc: Parameter = None  # type: ignore[assignment] # [r,ll,ll,p] RTFORC:
+    prc_dynuc: Parameter = None  # type: ignore[assignment] # [ucn,side,r,allyear,p,ucgrptype,bd] PRC_DYNUC:
+    rpcg_ashar: Parameter = None  # type: ignore[assignment] # [r,p,cg,cg,s] RPCG_ASHAR:
+    flo_ashar: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cg,cg,s,bd] FLO_ASHAR:
+    par_ipric: Parameter = None  # type: ignore[assignment] # [r,allyear,p,c,ts,ie] PAR_IPRIC:
+    dp_psud: Parameter = None  # type: ignore[assignment] # [r,ll,p,upt,bd] DP_PSUD:
+    coef_afups: Parameter = None  # type: ignore[assignment] # [r,year,p,s] COEF_AFUPS:
+    Premile: Set = None  # type: ignore[assignment] # [allyear] PREMILE:
+    putout: Parameter = None  # type: ignore[assignment] # PUTOUT:
+    putgrp: Parameter = None  # type: ignore[assignment] # PUTGRP:
+    errlev: Parameter = None  # type: ignore[assignment] # ERRLEV:
+    startoff: Parameter = None  # type: ignore[assignment] # STARTOFF:
+    endoff: Parameter = None  # type: ignore[assignment] # ENDOFF:
+    Matprc: Set = None  # type: ignore[assignment] # [prcgrp] MATPRC:
+    NoRvp: Set = None  # type: ignore[assignment] # [r,t,p] NO_RVP:
+    IreDist: Set = None  # type: ignore[assignment] # [r,p] IRE_DIST:
+    RpSgs: Set = None  # type: ignore[assignment] # [r,p] RP_SGS:
+    RpSts: Set = None  # type: ignore[assignment] # [r,p] RP_STS:
+    RpStl: Set = None  # type: ignore[assignment] # [r,p,tsl,l] RP_STL:
+    RpsStg: Set = None  # type: ignore[assignment] # [r,p,s] RPS_STG:
+    RpcStg: Set = None  # type: ignore[assignment] # [r,p,c] RPC_STG:
+    RpcStgn: Set = None  # type: ignore[assignment] # [r,p,c,io] RPC_STGN:
+    UcDt: Set = None  # type: ignore[assignment] # [allr,ucn] UC_DT:
+    Rcs: Set = None  # type: ignore[assignment] # [Reg,Com,ts] RCS:
+    RcRc: Set = None  # type: ignore[assignment] # [allreg,Com,allreg,Com] RC_RC:
+    Phyr: Set = None  # type: ignore[assignment] # [allyear] PHYR:
+    pastsum: Parameter = None  # type: ignore[assignment] # [r,allyear,p] PASTSUM:
+    minyr: Parameter = None  # type: ignore[assignment] # MINYR:
+    Rjlvl: Set = None  # type: ignore[assignment] # [j,r,tslvl] RJLVL:
+    Rlup: Set = None  # type: ignore[assignment] # [r,tsl,tsl] RLUP:
+    rs_hr: Parameter = None  # type: ignore[assignment] # [r,s] RS_HR:
+    my_sum: Parameter = None  # type: ignore[assignment] # MY_SUM:
+    norts: Parameter = None  # type: ignore[assignment] # [r,year,s] NORTS:
+    RsUp: Set = None  # type: ignore[assignment] # [r,ts,j,ts] RS_UP:
+    RjSl: Set = None  # type: ignore[assignment] # [r,j,ts,ts] RJ_SL:
+    Js: Set = None  # type: ignore[assignment] # [j,ts] JS:
+    rs_modus: Parameter = None  # type: ignore[assignment] # [r,s,j,ts,s] RS_MODUS:
+    ObjVflo: Set = None  # type: ignore[assignment] # [r,p,c,cur,UcCost] OBJ_VFLO:
+    RpcCur: Set = None  # type: ignore[assignment] # [Reg,prc,Com,cur] RPC_CUR:
+    x_rpsb: Parameter = None  # type: ignore[assignment] # [r,p,ts,bd,allyear] X_RPSB:
+    x_rpb: Parameter = None  # type: ignore[assignment] # [r,p,bd,allyear] X_RPB:
+    x_rp: Parameter = None  # type: ignore[assignment] # [r,p,allyear] X_RP:
+    x_rcs: Parameter = None  # type: ignore[assignment] # [r,c,ts,allyear] X_RCS:
+    x_rpggs: Parameter = None  # type: ignore[assignment] # [r,p,cg1,cg2,ts,allyear] X_RPGGS:
+    x_rpgcgs: Parameter = None  # type: ignore[assignment] # [r,p,cg1,c,cg2,ts,allyear] X_RPGCGS:
+    x_rpg: Parameter = None  # type: ignore[assignment] # [r,p,cg,allyear] X_RPG:
+    x_rpcl: Parameter = None  # type: ignore[assignment] # [r,p,c,bd,allyear] X_RPCL:
+    x_mark: Parameter = None  # type: ignore[assignment] # [r,p,item,c,bd,allyear] X_MARK:
+    x_uzrpcs: Parameter = None  # type: ignore[assignment] # [ucn,side,r,p,c,ts,allyear] X_UZRPCS:
+    x_rpgsb: Parameter = None  # type: ignore[assignment] # [r,p,cg,ts,bd,allyear] X_RPGSB:
+    x_rpcsl: Parameter = None  # type: ignore[assignment] # [r,p,c,ts,lim,allyear] X_RPCSL:
+    x_rpcgsb: Parameter = None  # type: ignore[assignment] # [r,p,c,cg,ts,bd,allyear] X_RPCGSB:
+    x_rul: Parameter = None  # type: ignore[assignment] # [allr,ucn,lim,allyear] X_RUL:
+    x_rusl: Parameter = None  # type: ignore[assignment] # [allr,ucn,ts,l,allyear] X_RUSL:
+    x_rpgs: Parameter = None  # type: ignore[assignment] # [r,p,cg,ts,allyear] X_RPGS:
+    x_rpgcs: Parameter = None  # type: ignore[assignment] # [r,p,cg,Com,s,allyear] X_RPGCS:
+    Subt: Set = None  # type: ignore[assignment] # [t] SUBT:
+    Rtpgig: Set = None  # type: ignore[assignment] # [r,allyear,p,cg,io,cg] RTPGIG:
+    RtpCg: Set = None  # type: ignore[assignment] # [r,allyear,p,cg,io] RTP_CG:
+    RtpGrp: Set = None  # type: ignore[assignment] # [r,allyear,p,cg,io] RTP_GRP:
+    RpGic: Set = None  # type: ignore[assignment] # [r,p,cg,io,c] RP_GIC:
+    maxlife: Parameter = None  # type: ignore[assignment] # MAXLIFE:
+    Agefil: Set = None  # type: ignore[assignment] # [age] AGEFIL:
+    UcCapflo: Set = None  # type: ignore[assignment] # [ucn,side,r,p,c] UC_CAPFLO:
+    rtcs_fr: Parameter = None  # type: ignore[assignment] # [r,t,c,s,s] RTCS_FR:
+    RpcPkc: Set = None  # type: ignore[assignment] # [r,p,c] RPC_PKC:
+    rpc_pkf: Parameter = None  # type: ignore[assignment] # [r,p,c] RPC_PKF:
+    ChpElc: Set = None  # type: ignore[assignment] # [r,p,c] CHP_ELC:
+    Ffcks: Set = None  # type: ignore[assignment] # [Reg,prc,cg,cg,ts] FFCKS:
+    Fstsl: Set = None  # type: ignore[assignment] # [tslvl,r,p,cg,cg,cg,s] FSTSL:
+    RtxMark: Set = None  # type: ignore[assignment] # [r,t,item,c,bd,s] RTX_MARK:
+    RxMark: Set = None  # type: ignore[assignment] # [r,year,item,c,bd] RX_MARK:
+    RtpMrk: Set = None  # type: ignore[assignment] # [Reg,t,p,item,Com,bd] RTP_MRK:
+    RtxMrk: Set = None  # type: ignore[assignment] # [Reg,t,item,Com,bd] RTX_MRK:
+    Rmkc: Set = None  # type: ignore[assignment] # [Reg,item,Com] RMKC:
+    Bdval: Set = None  # type: ignore[assignment] # [bd] BDVAL:
+    ts_bd: Parameter = None  # type: ignore[assignment] # [s,bd] TS_BD:
+    UcMapFlo: Set = None  # type: ignore[assignment] # [ucn,side,allreg,prc,Com] UC_MAP_FLO: Assigning processes to UC_GRP
+    UcMapIre: Set = None  # type: ignore[assignment] # [ucn,allreg,prc,Com,ie] UC_MAP_IRE: Assigning processes to UC_GRP
+    BleSpe: Set = None  # type: ignore[assignment] # [r,Com,spe] BLE_SPE:
+    BleTp: Set = None  # type: ignore[assignment] # [r,allyear,*] BLE_TP:
+    BleSpeopr: Set = None  # type: ignore[assignment] # [r,Com,spe,Opr] BLE_SPEOPR:
+    BleOpr: Set = None  # type: ignore[assignment] # [r,Com,Com] BLE_OPR:
+    BleInp: Set = None  # type: ignore[assignment] # [r,Com,Com] BLE_INP:
+    BleSpeinp: Set = None  # type: ignore[assignment] # [r,Com,spe,Com] BLE_SPEINP:
+    BleEnv: Set = None  # type: ignore[assignment] # [r,Com,Com,Opr] BLE_ENV:
+    ble_bal: Parameter = None  # type: ignore[assignment] # [r,year,c,c] BLE_BAL:
+    opr2: Alias = None  # type: ignore[assignment] # [*] OPR2: Aliased with OPR
+    micro: Parameter = None  # type: ignore[assignment] # MICRO:
+    RpgAfcx: Set = None  # type: ignore[assignment] # [r,p,c,ie] RPG_AFCX:
+    RtpShapi: Set = None  # type: ignore[assignment] # [Reg,allyear,prc,bd,j,j,ll,ll] RTP_SHAPI:
+    Cgtest: Set = None  # type: ignore[assignment] # [Reg,allyear,prc,cg,c,cg] CGTEST:
+    Cgtes2: Set = None  # type: ignore[assignment] # [Reg,allyear,prc,cg,c,cg] CGTES2:
+    k: Alias = None  # type: ignore[assignment] # [*] K: Aliased with EACHYEAR
+    Y: Set = None  # type: ignore[assignment] # [allyear] Y:
+    YEoh: Set = None  # type: ignore[assignment] # [allyear] Y_EOH:
+    Yk: Set = None  # type: ignore[assignment] # [allyear,allyear] YK:
+    TsAnn: Set = None  # type: ignore[assignment] # [s,s] TS_ANN:
+    yr_v1: Parameter = None  # type: ignore[assignment] # YR_V1:
+    yr_vl: Parameter = None  # type: ignore[assignment] # YR_VL:
+    acl: Parameter = None  # type: ignore[assignment] # ACL:
+    span: Alias = None  # type: ignore[assignment] # [*] SPAN: Aliased with AGE
+    Shedj: Set = None  # type: ignore[assignment] # [lim,j] SHEDJ: Elastic demand shape indexes
+    shaped: Parameter = None  # type: ignore[assignment] # [bd,j,age] SHAPED: Elastic demand shape curves
+    ob_icost: Parameter = None  # type: ignore[assignment] # [r,p,cur,allyear] OB_ICOST:
+    ob_isub: Parameter = None  # type: ignore[assignment] # [r,p,cur,allyear] OB_ISUB:
+    ob_itax: Parameter = None  # type: ignore[assignment] # [r,p,cur,allyear] OB_ITAX:
+    ob_fom: Parameter = None  # type: ignore[assignment] # [r,p,cur,allyear] OB_FOM:
+    ob_fsb: Parameter = None  # type: ignore[assignment] # [r,p,cur,allyear] OB_FSB:
+    ob_ftx: Parameter = None  # type: ignore[assignment] # [r,p,cur,allyear] OB_FTX:
+    ob_dcc: Parameter = None  # type: ignore[assignment] # [r,p,cur,allyear] OB_DCC:
+    ob_dlc: Parameter = None  # type: ignore[assignment] # [r,p,cur,allyear] OB_DLC:
+    ob_act: Parameter = None  # type: ignore[assignment] # [r,p,cur,allyear] OB_ACT:
+    ob_com: Parameter = None  # type: ignore[assignment] # [r,c,s,costype,cur,allyear] OB_COM:
+    ob_ire: Parameter = None  # type: ignore[assignment] # [r,p,c,s,ie,cur,allyear] OB_IRE:
+    ob_fcos: Parameter = None  # type: ignore[assignment] # [r,p,c,s,cur,allyear] OB_FCOS:
+    ob_fdel: Parameter = None  # type: ignore[assignment] # [r,p,c,s,cur,allyear] OB_FDEL:
+    ob_ftax: Parameter = None  # type: ignore[assignment] # [r,p,c,s,cur,allyear] OB_FTAX:
+    Perdinv: Set = None  # type: ignore[assignment] # [allyear,allyear] PERDINV:
+    Tpulseyr: Set = None  # type: ignore[assignment] # [t,allyear] TPULSEYR:
+    tpulse: Parameter = None  # type: ignore[assignment] # [allyear,allyear] TPULSE:
+    obj_lint: Parameter = None  # type: ignore[assignment] # [r,t,allyear,cur] OBJ_LINT:
+    obj_altv: Parameter = None  # type: ignore[assignment] # [r,t] OBJ_ALTV:
+    rtp_capvl: Parameter = None  # type: ignore[assignment] # [r,year,p] RTP_CAPVL:
+    rb: Parameter = None  # type: ignore[assignment] # [r,t] RB:
+    r_df: Parameter = None  # type: ignore[assignment] # [r,allyear] R_DF:
+    obj_wd: Parameter = None  # type: ignore[assignment] # [Reg,cur,allyear,age,allyear] OBJ_WD:
+    obj_jd: Parameter = None  # type: ignore[assignment] # [Reg,cur,allyear,age] OBJ_JD:
+    rtp_ffcx: Parameter = None  # type: ignore[assignment] # [Reg,allyear,allyear,prc,cg,cg] RTP_FFCX:
+    Agej: Set = None  # type: ignore[assignment] # [j,age] AGEJ:
+    vda_disc: Parameter = None  # type: ignore[assignment] # [r,allyear] VDA_DISC:
+    dp_non: Parameter = None  # type: ignore[assignment] # [r,ll,p,upt,tsl,bd] DP_NON: Bounds on non-operational time between shut-down and next start-up
+    obv: Set = None  # type: ignore[assignment] # [*] OBV:
+    VAR_ACT: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,s] VAR_ACT: Overall activity of a process
+    VAR_CAP: Variable = None  # type: ignore[assignment]# [r,allyear,p] VAR_CAP: Installed capacity of a process
+    VAR_FLO: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,s] VAR_FLO: Level of process commodity flow
+    VAR_IRE: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,s,ie] VAR_IRE: Inter-regional trade flow
+    VAR_NCAP: Variable = None  # type: ignore[assignment]# [r,allyear,p] VAR_NCAP: New capacity of a process
+    VAR_COMNET: Variable = None  # type: ignore[assignment]# [r,allyear,c,s] VAR_COMNET: Net commodity level
+    VAR_COMPRD: Variable = None  # type: ignore[assignment]# [r,allyear,c,s] VAR_COMPRD: Production of commodity
+    VAR_ELAST: Variable = None  # type: ignore[assignment]# [r,allyear,c,s,j,bd] VAR_ELAST: Demand change due to price elasticity
+    VAR_DEM: Variable = None  # type: ignore[assignment]# [r,Milestonyr,c] VAR_DEM: Demand variable for MACRO
+    VAR_CUMCOM: Variable = None  # type: ignore[assignment]# [r,c,comvar,allyear,allyear] VAR_CUMCOM: Cumulative commodity PRD or NET
+    VAR_CUMFLO: Variable = None  # type: ignore[assignment]# [r,p,c,allyear,allyear] VAR_CUMFLO: Cumulative process flow
+    VAR_CUMCST: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,costagg,cur] VAR_CUMCST: Cumulative regional cost
+    VAR_SIN: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,s] VAR_SIN: Input flow into storage
+    VAR_SOUT: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,s] VAR_SOUT: Output flow from storage
+    VAR_BLND: Variable = None  # type: ignore[assignment]  # [r,allyear,Com,Com] VAR_BLND: Refinery blending
+    VAR_DAM: Variable = None  # type: ignore[assignment]  # [r,t,c,bd,j] VAR_DAM: Damage variables
+    VAR_RCAP: Variable = None  # type: ignore[assignment]  # [r,allyear,ll,p] VAR_RCAP: New retirements
+    VAR_SCAP: Variable = None  # type: ignore[assignment]# [r,allyear,ll,p] VAR_SCAP: Cumulative retirements
+    VAR_UPS: Variable = None  # type: ignore[assignment]  # [r,allyear,allyear,p,s,l] VAR_UPS: Start-ups
+    VAR_UPT: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,s,upt] VAR_UPT: Start-ups by type
+    VAR_UDP: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,s,l] VAR_UDP: Unit dispatching
+    VAR_RLD: Variable = None  # type: ignore[assignment]  # [r,t,s,item] VAR_RLD: Residual loads
+    VAR_OBJ: Variable = None  # type: ignore[assignment]# [r,obv,cur] VAR_OBJ: Objective costs INV,SAL,FIX,VAR,DAM
+    VAR_OBJELS: Variable = None  # type: ignore[assignment]# [r,bd,cur] VAR_OBJELS: Change in Consumer surplus
+    VAS_UPDEV: Variable = None  # type: ignore[assignment]  # [allsow] VAS_UPDEV: Upside deviation of OBJ
+    VAR_UC: Variable = None  # type: ignore[assignment]  # [ucn] VAR_UC: Slacks for UC constraints
+    VAR_UCR: Variable = None  # type: ignore[assignment]  # [ucn,r] VAR_UCR: Slacks for UCR constraints
+    VAR_UCT: Variable = None  # type: ignore[assignment]  # [ucn,t] VAR_UCT: Slacks for UCT constraints
+    VAR_UCRT: Variable = None  # type: ignore[assignment]  # [ucn,r,t] VAR_UCRT: Slacks for UCRT constraints
+    VAR_UCTS: Variable = None  # type: ignore[assignment]  # [ucn,t,s] VAR_UCTS: Slacks for UCTS constraints
+    VAR_UCRTS: Variable = None  # type: ignore[assignment] # [ucn,r,t,s] VAR_UCRTS: Slacks for UCRTS constraints
+    VAR_DNCAP: Variable = None  # type: ignore[assignment]  # [r,allyear,p,unit] VAR_DNCAP:
+    VAR_SNCAP: Variable = None  # type: ignore[assignment]  # [r,allyear,p] VAR_SNCAP:
+    eq_obj: Equation = None  # type: ignore[assignment]  #  EQ_OBJ: Overall Objective Function
+    eq_objels: Equation = None  # type: ignore[assignment]  # [r,bd,cur] EQ_OBJELS: Costs of elastic demands
+    eq_objfix: Equation = None  # type: ignore[assignment]  # [r,cur] EQ_OBJFIX: Fixed Costs
+    eq_objinv: Equation = None  # type: ignore[assignment]  # [r,cur] EQ_OBJINV: Investment component
+    eq_objsalv: Equation = None  # type: ignore[assignment]  # [r,cur] EQ_OBJSALV: Salvage
+    eq_objvar: Equation = None  # type: ignore[assignment]  # [r,cur] EQ_OBJVAR: Variable operating costs
+    eq_objdam: Equation = None  # type: ignore[assignment]  # [r,cur] EQ_OBJDAM: Damage costs
+    eq_actflo: Equation = None  # type: ignore[assignment]# [r,allyear,allyear,p,s] EQ_ACTFLO: Process Activity/Primary Commodity Flows
+    eqg_actbnd: Equation = None  # type: ignore[assignment]# [r,allyear,p,s] EQG_ACTBND: Process activity Bound in a Period (=G=)
+    eqe_actbnd: Equation = None  # type: ignore[assignment]# [r,allyear,p,s] EQE_ACTBND: Process activity Bound in a Period (=E=)
+    eql_actbnd: Equation = None  # type: ignore[assignment]# [r,allyear,p,s] EQL_ACTBND: Process activity Bound in a Period (=L=)
+    eqg_bndnet: Equation = None  # type: ignore[assignment]# [r,allyear,c,s] EQG_BNDNET: Net bound on a commodity (=G=)
+    eqe_bndnet: Equation = None  # type: ignore[assignment]# [r,allyear,c,s] EQE_BNDNET: Net bound on a commodity (=E=)
+    eql_bndnet: Equation = None  # type: ignore[assignment]# [r,allyear,c,s] EQL_BNDNET: Net bound on a commodity (=L=)
+    eqg_bndprd: Equation = None  # type: ignore[assignment]# [r,allyear,c,s] EQG_BNDPRD: Production bound on a commodity (=G=)
+    eqe_bndprd: Equation = None  # type: ignore[assignment]# [r,allyear,c,s] EQE_BNDPRD: Production bound on a commodity (=E=)
+    eql_bndprd: Equation = None  # type: ignore[assignment]# [r,allyear,c,s] EQL_BNDPRD: Production bound on a commodity (=L=)
+    eql_capact: Equation = None  # type: ignore[assignment]# [r,allyear,allyear,p,s] EQL_CAPACT: Capacity Utilzation (=L=)
+    eqe_capact: Equation = None  # type: ignore[assignment]# [r,allyear,allyear,p,s] EQE_CAPACT: Capacity Utilzation (=E=)
+    eqg_capact: Equation = None  # type: ignore[assignment]# [r,allyear,allyear,p,s] EQG_CAPACT: Capacity Utilzation (=G=)
+    eqg_combal: Equation = None  # type: ignore[assignment]# [r,allyear,c,s] EQG_COMBAL: Commodity Balance (=G=)
+    eqe_combal: Equation = None  # type: ignore[assignment]# [r,allyear,c,s] EQE_COMBAL: Commodity Balance (=E=)
+    eqe_comprd: Equation = None  # type: ignore[assignment]# [r,allyear,c,s] EQE_COMPRD: Commodity Production (=E=)
+    eql_comces: Equation = None  # type: ignore[assignment]# [r,allyear,c,c,s] EQL_COMCES: CES substitution steps (=L=)
+    eqg_cpt: Equation = None  # type: ignore[assignment]  # [r,allyear,p] EQG_CPT: Capacity Transfer (=G=)
+    eqe_cpt: Equation = None  # type: ignore[assignment]  # [r,allyear,p] EQE_CPT: Capacity Transfer (=E=)
+    eql_cpt: Equation = None  # type: ignore[assignment]  # [r,allyear,p] EQL_CPT: Capacity Transfer (=L=)
+    eq_cumnet: Equation = None  # type: ignore[assignment]# [r,c,allyear,allyear] EQ_CUMNET: Cummulative Net Commodity Limit (=E=)
+    eq_cumprd: Equation = None  # type: ignore[assignment]# [r,c,allyear,allyear] EQ_CUMPRD: Cummulative Commodity Production Limit (=E=)
+    eq_cumflo: Equation = None  # type: ignore[assignment]# [r,p,c,allyear,ll] EQ_CUMFLO: Cummulative Commodity Flow Limit (=E=)
+    eqg_flofr: Equation = None  # type: ignore[assignment]  # [r,t,p,c,s,l] EQG_FLOFR: Flow fraction (=G=)
+    eqe_flofr: Equation = None  # type: ignore[assignment]  # [r,t,p,c,s,l] EQE_FLOFR: Flow fraction (=E=)
+    eql_flofr: Equation = None  # type: ignore[assignment]  # [r,t,p,c,s,l] EQL_FLOFR: Flow fraction (=L=)
+    eqg_flobnd: Equation = None  # type: ignore[assignment]  # [r,t,p,cg,s] EQG_FLOBND: Flow bound (=G=)
+    eqe_flobnd: Equation = None  # type: ignore[assignment]  # [r,t,p,cg,s] EQE_FLOBND: Flow bound (=E=)
+    eql_flobnd: Equation = None  # type: ignore[assignment]  # [r,t,p,cg,s] EQL_FLOBND: Flow bound (=L=)
+    eqg_inshr: Equation = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,cg,s] EQG_INSHR: Commodity Input Group Share (=G=)
+    eqe_inshr: Equation = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,cg,s] EQE_INSHR: Commodity Input Group Share (=E=)
+    eql_inshr: Equation = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,cg,s] EQL_INSHR: Commodity Input Group Share (=L=)
+    eq_stgips: Equation = None  # type: ignore[assignment]# [r,allyear,allyear,p,item] EQ_STGIPS: Inter-period storage equation
+    eq_stgaux: Equation = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,s] EQ_STGAUX: Storage auxiliary flows
+    eq_ire: Equation = None  # type: ignore[assignment]# [r,allyear,p,c,ie,s] EQ_IRE: Inter-regional Exchange Process Balance (=E=)
+    eqg_irebnd: Equation = None  # type: ignore[assignment]# [r,allyear,c,s,allreg,ie] EQG_IREBND: Limit on Inter-regional Exchange (=G=)
+    eqe_irebnd: Equation = None  # type: ignore[assignment] # [r,allyear,c,s,allreg,ie] EQE_IREBND: Limit on Inter-regional Exchange (=E=)
+    eql_irebnd: Equation = None  # type: ignore[assignment] # [r,allyear,c,s,allreg,ie] EQL_IREBND: Limit on Inter-regional Exchange (=L=)
+    eqg_xbnd: Equation = None  # type: ignore[assignment] # [allreg,allyear,c,s,ie] EQG_XBND: Limit on Total Exchange (=G=)
+    eqe_xbnd: Equation = None  # type: ignore[assignment] # [allreg,allyear,c,s,ie] EQE_XBND: Limit on Total Exchange (=E=)
+    eql_xbnd: Equation = None  # type: ignore[assignment] # [allreg,allyear,c,s,ie] EQL_XBND: Limit on Total Exchange (=L=)
+    eqg_outshr: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,c,cg,s] EQG_OUTSHR: Commodity Output Group Share (=G=)
+    eqe_outshr: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,c,cg,s] EQE_OUTSHR: Commodity Output Group Share (=E=)
+    eql_outshr: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,c,cg,s] EQL_OUTSHR: Commodity Output Group Share (=L=)
+    eqg_flomrk: Equation = None  # type: ignore[assignment] # [r,allyear,item,c,s] EQG_FLOMRK: Process market-share (=G=)
+    eqe_flomrk: Equation = None  # type: ignore[assignment] # [r,allyear,item,c,s] EQE_FLOMRK: Process market-share (=E=)
+    eql_flomrk: Equation = None  # type: ignore[assignment] # [r,allyear,item,c,s] EQL_FLOMRK: Process market-share (=L=)
+    eq_peak: Equation = None  # type: ignore[assignment] # [r,allyear,comgrp,s] EQ_PEAK: Commodity Peaking constraint (=G=)
+    eq_ptrans: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,cg,cg,s] EQ_PTRANS: Commodity-to-Commodity Transform (=E=)
+    eq_stgtss: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,s] EQ_STGTSS: Time-slice storage equation
+    eq_stsbal: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,tsl,s,l] EQ_STSBAL: Time-slice storage balancer
+    eq_stslev: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,tslvl,s,allsow] EQ_STSLEV: Time-slice storage levelizer
+    eqg_stgin: Equation = None  # type: ignore[assignment] # [r,allyear,p,c,s] EQG_STGIN: Bound on input flow of storage (=G=)
+    eqe_stgin: Equation = None  # type: ignore[assignment] # [r,allyear,p,c,s] EQE_STGIN: Bound on input flow of storage (=E=)
+    eql_stgin: Equation = None  # type: ignore[assignment] # [r,allyear,p,c,s] EQL_STGIN: Bound on input flow of storage (=L=)
+    eqg_stgout: Equation = None  # type: ignore[assignment] # [r,allyear,p,c,s] EQG_STGOUT: Bound on output flow of storage (=G=)
+    eqe_stgout: Equation = None  # type: ignore[assignment] # [r,allyear,p,c,s] EQE_STGOUT: Bound on output flow of storage (=E=)
+    eql_stgout: Equation = None  # type: ignore[assignment] # [r,allyear,p,c,s] EQL_STGOUT: Bound on output flow of storage (=L=)
+    eq_cumret: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p] EQ_CUMRET: Cumulative retirements
+    eql_refit: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,l] EQL_REFIT: Retrofit/life-extension (=L=)
+    eql_scap: Equation = None  # type: ignore[assignment] # [r,allyear,p,ips] EQL_SCAP: Salvage capacity (=L=)
+    eq_bndcst: Equation = None  # type: ignore[assignment] # [Reg,allyear,t,allyear,costcat,cur] EQ_BNDCST: Bound on cumulative costs
+    eqe_uc: Equation = None  # type: ignore[assignment]  # [ucn] EQE_UC: User-constraints (=E=)
+    eqe_ucr: Equation = None  # type: ignore[assignment]  # [r,ucn] EQE_UCR: User-constraints (=E=)
+    eqe_uct: Equation = None  # type: ignore[assignment]  # [ucn,t] EQE_UCT: User-constraints (=E=)
+    eqe_ucrt: Equation = None  # type: ignore[assignment]  # [r,t,ucn] EQE_UCRT: User-constraints (=E=)
+    eqe_ucts: Equation = None  # type: ignore[assignment]  # [ucn,t,s] EQE_UCTS: User-constraints (=E=)
+    eqe_ucrs: Equation = None  # type: ignore[assignment]  # [r,t,ucn,tsl,s] EQE_UCRS: User-constraints (=E=)
+    eqe_ucrts: Equation = None  # type: ignore[assignment]  # [r,t,ucn,s] EQE_UCRTS: User-constraints (=E=)
+    eqe_ucsu: Equation = None  # type: ignore[assignment]  # [ucn,t] EQE_UCSU: User-constraints (=E=)
+    eqe_ucsus: Equation = None  # type: ignore[assignment]  # [ucn,t,s] EQE_UCSUS: User-constraints (=E=)
+    eqe_ucrsus: Equation = None  # type: ignore[assignment]  # [r,t,ucn,s] EQE_UCRSUS: User-constraints (=E=)
+    eqe_ucrsu: Equation = None  # type: ignore[assignment]  # [r,t,ucn] EQE_UCRSU: User-constraints (=E=)
+    eql_blnd: Equation = None  # type: ignore[assignment]  # [r,year,Ble,spe,allsow] EQL_BLND: Blending (=L=)
+    eqg_blnd: Equation = None  # type: ignore[assignment]  # [r,year,Ble,spe,allsow] EQG_BLND: Blending (=G=)
+    eqe_blnd: Equation = None  # type: ignore[assignment]  # [r,year,Ble,spe,allsow] EQE_BLND: Blending (=E=)
+    eqn_blnd: Equation = None  # type: ignore[assignment] # [r,year,Ble,spe,allsow] EQN_BLND: Blending non-binding
+    eq_damage: Equation = None  # type: ignore[assignment]  # [r,t,c] EQ_DAMAGE: Damages
+    eq_robj: Equation = None  # type: ignore[assignment] # [r] EQ_ROBJ: Deterministic objective by region and SOW
+    eq_sobj: Equation = None  # type: ignore[assignment]  # [lim] EQ_SOBJ: Deterministic objective by SOW
+    eq_expobj: Equation = None  # type: ignore[assignment] # [allsow] EQ_EXPOBJ: Expected value of total system cost
+    eq_updev: Equation = None  # type: ignore[assignment]  # [allsow] EQ_UPDEV: Upper absolute deviation
+    eqe_acteff: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,cg,io,s] EQE_ACTEFF: Process Activity Efficiency (=)
+    eqe_caflac: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,s] EQE_CAFLAC: Commodity based availability (=E=)
+    eql_caflac: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,s] EQL_CAFLAC: Commodity based availability (=L=)
+    eql_capflo: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,cg,s] EQL_CAPFLO: Flow-specific availability (=L=)
+    eqe_ashar: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,cg,comgrp,s] EQE_ASHAR: Advanced share constraint (=E=)
+    eql_ashar: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,cg,comgrp,s] EQL_ASHAR: Advanced share constraint (=L=)
+    eqg_ashar: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,cg,comgrp,s] EQG_ASHAR: Advanced share constraint (=G=)
+    eqn_ucrtp: Equation = None  # type: ignore[assignment] # [ucn,r,t,p,ucgrptype,bd] EQN_UCRTP: Dynamic process bound (=L=)
+    eqe_ucrtp: Equation = None  # type: ignore[assignment] # [ucn,r,t,p,ucgrptype,bd] EQE_UCRTP: Dynamic process bound (=E=)
+    eqn_ucrtc: Equation = None  # type: ignore[assignment] # [ucn,comvar,r,t,c,ts,bd] EQN_UCRTC: Dynamic commodity bound (=NE=)
+    eq_capload: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,s,l] EQ_CAPLOAD: Augmented capacity-activity
+    eq_actramp: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,s,l] EQ_ACTRAMP: Activity ramping equations
+    eqe_actups: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,tsl,l,s] EQE_ACTUPS: Activity startup equations
+    eql_actups: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,tsl,l,s] EQL_ACTUPS: Activity offline balance
+    eql_actupc: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,tsl,l,s] EQL_ACTUPC: Activity cycling constraints
+    eq_actpl: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,s] EQ_ACTPL: Activity partial loads
+    eq_actrmpc: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,s] EQ_ACTRMPC: Activity ramping costs
+    eql_stgccl: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,allsow] EQL_STGCCL: Storage cycling constraints
+    eq_slsift: Equation = None  # type: ignore[assignment] # [r,allyear,p,c,s,l,l] EQ_SLSIFT: Time-slice load sifting
+    eq_sdlogic: Equation = None  # type: ignore[assignment] # [r,ll,t,p,tsl,s,l,allsow] eq_sdlogic: Logical relationship between decision variables
+    eq_sudupt: Equation = None  # type: ignore[assignment] # [r,ll,t,p,tsl,s,upt,allsow] eq_sudupt: Selection of start up type a according to non-operational time
+    eq_sdslant: Equation = None  # type: ignore[assignment] # [r,ll,t,p,tsl,s,allsow] eq_sdslant: Slanting equation for start-up and shut-down phase
+    eq_sdminon: Equation = None  # type: ignore[assignment] # [r,ll,t,p,s,allsow] eq_sdminon: Minimum on-line capacity constraints
+    eq_sudload: Equation = None  # type: ignore[assignment] # [r,ll,t,p,s,allsow] eq_sudload: Load during start-up/shut down phase of the unit (linear growth)
+    eq_sudtime: Equation = None  # type: ignore[assignment] # [r,ll,t,p,tsl,s,bd,allsow] eq_sudtime: Minimum on-line / off-line time constraint
+    eq_sudpll: Equation = None  # type: ignore[assignment] # [r,ll,t,p,tsl,s,allsow] eq_sudpll: Efficiency losses due to start-up/shut-down of the unit
+    eqg_ucmax: Equation = None  # type: ignore[assignment] # [ucn,allr,item,c,*] EQG_UCMAX: Maximum group-wise flow (G)
+    eqg_ucsumax: Equation = None  # type: ignore[assignment] # [ucn] EQG_UCSUMAX: Maximum group-wise flow over regions (G)
+    eq_rl_load: Equation = None  # type: ignore[assignment] # [r,t,s] EQ_RL_LOAD: Total dispatchable residual loads
+    eq_rl_ndis: Equation = None  # type: ignore[assignment] # [r,t,s,item] EQ_RL_NDIS: Non-dispatchable loads by group
+    eq_rl_stcap: Equation = None  # type: ignore[assignment] # [r,t,s] EQ_RL_STCAP: Minimum available storage capacity
+    eq_rl_pkcap: Equation = None  # type: ignore[assignment] # [r,t,s] EQ_RL_PKCAP: Minimum dispatchable reserve during peak
+    eq_rl_thmin: Equation = None  # type: ignore[assignment] # [r,t,s,bd] EQ_RL_THMIN: Aggregate thermal minimum constraint
+    sum_obj: Parameter = None  # type: ignore[assignment]  # [item,item] SUM_OBJ: Objective component summation
+    KEoh: Set = None  # type: ignore[assignment] # [allyear] K_EOH:
+    Ktyage: Set = None  # type: ignore[assignment] # [ll,year,ll,age] KTYAGE:
+    Obj1a: Set = None  # type: ignore[assignment] # [r,allyear,p] OBJ_1A:
+    Obj1b: Set = None  # type: ignore[assignment] # [r,allyear,p] OBJ_1B:
+    Obj2a: Set = None  # type: ignore[assignment] # [r,allyear,p] OBJ_2A:
+    Obj2b: Set = None  # type: ignore[assignment] # [r,allyear,p] OBJ_2B:
+    ObjSums: Set = None  # type: ignore[assignment] # [r,allyear,p] OBJ_SUMS:
+    ObjSums3: Set = None  # type: ignore[assignment] # [r,allyear,p] OBJ_SUMS3:
+    ObjSumsi: Set = None  # type: ignore[assignment] # [r,allyear,p,allyear] OBJ_SUMSI:
+    jot: Alias = None  # type: ignore[assignment] # [*] JOT: Aliased with AGE
+    obj_c: Parameter = None  # type: ignore[assignment] # OBJ_C:
+    obj_d: Parameter = None  # type: ignore[assignment] # OBJ_D:
+    ObjSumii: Set = None  # type: ignore[assignment] # [r,allyear,p,age,allyear,age] OBJ_SUMII:
+    ObjSumiii: Set = None  # type: ignore[assignment] # [r,allyear,p,allyear,year,allyear] OBJ_SUMIII:
+    ObjYes: Set = None  # type: ignore[assignment] # [Reg,allyear,p] OBJ_YES:
+    ObjI2: Set = None  # type: ignore[assignment] # [Reg,allyear,p] OBJ_I2:
+    Ykage: Set = None  # type: ignore[assignment] # [allyear,allyear,age] YKAGE:
+    Kage: Set = None  # type: ignore[assignment] # [allyear,age] KAGE:
+    ObjSpred: Set = None  # type: ignore[assignment] # [r,allyear,p,age] OBJ_SPRED:
+    Invstep: Set = None  # type: ignore[assignment] # [allyear,age,allyear,age] INVSTEP:
+    Invspred: Set = None  # type: ignore[assignment] # [allyear,age,allyear,allyear] INVSPRED:
+    obj_pasti: Parameter = None  # type: ignore[assignment] # [Reg,allyear,p,cur] OBJ_PASTI:
+    salv_inv: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,allyear] SALV_INV:
+    cor_salvi: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cur] COR_SALVI:
+    cor_salvd: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cur] COR_SALVD:
+    obj_divi: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] OBJ_DIVI:
+    obj_diviii: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] OBJ_DIVIII:
+    ObjIdc: Set = None  # type: ignore[assignment] # [r,allyear,p,life,allyear,age] OBJ_IDC:
+    obj_iad: Parameter = None  # type: ignore[assignment] # [r,cur] OBJ_IAD:
+    ObjFcur: Set = None  # type: ignore[assignment] # [Reg,allyear,p,cur] OBJ_FCUR:
+    ObjSumiv: Set = None  # type: ignore[assignment] # [allyear,r,allyear,p,age,age] OBJ_SUMIV:
+    ObjSumivs: Set = None  # type: ignore[assignment] # [r,allyear,p,allyear,allyear] OBJ_SUMIVS:
+    RtpShape: Set = None  # type: ignore[assignment] # [Reg,allyear,prc,j,j,j] RTP_SHAPE:
+    obj_diviv: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] OBJ_DIVIV:
+    obj_life: Parameter = None  # type: ignore[assignment] # [allyear,Reg,age,age,cur] OBJ_LIFE:
+    salv_dec: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cur] SALV_DEC:
+    objscc: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cur] OBJSCC:
+    objsic: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] OBJSIC:
+    obj_dceoh: Parameter = None  # type: ignore[assignment] # [Reg,cur] OBJ_DCEOH:
+    ObjSali: Set = None  # type: ignore[assignment] # [r,allyear,p,age,year,age,allyear,year] OBJ_SALI:
+    Afs: Set = None  # type: ignore[assignment] # [r,t,p,s,bd] AFS:
+    Superyr: Set = None  # type: ignore[assignment] # [t,allyear] SUPERYR: SUpremum PERiod YeaR
+    Ykk: Set = None  # type: ignore[assignment] # [allyear,allyear,allyear] YKK:
+    RtpIan: Set = None  # type: ignore[assignment] # [Reg,t,p,cur] RTP_IAN:
+    RtIan: Set = None  # type: ignore[assignment] # [Reg,allyear,allyear,cur,costagg] RT_IAN:
+    cst_annc: Parameter = None  # type: ignore[assignment] # [r,allyear,p,allyear,ucname,cur] CST_ANNC:
+    CostGmap: Set = None  # type: ignore[assignment] # [costagg,costagg,costype] COST_GMAP:
+    Rvpt: Set = None  # type: ignore[assignment] # [r,allyear,p,t] RVPT:
+    UcRhstmp: Set = None  # type: ignore[assignment] # [Reg,ucn,t,s,ucnumber] UC_RHSTMP:
+    UcRhsmap: Set = None  # type: ignore[assignment] # [Reg,t,ucn,ucnumber,s] UC_RHSMAP:
+    Ructs: Set = None  # type: ignore[assignment] # [allreg,ucn,allyear,ts] RUCTS:
+    UcUt: Set = None  # type: ignore[assignment] # [ucn,allyear] UC_UT:
+    UcUts: Set = None  # type: ignore[assignment] # [ucn,allyear,ts] UC_UTS:
+    UcTmap: Set = None  # type: ignore[assignment] # [year,year,t,side,UcDynt] UC_TMAP:
+    dp_uns: Parameter = None  # type: ignore[assignment] # [r,ll,t,p,tsl,ips,l] DP_UNS:
+    uc2: Alias = None  # type: ignore[assignment] # [*] UC2: Universe Alias
+    uc3: Alias = None  # type: ignore[assignment] # [*] UC3: Universe Alias
+    uc4: Alias = None  # type: ignore[assignment] # [*] UC4: Universe Alias
+    Qastat: Set = None  # type: ignore[assignment] # [j] QASTAT:
+    adesc: Set = None  # type: ignore[assignment] # [*] ADESC: Attribute Descriptions
+    Ire: Set = None  # type: ignore[assignment] # [Ire] IRE: Inter-regional Exchange (Exports & Imports)
+    Irelx: Set = None  # type: ignore[assignment] # [Ire] IRELX: Electricity Exchange Processes
+    Irenx: Set = None  # type: ignore[assignment] # [Ire] IRENX: Enodogenous Trade Exchange
+    Stg: Set = None  # type: ignore[assignment] # [Ire] STG: Storage Processes (genuine)
+    Sts: Set = None  # type: ignore[assignment] # [Ire] STS: General Multilevel Storage
+    Rcap: Set = None  # type: ignore[assignment] # [Ire] RCAP: Processes with Retirements
+    Nst: Set = None  # type: ignore[assignment] # [Ire] NST: Night Storage
+    Dmd: Set = None  # type: ignore[assignment] # [r,p] DMD: Demand Devices
+    Pre: Set = None  # type: ignore[assignment] # [r,p] PRE: Energy Processes
+    Prw: Set = None  # type: ignore[assignment] # [r,p] PRW: Material Processes - Weight
+    Prv: Set = None  # type: ignore[assignment] # [r,p] PRV: Material Processes - Volume
+    Distr: Set = None  # type: ignore[assignment] # [r,p] DISTR: Distribution Technologies
+    Renew: Set = None  # type: ignore[assignment] # [r,p] RENEW: Renewables Processes
+    Xtract: Set = None  # type: ignore[assignment] # [r,p] XTRACT: Extraction Processes
+    Res: Set = None  # type: ignore[assignment] # [r,Com] RES: Residential Sector Demands
+    Comm: Set = None  # type: ignore[assignment] # [r,Com] COMM: Commercial Sector Demands
+    Trn: Set = None  # type: ignore[assignment] # [r,Com] TRN: Transporation Sector Demands
+    Agr: Set = None  # type: ignore[assignment] # [Reg,Com] AGR: Agriculature Sector Demands
+    Othd: Set = None  # type: ignore[assignment] # [r,Com] OTHD: Other Demands
+    Ind: Set = None  # type: ignore[assignment] # [Reg,Com] IND: Industrial Demands
+    Nrgfos: Set = None  # type: ignore[assignment] # [r,c] NRGFOS: Fossil
+    Nrgren: Set = None  # type: ignore[assignment] # [r,c] NRGREN: Renewable
+    Nrgsyn: Set = None  # type: ignore[assignment] # [r,c] NRGSYN: Synthetic
+    Nrghet: Set = None  # type: ignore[assignment] # [allr,c] NRGHET: Heat
+    Rs: Set = None  # type: ignore[assignment] # [r,allts] RS:
+    nonset: Set = None  # type: ignore[assignment] # [*] NONSET:
+    pluset: Set = None  # type: ignore[assignment] # [*] PLUSET:
+    Othcom: Set = None  # type: ignore[assignment] # [item] OTHCOM:
+    RegAct: Set = None  # type: ignore[assignment] # [item,c] REG_ACT:
+    UcConst: Set = None  # type: ignore[assignment] # [*,ucn] UC_CONST: Genuine TIMES UC constraints
+    UcMarks: Set = None  # type: ignore[assignment] # [r,item] UC_MARKS: PRC_MARK Share UC constraints
+    UcDynbd: Set = None  # type: ignore[assignment] # [r,ucn] UC_DYNBD: Dynamic UC bound constraints
+    sysuc: Set = None  # type: ignore[assignment] # [*] SYSUC:
+    Sysucmap: Set = None  # type: ignore[assignment] # [sysuc,*] SYSUCMAP:
+    ww: Alias = None  # type: ignore[assignment] # [*] WW: Aliased with ALLSOW
+    rtp_obj: Parameter = None  # type: ignore[assignment] # [j,r,allyear,p,cur] RTP_OBJ:
+    rtp_npv: Parameter = None  # type: ignore[assignment] # [j,r,allyear,p,cur] RTP_NPV:
+    par_actc: Parameter = None  # type: ignore[assignment] # [j,r,ll,t,p,c,cur] PAR_ACTC:
+    par_floc: Parameter = None  # type: ignore[assignment] # [j,r,ll,t,p,c,cur] PAR_FLOC:
+    par_comc: Parameter = None  # type: ignore[assignment] # [j,r,t,c,cur] PAR_COMC:
+    par_rpmx: Parameter = None  # type: ignore[assignment] # [r,p,j,ll,t,c,cur] PAR_RPMX:
+    par_rcmx: Parameter = None  # type: ignore[assignment] # [r,c,j,t,cur] PAR_RCMX:
+    par_objcap: Parameter = None  # type: ignore[assignment] # [r,allyear,p,cur] PAR_OBJCAP:
+    par_xpri: Parameter = None  # type: ignore[assignment] # [r,t,p,c,ts,Reg,Com] PAR_XPRI:
+    coef_objinv: Parameter = None  # type: ignore[assignment] # [r,allyear,prc] COEF_OBJINV:
+    coef_obinv: Parameter = None  # type: ignore[assignment] # [r,allyear,p,cur] COEF_OBINV:
+    coef_obfix: Parameter = None  # type: ignore[assignment] # [r,allyear,p,cur] COEF_OBFIX:
+    coef_crf: Parameter = None  # type: ignore[assignment] # [r,allyear,p,cur] COEF_CRF:
+    var_ncaprng: Parameter = None  # type: ignore[assignment] # [r,allyear,p,bd] VAR_NCAPRNG:
+    cstvnt: Parameter = None  # type: ignore[assignment] # [j,r,ll,year,p,sysuc] CSTVNT:
+    cstvpj: Parameter = None  # type: ignore[assignment] # [r,ll,p,j,sysuc,year] CSTVPJ:
+    f_vio: Parameter = None  # type: ignore[assignment] # [r,allyear,t,p,io] F_VIO:
+    f_ios: Parameter = None  # type: ignore[assignment] # [r,allyear,t,p,c,s] F_IOS:
+    f_inout: Parameter = None  # type: ignore[assignment] # [r,allyear,t,p,c,io] F_INOUT:
+    f_inouts: Parameter = None  # type: ignore[assignment] # [r,allyear,t,p,c,s,io] F_INOUTS:
+    reg_obj: Parameter = None  # type: ignore[assignment] # [Reg] REG_OBJ:
+    bc_invact: Parameter = None  # type: ignore[assignment] # [r,allyear,ll,prc,s] BC_INVACT:
+    bc_invtot: Parameter = None  # type: ignore[assignment] # [r,allyear,prc] BC_INVTOT:
+    val_flo: Parameter = None  # type: ignore[assignment] # [r,allyear,ll,prc,c] VAL_FLO:
+    par_rtcs: Parameter = None  # type: ignore[assignment] # [r,t,c,s] PAR_RTCS:
+    par_top: Parameter = None  # type: ignore[assignment] # [r,t,p,c,io] PAR_TOP:
+    NcapYes: Set = None  # type: ignore[assignment] # [r,allyear,p] NCAP_YES:
+    FIoset: Set = None  # type: ignore[assignment] # [r,allyear,t,p,c,s,io] F_IOSET:
+    Rvtpc: Set = None  # type: ignore[assignment] # [r,allyear,t,p,c] RVTPC:
+    Rttc: Set = None  # type: ignore[assignment] # [r,allyear,c] RTTC:
+    pastcv: Set = None  # type: ignore[assignment] # [*] PASTCV:
+    rpm: Set = None  # type: ignore[assignment] # [*] RPM:
+    Rnglim: Set = None  # type: ignore[assignment] # [sysuc] RNGLIM:
+    Sysinv: Set = None  # type: ignore[assignment] # [sysuc] SYSINV:
+    Sucmap: Set = None  # type: ignore[assignment] # [j,sysuc] SUCMAP:
+    Rngmap: Set = None  # type: ignore[assignment] # [sysuc,bd] RNGMAP:
+    objval_1: Parameter = None  # type: ignore[assignment] # OBJVAL_1:
+    objval_2: Parameter = None  # type: ignore[assignment] # OBJVAL_2:
+    sysone: Parameter = None  # type: ignore[assignment] # [sysuc] SYSONE:
+    sysplit: Parameter = None  # type: ignore[assignment] # [sysuc] SYSPLIT:
+    cst_pvc: Parameter = None  # type: ignore[assignment] # [sysuc,r,c] CST_PVC:
+    cst_pvp: Parameter = None  # type: ignore[assignment] # [sysuc,r,p] CST_PVP:
+    f_in: Parameter = None  # type: ignore[assignment] # [r,allyear,t,p,c,s] F_IN:
+    f_out: Parameter = None  # type: ignore[assignment] # [r,allyear,t,p,c,s] F_OUT:
+    p_out: Parameter = None  # type: ignore[assignment] # [r,t,p,c,s] P_OUT:
+    agg_out: Parameter = None  # type: ignore[assignment] # [r,t,c,ts] AGG_OUT:
+    par_actl: Parameter = None  # type: ignore[assignment] # [r,ll,ll,p,s] PAR_ACTL:
+    par_actm: Parameter = None  # type: ignore[assignment] # [r,ll,ll,p,s] PAR_ACTM:
+    par_pasti: Parameter = None  # type: ignore[assignment] # [r,t,p,item] PAR_PASTI:
+    par_capl: Parameter = None  # type: ignore[assignment] # [r,year,p] PAR_CAPL:
+    par_capm: Parameter = None  # type: ignore[assignment] # [r,year,p] PAR_CAPM:
+    par_capbd: Parameter = None  # type: ignore[assignment] # [r,year,p,bd] PAR_CAPBD:
+    par_cumret: Parameter = None  # type: ignore[assignment] # [r,year,year,p] PAR_CUMRET:
+    par_ncapl: Parameter = None  # type: ignore[assignment] # [r,allyear,p] PAR_NCAPL:
+    par_ncapm: Parameter = None  # type: ignore[assignment] # [r,allyear,p] PAR_NCAPM:
+    par_ncapr: Parameter = None  # type: ignore[assignment] # [r,allyear,p,item] PAR_NCAPR:
+    par_comprdl: Parameter = None  # type: ignore[assignment] # [r,allyear,c,s] PAR_COMPRDL:
+    par_comprdm: Parameter = None  # type: ignore[assignment] # [r,allyear,c,s] PAR_COMPRDM:
+    par_comnetl: Parameter = None  # type: ignore[assignment] # [r,allyear,c,s] PAR_COMNETL:
+    par_comnetm: Parameter = None  # type: ignore[assignment] # [r,allyear,c,s] PAR_COMNETM:
+    par_combalem: Parameter = None  # type: ignore[assignment] # [r,allyear,c,s] PAR_COMBALEM:
+    par_combalgm: Parameter = None  # type: ignore[assignment] # [r,allyear,c,s] PAR_COMBALGM:
+    par_peakm: Parameter = None  # type: ignore[assignment] # [r,allyear,cg,s] PAR_PEAKM:
+    par_ucsl: Parameter = None  # type: ignore[assignment] # [ucn,*,*,*] PAR_UCSL:
+    par_ucsm: Parameter = None  # type: ignore[assignment] # [ucn,*,*,*] PAR_UCSM:
+    par_ucmrk: Parameter = None  # type: ignore[assignment] # [r,t,item,c,s] PAR_UCMRK:
+    par_ucmax: Parameter = None  # type: ignore[assignment] # [ucn,allr,item,c] PAR_UCMAX:
+    par_cumflol: Parameter = None  # type: ignore[assignment] # [r,p,c,ll,ll] PAR_CUMFLOL:
+    par_cumflom: Parameter = None  # type: ignore[assignment] # [r,p,c,ll,ll] PAR_CUMFLOM:
+    par_cumcst: Parameter = None  # type: ignore[assignment] # [r,ll,ll,costagg,cur] PAR_CUMCST:
+    par_ucrtp: Parameter = None  # type: ignore[assignment] # [ucn,r,t,p,ucgrptype] PAR_UCRTP:
+    reg_wobj: Parameter = None  # type: ignore[assignment] # [Reg,item,cur] REG_WOBJ:
+    reg_irec: Parameter = None  # type: ignore[assignment] # [Reg] REG_IREC:
+    reg_acost: Parameter = None  # type: ignore[assignment] # [r,allyear,item] REG_ACOST:
+    cst_invc: Parameter = None  # type: ignore[assignment] # [r,allyear,t,p,sysuc] CST_INVC:
+    cst_invx: Parameter = None  # type: ignore[assignment] # [r,allyear,t,p,sysuc] CST_INVX:
+    cst_decc: Parameter = None  # type: ignore[assignment] # [r,allyear,t,p] CST_DECC:
+    cst_fixc: Parameter = None  # type: ignore[assignment] # [r,allyear,t,p] CST_FIXC:
+    cst_fixx: Parameter = None  # type: ignore[assignment] # [r,allyear,t,p] CST_FIXX:
+    cst_actc: Parameter = None  # type: ignore[assignment] # [r,allyear,t,p,rpm] CST_ACTC:
+    cst_floc: Parameter = None  # type: ignore[assignment] # [r,allyear,t,p,c] CST_FLOC:
+    cst_flox: Parameter = None  # type: ignore[assignment] # [r,allyear,t,p,c] CST_FLOX:
+    cst_irec: Parameter = None  # type: ignore[assignment] # [r,allyear,t,p,c] CST_IREC:
+    cst_comc: Parameter = None  # type: ignore[assignment] # [r,allyear,c] CST_COMC:
+    cst_comx: Parameter = None  # type: ignore[assignment] # [r,allyear,c] CST_COMX:
+    cst_come: Parameter = None  # type: ignore[assignment] # [r,allyear,c] CST_COME:
+    cst_salv: Parameter = None  # type: ignore[assignment] # [r,allyear,p] CST_SALV:
+    cst_time: Parameter = None  # type: ignore[assignment] # [r,allyear,s,sysuc] CST_TIME:
+    cap_new: Parameter = None  # type: ignore[assignment] # [r,allyear,p,t,sysuc] CAP_NEW:
+    dam_obj: Parameter = None  # type: ignore[assignment] # [r,t,c,cur] DAM_OBJ:
+    par_eout: Parameter = None  # type: ignore[assignment] # [r,allyear,t,p,c] PAR_EOUT:
+    # endregion
+
+    def __post_init__(self) -> None:
+        """
+        Runs immediately AFTER the dataclass finishes creating itself.
+        """
         self.logger = logging.getLogger("TimesModel")
-
-        # Ordered list of registered modules
-        self._modules: list[GamsClass] = []
 
     def register_module(self, module: GamsClass) -> None:
         """Register a module object."""
