@@ -12,7 +12,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from core.filparam_gms import FilparamGms
-from core.forcupd_cli import ForcupdCli
+from core.forcupd_cli import forcupd_cli
 
 # from core.MSADDF_dd import MSADDF
 from core.rpt_dam_mod import rpt_dam_mod
@@ -49,9 +49,22 @@ class PreppmMsa(GamsClass):
         if self.arg1 == "MSA":
             self._label_msa()
         elif self.arg1 == "TONLP":
-            self._label_tonlp()
+            self.tc.enqueue(
+                self._label_tonlp,
+                is_tm_catt_defined=self.tc.defined("TM_CATT"),
+                is_dam_cost_defined=self.tc.defined("DAM_COST"),
+                cli=self.env.cli,
+                solveda=self.env.solveda,
+                stages=self.env.stages,
+                var=self.env.var,
+                vart=self.env.vart,
+                sws=self.env.sws,
+                sow=self.env.sow,
+                scum=self.env.scum,
+                sw_notags=self.env.sw_notags,
+            )
         elif self.arg1 == "TOLP":
-            self._label_tolp()
+            self.tc.enqueue(self._label_tolp)
 
     def _label_msa(self) -> None:
         self.env.set_global("msa", "CSA")
@@ -162,70 +175,100 @@ LOOP(PP(T+1),TM_GDPGOAL(R,PP) = TM_GDPGOAL(R,T)*(1+TM_GR(R,T)/100)**NYPER(T));
 """,
         )
 
-    def _label_tonlp(self) -> None:
-        # Update forcing functions, reset damage and climate module
-        if self.tc.defined("TM_CATT"):
-            self.tc.enqueue(self.label_tonlp_exec1)
-
-        if self.tc.defined("DAM_COST"):
-            self.tc.enqueue(
-                rpt_dam_mod,
-                stages=self.env.stages,
-                var=self.env.var,
-                cli=self.env.cli,
-                vart=self.env.vart,
-                sws=self.env.sws,
-                sow=self.env.sow,
-                solveda=self.env.solveda,
-                scum=self.env.scum,
-            )
-
-        if self.env.cli.upper() != "YES":
-            return
-
-        self.include(ForcupdCli(self.tc, self.env))
-
-        if not self.tc.defined("TM_CATT"):
-            return
-
-        self.tc.enqueue(self.label_tonlp_exec2)
-
-    def label_tonlp_exec1(self) -> None:
+    def _label_tonlp(
+        self: PreppmMsa,
+        is_tm_catt_defined: bool,
+        is_dam_cost_defined: bool,
+        cli: str,
+        solveda: str,
+        stages: str,
+        var: str,
+        vart: str,
+        sws: str,
+        sow: str,
+        scum: str,
+        sw_notags: str,
+    ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code="""
-LOOP(G_RCUR(R,CUR)$TM_DAM(R,'0'),DAM_COST(R,PP,C(CG(CM_EMIS)),CUR) = EPS);
-""",
-        )
-
-    def label_tonlp_exec2(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""
-  LOOP(G_RCUR(R,CUR)$TM_DAM(R,'0'),
-    F=REG_WOBJ(R,'DAM-EXT+',CUR); MY_F=REG_WOBJ(R,'DAS',CUR); Z=MAX(0,MIN(MY_F,-F));
-    REG_WOBJ(R,'DAS',CUR)=MY_F-Z; REG_WOBJ(R,'DAM-EXT+',CUR)=F+Z);
-  CM_MAXC_M(CM_EMIS,XTP) = VAR_CLITOT.LO(CM_EMIS,XTP);
-  IF(CARD(TM_DAM),CM_TKIND(CM_EMIS)=NO; VAR_CLITOT.FX(CM_EMIS,XTP)=VAR_CLITOT.L(CM_EMIS,XTP);
-  ELSE OPTION CLEAR=CM_KIND,CLEAR=CM_TKIND);
-""",
+            code=preppm_msa_label_tonlp(
+                is_tm_catt_defined=is_tm_catt_defined,
+                is_dam_cost_defined=is_dam_cost_defined,
+                cli=cli,
+                solveda=solveda,
+                stages=stages,
+                var=var,
+                vart=vart,
+                sws=sws,
+                sow=sow,
+                scum=scum,
+                sw_notags=sw_notags,
+            ),
         )
 
     def _label_tolp(self) -> None:
-        self.tc.enqueue(self.label_tolp_exec1)
+        self.tc.add_gams_code(module=self, phase="run", code=preppm_msa_label_tolp())
 
-    def label_tolp_exec1(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""
-* Redefine marginal damages
-  LOOP((C(CG(CM_EMIS)),G_RCUR(R,CUR))$(CNT$TM_DAM(R,'0')),
-    DAM_COST(R,PP(T),C,CUR) = SUM(SUPERYR(T,XTP),ABS(VAR_CLITOT.M(CM_EMIS,XTP)/EQ_TRDBAL.M(T,"NMR"))*CM_EVAR(CM_EMIS,XTP)*OBJ_DISC(R,XTP,CUR)/OBJ_DISC(R,T,CUR)/TM_SCALE_CST));
-  CM_TKIND(CM_VAR(CM_LPT))=YES; CM_KIND(CM_VAR(CM_LPK))=YES;
-  VAR_CLITOT.LO(CM_EMIS,XTP) = CM_MAXC_M(CM_EMIS,XTP);
-  VAR_CLITOT.UP(CM_EMIS,XTP) = INF;
-""",
+
+def preppm_msa_label_tonlp(
+    is_tm_catt_defined: bool,
+    is_dam_cost_defined: bool,
+    cli: str,
+    solveda: str,
+    stages: str,
+    var: str,
+    vart: str,
+    sws: str,
+    sow: str,
+    scum: str,
+    sw_notags: str,
+) -> str:
+    return_str = ""
+    # Update forcing functions, reset damage and climate module
+    if is_tm_catt_defined:
+        return_str += (
+            "LOOP(G_RCUR(R,CUR)$TM_DAM(R,'0'),DAM_COST(R,PP,C(CG(CM_EMIS)),CUR) = EPS);"
         )
+
+    if is_dam_cost_defined:
+        return_str += rpt_dam_mod(
+            solveda=solveda,
+            stages=stages,
+            var=var,
+            cli=cli,
+            vart=vart,
+            sws=sws,
+            sow=sow,
+            scum=scum,
+            sw_notags=sw_notags,
+        )
+
+    if cli.upper() != "YES":
+        return return_str
+
+    return_str += forcupd_cli()
+
+    if not is_tm_catt_defined:
+        return return_str
+
+    return_str += """
+LOOP(G_RCUR(R,CUR)$TM_DAM(R,'0'),
+F=REG_WOBJ(R,'DAM-EXT+',CUR); MY_F=REG_WOBJ(R,'DAS',CUR); Z=MAX(0,MIN(MY_F,-F));
+REG_WOBJ(R,'DAS',CUR)=MY_F-Z; REG_WOBJ(R,'DAM-EXT+',CUR)=F+Z);
+CM_MAXC_M(CM_EMIS,XTP) = VAR_CLITOT.LO(CM_EMIS,XTP);
+IF(CARD(TM_DAM),CM_TKIND(CM_EMIS)=NO; VAR_CLITOT.FX(CM_EMIS,XTP)=VAR_CLITOT.L(CM_EMIS,XTP);
+ELSE OPTION CLEAR=CM_KIND,CLEAR=CM_TKIND);
+"""
+    return return_str
+
+
+def preppm_msa_label_tolp() -> str:
+    return """
+* Redefine marginal damages
+LOOP((C(CG(CM_EMIS)),G_RCUR(R,CUR))$(CNT$TM_DAM(R,'0')),
+DAM_COST(R,PP(T),C,CUR) = SUM(SUPERYR(T,XTP),ABS(VAR_CLITOT.M(CM_EMIS,XTP)/EQ_TRDBAL.M(T,"NMR"))*CM_EVAR(CM_EMIS,XTP)*OBJ_DISC(R,XTP,CUR)/OBJ_DISC(R,T,CUR)/TM_SCALE_CST));
+CM_TKIND(CM_VAR(CM_LPT))=YES; CM_KIND(CM_VAR(CM_LPK))=YES;
+VAR_CLITOT.LO(CM_EMIS,XTP) = CM_MAXC_M(CM_EMIS,XTP);
+VAR_CLITOT.UP(CM_EMIS,XTP) = INF;
+"""

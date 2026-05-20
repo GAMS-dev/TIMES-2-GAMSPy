@@ -49,7 +49,7 @@ class CoefExtCli(GamsClass):
 
     def compile(self) -> None:
         if self.arg1 == "SLOPE":
-            self.comp_slope()
+            self.tc.enqueue(self.exec_slope)
             return
 
         self.tc.enqueue(self.exec1)
@@ -229,34 +229,8 @@ class CoefExtCli(GamsClass):
             )
         )
 
-    def comp_slope(self: CoefExtCli) -> None:
-        self.tc.enqueue(self.exec_slope)
-
-    def exec_slope(
-        self: CoefExtCli,
-    ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-*-----------------------------------------------------------------------------
-* Calculate linear slope for FORCING from CO2
- IF(CM_KIND('FORCING'),OPTION FIL<CM_LED;
-   LOOP(CM_ATMAP(CM_EMIS,CM_VAR),CM_LINFOR(FIL(LL),CM_EMIS,L) $= CM_LINFOR(LL,CM_VAR,L));
-   CM_LINFOR(FIL(LL),'CO2-GTC',BDNEQ) $= CM_LINFOR(LL,'CO2-ATM',BDNEQ)*CM_CONST('CO2-PREIND')*(1/CM_PPM('CO2-GTC'));
-   MY_ARRAY(FIL(LL)) = MAX(CM_LINFOR(LL,'CO2-GTC','LO'),
-      ((CM_LINFOR(LL,'CO2-GTC','UP')-CM_LINFOR(LL,'CO2-GTC','LO')) /
-       LOG(MAX(1.001,CM_LINFOR(LL,'CO2-GTC','UP')/CM_LINFOR(LL,'CO2-GTC','LO')))))$(CM_LINFOR(LL,'CO2-GTC','LO') GT 0);
-   CM_LINFOR(FIL(LL),'CO2-GTC','N')$MY_ARRAY(LL) = CM_CONST('GAMMA')/MY_ARRAY(LL)/LOG(2);
-   CM_LINFOR(FIL(LL),'CO2-GTC','FX')$MY_ARRAY(LL) =
-      (CM_CONST('GAMMA')/LOG(2) *
-       LOG(MY_ARRAY(LL)*CM_LINFOR(LL,'CO2-GTC','LO')/POWER(CM_CONST('CO2-PREIND')/CM_PPM('CO2-GTC'),2)) -
-       CM_LINFOR(LL,'CO2-GTC','N')*(MY_ARRAY(LL)+CM_LINFOR(LL,'CO2-GTC','LO')))/2);
-*-----------------------------------------------------------------------------
-* If EXOFORCING is not provided by the user, use default values
-  IF(NOT SUM(T,CM_EXOFORC(T)),CM_EXOFORC(MY_FIL(LL)) = MIN(1.15, -0.1965 + 0.013465 * (YEARVAL(LL)-1995)));
-""",
-        )
+    def exec_slope(self: CoefExtCli) -> None:
+        self.tc.add_gams_code(module=self, phase="run", code=coef_ext_cli_slope())
 
     def exec1(self: CoefExtCli) -> None:
         self.tc.add_gams_code(
@@ -580,3 +554,24 @@ LOOP(CM_EMIS(CM_VAR),
   S_CM_MAXC(LL,CG,J,W)$(YEARVAL(LL) LT F) = 0;
   """,
         )
+
+
+def coef_ext_cli_slope() -> str:
+    return r"""
+*-----------------------------------------------------------------------------
+* Calculate linear slope for FORCING from CO2
+IF(CM_KIND('FORCING'),OPTION FIL<CM_LED;
+LOOP(CM_ATMAP(CM_EMIS,CM_VAR),CM_LINFOR(FIL(LL),CM_EMIS,L) $= CM_LINFOR(LL,CM_VAR,L));
+CM_LINFOR(FIL(LL),'CO2-GTC',BDNEQ) $= CM_LINFOR(LL,'CO2-ATM',BDNEQ)*CM_CONST('CO2-PREIND')*(1/CM_PPM('CO2-GTC'));
+MY_ARRAY(FIL(LL)) = MAX(CM_LINFOR(LL,'CO2-GTC','LO'),
+    ((CM_LINFOR(LL,'CO2-GTC','UP')-CM_LINFOR(LL,'CO2-GTC','LO')) /
+    LOG(MAX(1.001,CM_LINFOR(LL,'CO2-GTC','UP')/CM_LINFOR(LL,'CO2-GTC','LO')))))$(CM_LINFOR(LL,'CO2-GTC','LO') GT 0);
+CM_LINFOR(FIL(LL),'CO2-GTC','N')$MY_ARRAY(LL) = CM_CONST('GAMMA')/MY_ARRAY(LL)/LOG(2);
+CM_LINFOR(FIL(LL),'CO2-GTC','FX')$MY_ARRAY(LL) =
+    (CM_CONST('GAMMA')/LOG(2) *
+    LOG(MY_ARRAY(LL)*CM_LINFOR(LL,'CO2-GTC','LO')/POWER(CM_CONST('CO2-PREIND')/CM_PPM('CO2-GTC'),2)) -
+    CM_LINFOR(LL,'CO2-GTC','N')*(MY_ARRAY(LL)+CM_LINFOR(LL,'CO2-GTC','LO')))/2);
+*-----------------------------------------------------------------------------
+* If EXOFORCING is not provided by the user, use default values
+IF(NOT SUM(T,CM_EXOFORC(T)),CM_EXOFORC(MY_FIL(LL)) = MIN(1.15, -0.1965 + 0.013465 * (YEARVAL(LL)-1995)));
+"""
