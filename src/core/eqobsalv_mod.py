@@ -64,34 +64,16 @@ class EqobsalvMod(GamsClass):
         self._label_prepro()
 
     def _label_prepro(self) -> None:
-        self.env.set_scoped("pft", "")
-        if self.env.is_set("TIMESTEP"):
-            self.tc.enqueue(self.check_stepped_mode)
-
-        if self.env.stepped == "+" and self.arg1.upper() == "mod":
-            self._label_equa(
-                arg2=self.arg2,
-                eq=self.env.eq,
-                sow=self.env.sow,
-                vart=self.env.vart,
-                validate=self.env.validate,
-                etl=self.env.etl,
-                sws=self.env.sws,
-                varv=self.env.varv,
-                var=self.env.var,
-            )
-            return
-
-        if not self.tc.defined("VNRET") and self.env.ctst != "":
-            self.env.set_scoped("pft", "(T)")
-
         self.tc.enqueue(
-            self.salvage_investments,
-            self.env.pft,
-            self.env.capjd,
-            self.env.etl,
-            self.env.ctst,
-            self.env.declif,
+            self.exec_eqobsalv_prepro,
+            arg1=self.arg1,
+            timestep_is_set=self.env.is_set("TIMESTEP"),
+            stepped=self.env.stepped,
+            ctst=self.env.ctst,
+            capjd=self.env.capjd,
+            etl=self.env.etl,
+            declif=self.env.declif,
+            vnret_defined=self.tc.defined("VNRET"),
         )
 
         self._label_equa(
@@ -106,91 +88,30 @@ class EqobsalvMod(GamsClass):
             var=self.env.var,
         )
 
-    def check_stepped_mode(self: EqobsalvMod) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""
-    OPTION CLEAR=OBJ_SUMS,CLEAR=OBJ_SUMS3,CLEAR=SALV_INV,CLEAR=OBJSCC;
-    """,
-        )
-
-    def salvage_investments(
-        self: EqobsalvMod, pft: str, capjd: str, etl: str, ctst: str, declif: str
+    def exec_eqobsalv_prepro(
+        self: EqobsalvMod,
+        arg1: str,
+        timestep_is_set: bool,
+        stepped: str,
+        ctst: str,
+        capjd: str,
+        etl: str,
+        declif: str,
+        vnret_defined: bool,
     ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf"""
-* Salvaging of Investments; LL is investment year, K is commissioning year
-*[UR] 19.12.2003 added -1 in line below, since lifetime starts at the beginning of year K
-  OBJ_SALI(OBJ_SUMII(R,V{pft},P,AGE,K_EOH,JOT),K,LL--ORD(LL))$((YEARVAL(K)+NCAP_TLIFE(R,V,P)-1>MIYR_VL)$INVSPRED(K_EOH,JOT,K,LL))=YES;
-  OPTION OBJ_SUMSI <= OBJ_SALI, CLEAR=OBJ_SALI;
-
-* No retrofit salvage
-  LOOP((RP(R,PRC),P)$PRC_REFIT(RP,P),IF(PRC_REFIT(RP,P)<0, OBJ_SUMSI(R,T,P,K)=NO));
-  OPTION OBJ_SUMS <= OBJ_SUMSI;
-
-* Salvaging of Decommissioning
-  LOOP(OBJ_SUMIII(OBJ_SUMS(R,V,P),LL,K,Y), OBJ_SUMS3(R,V,P) = YES);
-* Salvaging of Decommissioning surveillance
-  LOOP(OBJ_SUMIVS(R,V,P,K,Y)$(YEARVAL(K)+NCAP_TLIFE(R,V,P)-1 GT MIYR_VL),
-    OBJ_SUMS3(R,V,P) = YES; OBJ_SUMSI(R,V,P,K) = YES);
-
-*===============================================================================
-  LOOP(RDCUR(R,CUR),
-* Salvage proportion of investments at the commissioning year K:
-   SALV_INV(OBJ_SUMSI(R,V,P,K))$OBJ_ICUR(R,V,P,CUR) =
-       MIN(1,(((1+G_DRATE(R,V,CUR))*EXP(NCAP_FDR(R,V,P)))**(NCAP_TLIFE(R,V,P)+YEARVAL(K)-MIYR_VL-1)-1) /
-             (((1+G_DRATE(R,V,CUR))*EXP(NCAP_FDR(R,V,P)))**NCAP_TLIFE(R,V,P)-1));
-  );
-* Discount factors for the year EOH+1:
-  LOOP(MIYR_1(LL), F = MIYR_VL+1-YEARVAL(MIYR_1); OBJ_DCEOH(RDCUR(R,CUR)) = OBJ_DISC(R,LL+F,CUR));
-* Shape-reduced salvage at EOH+1:
-  Z = SMAX(T$(B(T)<=MIYR_VL+1),ORD(T)-1);
-  LOOP(MIYR_1(T-Z), SALV_INV(OBJ_SUMSI(RTP,K))$NCAP_CPX(RTP) = SALV_INV(RTP,K)*(1+RTP_CPX(RTP,T)));
-
-  OPTION CLEAR = OBJ_SUMSI;
-*===============================================================================
-* Salvage value of investments at year EOH+1:
-* Note that in Cases 2a and 2b investment costs are paid before K
-  OBJSCC(OBJ_ICUR(OBJ_SUMS(R,V,P),CUR)) = COR_SALVI(R,V,P,CUR) / OBJ_DCEOH(R,CUR) / OBJ_DIVI(R,V,P) *
-    SUM((OBJ_SUMII(R,V,P,AGE,K_EOH,JOT),INVSPRED(K_EOH,JOT,LL,K))$SALV_INV(R,V,P,LL),{capjd}
-        (OBJ_ICOST(R,K,P,CUR)+OBJ_ITAX(R,K,P,CUR)-OBJ_ISUB(R,K,P,CUR)) * SALV_INV(R,V,P,LL) * OBJ_DISC(R,K,CUR));
-""",
-        )
-
-        # Handle ETL in similar fashion
-        if etl == "YES":
-            self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code=rf"""
-LOOP((OBJ_SUMS(R,T(V),P),G_RCUR(R,CUR))$SEG(R,P),
-  OBJSIC(R,T,P) = COR_SALVI(R,T,P,CUR) / OBJ_DCEOH(R,CUR) / OBJ_DIVI(R,T,P) *
-    SUM((OBJ_SUMII(R,V,P,AGE,K_EOH,JOT),INVSPRED(K_EOH,JOT,LL,K)),{capjd} SALV_INV(R,T,P,LL)*OBJ_DISC(R,K,CUR)));
-""",
-            )
-
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-* Additional constant term
-  OBJ_IAD(RDCUR(R,CUR)) = SUM(OBJ_ICUR(OBJ_SUMS(R,PASTMILE(V),P),CUR)$((OBJ_PASTI(R,V,P,CUR)=0)+0{ctst}),OBJSCC(R,V,P,CUR)*NCAP_PASTI(R,V,P)*OBJ_DCEOH(R,CUR));
-*===============================================================================
-*GG* only if decommissioning lifetime provided by user
-  COR_SALVD(RTP(R,V,P),CUR)$OBJ_DCOST(R,V,P,CUR) =
-                   (((1-1/(1+NCAP_DRATE(R,V,P)))*(1-1/(1+OBJ_RFR(R,V,CUR))**NCAP_DELIF(R,V,P)))/
-                    ((1-1/(1+OBJ_RFR(R,V,CUR)))*(1-1/(1+NCAP_DRATE(R,V,P))**NCAP_DELIF(R,V,P)))
-                    )$(NCAP_DRATE(R,V,P) GT 0) + 1$(NCAP_DRATE(R,V,P) EQ 0);
-  OBJ_CRFD(RTP(R,V,P),CUR)$OBJ_DCOST(R,V,P,CUR) = COR_SALVD(R,V,P,CUR) * (1-(1/(1+G_DRATE(R,V,CUR)))) / (1-(1+G_DRATE(R,V,CUR))**(-ROUND(NCAP_{declif}(R,V,P))));
-*------------------------------------------------------------------------------
-* Salvage value of Decommissioning at year EOH+1:
-* Documentation defines the value for each decommissioning year Y; here aggregated by vintage
-  SALV_DEC(OBJ_SUMS3(R,V,P),CUR)$COR_SALVD(R,V,P,CUR) = COR_SALVD(R,V,P,CUR) / OBJ_DIVIII(R,V,P) / OBJ_DCEOH(R,CUR) *
-      SUM(OBJ_SUMIII(R,V,P,LL,K,Y)$SALV_INV(R,V,P,LL),SALV_INV(R,V,P,LL)*OBJ_DCOST(R,K,P,CUR)*OBJ_DISC(R,Y,CUR));
-""",
+            code=eqobsalv_prepro(
+                arg1=arg1,
+                timestep_is_set=timestep_is_set,
+                stepped=stepped,
+                ctst=ctst,
+                capjd=capjd,
+                etl=etl,
+                declif=declif,
+                vnret_defined=vnret_defined,
+            ),
         )
 
     def _label_equa(
@@ -278,3 +199,98 @@ LOOP((OBJ_SUMS(R,T(V),P),G_RCUR(R,CUR))$SEG(R,P),
 """
         equation = lhs + rhs
         self.tc.add_gams_code(module=self, phase="init", code=equation)
+
+
+def eqobsalv_prepro(
+    *,
+    arg1: str,
+    timestep_is_set: bool,
+    stepped: str,
+    ctst: str,
+    capjd: str,
+    etl: str,
+    declif: str,
+    vnret_defined: bool,
+) -> str:
+    if stepped == "+" and arg1.upper() == "MOD":
+        return ""
+
+    pft = ""
+    if not vnret_defined and ctst != "":
+        pft = "(T)"
+
+    return rf"""
+{
+        "OPTION CLEAR=OBJ_SUMS,CLEAR=OBJ_SUMS3,CLEAR=SALV_INV,CLEAR=OBJSCC;"
+        if timestep_is_set
+        else ""
+    }
+* Salvaging of Investments; LL is investment year, K is commissioning year
+*[UR] 19.12.2003 added -1 in line below, since lifetime starts at the beginning of year K
+  OBJ_SALI(OBJ_SUMII(R,V{
+        pft
+    },P,AGE,K_EOH,JOT),K,LL--ORD(LL))$((YEARVAL(K)+NCAP_TLIFE(R,V,P)-1>MIYR_VL)$INVSPRED(K_EOH,JOT,K,LL))=YES;
+  OPTION OBJ_SUMSI <= OBJ_SALI, CLEAR=OBJ_SALI;
+
+* No retrofit salvage
+  LOOP((RP(R,PRC),P)$PRC_REFIT(RP,P),IF(PRC_REFIT(RP,P)<0, OBJ_SUMSI(R,T,P,K)=NO));
+  OPTION OBJ_SUMS <= OBJ_SUMSI;
+
+* Salvaging of Decommissioning
+  LOOP(OBJ_SUMIII(OBJ_SUMS(R,V,P),LL,K,Y), OBJ_SUMS3(R,V,P) = YES);
+* Salvaging of Decommissioning surveillance
+  LOOP(OBJ_SUMIVS(R,V,P,K,Y)$(YEARVAL(K)+NCAP_TLIFE(R,V,P)-1 GT MIYR_VL),
+    OBJ_SUMS3(R,V,P) = YES; OBJ_SUMSI(R,V,P,K) = YES);
+
+*===============================================================================
+  LOOP(RDCUR(R,CUR),
+* Salvage proportion of investments at the commissioning year K:
+   SALV_INV(OBJ_SUMSI(R,V,P,K))$OBJ_ICUR(R,V,P,CUR) =
+       MIN(1,(((1+G_DRATE(R,V,CUR))*EXP(NCAP_FDR(R,V,P)))**(NCAP_TLIFE(R,V,P)+YEARVAL(K)-MIYR_VL-1)-1) /
+             (((1+G_DRATE(R,V,CUR))*EXP(NCAP_FDR(R,V,P)))**NCAP_TLIFE(R,V,P)-1));
+  );
+* Discount factors for the year EOH+1:
+  LOOP(MIYR_1(LL), F = MIYR_VL+1-YEARVAL(MIYR_1); OBJ_DCEOH(RDCUR(R,CUR)) = OBJ_DISC(R,LL+F,CUR));
+* Shape-reduced salvage at EOH+1:
+  Z = SMAX(T$(B(T)<=MIYR_VL+1),ORD(T)-1);
+  LOOP(MIYR_1(T-Z), SALV_INV(OBJ_SUMSI(RTP,K))$NCAP_CPX(RTP) = SALV_INV(RTP,K)*(1+RTP_CPX(RTP,T)));
+
+  OPTION CLEAR = OBJ_SUMSI;
+*===============================================================================
+* Salvage value of investments at year EOH+1:
+* Note that in Cases 2a and 2b investment costs are paid before K
+  OBJSCC(OBJ_ICUR(OBJ_SUMS(R,V,P),CUR)) = COR_SALVI(R,V,P,CUR) / OBJ_DCEOH(R,CUR) / OBJ_DIVI(R,V,P) *
+    SUM((OBJ_SUMII(R,V,P,AGE,K_EOH,JOT),INVSPRED(K_EOH,JOT,LL,K))$SALV_INV(R,V,P,LL),{
+        capjd
+    }
+        (OBJ_ICOST(R,K,P,CUR)+OBJ_ITAX(R,K,P,CUR)-OBJ_ISUB(R,K,P,CUR)) * SALV_INV(R,V,P,LL) * OBJ_DISC(R,K,CUR));
+
+{
+        rf'''
+LOOP((OBJ_SUMS(R,T(V),P),G_RCUR(R,CUR))$SEG(R,P),
+  OBJSIC(R,T,P) = COR_SALVI(R,T,P,CUR) / OBJ_DCEOH(R,CUR) / OBJ_DIVI(R,T,P) *
+    SUM((OBJ_SUMII(R,V,P,AGE,K_EOH,JOT),INVSPRED(K_EOH,JOT,LL,K)),{capjd} SALV_INV(R,T,P,LL)*OBJ_DISC(R,K,CUR)));
+'''
+        if etl == "YES"
+        else ""
+    }
+
+* Additional constant term
+  OBJ_IAD(RDCUR(R,CUR)) = SUM(OBJ_ICUR(OBJ_SUMS(R,PASTMILE(V),P),CUR)$((OBJ_PASTI(R,V,P,CUR)=0)+0{
+        ctst
+    }),OBJSCC(R,V,P,CUR)*NCAP_PASTI(R,V,P)*OBJ_DCEOH(R,CUR));
+*===============================================================================
+*GG* only if decommissioning lifetime provided by user
+  COR_SALVD(RTP(R,V,P),CUR)$OBJ_DCOST(R,V,P,CUR) =
+                   (((1-1/(1+NCAP_DRATE(R,V,P)))*(1-1/(1+OBJ_RFR(R,V,CUR))**NCAP_DELIF(R,V,P)))/
+                    ((1-1/(1+OBJ_RFR(R,V,CUR)))*(1-1/(1+NCAP_DRATE(R,V,P))**NCAP_DELIF(R,V,P)))
+                    )$(NCAP_DRATE(R,V,P) GT 0) + 1$(NCAP_DRATE(R,V,P) EQ 0);
+  OBJ_CRFD(RTP(R,V,P),CUR)$OBJ_DCOST(R,V,P,CUR) = COR_SALVD(R,V,P,CUR) * (1-(1/(1+G_DRATE(R,V,CUR)))) / (1-(1+G_DRATE(R,V,CUR))**(-ROUND(NCAP_{
+        declif
+    }(R,V,P))));
+*------------------------------------------------------------------------------
+* Salvage value of Decommissioning at year EOH+1:
+* Documentation defines the value for each decommissioning year Y; here aggregated by vintage
+  SALV_DEC(OBJ_SUMS3(R,V,P),CUR)$COR_SALVD(R,V,P,CUR) = COR_SALVD(R,V,P,CUR) / OBJ_DIVIII(R,V,P) / OBJ_DCEOH(R,CUR) *
+      SUM(OBJ_SUMIII(R,V,P,LL,K,Y)$SALV_INV(R,V,P,LL),SALV_INV(R,V,P,LL)*OBJ_DCOST(R,K,P,CUR)*OBJ_DISC(R,Y,CUR));
+"""

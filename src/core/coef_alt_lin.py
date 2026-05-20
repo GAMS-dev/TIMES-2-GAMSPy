@@ -405,3 +405,112 @@ KAGE(FIL(LL-FLOOR(ORD(JOT)/2)),JOT)$((ORD(JOT) GT 1)$INVSTEP(FIL,JOT,FIL,JOT)$FI
 
     def _label_done(self) -> None:
         self.exec10()
+
+
+def coef_alt_lin_stp(
+    *,
+    obj: str,
+    ctst: str,
+    oblong: str,
+) -> str:
+    linflo = ctst.upper() == "**EPS"
+    linacc = obj.upper() == "LIN"
+    obj_is_alt = obj.upper() == "ALT"
+
+    if f"{oblong}{obj}".upper() == "YESALT":
+        linacc = True
+
+    iled = "$NCAP_ILED(R,V,P)"
+    if f"{oblong}{int(linflo)}".upper() == "YES1":
+        iled = ""
+
+    # ---- blocks ----
+
+    fpd_block = ""
+    if linflo:
+        fpd_block = """
+  FPD(T) = SUM(TPULSEYR(T,Y_EOH),TPULSE(T,Y_EOH));
+  OBJ_PVT(R,T,CUR)$RDCUR(R,CUR) = SUM(TPULSEYR(T,Y_EOH),TPULSE(T,Y_EOH)*OBJ_DISC(R,Y_EOH,CUR)); COEF_PVT(R,T) = SUM(G_RCUR(R,CUR),OBJ_PVT(R,T,CUR));
+"""
+
+    altv_block = (
+        """
+  OBJ_ALTV(R,T) = COEF_PVT(R,T) / SUM(PERIODYR(T,Y_EOH),OBJ_DISC(R,Y_EOH,CUR));
+"""
+        if linflo
+        else """
+  OBJ_ALTV(R,T) = COEF_PVT(R,T) / SUM(TPULSEYR(T,Y_EOH),TPULSE(T,Y_EOH)*OBJ_DISC(R,Y_EOH,CUR));
+"""
+    )
+
+    lint_expr = (
+        "  SUM(TPULSEYR(T,Y_EOH)$TPULSEYR(TT,Y_EOH),TPULSE(T,Y_EOH)*TPULSE(TT,Y_EOH)*OBJ_DISC(R,Y_EOH,CUR));"
+        if linacc
+        else "  SUM(PERIODYR(T,Y_EOH)$TPULSEYR(TT,Y_EOH),TPULSE(TT,Y_EOH)*OBJ_DISC(R,Y_EOH,CUR));"
+    )
+
+    trapezoid_block = ""
+    if linflo:
+        extra_block = ""
+        if oblong.upper() != "YES":
+            extra_block = """
+* Calculate additional cost due to trapezoidal periods
+  LOOP(G_RCUR(R,CUR),
+    FIL2(T) = R_DF(R,T);
+    PASTSUM(RTP(R,Y_EOH(T),P))$((NOT NCAP_ILED(R,T,P))$PRC_CAP(R,P)) =
+      (FIL2(T)**(RB(R,T)-B(T))-1) /
+      (1-FIL2(T)**MIN(MIYR_VL+1-B(T),COEF_RPTI(R,T,P)*NCAP_TLIFE(R,T,P))));
+  RTP_CAPVL(R,T,P)$PASTSUM(R,T,P) =
+      (1+RTP_CAPVL(R,T,P)) / (1+PASTSUM(R,T,P)) - 1;
+"""
+
+        trapezoid_block = rf"""
+* Adjustments to Divisors when trapezoidal periods
+  OPTION CLEAR=RTP_CAPVL;
+  LOOP(T$(E(T) EQ MIYR_VL),
+   PASTSUM(RTP(R,TT,P))$((COEF_CPT(R,TT,T,P) GT 0)$PRC_CAP(R,P)) =
+       B(TT)+NCAP_ILED(R,TT,P)+COEF_RPTI(R,TT,P)*NCAP_TLIFE(R,TT,P);
+   LOOP(G_RCUR(R,CUR), F = RB(R,T);
+    MY_F = R_DF(R,T); Z = 1-MY_F**(MIYR_VL-F+1);
+    RTP_CAPVL(R,TT(V),P)$PASTSUM(R,V,P) =
+      COEF_PVT(R,T) *
+      ((MIN(Z, 1-MY_F**(PASTSUM(R,V,P)-F))
+        - (1-MY_F**MAX(0,B(V)+NCAP_ILED(R,V,P)-F)){iled}) / Z
+        - COEF_CPT(R,V,T,P))));
+  RTP_CAPVL(R,TT,P)$RTP_CAPVL(R,TT,P) =
+      RTP_CAPVL(R,TT,P) /
+      SUM(VNT(TT,Y_EOH(T)),COEF_PVT(R,T)*MAX(0,COEF_CPT(R,TT,T,P)));
+  OPTION CLEAR=PASTSUM;
+{extra_block}
+  OBJ_DIVI(RTP(R,T,P))   = STP_DIV('1',R,T,P)*(1+RTP_CAPVL(R,T,P));
+  OBJ_DIVIV(RTP(R,T,P))  = STP_DIV('2',R,T,P)*(1+RTP_CAPVL(R,T,P));
+  OBJ_DIVIII(RTP(R,T,P)) = STP_DIV('3',R,T,P)*(1+RTP_CAPVL(R,T,P));
+"""
+
+    # ---- final string ----
+
+    return rf"""
+  OPTION CLEAR=PERDINV,CLEAR=TPULSE,CLEAR=TPULSEYR;
+
+  PERDINV(YK(T,K))$(YEARVAL(K) > M(T)-LEAD(T)) = YES;
+  OPTION CLEAR=YK1; YK1(T,Y_EOH)$(YEARVAL(T)<=YEARVAL(Y_EOH)) = YES;
+
+  TPULSEYR(PERDINV(T,Y_EOH)) = YES;
+  TPULSE(TPULSEYR(T,Y_EOH)) = 1-((M(T)-YEARVAL(Y_EOH))/LEAD(T))$(NOT MIYR_1(T));
+  TPULSEYR(YK1(T,Y_EOH))$(YEARVAL(Y_EOH) < M(T)+LAGT(T)) = YES;
+  TPULSE(TPULSEYR(YK1(T,LL))) = 1-TPULSE(T+1,LL);
+
+{fpd_block}
+
+  IF(ABS(ALTOBJ) EQ 2, LOOP(G_RCUR(R,CUR),
+{altv_block}
+  ));
+
+  OBJ_LINT(R,T,TT,CUR)$RDCUR(R,CUR) =
+{"  OBJ_ALTV(R,T) *" if obj_is_alt else ""}
+{lint_expr}
+
+{trapezoid_block}
+
+  OPTION CLEAR=PASTSUM,CLEAR=YK1;
+"""

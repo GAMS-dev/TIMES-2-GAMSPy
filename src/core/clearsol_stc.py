@@ -39,12 +39,25 @@ class ClearsolStc(GamsClass):
 
     def compile(self) -> None:
         if self.arg1 != "":
-            self.tc.add_gams_code(
-                module=self,
-                phase="init",
-                # TODO
-                code=rf"${self.env.sw_notags}",
-            )
+            if (
+                self.env.sw_notags
+                == "SET EQ 'EQ' SET VAR 'VAR' SET SWS '' SET SOW '' SET SWT '' SET SWD '' SET SWTD '' SET SWSW '' SET VART 'VAR' SET VARV 'VAR' SET VARM 'VAR' SET VARTT VAR"
+            ):
+                self.env.set_scoped("eq", "EQ")
+                self.env.set_scoped("var", "VAR")
+                self.env.set_scoped("sws", "")
+                self.env.set_scoped("sow", "")
+                self.env.set_scoped("swt", "")
+                self.env.set_scoped("swd", "")
+                self.env.set_scoped("swtd", "")
+                self.env.set_scoped("swsw", "")
+                self.env.set_scoped("vart", "VAR")
+                self.env.set_scoped("varv", "VAR")
+                self.env.set_scoped("varm", "VAR")
+                self.env.set_scoped("vartt", "VAR")
+            else:
+                raise ValueError(f"Unknown value in sw_notags: {self.env.sw_notags}")
+
             self.include(ModVarsMod(tc=self.tc, env=self.env))
             self.include(EqdeclrMod(tc=self.tc, env=self.env, arg1=""))
             self.tc.add_gams_code(
@@ -67,7 +80,13 @@ $ CLEAR VAR_CUMFLO VAR_CUMCOM VAR_CUMCST VAR_ACT VAR_FLO VAR_IRE VAR_SIN VAR_SOU
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf"""
+            code=clearsol_stc(var_dam_defined, var_scap_defined),
+        )
+
+
+# arg1 is only used in the definition part, if arg1 is empty only the function is executed
+def clearsol_stc(var_dam_defined: bool, var_scap_defined: bool) -> str:
+    return rf"""
   IF(YES,DISPLAY 'Solution store cleared';
   OPTION CLEAR=VAR_ACT;
   OPTION CLEAR=VAR_BLND;
@@ -94,5 +113,4 @@ $ CLEAR VAR_CUMFLO VAR_CUMCOM VAR_CUMCST VAR_ACT VAR_FLO VAR_IRE VAR_SIN VAR_SOU
   OPTION CLEAR=EQE_FLOMRK,CLEAR=EQG_FLOMRK,CLEAR=EQL_FLOMRK;
   OPTION CLEAR=EQE_ACTBND,CLEAR=EQG_ACTBND,CLEAR=EQL_ACTBND;
   );
-""",
-        )
+"""

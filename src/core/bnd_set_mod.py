@@ -33,7 +33,8 @@ logger = logging.getLogger(__name__)
 class BndSetMod(GamsClass):
     """Translation unit for bnd_set.mod."""
 
-    module_name: str = "bnd_set"
+    # Instance attributes
+    module_name: str = "bnd_set_mod"
     gams_source: str = "bnd_set.mod"
 
     def __init__(
@@ -70,9 +71,7 @@ class BndSetMod(GamsClass):
             stages=self.env.stages,
             swd=self.env.swd,
             sow=self.env.sow,
-            stochastic_symbol_declared=(
-                f"S_{self.arg3}" in self.tc.container.listSymbols()
-            ),
+            stochastic_symbol_declared=self.tc.defined(f"S_{self.arg3}"),
         )
 
     def exec_bnd_set_mod(
@@ -108,12 +107,12 @@ class BndSetMod(GamsClass):
 
 def bnd_set_mod(
     *,
-    arg1: str,
-    arg2: str,
-    arg3: str,
-    arg4: str,
-    arg5: str,
-    arg6: str,
+    arg1: str = "",
+    arg2: str = "",
+    arg3: str = "",
+    arg4: str = "",
+    arg5: str = "",
+    arg6: str = "",
     stages: str,
     swd: str,
     sow: str,
@@ -124,17 +123,7 @@ def bnd_set_mod(
     elif arg6 == "I":
         stop = stages.upper() != "YES"
     else:
-        raise ValueError(f"Unhandled argument arg6={arg6!r}.")
-
-    stochastic_bounds = ""
-    if not stop and stochastic_symbol_declared:
-        stochastic_bounds = rf"""
-*-----------------------------------------------------------------------------
-* Stochastic bounds
-  {arg1}.LO({arg4}{sow}){arg5}  $=  S_{arg3}({arg2},'LO','1',SOW);
-  {arg1}.UP({arg4}{sow}){arg5}  $=  S_{arg3}({arg2},'UP','1',SOW);
-  {arg1}.FX({arg4}{sow}){arg5}  $=  S_{arg3}({arg2},'FX','1',SOW);
-"""
+        raise ValueError(f"Unhandled argument arg6={arg6!r} passed.")
 
     return rf"""
 * reset any existing bounds
@@ -144,5 +133,15 @@ def bnd_set_mod(
   {arg1}.LO({arg4}{sow}){arg5}  $=  {arg3}({arg2},'LO');
   {arg1}.UP({arg4}{sow}){arg5}  $=  {arg3}({arg2},'UP');
   {arg1}.FX({arg4}{sow}){arg5}  $=  {arg3}({arg2},'FX');
-{stochastic_bounds}
+{
+        rf'''
+*-----------------------------------------------------------------------------
+* Stochastic bounds
+  {arg1}.LO({arg4}{sow}){arg5}  $=  S_{arg3}({arg2},'LO','1',SOW);
+  {arg1}.UP({arg4}{sow}){arg5}  $=  S_{arg3}({arg2},'UP','1',SOW);
+  {arg1}.FX({arg4}{sow}){arg5}  $=  S_{arg3}({arg2},'FX','1',SOW);
+'''
+        if not stop and stochastic_symbol_declared
+        else ""
+    }
 """

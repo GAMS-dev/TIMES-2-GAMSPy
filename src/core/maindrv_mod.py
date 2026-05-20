@@ -66,7 +66,9 @@ from core.ppmain_mod import PpmainMod
 from core.readbprice_mod import ReadbpriceMod
 from core.setglobs_gms import SetglobsGms
 from core.solve_mod import SolveMod
+from core.solve_msa import SolveMsa
 from core.solve_stc import SolveStc
+from core.solve_stp import SolveStp
 from core.spoint_mod import SpointMod
 from core.stages_stc import StagesStc
 from core.utils import EscapeStack
@@ -443,11 +445,17 @@ MODEL {model_name} / {", ".join(equations)} /;
             elif ext == "stc":
                 self.include(SolveStc(tc=self.tc, env=self.env, arg1=self.arg1))
             elif ext == "stp":
-                raise NotImplementedError("solve.stp not yet implemented.")
-            elif ext == "mrg":
-                raise FileNotFoundError("solve.mrg does not exist.")
+                self.include(
+                    SolveStp(
+                        tc=self.tc,
+                        env=self.env,
+                        arg1=self.arg1,
+                        model_name=model_name,
+                        equations=equations,
+                    )
+                )
             elif ext == "msa":
-                raise NotImplementedError("solve.msa not yet implemented.")
+                self.include(SolveMsa(tc=self.tc, env=self.env, arg1=self.arg1))
 
             if self.env.solve_now == "NO":
                 return
