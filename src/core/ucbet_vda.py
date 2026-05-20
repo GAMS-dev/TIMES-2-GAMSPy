@@ -193,7 +193,7 @@ class UcbetVda(GamsClass):
 
 * Set Equation controls
   LOOP((UC_N,R,T,P,C)$UC_FLOBET(UC_N,R,T,P,C),
-   IF(SAMEAS({pgprim},C),
+   IF(SAMEAS('{pgprim}',C),
      IF(UC_ATTR(R,UC_N,'LHS','ACT','N'),
        UC_GMAX(UC_N,'IMPEXP',P,C,'EACH') = YES;
      ELSE UC_GMAX(UC_N,R,P,C,'EACH') = YES);

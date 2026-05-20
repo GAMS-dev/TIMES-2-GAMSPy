@@ -88,7 +88,7 @@ class AtlearnEtl(GamsClass):
                 self.env.set_scoped("swd", ",WW")
                 self.env.set_scoped("swtd", ",T,WW")
                 self.env.set_scoped("sws", ",W)")
-                self.env.set_scoped("sow", ",SOW)")
+                self.env.set_scoped("sow", ",SOW")
                 self.env.set_scoped("swt", ",SW_T(T,SOW)")
                 self.env.set_scoped("vart", "SUM(SW_TSW(SOW,T,W),VAS")
                 self.env.set_scoped("varv", "SUM(SW_TSW(SOW,V,W),VAS")

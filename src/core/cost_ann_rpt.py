@@ -357,8 +357,8 @@ LOOP(OBJ_FCUR(R,FIL(V),P,CUR)$PRC_RESID(R,'0',P),
         )
 
     return_str += rf"""
-  {arg1}CST_ACTC({arg2}R,V,T,P,'-') $= SUM(CUR$PAR_ACTC('1',R,V,T,P,{pgprim},CUR),PAR_ACTC('1',R,V,T,P,{pgprim},CUR){tmp});
-  {arg1}CST_ACTC({arg2}R,V,T,P,'+') $= SUM(CUR$PAR_ACTC('2',R,V,T,P,{pgprim},CUR),PAR_ACTC('2',R,V,T,P,{pgprim},CUR){tmp});
+  {arg1}CST_ACTC({arg2}R,V,T,P,'-') $= SUM(CUR$PAR_ACTC('1',R,V,T,P,'{pgprim}',CUR),PAR_ACTC('1',R,V,T,P,'{pgprim}',CUR){tmp});
+  {arg1}CST_ACTC({arg2}R,V,T,P,'+') $= SUM(CUR$PAR_ACTC('2',R,V,T,P,'{pgprim}',CUR),PAR_ACTC('2',R,V,T,P,'{pgprim}',CUR){tmp});
   {arg1}CST_FLOC({arg2}R,V,T,P,C) $= SUM(CUR$PAR_FLOC('1',R,V,T,P,C,CUR),PAR_FLOC('1',R,V,T,P,C,CUR){tmp});
   {arg1}CST_FLOX({arg2}R,V,T,P,C) $= SUM(CUR$PAR_FLOC('2',R,V,T,P,C,CUR),PAR_FLOC('2',R,V,T,P,C,CUR){tmp});
   {arg1}CST_COMC({arg2}R,T,C)     $= SUM(CUR$PAR_COMC('1',R,T,C,CUR),PAR_COMC('1',R,T,C,CUR){tmp});

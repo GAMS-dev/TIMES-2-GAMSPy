@@ -27,9 +27,8 @@ from core.eqobjfix_rpt import EqobjfixRpt
 from core.eqobjinv_rpt import EqobjinvRpt
 from core.eqobjvar_rpt import EqobjvarRpt
 from core.eqobsalv_rpt import EqobsalvRpt
-from core.par_uc.rpt import ParUcRpt
+from core.par_uc_rpt import ParUcRpt
 from core.sol_flo_red import SolFloRed
-from core.sol_ire_red import SolIreRed
 
 from .base_class import GamsClass
 
@@ -48,11 +47,11 @@ class RptmainRpt(GamsClass):
     gams_source: str = "rptmain.rpt"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
+        self, tc: TimesModelClass, env: CompileEnvironment, arg1: str, arg2: str
     ):
         self.env = env.fork()
+        self.arg1 = arg1
+        self.arg2 = arg2
         self._sub_modules = {}
         self.tc = tc
         self.compile()
@@ -62,11 +61,10 @@ class RptmainRpt(GamsClass):
         self.include(SolFloRed(self.tc, self.env, arg1="PAR_FLO", arg2="", arg3=".L"))
         self.include(SolFloRed(self.tc, self.env, arg1="PAR_FLO", arg2="M", arg3=".M"))
 
-        self.tc.enqueue(
-            self.exec_loop,
-        )
+        self.tc.enqueue(self.exec_loop)
 
-        self.include(SolIreRed(self.tc, self.env))
+        # self.include(SolIreRed(self.tc, self.env))
+        raise FileNotFoundError("sol_ire.rpt not found in TIMES source")
 
         # * Calculation of annual cost terms
         self.include(EqobjinvRpt(self.tc, self.env))

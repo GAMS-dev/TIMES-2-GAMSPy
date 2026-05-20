@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 
 from core.pp_clean_mod import PpCleanMod
 from core.rptlite_rpt import RptliteRpt
-from core.solprep_msa import SolprepMsa
+from core.solprep_msa import solprep_msa
 from core.solvcoef_msa import SolvcoefMsa
 from core.solve_msa import SolveMsa
 from core.solve_stp import SolveStp
@@ -42,9 +42,13 @@ class RptExtMsa(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
+        model_name: str,
+        equations: list[str],
     ):
         self.env = env.fork()
         self._sub_modules = {}
+        self.model_name = model_name
+        self.equations = equations
         self.tc = tc
         self.compile()
 
@@ -61,12 +65,61 @@ class RptExtMsa(GamsClass):
         self.env.set_scoped("solveda", "1")
         self.include(RptliteRpt(self.tc, self.env))
         self.env.set_scoped("solveda", "0")
-        self.include(SolprepMsa(arg1="INIT", arg2="0"))
+        self.tc.enqueue(
+            self.exec_solprep_msa,
+            arg1="INIT",
+            arg2="0",
+            msa=self.env.msa,
+            v=self.env.v,
+            shff=self.env.shff,
+            pgprim=self.env.pgprim,
+            sow=self.env.sow,
+            stages=self.env.stages,
+            etl=self.env.etl,
+            invlif=self.env.invlif,
+            anncost=self.env.anncost,
+            sysprefix=self.env.sysprefix,
+            tpulse=self.env.tpulse,
+            varv=self.env.varv,
+            sws=self.env.sws,
+            varm=self.env.varm,
+            var=self.env.var,
+            vart=self.env.vart,
+            micro=self.env.micro,
+            capjd=self.env.capjd,
+            capwd=self.env.capwd,
+            timesed=self.env.timesed,
+            obj=self.env.obj,
+            varcost=self.env.varcost,
+            cli=self.env.cli,
+            solveda=self.env.solveda,
+            scum=self.env.scum,
+            sw_notags=self.env.sw_notags,
+            objann=self.env.objann,
+            dflbl=self.env.dflbl,
+            bencost=self.env.bencost,
+            discshift=self.env.discshift,
+            rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
+            vnret_defined=self.tc.defined("VNRET"),
+            is_vnret_defined=self.tc.defined("VNRET"),
+            is_obj_combal_defined=self.tc.defined("OBJ_COMBAL"),
+            is_mi_agc_defined=self.tc.defined("MI_AGC"),
+            is_tm_catt_defined=self.tc.defined("TM_CATT"),
+            is_dam_cost_defined=self.tc.defined("DAM_COST"),
+        )
         if self.env.rpoint != "NO":
             self.tc.enqueue(self.exec_optfile, self.env.model_name)
             self.include(PpCleanMod(self.tc, self.env))
             if self.env.is_set("fixboh"):
-                self.include(SolveStp(self.tc, self.env, arg1="mod"))
+                self.include(
+                    SolveStp(
+                        self.tc,
+                        self.env,
+                        arg1="mod",
+                        model_name=self.model_name,
+                        equations=self.equations,
+                    )
+                )
 
         self.tc.enqueue(self.exec_process_macro, self.env.msa)
         self.include(SolvcoefMsa(self.tc, self.env))
@@ -147,3 +200,88 @@ class RptExtMsa(GamsClass):
   DISPLAY TM_RESULT;
 """,
         )
+
+    def exec_solprep_msa(
+        self: RptExtMsa,
+        arg1: str,
+        arg2: str,
+        msa: str,
+        v: str,
+        shff: str,
+        pgprim: str,
+        sow: str,
+        rtp_ffcs_defined: bool,
+        stages: str,
+        etl: str,
+        invlif: str,
+        anncost: str,
+        sysprefix: str,
+        tpulse: str,
+        is_vnret_defined: bool,
+        varv: str,
+        sws: str,
+        varm: str,
+        is_obj_combal_defined: bool,
+        var: str,
+        vart: str,
+        micro: str,
+        is_mi_agc_defined: bool,
+        capjd: str,
+        capwd: str,
+        timesed: str,
+        obj: str,
+        varcost: str,
+        vnret_defined: bool,
+        is_tm_catt_defined: bool,
+        is_dam_cost_defined: bool,
+        cli: str,
+        solveda: str,
+        scum: str,
+        sw_notags: str,
+        objann: str,
+        dflbl: str,
+        bencost: str,
+        discshift: str,
+    ) -> None:
+        code = solprep_msa(
+            arg1=arg1,
+            arg2=arg2,
+            msa=msa,
+            v=v,
+            shff=shff,
+            pgprim=pgprim,
+            sow=sow,
+            stages=stages,
+            etl=etl,
+            invlif=invlif,
+            anncost=anncost,
+            sysprefix=sysprefix,
+            tpulse=tpulse,
+            varv=varv,
+            sws=sws,
+            varm=varm,
+            var=var,
+            vart=vart,
+            micro=micro,
+            capjd=capjd,
+            capwd=capwd,
+            timesed=timesed,
+            obj=obj,
+            varcost=varcost,
+            cli=cli,
+            solveda=solveda,
+            rtp_ffcs_defined=rtp_ffcs_defined,
+            is_vnret_defined=is_vnret_defined,
+            is_obj_combal_defined=is_obj_combal_defined,
+            is_mi_agc_defined=is_mi_agc_defined,
+            vnret_defined=vnret_defined,
+            is_tm_catt_defined=is_tm_catt_defined,
+            is_dam_cost_defined=is_dam_cost_defined,
+            scum=scum,
+            sw_notags=sw_notags,
+            objann=objann,
+            dflbl=dflbl,
+            bencost=bencost,
+            discshift=discshift,
+        )
+        self.tc.add_gams_code(module=self, phase="run", code=code)

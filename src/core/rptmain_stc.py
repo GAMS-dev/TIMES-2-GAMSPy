@@ -18,7 +18,7 @@ from core.pextlevs_stc import PextlevsStc
 from core.rpt_obj_rpt import rpt_obj_rpt
 from core.rptlite_rpt import RptliteRpt
 from core.rptmisc_rpt import rptmisc_rpt
-from core.sol_flo_red import SolFlowRed, sol_flo_red
+from core.sol_flo_red import SolFloRed, sol_flo_red
 from core.sol_ire_rpt import SolIreRpt, sol_ire_rpt
 
 from .base_class import GamsClass
@@ -41,14 +41,16 @@ class RptmainStc(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
+        arg1: str,
+        arg2: str,
+        model_name: str,
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
         self.arg1 = arg1
         self.arg2 = arg2
+        self.model_name = model_name
         self.compile()
 
     def compile(self) -> None:
@@ -116,7 +118,17 @@ class RptmainStc(GamsClass):
                 is_obj_combal_defined=self.tc.defined("IS_OBJ_COMBAL"),
                 vart=self.env.vart,
                 micro=self.env.micro,
+                bencost=self.env.bencost,
+                cufscal=self.env.cufscal,
+                rpt_flots=self.env.rpt_flots,
+                var_uc=self.env.var_uc,
+                solans=self.env.solans,
+                discshift=self.env.discshift,
+                model_name=self.model_name,
                 is_mi_agc_defined=self.tc.defined("IS_MI_AGC"),
+                if_defined_vnret=self.tc.defined("VNRET"),
+                if_defined_eqe_ucrtp=self.tc.defined("EQE_UCRTP"),
+                if_not_defined_eq_g_ucmax=not self.tc.defined(f"{self.env.eq}G_UCMAX"),
             )
 
             self.include(PextlevsStc(self.tc, self.env, arg1=self.arg1))
@@ -141,7 +153,7 @@ class RptmainStc(GamsClass):
         self.env.set_scoped("var", self.env.v)
 
         self.include(
-            SolFlowRed(
+            SolFloRed(
                 self.tc,
                 self.env,
                 arg1=f"{self.env.v}_FLO",
@@ -291,7 +303,17 @@ OPTION CLEAR=RPC_EMIS,CLEAR=RPC_FFUNC,CLEAR=F_IOSET; SOW(W)=AUXSOW(W);
         is_obj_combal_defined: bool,
         vart: str,
         micro: str,
+        bencost: str,
+        cufscal: str,
+        rpt_flots: str,
+        var_uc: str,
+        solans: str,
+        discshift: str,
+        model_name: str,
         is_mi_agc_defined: bool,
+        if_not_defined_eq_g_ucmax: bool,
+        if_defined_vnret: bool,
+        if_defined_eqe_ucrtp: bool,
     ) -> None:
         self.tc.add_gams_code(
             module=self,
@@ -372,6 +394,12 @@ OPTION CLEAR=RPC_EMIS,CLEAR=RPC_FFUNC,CLEAR=F_IOSET; SOW(W)=AUXSOW(W);
                     timesed=timesed,
                     obj=obj,
                     varcost=varcost,
+                    varv=varv,
+                    varm=varm,
+                    sws=sws,
+                    pgprim=pgprim,
+                    bencost=bencost,
+                    discshift=discshift,
                     vnret_defined=vnret_defined,
                 )
             }
@@ -416,6 +444,20 @@ OPTION CLEAR=RPC_EMIS,CLEAR=RPC_FFUNC,CLEAR=F_IOSET; SOW(W)=AUXSOW(W);
                     arg3=",SOW",
                     arg4=",W)*SW_UNPB(T,W)",
                     arg5=",SOW)*SW_UNPB('0',SOW",
+                    var=var,
+                    cufscal=cufscal,
+                    sysprefix=sysprefix,
+                    vart=vart,
+                    sws=sws,
+                    eq=eq,
+                    rpt_flots=rpt_flots,
+                    stages=stages,
+                    var_uc=var_uc,
+                    solans=solans,
+                    model_name=model_name,
+                    if_defined_eqe_ucrtp=if_defined_eqe_ucrtp,
+                    if_defined_vnret=if_defined_vnret,
+                    if_not_defined_eq_g_ucmax=if_not_defined_eq_g_ucmax,
                 )
             }
 * Non-common reporting

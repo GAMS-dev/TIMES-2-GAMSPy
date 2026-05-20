@@ -104,6 +104,7 @@ class SolveMsa(GamsClass):
                     objann=self.env.objann,
                     dflbl=self.env.dflbl,
                     bencost=self.env.bencost,
+                    discshift=self.env.discshift,
                 )
 
         # NEGISHI
@@ -150,6 +151,7 @@ class SolveMsa(GamsClass):
             objann=self.env.objann,
             dflbl=self.env.dflbl,
             bencost=self.env.bencost,
+            discshift=self.env.discshift,
         )
 
         self.env.set_scoped("solveda", "1")
@@ -191,6 +193,7 @@ class SolveMsa(GamsClass):
                 objann=self.env.objann,
                 dflbl=self.env.dflbl,
                 bencost=self.env.bencost,
+                discshift=self.env.discshift,
             )
 
         if self.env.msa.upper() != "CSA":
@@ -240,6 +243,7 @@ class SolveMsa(GamsClass):
         objann: str,
         dflbl: str,
         bencost: str,
+        discshift: str,
     ) -> None:
         self.tc.add_gams_code(
             module=self,
@@ -283,6 +287,7 @@ class SolveMsa(GamsClass):
                 objann=objann,
                 dflbl=dflbl,
                 bencost=bencost,
+                discshift=discshift,
             ),
         )
 
@@ -416,6 +421,7 @@ class SolveMsa(GamsClass):
         objann: str,
         dflbl: str,
         bencost: str,
+        discshift: str,
     ) -> None:
         include_solprep = solprep_msa(
             arg1="",
@@ -456,6 +462,7 @@ class SolveMsa(GamsClass):
             objann=objann,
             dflbl=dflbl,
             bencost=bencost,
+            discshift=discshift,
         )
         self.tc.add_gams_code(
             module=self,
@@ -514,6 +521,7 @@ class SolveMsa(GamsClass):
         objann: str,
         dflbl: str,
         bencost: str,
+        discshift: str,
     ) -> None:
         include_clearsol_stp = clearsol_stp(
             var=var,
@@ -564,6 +572,7 @@ class SolveMsa(GamsClass):
             objann=objann,
             dflbl=dflbl,
             bencost=bencost,
+            discshift=discshift,
         )
         self.tc.add_gams_code(
             module=self,

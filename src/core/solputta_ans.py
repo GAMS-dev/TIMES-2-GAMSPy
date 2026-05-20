@@ -64,7 +64,7 @@ class SolputtaAns(GamsClass):
         if self.arg1 == "S":
             self.env.set_local("item2", "")
 
-        self.tc.enqueue(self.exec2, self.env.run_name)
+        self.tc.enqueue(self.exec2, run_name=self.env.run_name)
 
         self.tc.add_gams_code(
             module=self,
@@ -299,7 +299,7 @@ PARAMETER {self.arg1}PAR_CUMCOMM({self.arg2}R,C,COM_VAR,ALLYEAR,ALLYEAR) //;
         # fmt: off
         batincludes = [
             ("PUTI6", f"(TOP(R,P,C,'OUT')*{self.env.flots})", "VAR_FOUT", "R.TL", "P.TL", "C.TL", "' '", "S.TL", '.L', f"NV_FLOL({self.arg3}R,T,P,C,S)", f"({self.arg3}R,TT,P,C,S)", f"({self.arg3}R,TT(T--ORD(T)),P,C,S)"),
-            ("PUTI6", f"((NOT TOP(R,P,C,'OUT')+RPC_IRE(R,P,C,'IMP'))$NV_FLOL({self.arg3}3R,T,P,C,S))", "VAR_FOUT", "R.TL", "P.TL", "C.TL", "' '", "S.TL", '.L', f"NV_FLOL({self.arg3}R,T,P,C,S)", f"({self.arg3}R,TT,P,C,S)", f"({self.arg3}R,TT(T--ORD(T)),P,C,S)"),
+            ("PUTI6", f"((NOT TOP(R,P,C,'OUT')+RPC_IRE(R,P,C,'IMP'))$NV_FLOL({self.arg3}R,T,P,C,S))", "VAR_FOUT", "R.TL", "P.TL", "C.TL", "' '", "S.TL", '.L', f"NV_FLOL({self.arg3}R,T,P,C,S)", f"({self.arg3}R,TT,P,C,S)", f"({self.arg3}R,TT(T--ORD(T)),P,C,S)"),
         ]
         # fmt: on
         for arg in batincludes:
@@ -718,7 +718,7 @@ PARAMETER REG_OBJ2({self.arg2}REG,ITEM);
 """,
         )
         self.tc.enqueue(self.exec21, arg1=self.arg1, arg3=self.arg3)
-        if self.env.stages.upper() != "Yes":
+        if self.env.stages.upper() != "YES":
             self.include(
                 SolsubtaAns(
                     self.tc,

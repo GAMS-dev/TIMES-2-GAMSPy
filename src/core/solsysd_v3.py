@@ -31,6 +31,7 @@ class SolsysdV3(GamsClass):
         tc: TimesModelClass,
         env: CompileEnvironment,
         mode: str,
+        map: bool,
         base_name: str = "",
         index_block: str = "",
         extra_index: str = "",
@@ -49,6 +50,7 @@ class SolsysdV3(GamsClass):
         self.suffix = suffix
         self.symbol_prefixes = list(symbol_prefixes or [])
         self.set_name = set_name
+        self.map = map
         self.set_prefix = set_prefix
         self.labels = list(labels or [])
         self._sub_modules = {}
@@ -84,7 +86,13 @@ class SolsysdV3(GamsClass):
             return ""
 
         return rf"""
- SET {self.set_name} / {", ".join(set_entries)} /,{self.set_name}MAP({self.set_name},*) / {", ".join(map_entries)} /;
+$onMulti
+ SET {self.set_name} / {", ".join(set_entries)} /
+
+ {f"SET {self.set_name}MAP({self.set_name},*) / {', '.join(map_entries)} /" if self.map else ""}
+
+ ;
+$offMulti
 """
 
     def _build_symbol_block(self) -> str:

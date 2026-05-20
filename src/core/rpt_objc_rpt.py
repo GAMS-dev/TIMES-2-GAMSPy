@@ -156,7 +156,7 @@ def rpt_objc_rpt(
         if stages.upper() == "YES"
         else ""
     }
-        ))));
+        )));
 
 * Decommissioning costs
   OPTION CLEAR=PAR_OBJSAL;

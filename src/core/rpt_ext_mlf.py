@@ -88,6 +88,8 @@ class RptExtMlf(GamsClass):
             vart=self.env.vart,
             micro=self.env.micro,
             is_mi_agc_defined=self.tc.defined("MI_AGC"),
+            bencost=self.env.bencost,
+            discshift=self.env.discshift,
         )
 
         # * Calculation of undiscounted shadow prices in MACRO
@@ -156,6 +158,8 @@ class RptExtMlf(GamsClass):
         vart: str,
         micro: str,
         is_mi_agc_defined: bool,
+        bencost: str,
+        discshift: str,
     ) -> None:
         include_sol_flo_red = sol_flo_red(
             arg1="PAR_FLO",
@@ -183,8 +187,16 @@ class RptExtMlf(GamsClass):
             obj=obj,
             varcost=varcost,
             vnret_defined=vnret_defined,
+            varv=varv,
+            varm=varm,
+            sws=sws,
+            pgprim=pgprim,
+            bencost=bencost,
+            discshift=discshift,
         )
         include_cost_ann = cost_ann_rpt(
+            arg1="",
+            arg2="",
             stages=stages,
             etl=etl,
             invlif=invlif,

@@ -541,7 +541,7 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
             phase="init",
             code=rf"""
 $ MACRO VAR_PTDNCAP(r,t,p) {tmp}
-$ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,{pgprim},s,ie{sow}))
+$ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,'{pgprim}',s,ie{sow}))
 """,
         )
 

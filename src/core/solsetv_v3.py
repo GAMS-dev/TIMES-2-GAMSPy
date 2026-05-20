@@ -267,6 +267,7 @@ SETS
                 extra_index=",T,",
                 suffix="",
                 symbol_prefixes=["S", "R"],
+                map=False,
             )
         )
         self.include(
@@ -279,6 +280,7 @@ SETS
                 extra_index=",",
                 suffix=",CUR",
                 symbol_prefixes=["S", "R"],
+                map=False,
             )
         )
         self.tc.enqueue(self.exec8)

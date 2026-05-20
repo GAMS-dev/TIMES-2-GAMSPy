@@ -35,9 +35,15 @@ class RptExtEcb(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
+        arg1: str,
+        model_name: str,
+        equations: list[str],
     ):
         self.env = env.fork()
         self._sub_modules = {}
+        self.model_name = model_name
+        self.equations = equations
+        self.arg1 = arg1
         self.tc = tc
         self.compile()
 
@@ -55,7 +61,15 @@ class RptExtEcb(GamsClass):
 
         # * Resolve model
         self.tc.enqueue(self.exec_set_solveopt_merge)
-        self.include(SolveMod(self.tc, self.env))
+        self.include(
+            SolveMod(
+                self.tc,
+                self.env,
+                arg1=self.arg1,
+                model_name=self.model_name,
+                equations=self.equations,
+            )
+        )
         self.env.set_scoped("solveda", "1")
         self.include(
             RptliteRpt(

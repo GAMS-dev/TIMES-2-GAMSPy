@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 from core.atlearn_etl import AtlearnEtl
 from core.dumpsol_mod import DumpsolMod
 from core.main_ext_mod import include_extension
-from core.rpt_dam_mod import RptDamMod
+from core.rpt_dam_mod import rpt_dam_mod
 from core.rpt_ext_cli import RptExtCli
 from core.rpt_ext_ecb import RptExtEcb
 from core.rpt_ext_ier import RptExtIer
@@ -50,11 +50,20 @@ class RptmainMod(GamsClass):
     module_name: str = "rptmain_mod"
     gams_source: str = "rptmain.mod"
 
-    def __init__(self, tc: TimesModelClass, env: CompileEnvironment, arg1: str = ""):
+    def __init__(
+        self,
+        tc: TimesModelClass,
+        env: CompileEnvironment,
+        arg1: str,
+        arg2: str,
+        model_name: str,
+    ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
         self.arg1 = arg1
+        self.arg2 = arg2
+        self.model_name = model_name
         self.compile()
 
     def compile(self) -> None:
@@ -79,7 +88,7 @@ class RptmainMod(GamsClass):
             if not skip_to_finish:
                 if self.env.macro.upper() != "YES" and self.env.stages.upper() != "YES":
                     if self.env.solveda.upper() == "YES":
-                        self.include(RptmainRpt(self.tc, self.env))
+                        self.include(RptmainRpt(self.tc, self.env, arg1="", arg2=""))
                     elif self.env.solveda.upper() == "1":
                         self.include(
                             RptliteRpt(
@@ -92,7 +101,13 @@ class RptmainMod(GamsClass):
 
                 if self.env.stages.upper() == "YES":
                     self.include(
-                        RptmainStc(self.tc, self.env, arg1="SOW", arg2=self.env.sws)
+                        RptmainStc(
+                            self.tc,
+                            self.env,
+                            arg1="SOW",
+                            arg2=self.env.sws,
+                            model_name=self.model_name,
+                        )
                     )
                     # NOTE: RptmainStc takes only 2 args, but on L32, it is included with 3 arg3 = "'1'" ",'1')"
 
@@ -100,7 +115,17 @@ class RptmainMod(GamsClass):
                     self.include(AtlearnEtl(self.tc, self.env))
 
                 if self.tc.defined("DAM_COST"):
-                    self.include(RptDamMod(self.tc, self.env))
+                    self.tc.enqueue(
+                        self.exec_rpt_dam_mod,
+                        stages=self.env.stages,
+                        var=self.env.var,
+                        cli=self.env.cli,
+                        vart=self.env.vart,
+                        sws=self.env.sws,
+                        sow=self.env.sow,
+                        solveda=self.env.solveda,
+                        scum=self.env.scum,
+                    )
 
         # LABEL FINISH
         if self.env.extend != "":
@@ -126,3 +151,26 @@ class RptmainMod(GamsClass):
 
         if self.env.vda.upper() == "YES":
             self.include(SolsetvV3(self.tc, self.env, "FINISHUP"))
+
+    def exec_rpt_dam_mod(
+        self: RptmainMod,
+        stages: str,
+        var: str,
+        cli: str,
+        vart: str,
+        sws: str,
+        sow: str,
+        solveda: str,
+        scum: str,
+    ) -> None:
+        code = rpt_dam_mod(
+            stages=stages,
+            var=var,
+            cli=cli,
+            vart=vart,
+            sws=sws,
+            sow=sow,
+            solveda=solveda,
+            scum=scum,
+        )
+        self.tc.add_gams_code(module=self, phase="run", code=code)

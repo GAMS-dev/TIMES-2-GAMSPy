@@ -18,10 +18,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+# from core.rpt_chp_ire import RrpChpIre
 from core.cost_ann_rpt import CostAnnRpt
-from core.ddfupf_msa import ddfupf_msa
-from core.par_uc.rpt import ParUcRpt
-from core.rpt_chp_ire import RrpChpIre
+from core.ddfupd_msa import ddfupd_msa
+from core.par_uc_rpt import ParUcRpt
 from core.rpt_obj_rpt import RptObjRpt
 from core.rptlite_rpt import RptliteRpt
 from core.rptmisc_rpt import RptmiscRpt
@@ -75,30 +75,9 @@ class RptmainTm(GamsClass):
         )
 
         # * Calculation of solution values for (due to reduction) substituted flows
-        self.include(
-            SolFloRed(
-                self.tc,
-                self.env,
-                arg1="PAR_FLO",
-                arg2="",
-                arg3=".L",
-            )
-        )
-        self.include(
-            SolFloRed(
-                self.tc,
-                self.env,
-                arg1="PAR_FLO",
-                arg2="M",
-                arg3=".M",
-            )
-        )
-        self.include(
-            SolIreRpt(
-                self.tc,
-                self.env,
-            )
-        )
+        self.include(SolFloRed(self.tc, self.env, arg1="PAR_FLO", arg2="", arg3=".L"))
+        self.include(SolFloRed(self.tc, self.env, arg1="PAR_FLO", arg2="M", arg3=".M"))
+        self.include(SolIreRpt(self.tc, self.env))
         # * Calculation of annual cost terms
         # *-----------------------------------------------------------------------
         # * calculate discounting for the period
@@ -109,9 +88,7 @@ class RptmainTm(GamsClass):
   PARAMETER VDA_DISC(R,ALLYEAR) //;
 """,
         )
-        self.tc.enqueue(
-            self.exec_calc_shadow_price,
-        )
+        self.tc.enqueue(self.exec_calc_shadow_price)
         self.include(
             RptObjRpt(
                 self.tc,
@@ -131,7 +108,8 @@ class RptmainTm(GamsClass):
 
         # * CHP-related reporting parameters
         if self.env.chp_mode == "YES":
-            self.include(RrpChpIre(self.tc, self.env))
+            # self.include(RptChpIre(self.tc, self.env))
+            raise FileNotFoundError("rpt_chp.ier is not part of the TIMES source.")
 
         # * Shadow prices of user constraints
         # *---------------------------------------------------------------------
@@ -172,9 +150,7 @@ class RptmainTm(GamsClass):
 """,
         )
 
-    def exec_miscellaneous_reportings(
-        self: RptmainTm,
-    ) -> None:
+    def exec_miscellaneous_reportings(self: RptmainTm) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -206,9 +182,7 @@ class RptmainTm(GamsClass):
 """,
         )
 
-    def exec_option(
-        self: RptmainTm,
-    ) -> None:
+    def exec_option(self: RptmainTm) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -284,7 +258,7 @@ TM_ERR('GDP') = SMAX((REG,T),ABS(TM_GDPGOAL(REG,T)-TM_GDP(REG,T))/TM_GDPGOAL(REG
   TM_RESULT('TM_ESCOST',MR,T)  = VAR_EC.L(MR,T);
   TM_RESULT('TM_GDPLOS',MR,T)$DONE = 100*(TM_GDPGOAL(MR,T)-TM_GDP(MR,T))/TM_GDPGOAL(MR,T);
 
-{ddfupf_msa()}
+{ddfupd_msa()}
 {writeddf_msa(arg1="DDFNEW", arg2="TM_GR")}
 """,
         )

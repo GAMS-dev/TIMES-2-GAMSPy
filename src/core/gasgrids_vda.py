@@ -257,7 +257,7 @@ POSITIVE VARIABLES
     VAR_GG_PR.UP(GG_RTC(R,T,C),S)$PRC_TS(R,P,S) = GG_PRBD(R,T,C,'UP');
     VAR_GG_PR.LO(RTC(REG,T,COM),S)$PRC_TS(R,P,S) = GG_PRBD(RTC,'LO');
     VAR_GG_PR.UP(RTC(REG,T,COM),S)$PRC_TS(R,P,S) = GG_PRBD(RTC,'UP'));
-  VAR_GG_PADD.LO(RTP(r,t,p),COM({pgprim}),S)$(PRC_TS(R,P,S)$GG_KLP(r,t,p,COM)) =
+  VAR_GG_PADD.LO(RTP(r,t,p),COM('{pgprim}'),S)$(PRC_TS(R,P,S)$GG_KLP(r,t,p,COM)) =
     SUM(RPC_IRE(TRACKPC(R,P,C),'EXP'),MIN((GG_PRBD(R,T,C,'UP')*MAX(1,GG_GAMMA(R,T,P,C))+GG_PRBD(R,T,C,'LO'))/2*GG_KLP(R,T,P,C),GG_KLP(r,t,p,COM)) * GG_DENS(R,C) * RS_STGPRD(R,S));
 """,
         )

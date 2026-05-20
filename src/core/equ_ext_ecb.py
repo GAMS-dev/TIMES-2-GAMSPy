@@ -84,20 +84,20 @@ class EquExtEcb(GamsClass):
         """,
         )
 
-    def exec1(self, PGPRIM: str, CAPJD: str, CAPWD: str) -> None:
+    def exec1(self, pgprim: str, capjd: str, capwd: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"""
           OPTION RVP < COEF_LMS;
 * Calculate ceiling cost coefficients for dummy flow, according to NCAP_MSPRF(UP)
-  PASTSUM(RVP(R,T,P)) = NCAP_MSPRF(R,T,{PGPRIM},P,'UP')/PRC_CAPACT(R,P);
+  PASTSUM(RVP(R,T,P)) = NCAP_MSPRF(R,T,'{pgprim}',P,'UP')/PRC_CAPACT(R,P);
   FLO_COST(RVP(R,T,P),C('_MSVIOL_'),ANNUAL(S),CUR)$OBJ_FCOST(R,T,P,C,S,CUR) =
-    SUM(OBJ_SUMII(RVP,LIFE,K_EOH,JOT), {CAPJD} COR_SALVI(RVP,CUR) / OBJ_DIVI(RVP) *
+    SUM(OBJ_SUMII(RVP,LIFE,K_EOH,JOT), {capjd} COR_SALVI(RVP,CUR) / OBJ_DIVI(RVP) *
       SUM(INVSPRED(K_EOH,JOT,Y,K), (1-SALV_INV(RVP,Y)$OBJ_SUMS(RVP)) * OBJ_DISC(R,K,CUR) * OBJ_ICOST(R,K,P,CUR)));
   FLO_DELIV(RVP(R,T,P),C('_MSVIOL_'),ANNUAL(S),CUR)$OBJ_FDELV(R,T,P,C,S,CUR) =
     SUM(OBJ_SUMIV(K_EOH,RVP,JOT,LIFE),
-       SUM(INVSPRED(K_EOH,JOT,LL,K), OBJ_LIFE(LL,R,JOT,LIFE,CUR) * {CAPWD} OBJ_FOM(R,K,P,CUR)) / OBJ_DIVIV(RVP));
+       SUM(INVSPRED(K_EOH,JOT,LL,K), OBJ_LIFE(LL,R,JOT,LIFE,CUR) * {capwd} OBJ_FOM(R,K,P,CUR)) / OBJ_DIVIV(RVP));
   OBJ_FCOST(R,Y_EOH,P,C('_MSVIOL_'),ANNUAL(S),CUR)$OBJ_FCOST(R,Y_EOH,P,C,S,CUR) = SUM(PERIODYR(T,Y_EOH),FLO_COST(R,T,P,C,S,CUR)*PASTSUM(R,T,P)/OBJ_PVT(R,T,CUR));
   OBJ_FDELV(R,Y_EOH,P,C('_MSVIOL_'),ANNUAL(S),CUR)$OBJ_FDELV(R,Y_EOH,P,C,S,CUR) = SUM(PERIODYR(T,Y_EOH),FLO_DELIV(R,T,P,C,S,CUR)*PASTSUM(R,T,P)/OBJ_PVT(R,T,CUR));
   OPTION CLEAR=PASTSUM,CLEAR=RVP;
