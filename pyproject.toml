@@ -7,7 +7,7 @@ name = "gamspytimes"
 version = "0.1.0"
 readme = "README.md"
 description = "Migration of TIMES to GAMSPy"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 dependencies = [
   "gamspy",
   "pandas",
@@ -64,6 +64,7 @@ quote-style = "double"
 indent-style = "space"
 
 [tool.mypy]
-warn_unused_configs = true
 strict = true
+warn_unused_configs = true
+warn_unused_ignores = false
 disable_error_code = ["misc", "import-untyped"]

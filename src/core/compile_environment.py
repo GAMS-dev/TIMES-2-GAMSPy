@@ -21,13 +21,13 @@ class CompileEnvironment:
         # Local: Specific to THIS file only ($setlocal)
         self._local: dict[str, str] = {}
 
-    def set_global(self, key: str, value: str) -> None:
+    def set_global(self, key: str, value: Any) -> None:
         self._globals[key] = value
 
-    def set_scoped(self, key: str, value: str) -> None:
+    def set_scoped(self, key: str, value: Any) -> None:
         self._scoped[key] = value
 
-    def set_local(self, key: str, value: str) -> None:
+    def set_local(self, key: str, value: Any) -> None:
         self._local[key] = value
 
     def drop_local(self, key: str) -> bool:
@@ -125,7 +125,7 @@ class CompileEnvironment:
             and val.upper() == f"%{key}%"
         )
 
-    def set_if_not_exists(self, key: str, value: str, scope: ScopeType) -> bool:
+    def set_if_not_exists(self, key: str, value: Any, scope: ScopeType) -> bool:
         """
         Mimics '$IF NOT set VAL $SET VAL 100'.
         """

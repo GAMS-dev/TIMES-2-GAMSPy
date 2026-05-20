@@ -10,16 +10,29 @@ class EscapeStack(Exception):
 def expand_set(symbol: Any, elements: list[str]) -> None:
     """
     Expands a 1D GAMSPy Set with additional elements,
-    preserving any existing records and avoiding duplicates.
+    preserving existing records (and their text) and avoiding duplicates.
     """
-    # 1. Extract existing elements from the DataFrame (column 0 is usually 'uni')
+    updated_records = []
+    existing_keys = set()
+
+    # 1. Extract existing elements AND their text
     if symbol.records is not None and not symbol.records.empty:
-        existing = set(symbol.records.iloc[:, 0])
-    else:
-        existing = set()
+        # allowing .fillna("") to safely inject empty strings!
+        df = symbol.records.astype(object).fillna("")
 
-    # 2. Perform a union to ensure all elements are unique
-    updated_elements = list(existing | set(elements))
+        for row in df.values.tolist():
+            uni = row[0]
+            text = row[1] if len(row) > 1 else ""
 
-    # 3. Update the GAMSPy symbol with the combined list
-    symbol.setRecords(updated_elements)
+            updated_records.append((uni, text))
+            existing_keys.add(uni)
+
+    # 2. Append the new elements
+    for new_el in elements:
+        if new_el not in existing_keys:
+            # Pair new elements with a blank description to match the tuple format
+            updated_records.append((new_el, ""))
+            existing_keys.add(new_el)  # Prevent duplicates within the new list itself
+
+    # 3. Update the GAMSPy symbol with the combined list of tuples
+    symbol.setRecords(updated_records)
