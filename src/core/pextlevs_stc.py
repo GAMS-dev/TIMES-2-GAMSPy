@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.clearsol_stc import clearsol_stc_func
+from core.clearsol_stc import clearsol_stc
 
 from .base_class import GamsClass
 
@@ -55,12 +55,7 @@ class PextlevsStc(GamsClass):
             var=self.env.var,
             timesed=self.env.timesed,
             var_dam_defined=self.tc.defined(f"{self.env.var}_DAM"),
-            sow=self.env.sow,
-            swt=self.env.swt,
-            cli=self.env.cli,
-            abs_=self.env.abs,
-            macro=self.env.macro,
-            stages=self.env.stages,
+            var_scap_defined=self.tc.defined(f"{self.env.var}_SCAP"),
         )
 
     def exec_pextlevs_stc(
@@ -71,12 +66,7 @@ class PextlevsStc(GamsClass):
         var: str,
         timesed: str,
         var_dam_defined: bool,
-        sow: str,
-        swt: str,
-        cli: str,
-        abs_: str,
-        macro: str,
-        stages: str,
+        var_scap_defined: bool,
     ) -> None:
         self.tc.add_gams_code(
             module=self,
@@ -88,12 +78,7 @@ class PextlevsStc(GamsClass):
                 var=var,
                 timesed=timesed,
                 var_dam_defined=var_dam_defined,
-                sow=sow,
-                swt=swt,
-                cli=cli,
-                abs_=abs_,
-                macro=macro,
-                stages=stages,
+                var_scap_defined=var_scap_defined,
             ),
         )
 
@@ -106,15 +91,10 @@ def pextlevs_stc(
     var: str,
     timesed: str,
     var_dam_defined: bool,
-    sow: str,
-    swt: str,
-    cli: str,
-    abs_: str,
-    macro: str,
-    stages: str,
+    var_scap_defined: bool,
 ) -> str:
     return rf"""
-{clearsol_stc_func(var=var, sow=sow, cli=cli, abs_=abs_, macro=macro, stages=stages)}
+{clearsol_stc(var_dam_defined=var_dam_defined, var_scap_defined=var_scap_defined)}
 * Get the sum of weighted Marginals
   EQG_COMBAL.M(R,T{arg2},C,S) $= SUM(SW_T(T,W), {eq}G_COMBAL.M(R,T,C,S,T,W));
   EQE_COMBAL.M(R,T{arg2},C,S) $= SUM(SW_T(T,W), {eq}E_COMBAL.M(R,T,C,S,T,W));
