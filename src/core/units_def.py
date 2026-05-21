@@ -11,13 +11,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Alias
+from gamspy import Alias, Parameter, Set
 
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from .compile_environment import CompileEnvironment
-    from .times_model_class import GamsPhase, TimesModelClass
+    from .times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
 
@@ -36,52 +36,120 @@ class Units(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        phase: GamsPhase = "init"
-        # Easy container access
-        m = self.tc.container
+        g = self.tc
+        m = g.container
 
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code="""
-* units by group
-  SET UNITS             'Units'            / Bv-km, Bv-kma, GW, MW, Mt, Mta, kt, kta, kth, t, PJ, PJa, TJ, TJa, TWh, GWh, MWh, uvol, CUR, GPKM, GVKM, Mcar, UCU /
-""",
+        # units by group
+        g.units = Set(
+            m,
+            name="UNITS",
+            description="Units",
+            records=[
+                "Bv-km",
+                "Bv-kma",
+                "GW",
+                "MW",
+                "Mt",
+                "Mta",
+                "kt",
+                "kta",
+                "kth",
+                "t",
+                "PJ",
+                "PJa",
+                "TJ",
+                "TJa",
+                "TWh",
+                "GWh",
+                "MWh",
+                "uvol",
+                "CUR",
+                "GPKM",
+                "GVKM",
+                "Mcar",
+                "UCU",
+            ],
         )
 
-        units = m["UNITS"]
-        Alias(container=m, name="U", alias_with=units)
+        g.u = Alias(container=m, name="U", alias_with=g.units)
 
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code="""
-  SET UNITS_COM(UNITS)  'Commodity Units'  / Bv-km, Mt, kt, t, PJ, TJ, uvol, GPKM, GVKM, UCU /
-  SET UNITS_CAP(UNITS)  'Capacity Units'   / PJa, GW, MW, Mta, kta, Bv-kma, Mcar /
-  SET UNITS_ACT(UNITS)  'Activity Units'   / Mt, kt, kth, PJ, TJ, TWh, GWh, MWh, GPKM, GVKM /
-  SET UNITS_MONY(UNITS) 'Monatary Units'   / CUR /
+        g.UnitsCom = Set(
+            m,
+            name="UNITS_COM",
+            domain=[g.units],
+            description="Commodity Units",
+            records=[
+                "Bv-km",
+                "Mt",
+                "kt",
+                "t",
+                "PJ",
+                "TJ",
+                "uvol",
+                "GPKM",
+                "GVKM",
+                "UCU",
+            ],
+        )
+        g.UnitsCap = Set(
+            m,
+            name="UNITS_CAP",
+            domain=[g.units],
+            description="Capacity Units",
+            records=["PJa", "GW", "MW", "Mta", "kta", "Bv-kma", "Mcar"],
+        )
+        g.UnitsAct = Set(
+            m,
+            name="UNITS_ACT",
+            domain=[g.units],
+            description="Activity Units",
+            records=[
+                "Mt",
+                "kt",
+                "kth",
+                "PJ",
+                "TJ",
+                "TWh",
+                "GWh",
+                "MWh",
+                "GPKM",
+                "GVKM",
+            ],
+        )
+        g.UnitsMony = Set(
+            m,
+            name="UNITS_MONY",
+            domain=[g.units],
+            description="Monatary Units",
+            records=["CUR"],
+        )
 
-* unit mapping table(s)
-  PARAMETER G_UNCA(UNITS,UNITS_ACT) 'Cap-to-Act conversions' /
-  GW.GWH 	8760
-  GW.PJ 	31.536
-  GW.TWH 	8.760
-  GWH.PJ 	0.0036
-  GWH.TJ  	3.6
-  GWH.TWH 	0.001
-  MW.GWH 	8.76
-  MW.MWH 	8760
-  MW.PJ 	0.031536
-  MW.TJ 	31.536
-  MWH.GWH 	0.001
-  MWH.TJ 	0.0036
-  PJA.PJ 	1
-  TJA.TJ 	1
-  TWH.PJ  	3.6
-  Mta.Mt 	1
-  Mta.kt 	1000
-  kta.Mt 	0.001
-  kta.kt 	1
-  kta.kth 	8760  /;
-""",
+        # unit mapping table(s)
+        g.g_unca = Parameter(
+            m,
+            name="G_UNCA",
+            domain=[g.units, g.UnitsAct],
+            description="Cap-to-Act conversions",
+            records=[
+                ("GW", "GWH", 8760),
+                ("GW", "PJ", 31.536),
+                ("GW", "TWH", 8.760),
+                ("GWH", "PJ", 0.0036),
+                ("GWH", "TJ", 3.6),
+                ("GWH", "TWH", 0.001),
+                ("MW", "GWH", 8.76),
+                ("MW", "MWH", 8760),
+                ("MW", "PJ", 0.031536),
+                ("MW", "TJ", 31.536),
+                ("MWH", "GWH", 0.001),
+                ("MWH", "TJ", 0.0036),
+                ("PJA", "PJ", 1),
+                ("TJA", "TJ", 1),
+                ("TWH", "PJ", 3.6),
+                ("Mta", "Mt", 1),
+                ("Mta", "kt", 1000),
+                ("kta", "Mt", 0.001),
+                ("kta", "kt", 1),
+                ("kta", "kth", 8760),
+            ],
         )
