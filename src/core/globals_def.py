@@ -11,11 +11,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter
+
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from .compile_environment import CompileEnvironment
-    from .times_model_class import GamsPhase, TimesModelClass
+    from .times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
 
@@ -34,18 +36,43 @@ class Globals(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        phase: GamsPhase = "init"
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code="""
-* global initialization and other scalar defaults which may be changed here
-*  or overwritten in the user *.DD
-  SCALAR G_DYEAR     'Year to discount to'                          / 0 /;
-  SCALAR G_ILEDNO    '1/threshold at which to ignore ILED'          / 10 /;
-  SCALAR G_TLIFE     'Default technology life if not provided'      / 10 /;
-  SCALAR G_VINT      '% annual change in input data for vintaging'  / .1 /;
-  SCALAR G_NOINTERP  'Turn off interplation'                        / 0 /;
-  PARAMETER G_CYCLE(TSLVL) 'Number of cycles in average year' / ANNUAL 1, SEASON 1, DAYNITE 365 /;
-""",
+        g = self.tc
+        m = g.container
+
+        # * global initialization and other scalar defaults which may be changed here
+        # *  or overwritten in the user *.DD
+
+        g.g_dyear = Parameter(
+            m, name="G_DYEAR", description="Year to discount to", records=0
+        )
+        g.g_iledno = Parameter(
+            m,
+            name="G_ILEDNO",
+            description="1/threshold at which to ignore ILED",
+            records=10,
+        )
+        g.g_tlife = Parameter(
+            m,
+            name="G_TLIFE",
+            description="Default technology life if not provided",
+            records=10,
+        )
+        g.g_vint = Parameter(
+            m,
+            name="G_VINT",
+            description="% annual change in input data for vintaging",
+            records=0.1,
+        )
+        g.g_nointerp = Parameter(
+            m,
+            name="G_NOINTERP",
+            description="Turn off interplation",
+            records=0,
+        )
+        g.g_cycle = Parameter(
+            m,
+            name="G_CYCLE",
+            domain=[g.tslvl],
+            description="Number of cycles in average year",
+            records=[("ANNUAL", 1), ("SEASON", 1), ("DAYNITE", 365)],
         )
