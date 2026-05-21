@@ -59,6 +59,7 @@ def solprep_msa(
     objann: str,
     dflbl: str,
     bencost: str,
+    discshift: str,
 ) -> str:
     execution_str: str = ""
 
@@ -99,6 +100,7 @@ def solprep_msa(
             sw_notags=sw_notags,
             objann=objann,
             dflbl=dflbl,
+            discshift=discshift,
         )
         execution_str += _solprep_msa_qsf(arg2=arg2, msa=msa)
     elif arg1 == "QSF":
@@ -148,6 +150,7 @@ def _solprep_msa_init(
     objann: str,
     dflbl: str,
     bencost: str,
+    discshift: str,
 ) -> str:
     execution_str = "OPTION CLEAR=PAR_FLO,CLEAR=PAR_IRE;"
 
@@ -197,6 +200,7 @@ def _solprep_msa_init(
         timesed=timesed,
         obj=obj,
         varcost=varcost,
+        discshift=discshift,
         vnret_defined=vnret_defined,
     )
 

@@ -73,6 +73,7 @@ class RptliteRpt(GamsClass):
                 self.env,
                 mode="SYSUC",
                 set_name="SYSUC",
+                map=True,
                 set_prefix=self.env.sysprefix,
                 labels=[
                     "VAR",
@@ -99,6 +100,7 @@ class RptliteRpt(GamsClass):
                 self.tc,
                 self.env,
                 mode="SYSUC",
+                map=False,
                 set_name="SYSUC",
                 set_prefix=self.env.sysprefix,
                 labels=[
@@ -175,7 +177,7 @@ ALIAS(ALLSOW,WW);
  SET F_IOSET(R,ALLYEAR,T,P,C,S,IO) //;
  SET RVTPC(R,ALLYEAR,T,P,C)        //;
  SET RTTC(R,ALLYEAR,C);
- SET PASTCV / '0','�' /, RPM / '-','+' /;
+ SET PASTCV / '0','€' /, RPM / '-','+' /;
  SET RNGLIM(SYSUC), SYSINV(SYSUC);
  SET SUCMAP(J,SYSUC) /2.{self.env.sysprefix}LUMPINV,2.{self.env.sysprefix}INV+,1.{self.env.sysprefix}LUMPIX,1.{self.env.sysprefix}INVX+/;
  SET RNGMAP(SYSUC,BD) / {self.env.sysprefix}RNGLO.LO, {self.env.sysprefix}RNGUP.UP /;
@@ -305,6 +307,7 @@ ALIAS(ALLSOW,WW);
             eq=self.env.eq,
             rpt_flots=self.env.rpt_flots,
             solans=self.env.solans,
+            discshift=self.env.discshift,
             eqe_ucrtp_defined=self.tc.defined("EQE_UCRTP"),
             eq_g_ucmax_not_defined=not self.tc.defined(f"{self.env.eq}G_UCMAX"),
         )
@@ -346,6 +349,7 @@ ALIAS(ALLSOW,WW);
         eq: str,
         rpt_flots: str,
         solans: str,
+        discshift: str,
         eqe_ucrtp_defined: bool,
         eq_g_ucmax_not_defined: bool,
     ) -> None:
@@ -388,6 +392,7 @@ ALIAS(ALLSOW,WW);
                 eq=eq,
                 rpt_flots=rpt_flots,
                 solans=solans,
+                discshift=discshift,
                 eqe_ucrtp_defined=eqe_ucrtp_defined,
                 eq_g_ucmax_not_defined=eq_g_ucmax_not_defined,
             ),
@@ -480,6 +485,7 @@ def rptlite_rpt(
     rpt_flots: str,
     solans: str,
     bencost: str,
+    discshift: str,
     eqe_ucrtp_defined: bool,
     eq_g_ucmax_not_defined: bool,
 ) -> str:
@@ -555,6 +561,7 @@ def rptlite_rpt(
             timesed=timesed,
             obj=obj,
             varcost=varcost,
+            discshift=discshift,
             vnret_defined=vnret_defined,
         )
     }

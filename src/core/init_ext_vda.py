@@ -252,7 +252,7 @@ $GDXIN
                 module=self,
                 phase="run",
                 code=f"""
-  UC_FLOBET(UC_N,ALL_R,YEAR,P,{pgprim}) $= UC_ACTBET(UC_N,ALL_R,YEAR,P); LOOP((UC_N,R,YEAR,P)$UC_ACTBET(UC_N,R,YEAR,P),UC_GMAP_P(R,UC_N,'ACT',P)=YES);
+  UC_FLOBET(UC_N,ALL_R,YEAR,P,'{pgprim}') $= UC_ACTBET(UC_N,ALL_R,YEAR,P); LOOP((UC_N,R,YEAR,P)$UC_ACTBET(UC_N,R,YEAR,P),UC_GMAP_P(R,UC_N,'ACT',P)=YES);
 """,
             )
 

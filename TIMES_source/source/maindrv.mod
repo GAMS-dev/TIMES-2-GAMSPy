@@ -133,9 +133,6 @@ $   IFI %MERGE% == YES       $SETLOCAL EXT mrg
 $   BATINCLUDE solve.%EXT% %1
 $   IF %SOLVE_NOW% == NO     $GOTO SKIPTOEND
 
-$gdxUnload %COMPILE_GDX%
-execute_unload "%EXECUTE_GDX%";
-$stop
 
 *-----------------------------------------------------------------------------
 * produce the reports
@@ -155,3 +152,7 @@ $   BATINCLUDE err_stat.mod ABORT EXECERROR '*** ERRORS IN GAMS EXECUTION ***'
 
 $LABEL SKIPTOEND
 *$OFFLISTING
+
+$gdxUnload %COMPILE_GDX%
+execute_unload "%EXECUTE_GDX%";
+$stop

@@ -112,6 +112,7 @@ class SolveStc(GamsClass):
                 micro=self.env.micro,
                 mi_agc_defined=self.tc.defined("MI_AGC"),
                 cufscal=self.env.cufscal,
+                discshift=self.env.discshift,
                 model_name=self.env.model_name,
                 eq=self.env.eq,
                 rpt_flots=self.env.rpt_flots,

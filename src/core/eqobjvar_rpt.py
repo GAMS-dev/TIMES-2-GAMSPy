@@ -199,10 +199,10 @@ def eqobjvar_rpt_current(
 * Costs based on overall activity of process
 *------------------------------------------------------------------------------
 
-  {arg1}_ACTC({arg2}RTP_VINTYR(R,V,T,P),{pgprim},CUR)$(RDCUR(R,CUR)$OBJ_ACOST(R,T,P,CUR)) =
+  {arg1}_ACTC({arg2}RTP_VINTYR(R,V,T,P),'{pgprim}',CUR)$(RDCUR(R,CUR)$OBJ_ACOST(R,T,P,CUR)) =
       {arg5}({tpulse} OBJ_ACOST(R,{arg4},P,CUR)) *
       SUM(PRC_TS(R,P,S), VAR_ACT.L(R,V,T,P,S) * POWER(RS_STGAV(R,S),1$RP_STG(R,P)));
-  {arg1}_ACTC({arg3}RTP_VINTYR(R,V,T,P),C({pgprim}),CUR)$RPC_CUR(R,P,C,CUR) =
+  {arg1}_ACTC({arg3}RTP_VINTYR(R,V,T,P),C('{pgprim}'),CUR)$RPC_CUR(R,P,C,CUR) =
       SUM(RP_UPS(R,P,TSL,L('UP')),{arg5}({tpulse} ACT_CSTUP(R,V,P,TSL,CUR))*SUM(TS_GROUP(R,TSL,S),RS_STGPRD(R,S)*VAR_UPS.L(R,V,T,P,S,L))) +
       SUM(RP_UPT(R,P,UPT,'UP'),{arg5}({tpulse} ACT_CSTSD(R,V,P,UPT,'FX',CUR)*SUM(TS_GROUP(R,TSL,S)$RP_DPL(R,P,TSL),RS_STGPRD(R,S)*VAR_UPT.L(R,V,T,P,S,UPT)))) +
       SUM(RP_UPR(R,P,BDNEQ(BD)),{arg5}({tpulse} ACT_CSTRMP(R,V,P,BD,CUR))*SUM(PRC_TS(R,P,S),RS_STGPRD(R,S)*VAR_UDP.L(R,V,T,P,S,BD)));

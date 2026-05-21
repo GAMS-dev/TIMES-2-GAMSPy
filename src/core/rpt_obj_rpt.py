@@ -74,6 +74,7 @@ class RptObjRpt(GamsClass):
             obj=self.env.obj,
             varcost=self.env.varcost,
             pgprim=self.env.pgprim,
+            discshift=self.env.discshift,
             vnret_defined=self.tc.defined("VNRET"),
         )
 
@@ -98,6 +99,7 @@ class RptObjRpt(GamsClass):
         varm: str,
         sws: str,
         bencost: str,
+        discshift: str,
         vnret_defined: bool,
     ) -> None:
         self.tc.add_gams_code(
@@ -123,6 +125,7 @@ class RptObjRpt(GamsClass):
                 varv=varv,
                 varm=varm,
                 sws=sws,
+                discshift=discshift,
                 vnret_defined=vnret_defined,
             ),
         )
@@ -149,6 +152,7 @@ def rpt_obj_rpt(
     varcost: str,
     pgprim: str,
     bencost: str,
+    discshift: str,
     vnret_defined: bool,
 ) -> str:
     sic = "*(1+PASTSUM(R,V,P))" if stages.upper() == "YES" else ""
@@ -164,6 +168,7 @@ def rpt_obj_rpt(
     )
 
     return rf"""
+$onMulti
   OPTION CLEAR=NCAP_YES,CLEAR=RTP_OBJ,CLEAR=RTP_NPV,CLEAR=RTP_CAPVL;
   RTP_CAPVL(RTP)=VAR_NCAP.L(RTP)+NCAP_PASTI(RTP);
   NCAP_YES(RTP)$(RTP_CAPVL(RTP)>0) = YES;
@@ -177,7 +182,9 @@ def rpt_obj_rpt(
 * Hurdle rates
   COEF_CRF(OBJ_ICUR(NCAP_YES(R,V,P),CUR))$(NCAP_DRATE(R,V,P)>0) = MAX(0,1-
    ((1-(1+NCAP_DRATE(R,V,P))**(-NCAP_ELIFE(R,V,P))) / (1-(1+OBJ_RFR(R,V,CUR))**(-NCAP_ELIFE(R,V,P)))) /
-   (NCAP_DRATE(R,V,P)/OBJ_RFR(R,V,CUR)*((1+NCAP_DRATE(R,V,P))/(1+OBJ_RFR(R,V,CUR)))**MIN(%DISCSHIFT%-1,-0.5$NCAP_ILED(R,V,P))));
+   (NCAP_DRATE(R,V,P)/OBJ_RFR(R,V,CUR)*((1+NCAP_DRATE(R,V,P))/(1+OBJ_RFR(R,V,CUR)))**MIN({
+        discshift
+    }-1,-0.5$NCAP_ILED(R,V,P))));
 *------------------------------------------------------------------------------
 * Lump-sum investment costs
 *------------------------------------------------------------------------------
@@ -196,7 +203,7 @@ def rpt_obj_rpt(
         sic
     }$(ORD(J)=2)+(OBJ_ITAX(R,K,P,CUR)-OBJ_ISUB(R,K,P,CUR))$(ORD(J)=1))) *
     COEF_RTP(R,T,P) * COR_SALVI(R,T,P,CUR) / OBJ_DIVI(R,T,P) /
-    (1+G_DRATE(R,T,CUR))**(%DISCSHIFT%$(NOT NCAP_ILED(R,T,P)));
+    (1+G_DRATE(R,T,CUR))**({discshift}$(NOT NCAP_ILED(R,T,P)));
   SYSPLIT(SYSUC)=1-SUM(SYSUCMAP(SYSUC,ITEM),1);
   LOOP(UNCD1(J),{arg1}CAP_NEW({arg2}R,T,P,TT,SYSUC)$({arg1}CAP_NEW({arg2}R,T,P,TT,{
         p1
@@ -310,7 +317,7 @@ OPTION CLEAR=UNCD1; UNCD1('1')=MY_F+ACL;
 {
         eqobjvar_rpt(
             arg1="PAR",
-            arg2="J(UNCD1)",
+            arg2="J(UNCD1),",
             arg3="J('2'),",
             arg4="Y_EOH",
             arg5="SUM",

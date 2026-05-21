@@ -64,6 +64,10 @@ from core.ppm_ext_mlf import PpmExtMlf
 from core.ppm_ext_vda import PpmExtVda
 from core.ppmain_mod import PpmainMod
 from core.readbprice_mod import ReadbpriceMod
+from core.rptmain_mod import RptmainMod
+from core.rptmain_rpt import RptmainRpt
+from core.rptmain_stc import RptmainStc
+from core.rptmain_tm import RptmainTm
 from core.setglobs_gms import SetglobsGms
 from core.solve_mod import SolveMod
 from core.solve_msa import SolveMsa
@@ -71,7 +75,7 @@ from core.solve_stc import SolveStc
 from core.solve_stp import SolveStp
 from core.spoint_mod import SpointMod
 from core.stages_stc import StagesStc
-from core.utils import EscapeStack
+from core.wrtbprice_mod import WrtbpriceMod
 
 from .base_class import GamsClass
 
@@ -212,7 +216,7 @@ class MainDrvMod(GamsClass):
         # * dump out the user/system data structures
         # *-----------------------------------------------------------------------------
         if self.env.debug == "YES":
-            self.tc.container.write("DATADUMP.gdx")
+            self.tc.enqueue(self.exec_datadump)
 
         # * Set the main controls for stochastic mode
         if self.env.stages.upper() == "YES":
@@ -460,12 +464,78 @@ MODEL {model_name} / {", ".join(equations)} /;
             if self.env.solve_now == "NO":
                 return
 
-        raise EscapeStack(self.module_name)
         # *-----------------------------------------------------------------------------
         # * produce the reports
         # *-----------------------------------------------------------------------------
+        ext = self.arg1.upper()
+        if ext == "MOD":
+            self.include(
+                RptmainMod(
+                    tc=self.tc,
+                    env=self.env,
+                    arg1=self.arg1,
+                    arg2="NO_EMTY",
+                    model_name=model_name,
+                )
+            )
+        elif ext == "RPT":
+            self.include(
+                RptmainRpt(
+                    tc=self.tc,
+                    env=self.env,
+                    arg1=self.arg1,
+                    arg2="NO_EMTY",
+                )
+            )
+        elif ext == "STC":
+            self.include(
+                RptmainStc(
+                    tc=self.tc,
+                    env=self.env,
+                    arg1=self.arg1,
+                    arg2="NO_EMTY",
+                    model_name=model_name,
+                )
+            )
+        elif ext == "TM":
+            self.include(
+                RptmainTm(
+                    tc=self.tc,
+                    env=self.env,
+                    arg1=self.arg1,
+                    arg2="NO_EMTY",
+                )
+            )
+        else:
+            raise ValueError(f"Unexpected extension {self.arg1} for rptmain.<ext>.")
 
-        # TODO: Keep translating
+        if self.env.timesed != "0" and self.env.timesed != "YES":
+            self.include(WrtbpriceMod(tc=self.tc, env=self.env))
+
+        if self.env.is_set("spoint"):
+            self.include(SpointMod(tc=self.tc, env=self.env, arg1="0"))
+
+        # *-----------------------------------------------------------------------------
+        # * do an check on compile/execute errors from reports
+        # *-----------------------------------------------------------------------------
+        self.include(
+            ErrStatMod(
+                tc=self.tc,
+                env=self.env,
+                arg1="$IF NOT ERRORFREE",
+                arg2="ABORT",
+                arg3="*** ERRORS IN GAMS COMPILE ***",
+            )
+        )
+        self.include(
+            ErrStatMod(
+                tc=self.tc,
+                env=self.env,
+                arg1="ABORT",
+                arg2="EXECERROR",
+                arg3="*** ERRORS IN GAMS EXECUTION ***",
+            )
+        )
 
     def apply_inline_sets(self: MainDrvMod, set_string: str) -> None:
         """
@@ -501,3 +571,10 @@ MODEL {model_name} / {", ".join(equations)} /;
                 self.env.set_local(clean_key, clean_value)
             else:
                 raise Exception(command_upper, "not in [SETGLOBAL, SET, SETSCOPED]")
+
+    def exec_datadump(self) -> None:
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code='execute_unload "DATADUMP.gdx";',
+        )
