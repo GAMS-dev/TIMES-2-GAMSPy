@@ -14,5 +14,4 @@ class RunConfig(BaseModel):
     data_modules: list[Path]
 
     time_slices: Path
-    botime: str = Field(default="1960")
     lp_solver: str = Field(default="CBC")

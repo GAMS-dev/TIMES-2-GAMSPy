@@ -70,12 +70,14 @@ $ ONEMPTY
         g.item = UniverseAlias(m, name="ITEM")
 
         # $IF NOT SET BOTIME $SETGLOBAL BOTIME 1850
-        self.env.set_if_not_exists("botime", "1850", "global")
-        self.env.set_if_not_exists("botimeGP", 1850, "global")
+        if not self.env.is_set("botime"):
+            self.env.set_global("botime", "1850")
+            self.env.set_global("botime", 1850)
 
         # $IF NOT SET EOTIME $SETGLOBAL EOTIME 2200
-        self.env.set_if_not_exists("eotime", "2200", "global")
-        self.env.set_if_not_exists("eotimeGP", 2200, "global")
+        if not self.env.is_set("eotime"):
+            self.env.set_global("eotime", "2200")
+            self.env.set_global("eotimeGP", 2200)
 
         eotime = self.env.eotimeGP
         assert isinstance(eotime, int), "EOTIME is not an integer"
