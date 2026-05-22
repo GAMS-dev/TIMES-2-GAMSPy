@@ -20,8 +20,8 @@ from .base_class import GamsClass
 # from core.cal_red_red import cal_red_red
 
 if TYPE_CHECKING:
-    from .compile_environment import CompileEnvironment
-    from .times_model_class import TimesModelClass
+    from utils.compile_environment import CompileEnvironment
+    from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
 

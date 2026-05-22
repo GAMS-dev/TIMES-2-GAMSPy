@@ -12,3 +12,4 @@ __pycache__
 build
 *.opt
 end_gams
+src/data

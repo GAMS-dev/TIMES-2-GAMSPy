@@ -20,8 +20,8 @@ from .eqobjvar_rpt import eqobjvar_rpt
 from .rpt_objc_rpt import rpt_objc_rpt
 
 if TYPE_CHECKING:
-    from .compile_environment import CompileEnvironment
-    from .times_model_class import TimesModelClass
+    from utils.compile_environment import CompileEnvironment
+    from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
 

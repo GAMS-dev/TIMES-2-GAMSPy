@@ -18,8 +18,8 @@ from core.bnd_ucw_mod import bnd_ucw_mod
 from core.clearsol_stp import clearsol_stp
 
 if TYPE_CHECKING:
-    from .compile_environment import CompileEnvironment
-    from .times_model_class import TimesModelClass
+    from utils.compile_environment import CompileEnvironment
+    from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
 
