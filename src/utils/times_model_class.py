@@ -9,10 +9,10 @@ from typing import TYPE_CHECKING, Any, Literal, ParamSpec
 
 from gamspy import Alias, Container, Equation, Options, Parameter, Set, Variable
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
 
 if TYPE_CHECKING:
-    from .compile_environment import CompileEnvironment
+    from utils.compile_environment import CompileEnvironment
 
 GamsPhase = Literal["init", "run"]
 P = ParamSpec("P")

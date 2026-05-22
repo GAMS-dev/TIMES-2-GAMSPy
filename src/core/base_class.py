@@ -5,8 +5,8 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .compile_environment import CompileEnvironment
-    from .times_model_class import TimesModelClass
+    from utils.compile_environment import CompileEnvironment
+    from utils.times_model_class import TimesModelClass
 
 
 class GamsClass(ABC):

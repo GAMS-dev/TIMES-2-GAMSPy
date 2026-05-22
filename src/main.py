@@ -1,20 +1,23 @@
 # main.py
 from __future__ import annotations
 
+import argparse
 import logging
 import os
 import sys
 from pathlib import Path
 
-from gamspy import Alias, Container, Options, Set, UniverseAlias
+from gamspy import Options
 
-from core.compile_environment import CompileEnvironment
-from core.demo12_dd import Demo12DD
 from core.initmty_mod import InitmtyMod
 from core.initsys_mod import InitsysMod
 from core.maindrv_mod import MainDrvMod
-from core.times_model_class import TimesModelClass
+from core.read_dd import read_dd_file
 from core.utils import EscapeStack
+from utils.compile_environment import CompileEnvironment
+from utils.config import RunConfig
+from utils.run_registry import REGISTRY
+from utils.times_model_class import TimesModelClass
 
 # Create logs directory if it doesn't exist
 os.makedirs("logs", exist_ok=True)
@@ -40,27 +43,14 @@ gams_logger.addHandler(file_handler)
 gams_logger.propagate = False  # Prevent logs from doubling up in the console
 
 
-def load_data(model: TimesModelClass, gdx_file: Path) -> None:
-    """Central data-loading step. (Loading .dd files)"""
-    model.logger.info("Reading data...")
-
-    m = model.container
-    t = Container(load_from=gdx_file)
-
-    for name, symbol in t.data.items():
-        if not isinstance(symbol, Alias | UniverseAlias) and name in m.data:
-            m[name].records = symbol.records
-
-    model.logger.info("Data loading complete.")
-
-
-def main(
+def run_times(
+    config: RunConfig,
     output_compile: Path = Path("compile_gamspy.gdx"),
     output_execute: Path = Path("execute_gamspy.gdx"),
     output_convert: Path = Path("convert_gamspy.gdx"),
     test: bool = False,
 ) -> TimesModelClass:
-    logging.info("Starting TIMES.")
+    logging.info(f"Starting TIMES Run: {config.run_name}")
 
     # Set Options
     solve_options = Options(
@@ -71,7 +61,7 @@ def main(
         equation_listing_limit=0,
         variable_listing_limit=0,
         report_solution=0,
-        lp="CBC",
+        lp=config.lp_solver,
         basis_detection_threshold=1,
     )
 
@@ -86,34 +76,17 @@ def main(
         solve_options=solve_options,
     )
 
-    # User settings
-    # reduction of equation system
-    env.set_scoped("reduce", "YES")
+    # Dynamically apply Environment Variables
+    for key, value in config.env_vars.items():
+        env.set_scoped(key, value)
 
-    # initialize the environment variables
-    env.set_scoped("dscauto", "YES")
-    env.set_scoped("vda", "YES")
-    env.set_scoped("debug", "NO")
-    env.set_scoped("dumpsol", "NO")
-    env.set_scoped("solve_now", "YES")
-    env.set_scoped("xtqa", "YES")
+    env.set_scoped("botime", config.botime)
+    env.set_scoped("botimeGP", int(config.botime))
+    env.set_scoped("run_name", config.run_name)
 
-    # VAR_UC being set so that non-binding constraints appear in results
-    env.set_scoped("var_uc", "YES")
-    env.set_scoped("obj", "MOD")
-    env.set_scoped("solveda", "YES")
-    env.set_scoped("datagdx", "YES")
-
-    # load demo12ts.dd
-    # the times-slices MUST come 1st to ensure ordering OK
-    model.allts = Set(
-        container=model.container,
-        name="ALL_TS",
-        records=["ANNUAL", "S", "W", "SD", "SN", "WD", "WN"],
-    )
-
-    env.set_scoped("botime", "1960")
-    env.set_scoped("botimeGP", 1960)
+    # Dynamically apply Time Slices
+    read_dd_file(tc=model, dd_path=config.time_slices)
+    model.allts = model.container["ALL_TS"]
 
     try:
         # perform fixed declarations
@@ -123,17 +96,15 @@ def main(
         model.register_module(InitmtyMod(tc=model, env=env))
 
         # Central data load (DD files)
-        model.register_module(Demo12DD(tc=model, env=env))
+        for file in config.data_modules:
+            read_dd_file(tc=model, dd_path=file)
 
         # Reduced model to fit with GAMS community license
-        # SET MILESTONYR /2005,2010,2015,2020,2030,2050/;
         milestonyr = model.container["MILESTONYR"]
-        milestonyr.setRecords([2005, 2010, 2015, 2020, 2030, 2050])
-
-        env.set_scoped("run_name", "demo12")
-        env.set_scoped("vedavdd", "YES")
+        milestonyr.setRecords(config.milestone_years)
 
         model.register_module(MainDrvMod(tc=model, env=env, arg1="mod"))
+
     except EscapeStack as e:
         print("Escape Stack", e)
 
@@ -143,11 +114,19 @@ def main(
     # execution code blocks
     model.run()
 
-    # Debug: dump generated GAMS
-    # model.dump_generated_gams("generated_times.gms")
-
     return model
 
 
 if __name__ == "__main__":
-    result = main()
+    parser = argparse.ArgumentParser(description="Run a TIMES model instance.")
+    parser.add_argument(
+        "--run",
+        type=str,
+        required=True,
+        choices=REGISTRY.keys(),
+        help="Name of the run instance to execute",
+    )
+    args = parser.parse_args()
+
+    run_config: RunConfig = REGISTRY[args.run]
+    result = run_times(config=run_config)

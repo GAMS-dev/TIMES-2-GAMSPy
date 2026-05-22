@@ -17,8 +17,8 @@ from gamspy import Alias
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
-    from .compile_environment import CompileEnvironment
-    from .times_model_class import GamsPhase, TimesModelClass
+    from utils.compile_environment import CompileEnvironment
+    from utils.times_model_class import GamsPhase, TimesModelClass
 
 logger = logging.getLogger(__name__)
 

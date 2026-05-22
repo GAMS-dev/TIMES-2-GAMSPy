@@ -33,8 +33,8 @@ from core.sol_flo_red import SolFloRed
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
-    from .compile_environment import CompileEnvironment
-    from .times_model_class import TimesModelClass
+    from utils.compile_environment import CompileEnvironment
+    from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
 
