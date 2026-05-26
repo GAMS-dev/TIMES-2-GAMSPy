@@ -38,10 +38,10 @@ $onEcho > convert.opt
 DumpGDX %CONVERT_GDX%
 $offEcho
 %MODEL_NAME%.optfile=1;
-option lp=convert;
+option lp=convert, mip=convert;
 SOLVE %MODEL_NAME% MINIMIZING objZ USING %METHOD%;
 
-option lp=cbc;
+option lp=cplex, mip=cplex;
 SOLVE %MODEL_NAME% MINIMIZING objZ USING %METHOD%;
 $LABEL CHECK
 * do an check on solution errors
