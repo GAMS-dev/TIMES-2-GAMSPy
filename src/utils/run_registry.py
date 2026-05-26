@@ -1096,6 +1096,7 @@ REGISTRY: dict[str, RunConfig] = {
             "solveda": "YES",
             "datagdx": "YES",
             "vedavdd": "YES",
+            "botime": "1960",
         },
         data_modules=[
             Path("TIMES_source/model/base.dd"),
@@ -1129,6 +1130,7 @@ REGISTRY: dict[str, RunConfig] = {
             "datagdx": "YES",
             "anncost": "LEV",
             "vedavdd": "YES",
+            "botime": "1960",
         },
         data_modules=[
             Path(f"{BASE_DIR}base.dd"),
@@ -1163,6 +1165,7 @@ REGISTRY: dict[str, RunConfig] = {
             "anncost": "LEV",
             "macro": "MLF",
             "vedavdd": "YES",
+            "botime": "1960",
         },
         data_modules=[
             Path(f"{BASE_DIR}base.dd"),
