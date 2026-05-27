@@ -91,7 +91,6 @@ def run_times(
     try:
         # perform fixed declarations
         model.register_module(InitsysMod(tc=model, env=env))
-        # raise EscapeStack('here')
 
         # declare the (system/user) empties
         model.register_module(InitmtyMod(tc=model, env=env))
