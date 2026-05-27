@@ -72,7 +72,7 @@ $ ONEMPTY
         # $IF NOT SET BOTIME $SETGLOBAL BOTIME 1850
         if not self.env.is_set("botime"):
             self.env.set_global("botime", "1850")
-            self.env.set_global("botime", 1850)
+            self.env.set_global("botimeGP", 1850)
 
         # $IF NOT SET EOTIME $SETGLOBAL EOTIME 2200
         if not self.env.is_set("eotime"):
