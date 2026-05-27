@@ -80,8 +80,8 @@ def run_times(
     for key, value in config.env_vars.items():
         env.set_scoped(key, value)
 
-    env.set_scoped("botime", config.botime)
-    env.set_scoped("botimeGP", int(config.botime))
+    # env.set_scoped("botime", config.botime)
+    env.set_scoped("botimeGP", int(env.botime))
     env.set_scoped("run_name", config.run_name)
 
     # Dynamically apply Time Slices

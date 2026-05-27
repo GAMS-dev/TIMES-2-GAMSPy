@@ -72,7 +72,7 @@ $KILL DAM_TVOC
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
+            code=rf"""
 $GDXIN {self.env.tmp}
 $LOAD sol_bprice
 """,

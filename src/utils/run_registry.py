@@ -1096,6 +1096,7 @@ REGISTRY: dict[str, RunConfig] = {
             "solveda": "YES",
             "datagdx": "YES",
             "vedavdd": "YES",
+            "botime": "1960",
         },
         data_modules=[
             Path("TIMES_source/model/base.dd"),
@@ -1129,6 +1130,7 @@ REGISTRY: dict[str, RunConfig] = {
             "datagdx": "YES",
             "anncost": "LEV",
             "vedavdd": "YES",
+            "botime": "1960",
         },
         data_modules=[
             Path(f"{BASE_DIR}base.dd"),
@@ -1163,6 +1165,7 @@ REGISTRY: dict[str, RunConfig] = {
             "anncost": "LEV",
             "macro": "MLF",
             "vedavdd": "YES",
+            "botime": "1960",
         },
         data_modules=[
             Path(f"{BASE_DIR}base.dd"),
@@ -1181,7 +1184,6 @@ REGISTRY: dict[str, RunConfig] = {
     ),
     "DTU_CB_15": RunConfig(
         run_name="DTU_CB_15",
-        botime="1970",
         time_slices=Path("src/data/TIMES-DK-Instance/ts.dd"),
         milestone_years=[
             "2010",
@@ -1213,6 +1215,7 @@ REGISTRY: dict[str, RunConfig] = {
             "solveda": "YES",
             "datagdx": "YES",
             "vedavdd": "YES",
+            "botime": "1970",
         },
         data_modules=[
             Path("src/data/TIMES-DK-Instance/base.dd"),
@@ -2192,7 +2195,6 @@ REGISTRY: dict[str, RunConfig] = {
     ),
     "BASE_SSP2": RunConfig(
         run_name="BASE_SSP2",
-        botime="1964",
         lp_solver="cplex",
         milestone_years=[
             "2005",
@@ -2230,6 +2232,7 @@ REGISTRY: dict[str, RunConfig] = {
             "stages": "NO",
             "solveda": "YES",
             "vedavdd": "YES",
+            "botime": "1964",
         },
         data_modules=[
             Path("src/data/1p5C_OS_SSP2/base.dd"),

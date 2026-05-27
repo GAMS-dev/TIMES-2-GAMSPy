@@ -169,7 +169,8 @@ VAR_Macro   'MACRO result variables'
             phase="init",
             code="""
 SETS
-  IRE(IRE)   'Inter-regional Exchange (Exports & Imports)',
+  IRE        'Inter-regional Exchange (Exports & Imports)',
+*  IRE(IRE)   'Inter-regional Exchange (Exports & Imports)',
   IRELX(IRE) 'Electricity Exchange Processes',
   IRENX(IRE) 'Enodogenous Trade Exchange',
   STG(IRE)   'Storage Processes (genuine)',
