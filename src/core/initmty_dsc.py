@@ -11,11 +11,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter, Set
+
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
-    from utils.times_model_class import GamsPhase, TimesModelClass
+    from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
 
@@ -36,25 +38,51 @@ class InitmtyDsc(GamsClass):
     ):
         self.env = env.fork()
         self.tc = tc
-        self._sub_modules = {}
         self.compile()
 
     def compile(self) -> None:
-        phase: GamsPhase = "init"
+        g = self.tc
+        m = g.container
+
         self.env.set_global("dsc", "YES")
         if not self.env.dsc == "YES":
             raise Exception("Activation of DSC extension failed")
 
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=r"""
-* Sets and parameters for discrete capacity extension
-SET       UNIT                                   'Number of different units'           / 0*100 /;
-SET       PRC_DSCNCAP(R,P)                       'Processes with discrete capacity additions';
-PARAMETER NCAP_DISC(R,ALLYEAR,P,UNIT)            'Unit size of discrete capacity addition';
-PARAMETER NCAP_SEMI(R,ALLYEAR,P)                 'Semi-continuous capacity, lower bound'      //;
-*PARAMETER NCAP_CSTD(REG,ALLYEAR,PRC,CUR,UNIT)   'Investment cost of unit'                    //;
-*PARAMETER NCAP_FOMD(REG,ALLYEAR,PRC,CUR,UNIT)   'Fixed operating and maintenace cost of unit'//;
-""",
+        # Sets and parameters for discrete capacity extension
+        g.unit = Set(
+            m,
+            name="UNIT",
+            description="Number of different units",
+            records=range(0, 101),
         )
+        g.PrcDscncap = Set(
+            m,
+            name="PRC_DSCNCAP",
+            domain=[g.r, g.p],
+            description="Processes with discrete capacity additions",
+        )
+        g.ncap_disc = Parameter(
+            m,
+            name="NCAP_DISC",
+            domain=[g.r, g.allyear, g.p, g.unit],
+            description="Unit size of discrete capacity addition",
+        )
+        g.ncap_semi = Parameter(
+            m,
+            name="NCAP_SEMI",
+            domain=[g.r, g.allyear, g.p],
+            description="'Semi-continuous capacity",
+        )
+
+        # g.ncap_cstd = Parameter(
+        #     m,
+        #     name="NCAP_CSTD",
+        #     domain=[g.Reg, g.allyear, g.prc, g.cur, g.unit],
+        #     description="Investment cost of unit",
+        # )
+        # g.ncap_fomd = Parameter(
+        #     m,
+        #     name="NCAP_FOMD",
+        #     domain=[g.Reg, g.allyear, g.prc, g.cur, g.unit],
+        #     description="Fixed operating and maintenace cost of unit",
+        # )
