@@ -71,7 +71,7 @@ class InitmtyDsc(GamsClass):
             m,
             name="NCAP_SEMI",
             domain=[g.r, g.allyear, g.p],
-            description="'Semi-continuous capacity",
+            description="Semi-continuous capacity, lower bound",
         )
 
         # g.ncap_cstd = Parameter(
