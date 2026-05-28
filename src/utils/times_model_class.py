@@ -130,7 +130,9 @@ class TimesModelClass:
     nrgtype: Set = None  # type: ignore[assignment] # [*] NRG_TYPE: List of energy types
     prcgrp: Set = None  # type: ignore[assignment] # [*] PRC_GRP: List of process groups
     prcrsourc: Set = None  # type: ignore[assignment] # [*] PRC_RSOURC: List of domestic resource supply groups
+    cmvar: Alias = None  # type: ignore[assignment] # [*] CM_VAR: CM_HISTS
 
+    uc_cli: Parameter = None  # type: ignore[assignment] # [UC_N,SIDE,REG,ALLYEAR,CM_ITEM] UC_CLI: Climate variable
     g_dyear: Parameter = None  # type: ignore[assignment] # G_DYEAR: Year to discount to
     g_iledno: Parameter = None  # type: ignore[assignment] # G_ILEDNO: 1/threshold at which to ignore ILED
     g_tlife: Parameter = None  # type: ignore[assignment] #  G_TLIFE: Default technology life if not provided
@@ -391,6 +393,7 @@ class TimesModelClass:
     miyr_vl: Parameter = None  # type: ignore[assignment] # MIYR_VL:
     pyr_v1: Parameter = None  # type: ignore[assignment] # PYR_V1:
     my_f: Parameter = None  # type: ignore[assignment] # MY_F:
+    var_sift: Parameter = None  # type: ignore[assignment] # [LL,S,L] VAR_SIFT:
     f: Parameter = None  # type: ignore[assignment] # F:
     z: Parameter = None  # type: ignore[assignment] # Z:
     cnt: Parameter = None  # type: ignore[assignment] # CNT:

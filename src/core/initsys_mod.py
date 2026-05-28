@@ -71,17 +71,15 @@ $ ONEMPTY
 
         # $IF NOT SET BOTIME $SETGLOBAL BOTIME 1850
         if not self.env.is_set("botime"):
-            self.env.set_global("botime", "1850")
-            self.env.set_global("botimeGP", 1850)
+            self.env.set_global("botime", 1850)
 
         # $IF NOT SET EOTIME $SETGLOBAL EOTIME 2200
         if not self.env.is_set("eotime"):
-            self.env.set_global("eotime", "2200")
-            self.env.set_global("eotimeGP", 2200)
+            self.env.set_global("eotime", 2200)
 
-        eotime = self.env.eotimeGP
+        eotime = self.env.eotime
         assert isinstance(eotime, int), "EOTIME is not an integer"
-        botime = self.env.botimeGP
+        botime = self.env.botime
         assert isinstance(botime, int), "BOTIME is not an integer"
 
         # $IF NOT %SHELL%==ANSWER

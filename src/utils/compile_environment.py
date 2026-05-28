@@ -139,7 +139,7 @@ class CompileEnvironment:
             return True
         return False
 
-    def __getattr__(self, name: str) -> str:
+    def __getattr__(self, name: str) -> Any:
         """Allows direct env.var access during compile time with a warning fallback."""
         val = self.get(name)
         # Fallback for undefined compile time variables
