@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Alias
+from gamspy import Alias, Set
 
 from .base_class import GamsClass
 
@@ -69,6 +69,15 @@ class SetglobsGms(GamsClass):
 
     def label_sysd(self) -> None:
         """SYSTEM (Internal) Declarations"""
+        g = self.tc
+        m = g.container
+
+        g.RpUpr = Set(
+            m,
+            name="RP_UPR",
+            description="Processes with ramping costs",
+            domain=[g.r, g.p, g.lA],
+        )
         phase: GamsPhase = "init"
         # *----------------------------------------------------------------------------------------------
         # * SET SECTION
@@ -115,7 +124,7 @@ $onMulti
   SET RP_PG(REG,PRC,CG)         'Primary commodity group (PG)'           //;
   SET RP_PGTYPE(R,P,CG)         'Group type of the primary group'        //;
   SET RP_UPL(R,P,L)             'Processes with dispatching equations'   //;
-  SET RP_UPR(R,P,L)             'Processes with ramping costs'           //;
+*  SET RP_UPR(R,P,L)             'Processes with ramping costs'           //;
   SET RP_UPS(R,P,TSLVL,L)       'Timeslice levels for startup accounting'//;
   SET RP_UPT(R,P,UPT,BD)        'Start-up types for unit commitment'     //;
   SET RP_DPL(R,P,TSLVL)         'Dispatching process timeslice levels'   //;

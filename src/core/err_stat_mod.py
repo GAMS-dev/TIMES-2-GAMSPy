@@ -27,7 +27,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# TODO: the ErrStatMod class is not correctly translated yet. err_stat_solve() is translated
 class ErrStatMod(GamsClass):
     """Translation unit for err_stat.mod."""
 
@@ -58,22 +57,21 @@ class ErrStatMod(GamsClass):
     def compile(self) -> None:
         phase: GamsPhase = "init"
         # $ IFI %SHELL%==ANSWER     $SET TMP END_GAMS.STA
-        if self.env.shell == "ANSWER":
+        if self.env.shell.upper() == "ANSWER":
             self.env.set_scoped("tmp", "END_GAMS.STA")
         # $ IFI NOT %SHELL%==ANSWER $SET TMP END_GAMS
-        else:
+        if self.env.shell.upper() != "ANSWER":
             self.env.set_scoped("tmp", "END_GAMS")
 
-        done = False
         # $  IF "%1" == SOLVE        $GOTO SOLVE
         if self.arg1 == "SOLVE":
-            done = self.queue_solve()
+            self.queue_solve()
 
         # $ IF DEFINED SOLVESTAT    $GOTO ACTION
         elif self.tc.defined("SOLVESTAT"):
-            done = self.queue_action()
+            self.queue_action()
 
-        if not done:
+        else:
             self.tc.add_gams_code(
                 module=self,
                 phase=phase,
@@ -103,13 +101,19 @@ SET SOLVESTAT(J) /
             )
             tmp = self.env.tmp
             self.prep_file(tmp)
+            self.queue_action()
 
-    def queue_solve(self) -> bool:
+    def queue_solve(self) -> None:
         "No relevance to compilation"
-        self.tc.enqueue(self.solve, model_name=self.env.model_name, err_abort="")
-        return True  # Signal done
+        self.tc.enqueue(
+            err_stat_solve,
+            arg1=self.arg1,
+            arg2=self.arg2,
+            model_name=self.env.model_name,
+            err_abort="",
+        )
 
-    def queue_action(self) -> bool:
+    def queue_action(self) -> None:
         phase: GamsPhase = "init"
         """
         Most of the GAMS code is GAMSPy irrelevant.
@@ -122,9 +126,8 @@ SET SOLVESTAT(J) /
         %1 $%2  "%3"
         $GOTO DONE
         """
-        self.tc.add_gams_code(module=self, phase=phase, code=f"{self.arg4};")
 
-        return True  # Signal done
+        self.tc.add_gams_code(module=self, phase=phase, code=f"{self.arg4};")
 
     def prep_file(self, tmp: str) -> None:
         phase: GamsPhase = "run"
@@ -134,42 +137,6 @@ SET SOLVESTAT(J) /
             code=rf"""
 FILE SCREEN / '' /;
 FILE END_GAMS / {tmp} /;
-""",
-        )
-
-    def solve(self, err_abort: str, model_name: str) -> None:
-        phase: GamsPhase = "run"
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=rf"""
- Z = MIN(14,{model_name}.MODELSTAT)-1; IF(Z > 18, Z=11);
- IF(Z>=0,PUT SCREEN /"--- TIMES Solve status: ";
-   LOOP(SAMEAS(J,'1'), PUT SOLVESTAT.TE(J+Z));
-   PUTCLOSE;
-   PUT END_GAMS "Solve status: ";
-   LOOP(SAMEAS(J,'1'), PUT SOLVESTAT.TE(J+Z) /);
-   PUTCLOSE;
-   Z = ABS(ABS(2*{model_name}.MODELSTAT-9)-6));
- IF(Z>1.5 OR {model_name}.MODELSTAT=7,execerror=1);
-""",
-        )
-
-        z = self.tc.container["Z"]
-        if not err_abort:
-            z[...] = 0
-
-        # * [UR] allow solution "optimal with unscaled infeasibilities"
-        # * -- allow even "intermediate non-optimal" for investigation
-        # *ABORT$((%MODEL_NAME%.MODELSTAT GT 1) OR (%MODEL_NAME%.SOLVESTAT GT 1)) '*** ERRORS IN OPTIMIZATION ***'
-        # ABORT$(Z>1.5) '%2';
-        if z.toValue() > 1.5:
-            raise ValueError(self.arg2)
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=r"""
-IF(execerror,execerror=0);
 """,
         )
 
