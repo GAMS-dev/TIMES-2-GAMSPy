@@ -508,7 +508,16 @@ class SetglobsGms(GamsClass):
         # * cumulatives & UCs
         g.Rhs = Set(m, records=["RHS"], name="RHS", domain=[g.side])
 
-        expand_set(g.ucnumber, g.tslvl.toList())
+        tslvl_records = g.tslvl.toList()
+        if g.ucnumber is None:
+            g.ucnumber = Set(
+                m,
+                name="UC_NUMBER",
+                description="Determines way of handling REG,T and TS",
+                records=tslvl_records,
+            )
+        else:
+            expand_set(g.ucnumber, tslvl_records)
 
         g.UcOn = Set(
             m,
@@ -1222,7 +1231,7 @@ class SetglobsGms(GamsClass):
         if self.env.g2x6 != "YES":
             self.env.set_global("rl", "R.TL:MAX(12,CARD(R.TL))")
             self.env.set_global("pl", "P.TL:MAX(12,CARD(P.TL))")
-            self.env.set_global("cl", "C.TL:MAX(12,CARD(C.TL)")
+            self.env.set_global("cl", "C.TL:MAX(12,CARD(C.TL))")
 
         g.par_flo = Parameter(
             m,

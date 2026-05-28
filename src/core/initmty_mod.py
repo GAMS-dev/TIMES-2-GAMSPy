@@ -555,9 +555,28 @@ class InitmtyMod(GamsClass):
 
             # Predefined system CGs and one COM:
             self.env.set_if_not_exists("pgprim", "ACT", scope="global")
-            expand_set(g.comgrp, [self.env.pgprim, "CAPFLO"])
+            comgrp_records = [self.env.pgprim, "CAPFLO"]
+            if g.comgrp is None:
+                g.comgrp = Set(
+                    m,
+                    name="COM_GRP",
+                    description="All CGs and each individal commodity",
+                    records=comgrp_records,
+                )
+            else:
+                expand_set(g.comgrp, comgrp_records)
             g.Actcg = Set(m, name="ACTCG", domain=[g.cg], records=[self.env.pgprim])
-            expand_set(g.Com, [self.env.pgprim])
+            com_records = [self.env.pgprim]
+            if g.Com is None:
+                g.Com = Set(
+                    m,
+                    name="COM",
+                    domain=[g.comgrp],
+                    description="Commodities",
+                    records=com_records,
+                )
+            else:
+                expand_set(g.Com, com_records)
 
         def parameters_section() -> None:
             """Parameters section"""
