@@ -94,7 +94,7 @@ class InitExtDsc(GamsClass):
 
     def assign_prc_semi(self) -> None:
         g = self.tc
-        r, p = g.r, g.t
+        r, p = g.r, g.p
 
         rhs = g.ncap_semi[r, "0", p]
         g.prc_semi[r, p].where[rhs] = rhs
