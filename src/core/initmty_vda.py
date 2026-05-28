@@ -296,15 +296,46 @@ class InitmtyVda(GamsClass):
         )
         # -----------------------------------------------------------------------------
         # Predefined items
-        expand_set(g.allreg, ["IMPEXP"])
-        expand_set(g.comgrp, ["IMP", "EXP"])
+        allreg_records = ["IMPEXP"]
+        if g.allreg is None:
+            g.allreg = Set(m, name="ALL_REG", records=allreg_records)
+        else:
+            expand_set(g.allreg, allreg_records)
+
+        comgrp_records = ["IMP", "EXP"]
+        if g.comgrp is None:
+            g.comgrp = Set(m, name="COM_GRP", records=comgrp_records)
+        else:
+            expand_set(g.comgrp, comgrp_records)
 
         self.add_records_to_universe_item(records=["OBJ"])
 
+        #   SET UC_NAME / ANNUAL %MX% /;
+        #   SET UNIT 'Numbers of different units' /0/;
+        #   SET UC_N /%SYSPREFIX%SOLVE_STATUS 'Model solution status code'/;
+
         ucname_records = ["ANNUAL", *mx]
-        expand_set(g.ucname, ucname_records)
-        expand_set(g.unit, ["0"])
-        expand_set(
-            g.ucn, [(f"{self.env.sysprefix}SOLVE_STATUS", "Model solution status code")]
-        )
+        if g.ucname is None:
+            g.ucname = Set(m, name="UC_NAME", records=ucname_records)
+        else:
+            expand_set(g.ucname, ucname_records)
+
+        unit_records = ["0"]
+        if g.unit is None:
+            g.unit = Set(
+                m,
+                name="UNIT",
+                description="Numbers of different units",
+                records=unit_records,
+            )
+        else:
+            expand_set(g.unit, unit_records)
+
+        ucn_records = [
+            (f"{self.env.sysprefix}SOLVE_STATUS", "Model solution status code")
+        ]
+        if g.ucn is None:
+            g.ucn = Set(m, name="UCN", records=ucn_records)
+        else:
+            expand_set(g.ucn, ucn_records)
         # -----------------------------------------------------------------------------
