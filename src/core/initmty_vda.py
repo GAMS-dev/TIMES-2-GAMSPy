@@ -12,11 +12,15 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter, Set
+
+from core.utils import expand_set
+
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
-    from utils.times_model_class import GamsPhase, TimesModelClass
+    from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
 
@@ -37,105 +41,270 @@ class InitmtyVda(GamsClass):
     ):
         self.env = env.fork()
         self.tc = tc
-        self._sub_modules = {}
         self.compile()
 
     def compile(self) -> None:
-        phase: GamsPhase = "init"
+        g = self.tc
+        m = g.container
+
         self.env.set_global("vda", "YES")
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=r"""
-* User Input attributes in the VDA extension
-*-----------------------------------------------------------------------------
-* Process transformation parameters:
-  PARAMETERS
-  VDA_FLOP(REG,ALLYEAR,PRC,CG,S)     'General process transformation parameter'
-  VDA_EMCB(REG,ALLYEAR,COM,COM)      'Combustion emission parameter (aka EMI_comb)' //
-  VDA_CEH(REG,ALLYEAR,PRC)           'The slope of pass-out turbine (alias NCAP_CEH)' //
-  FLO_EMIS(REG,ALLYEAR,PRC,CG,COM,S) 'General process emission parameter' //
-  FLO_EFF(REG,ALLYEAR,PRC,CG,COM,S)  'General process flow-relation parameter' //;
-*-----------------------------------------------------------------------------
-""",
-        )
 
-        # * Commodity-dependent availabilities:
-        # $ SET MX ,SEASON, WEEKLY, DAYNITE
+        # User Input attributes in the VDA extension
+        # -----------------------------------------------------------------------------
+        # Process transformation parameters:
+        g.vda_flop = Parameter(
+            m,
+            name="VDA_FLOP",
+            description="General process transformation parameter",
+            domain=[g.Reg, g.allyear, g.prc, g.cg, g.s],
+        )
+        g.vda_emcb = Parameter(
+            m,
+            name="VDA_EMCB",
+            description="Combustion emission parameter (aka EMI_comb)",
+            domain=[g.Reg, g.allyear, g.Com, g.Com],
+        )
+        g.vda_ceh = Parameter(
+            m,
+            name="VDA_CEH",
+            description="The slope of pass-out turbine (alias NCAP_CEH)",
+            domain=[g.Reg, g.allyear, g.prc],
+        )
+        g.flo_emis = Parameter(
+            m,
+            name="FLO_EMIS",
+            description="General process emission parameter",
+            domain=[g.Reg, g.allyear, g.prc, g.cg, g.Com, g.s],
+        )
+        g.flo_eff = Parameter(
+            m,
+            name="FLO_EFF",
+            description="General process flow-relation parameter",
+            domain=[g.Reg, g.allyear, g.prc, g.cg, g.Com, g.s],
+        )
+        # -----------------------------------------------------------------------------
+
+        # Commodity-dependent availabilities:
         self.env.set_scoped("mx", ",SEASON, WEEKLY, DAYNITE")
+        mx = ["SEASON", "WEEKLY", "DAYNITE"]
 
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=rf"""
-$onMulti
-  SET STL / SET.S{self.env.mx} /;
-  PARAMETERS
-  NCAP_AFAC(REG,ALLYEAR,PRC,CG)      'Annual availability of capacity for commodity group CG' //
-  NCAP_AFC(REG,ALLYEAR,PRC,CG,STL)   'Availability of capacity for commodity group CG'//
-  NCAP_AFCS(REG,ALLYEAR,PRC,CG,TS)   'Availability of capacity for commodity group CG'//;
-*-----------------------------------------------------------------------------
-* Dynamic UC variable bounds (UC_DYNBND user-defined)
-  SET UC_DYNBND(UC_N,LIM)     'Dynamic process-wise UC bounds' //;
-*-----------------------------------------------------------------------------
-* Activity efficiency and dispatching options
-  PARAMETERS
-  ACT_EFF(REG,YEAR,PRC,CG,TS) 'Activity efficiency for process' //
-  ACT_UPS(R,ALLYEAR,P,S,L)    'Max. ramp rate, fraction of capacity per hour'
-  ACT_MINLD(R,ALLYEAR,P)      'Minimum stable operation level' //
-  ACT_LOSPL(R,ALLYEAR,P,L)    'Fuel consumption increase at minimum load' //
-  ACT_CSTPL(R,ALLYEAR,P,CUR)  'Partial load cost penalty' //
-  ACT_MAXNON(R,LL,P,UPT)      'Max. non-operational time before transition to next stand-by condition, by start-up type, in hours' //
-  ACT_SDTIME(R,LL,P,UPT,BD)   'Duration of start-up (BD=UP) and shut-down BD=LO) phases, by start-up type, in hours' //
-  ACT_LOSSD(R,LL,P,UPT,BD)    'Efficiency at one hour from start-up (BD=UP) or at one hour to end of shut-down (BD=LO)' //
-  STG_MAXCYC(R,YEAR,P)        'Maximum number of storage cycles over lifetime' //;
-*-----------------------------------------------------------------------------
-* Risk parameters & network modeling attributes
-  PARAMETER UC_ACTBET(UC_N,ALL_REG,ALLYEAR,PRC);
-  PARAMETER UC_FLOBET(UC_N,ALL_REG,ALLYEAR,PRC,CG);
-  PARAMETER COM_CSTBAL(R,ALLYEAR,C,S,ITEM,CUR) 'Cost on specific component of node balance';
-  PARAMETER PRC_REACT(R,ALLYEAR,P) 'Reactance of transmission line';
-  PARAMETER GR_PTDF(R,YEAR,P,C,ALL_R,C) 'PTDF of transmission line'//;
-  PARAMETER GR_GENLEV(R,C) 'Grid connection category for electricity generation commodity'//;
-  PARAMETER GR_DEMFR(R,ALLYEAR,C,S) 'Fraction of total electricity demand allocated to grid node' //;
-  PARAMETER GR_ENDFR(R,ALLYEAR,C,CG) 'Fraction of sectoral electricity demand allocated to grid node' //;
-  PARAMETER GR_GENFR(R,ALLYEAR,C,ITEM) 'Fraction of electricity generation type allocated to grid node'//;
-  PARAMETER GR_GENMAP(R,P,ITEM) 'Mapping of technology to generation type' //;
-  PARAMETER GR_XBND(R,ALLYEAR) 'Maximum level of net imports to / exports from region' //;
-  PARAMETER GR_THMIN(R,LL,P) 'Thermal minimum level' //;
-  PARAMETER GR_VARGEN(R,S,ITEM,BD) 'Variance in type of generation';
-  PARAMETERS
-    GG_DENS(R,C)          'Density of gases'//
-    GG_GAMMA(R,YEAR,P,C)  'Comprossion factor'//
-    GG_KGF(R,YEAR,P,C)    'Weymouth constants'//
-    GG_KLP(R,YEAR,P,C)    'Linepack constants'//
-    GG_PRBD(R,YEAR,C,LIM) 'Nodal pressure bounds'//
-    GG_PP(R,YEAR,P,C,L,J) 'Fixed pressure points'//;
+        stl_records = g.s.toList() + mx
+        g.stl = Set(m, name="STL", records=stl_records)
 
-*-----------------------------------------------------------------------------
-* Attributes for experimental ECB extension
-  PARAMETER COM_MSHGV(R,YEAR,C)        'Choices heterogeneity parameter' //;
-  PARAMETER NCAP_MSPRF(R,YEAR,C,P,LIM) 'Preference parameters in choice' //;
-*-----------------------------------------------------------------------------
-* Predefined items
-  SET ALL_REG / IMPEXP /;
-  SET COM_GRP / IMP, EXP /;
-""",
+        g.ncap_afac = Parameter(
+            m,
+            name="NCAP_AFAC",
+            description="Annual availability of capacity for commodity group CG",
+            domain=[g.Reg, g.allyear, g.prc, g.cg],
         )
-
-        # SET ITEM / OBJ /;
-        # Remember: ITEM is a UniverseSet
-        item_records = ["OBJ"]
-        self.add_records_to_universe_item(records=item_records)
-
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=rf"""
-$onMulti
-  SET UC_NAME / ANNUAL {self.env.mx} /
-  SET UNIT 'Numbers of different units' /0/;
-  SET UC_N /{self.env.sysprefix}SOLVE_STATUS 'Model solution status code'/;
-*-----------------------------------------------------------------------------
-""",
+        g.ncap_afc = Parameter(
+            m,
+            name="NCAP_AFC",
+            description="Availability of capacity for commodity group CG",
+            domain=[g.Reg, g.allyear, g.prc, g.cg, g.stl],
         )
+        g.ncap_afcs = Parameter(
+            m,
+            name="NCAP_AFCS",
+            description="Availability of capacity for commodity group CG",
+            domain=[g.Reg, g.allyear, g.prc, g.cg, g.ts],
+        )
+        # -----------------------------------------------------------------------------
+        # Dynamic UC variable bounds (UC_DYNBND user-defined)
+        g.UcDynbnd = Set(
+            m,
+            name="UC_DYNBND",
+            description="Dynamic process-wise UC bounds",
+            domain=[g.ucn, g.lim],
+        )
+        # -----------------------------------------------------------------------------
+        # Activity efficiency and dispatching options
+        g.act_eff = Parameter(
+            m,
+            name="ACT_EFF",
+            description="Activity efficiency for process",
+            domain=[g.Reg, g.year, g.prc, g.cg, g.ts],
+        )
+        g.act_ups = Parameter(
+            m,
+            name="ACT_UPS",
+            description="Max. ramp rate, fraction of capacity per hour",
+            domain=[g.r, g.allyear, g.p, g.s, g.lA],
+        )
+        g.act_minld = Parameter(
+            m,
+            name="ACT_MINLD",
+            description="Minimum stable operation level",
+            domain=[g.r, g.allyear, g.p],
+        )
+        g.act_lospl = Parameter(
+            m,
+            name="ACT_LOSPL",
+            description="Fuel consumption increase at minimum load",
+            domain=[g.r, g.allyear, g.p, g.lA],
+        )
+        g.act_cstpl = Parameter(
+            m,
+            name="ACT_CSTPL",
+            description="Partial load cost penalty",
+            domain=[g.r, g.allyear, g.p, g.cur],
+        )
+        g.act_maxnon = Parameter(
+            m,
+            name="ACT_MAXNON",
+            description="Max. non-operational time before transition to next stand-by condition, by start-up type, in hours",
+            domain=[g.r, g.ll, g.p, g.upt],
+        )
+        g.act_sdtime = Parameter(
+            m,
+            name="ACT_SDTIME",
+            description="Duration of start-up (BD=UP) and shut-down BD=LO) phases, by start-up type, in hours",
+            domain=[g.r, g.ll, g.p, g.upt, g.bd],
+        )
+        g.act_lossd = Parameter(
+            m,
+            name="ACT_LOSSD",
+            description="Efficiency at one hour from start-up (BD=UP) or at one hour to end of shut-down (BD=LO)",
+            domain=[g.r, g.ll, g.p, g.upt, g.bd],
+        )
+        g.stg_maxcyc = Parameter(
+            m,
+            name="STG_MAXCYC",
+            description="Maximum number of storage cycles over lifetime",
+            domain=[g.r, g.year, g.p],
+        )
+        # -----------------------------------------------------------------------------
+        # Risk parameters & network modeling attributes
+        g.uc_actbet = Parameter(
+            m, name="UC_ACTBET", domain=[g.ucn, g.allreg, g.allyear, g.prc]
+        )
+        g.uc_flobet = Parameter(
+            m, name="UC_FLOBET", domain=[g.ucn, g.allreg, g.allyear, g.prc, g.cg]
+        )
+        g.com_cstbal = Parameter(
+            m,
+            name="COM_CSTBAL",
+            description="Cost on specific component of node balance",
+            domain=[g.r, g.allyear, g.c, g.s, g.item, g.cur],
+        )
+        g.prc_react = Parameter(
+            m,
+            name="PRC_REACT",
+            description="Reactance of transmission line",
+            domain=[g.r, g.allyear, g.p],
+        )
+        g.gr_ptdf = Parameter(
+            m,
+            name="GR_PTDF",
+            description="PTDF of transmission line",
+            domain=[g.r, g.year, g.p, g.c, g.allr, g.c],
+        )
+        g.gr_genlev = Parameter(
+            m,
+            name="GR_GENLEV",
+            description="Grid connection category for electricity generation commodity",
+            domain=[g.r, g.c],
+        )
+        g.gr_demfr = Parameter(
+            m,
+            name="GR_DEMFR",
+            description="Fraction of total electricity demand allocated to grid node",
+            domain=[g.r, g.allyear, g.c, g.s],
+        )
+        g.gr_endfr = Parameter(
+            m,
+            name="GR_ENDFR",
+            description="Fraction of sectoral electricity demand allocated to grid node",
+            domain=[g.r, g.allyear, g.c, g.cg],
+        )
+        g.gr_genfr = Parameter(
+            m,
+            name="GR_GENFR",
+            description="Fraction of electricity generation type allocated to grid node",
+            domain=[g.r, g.allyear, g.c, g.item],
+        )
+        g.gr_genmap = Parameter(
+            m,
+            name="GR_GENMAP",
+            description="Mapping of technology to generation type",
+            domain=[g.r, g.p, g.item],
+        )
+        g.gr_xbnd = Parameter(
+            m,
+            name="GR_XBND",
+            description="Maximum level of net imports to / exports from region",
+            domain=[g.r, g.allyear],
+        )
+        g.gr_thmin = Parameter(
+            m,
+            name="GR_THMIN",
+            description="Thermal minimum level",
+            domain=[g.r, g.ll, g.p],
+        )
+        g.gr_vargen = Parameter(
+            m,
+            name="GR_VARGEN",
+            description="Variance in type of generation",
+            domain=[g.r, g.s, g.item, g.bd],
+        )
+        g.gg_dens = Parameter(
+            m, name="GG_DENS", description="Density of gases", domain=[g.r, g.c]
+        )
+        g.gg_gamma = Parameter(
+            m,
+            name="GG_GAMMA",
+            description="Comprossion factor",
+            domain=[g.r, g.year, g.p, g.c],
+        )
+        g.gg_kgf = Parameter(
+            m,
+            name="GG_KGF",
+            description="Weymouth constants",
+            domain=[g.r, g.year, g.p, g.c],
+        )
+        g.gg_klp = Parameter(
+            m,
+            name="GG_KLP",
+            description="Linepack constants",
+            domain=[g.r, g.year, g.p, g.c],
+        )
+        g.gg_prbd = Parameter(
+            m,
+            name="GG_PRBD",
+            description="Nodal pressure bounds",
+            domain=[g.r, g.year, g.c, g.lim],
+        )
+        g.gg_pp = Parameter(
+            m,
+            name="GG_PP",
+            description="Fixed pressure points",
+            domain=[g.r, g.year, g.p, g.c, g.lA, g.j],
+        )
+        # -----------------------------------------------------------------------------
+        # Attributes for experimental ECB extension
+        g.com_mshgv = Parameter(
+            m,
+            name="COM_MSHGV",
+            description="Choices heterogeneity parameter",
+            domain=[g.r, g.year, g.c],
+        )
+        g.ncap_msprf = Parameter(
+            m,
+            name="NCAP_MSPRF",
+            description="Preference parameters in choice",
+            domain=[g.r, g.year, g.c, g.p, g.lim],
+        )
+        # -----------------------------------------------------------------------------
+        # Predefined items
+        expand_set(g.allreg, ["IMPEXP"])
+        expand_set(g.comgrp, ["IMP", "EXP"])
+
+        self.add_records_to_universe_item(records=["OBJ"])
+
+        ucname_records = ["ANNUAL", *mx]
+        expand_set(g.ucname, ucname_records)
+        expand_set(g.unit, ["0"])
+        expand_set(
+            g.ucn, [(f"{self.env.sysprefix}SOLVE_STATUS", "Model solution status code")]
+        )
+        # -----------------------------------------------------------------------------
