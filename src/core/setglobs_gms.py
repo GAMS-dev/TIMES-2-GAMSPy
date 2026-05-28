@@ -12,13 +12,14 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Alias, Set
-
-from .base_class import GamsClass
+from core.base_class import GamsClass
+from core.utils import expand_set
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
-    from utils.times_model_class import GamsPhase, TimesModelClass
+    from utils.times_model_class import TimesModelClass
+
+from gamspy import Alias, Parameter, Set
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +49,8 @@ class SetglobsGms(GamsClass):
         # TODO: Do we need any of this?
         # $ SETARGS X1 X2
         # * --- FIXT Dump ---
-        if not self.env.is_set("fixboh"):
-            self.tc.add_gams_code(module=self, phase="init", code="$KILL REG_FIXT")
+        if not self.env.is_set("fixboh") and self.tc.reg_fixt is not None:
+            self.tc.reg_fixt.setRecords(None)
         # $ IF NOT SET FIXBOH $KILL REG_FIXT
         # * --- DATA Dump ---
         # $ IF NOT %DATAGDX%==YES $GOTO SYSD
@@ -72,332 +73,1143 @@ class SetglobsGms(GamsClass):
         g = self.tc
         m = g.container
 
-        g.RpUpr = Set(
-            m,
-            name="RP_UPR",
-            description="Processes with ramping costs",
-            domain=[g.r, g.p, g.lA],
-        )
-        phase: GamsPhase = "init"
         # *----------------------------------------------------------------------------------------------
         # * SET SECTION
         # *----------------------------------------------------------------------------------------------
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=r"""
-$onMulti
-* commodities
-  SET RC(R,C)                       'Commodities in each region';
-  SET RCJ(R,C,J,BD)                 '# of steps for elastic demands';
-  SET RC_AGP(REG,COM,LIM)           'Commodity aggregation of production';
-  SET RTC_NET(R,ALLYEAR,C)          'VAR_COMNETs within CUM constraint range';
-  SET RTC_PRD(R,ALLYEAR,C)          'VAR_COMPRDs within CUM constraint range';
-  SET RHS_COMBAL(R,ALLYEAR,C,S)     'VAR_COMNET needed on balance';
-  SET RHS_COMPRD(R,ALLYEAR,C,S)     'VAR_COMPRD needed on production';
-  SET RCS_COMBAL(R,ALLYEAR,C,S,LIM) 'TS for balance given RHS requirements';
-  SET RCS_COMPRD(R,ALLYEAR,C,S,LIM) 'TS for production given RHS requirements';
-  SET RCS_COMTS(R,C,ALL_TS)         'All timeslices at/above the COM_TSL';
-  SET RD_AGG(REG,COM)               'Micro aggregated demands' //;
-  SET MI_DMAS(REG,COM,COM)          'Micro aggregation map' //;
-  SET NE(ALL_R,COM)                 'Non-energy Demands';
+        # * commodities
+        g.Rc = Set(
+            m, name="RC", domain=[g.r, g.c], description="Commodities in each region"
+        )
+        g.Rcj = Set(
+            m,
+            name="RCJ",
+            domain=[g.r, g.c, g.j, g.bd],
+            description="# of steps for elastic demands",
+        )
+        g.RcAgp = Set(
+            m,
+            name="RC_AGP",
+            domain=[g.Reg, g.Com, g.lim],
+            description="Commodity aggregation of production",
+        )
+        g.RtcNet = Set(
+            m,
+            name="RTC_NET",
+            domain=[g.r, g.allyear, g.c],
+            description="VAR_COMNETs within CUM constraint range",
+        )
+        g.RtcPrd = Set(
+            m,
+            name="RTC_PRD",
+            domain=[g.r, g.allyear, g.c],
+            description="VAR_COMPRDs within CUM constraint range",
+        )
+        g.RhsCombal = Set(
+            m,
+            name="RHS_COMBAL",
+            domain=[g.r, g.allyear, g.c, g.s],
+            description="VAR_COMNET needed on balance",
+        )
+        g.RhsComprd = Set(
+            m,
+            name="RHS_COMPRD",
+            domain=[g.r, g.allyear, g.c, g.s],
+            description="VAR_COMPRD needed on production",
+        )
+        g.RcsCombal = Set(
+            m,
+            name="RCS_COMBAL",
+            domain=[g.r, g.allyear, g.c, g.s, g.lim],
+            description="TS for balance given RHS requirements",
+        )
+        g.RcsComprd = Set(
+            m,
+            name="RCS_COMPRD",
+            domain=[g.r, g.allyear, g.c, g.s, g.lim],
+            description="TS for production given RHS requirements",
+        )
+        g.RcsComts = Set(
+            m,
+            name="RCS_COMTS",
+            domain=[g.r, g.c, g.allts],
+            description="All timeslices at/above the COM_TSL",
+        )
+        g.RdAgg = Set(
+            m,
+            name="RD_AGG",
+            domain=[g.Reg, g.Com],
+            description="Micro aggregated demands",
+        )
+        g.MiDmas = Set(
+            m,
+            name="MI_DMAS",
+            domain=[g.Reg, g.Com, g.Com],
+            description="Micro aggregation map",
+        )
+        g.Ne = Set(
+            m, name="NE", domain=[g.allr, g.Com], description="Non-energy Demands"
+        )
+        # * currency
+        g.Rdcur = Set(
+            m,
+            name="RDCUR",
+            domain=[g.Reg, g.cur],
+            description="Discounted currencies by region",
+        )
+        g.ObjIcur = Set(
+            m,
+            name="OBJ_ICUR",
+            domain=[g.Reg, g.allyear, g.p, g.cur],
+            description="Capacity-related cost indicator",
+        )
+        # * commodity types (basic)
+        g.Dem = Set(
+            m, name="DEM", description="Demand commodities", domain=[g.Reg, g.Com]
+        )
+        g.Env = Set(
+            m,
+            name="ENV",
+            domain=[g.Reg, g.Com],
+            description="Environmental indicator commodities",
+        )
+        g.Fin = Set(
+            m,
+            name="FIN",
+            domain=[g.Reg, g.Com],
+            description="Financial flow commodities",
+        )
+        g.Mat = Set(
+            m, name="MAT", domain=[g.Reg, g.Com], description="Material commodities"
+        )
+        g.Nrg = Set(
+            m,
+            name="NRG",
+            domain=[g.Reg, g.Com],
+            description="Energy carrier commodities",
+        )
+        # * process
+        g.Rp = Set(
+            m, name="RP", domain=[g.r, g.p], description="Processes in each region"
+        )
+        g.RpFlo = Set(
+            m,
+            name="RP_FLO",
+            domain=[g.r, g.p],
+            description="Processes with VAR_FLOs (not IRE)",
+        )
+        g.RpStd = Set(
+            m,
+            name="RP_STD",
+            domain=[g.r, g.p],
+            description="Standard processes with VAR_FLOs",
+        )
+        g.RpStg = Set(
+            m, name="RP_STG", domain=[g.r, g.p], description="Storage processes"
+        )
+        g.RpIre = Set(
+            m,
+            name="RP_IRE",
+            domain=[g.allreg, g.p],
+            description="Processes involved in inter-regional trade",
+        )
+        g.RpNrg = Set(
+            m,
+            name="RP_NRG",
+            domain=[g.r, g.p],
+            description="Processes with an energy carrier PCG",
+        )
+        g.RpInout = Set(
+            m,
+            name="RP_INOUT",
+            domain=[g.r, g.p, g.io],
+            description="Indicator if process input/output normalized (according to PG side)",
+        )
+        g.RpPg = Set(
+            m,
+            name="RP_PG",
+            domain=[g.Reg, g.prc, g.cg],
+            description="Primary commodity group (PG)",
+        )
+        g.RpPgtype = Set(
+            m,
+            name="RP_PGTYPE",
+            domain=[g.r, g.p, g.cg],
+            description="Group type of the primary group",
+        )
+        g.RpUpl = Set(
+            m,
+            name="RP_UPL",
+            domain=[g.r, g.p, g.lA],
+            description="Processes with dispatching equations",
+        )
+        g.RpUpr = Set(
+            m,
+            name="RP_UPR",
+            domain=[g.r, g.p, g.lA],
+            description="Processes with ramping costs",
+        )
+        g.RpUps = Set(
+            m,
+            name="RP_UPS",
+            domain=[g.r, g.p, g.tslvl, g.lA],
+            description="Timeslice levels for startup accounting",
+        )
+        g.RpUpt = Set(
+            m,
+            name="RP_UPT",
+            domain=[g.r, g.p, g.upt, g.bd],
+            description="Start-up types for unit commitment",
+        )
+        g.RpDpl = Set(
+            m,
+            name="RP_DPL",
+            domain=[g.r, g.p, g.tslvl],
+            description="Dispatching process timeslice levels",
+        )
+        g.RpAire = Set(
+            m,
+            name="RP_AIRE",
+            domain=[g.r, g.p, g.ie],
+            description="Exchange process activity directions",
+        )
+        g.Rpc = Set(
+            m,
+            name="RPC",
+            domain=[g.r, g.p, g.c],
+            description="Commodities in/out of a processes",
+        )
+        g.RpcCapflo = Set(
+            m,
+            name="RPC_CAPFLO",
+            domain=[g.r, g.allyear, g.p, g.c],
+            description="Commodities involved in capacity",
+        )
+        g.RpcConly = Set(
+            m,
+            name="RPC_CONLY",
+            domain=[g.r, g.allyear, g.p, g.c],
+            description="Commodities ONLY involved in capacity",
+        )
+        g.RpcNoflo = Set(
+            m,
+            name="RPC_NOFLO",
+            domain=[g.r, g.p, g.c],
+            description="Commodities ONLY involved in capacity",
+        )
+        g.RpcIre = Set(
+            m,
+            name="RPC_IRE",
+            domain=[g.allreg, g.p, g.c, g.ie],
+            description="Process/commodities involved in inter-regional trade",
+        )
+        g.RpcEqire = Set(
+            m,
+            name="RPC_EQIRE",
+            domain=[g.r, g.p, g.c, g.ie],
+            description="Indicator for EQIRE equation generation",
+        )
+        g.RpcMarket = Set(
+            m,
+            name="RPC_MARKET",
+            domain=[g.r, g.p, g.c, g.ie],
+            description="Market exchange process indicator",
+        )
+        g.RpcPg = Set(
+            m,
+            name="RPC_PG",
+            domain=[g.r, g.p, g.c],
+            description="Commodities in the primary group",
+        )
+        g.RpcSpg = Set(
+            m,
+            name="RPC_SPG",
+            domain=[g.r, g.p, g.c],
+            description="Commodities in the shadow primary group",
+        )
+        g.RpcsVar = Set(
+            m,
+            name="RPCS_VAR",
+            domain=[g.r, g.p, g.c, g.allts],
+            description="Timeslices at which VAR_FLOs are to be created",
+        )
+        g.RpsS1 = Set(
+            m,
+            name="RPS_S1",
+            domain=[g.r, g.p, g.allts],
+            description="All timeslices at the PRC_TSL/COM_TSLspg",
+        )
+        g.RpsS2 = Set(
+            m,
+            name="RPS_S2",
+            domain=[g.r, g.p, g.allts],
+            description="All timeslices at/above PRC_TSL/COM_TSLspg",
+        )
+        g.RpsPrcts = Set(
+            m,
+            name="RPS_PRCTS",
+            domain=[g.r, g.p, g.allts],
+            description="All timeslices at/above the PRC_TSL",
+        )
+        g.Rtc = Set(
+            m, name="RTC", domain=[g.r, g.allyear, g.c], description="Commodity/time"
+        )
+        g.RtcShed = Set(
+            m,
+            name="RTC_SHED",
+            domain=[g.r, g.year, g.c, g.bd, g.j],
+            description="Elastic shape indexes",
+        )
+        g.RtcsVarc = Set(
+            m,
+            name="RTCS_VARC",
+            domain=[g.r, g.allyear, g.c, g.allts],
+            description="The VAR_COMNET/PRDs control set",
+        )
+        g.Rtp = Set(
+            m, name="RTP", domain=[g.r, g.allyear, g.p], description="Process/time"
+        )
+        g.Rtpc = Set(
+            m,
+            name="RTPC",
+            domain=[g.r, g.allyear, g.p, g.c],
+            description="Commodities of process in period",
+        )
+        g.RtpCptyr = Set(
+            m,
+            name="RTP_CPTYR",
+            domain=[g.r, g.allyear, g.allyear, g.p],
+            description="Capcity transfer v/t years",
+        )
+        g.RtpOff = Set(
+            m,
+            name="RTP_OFF",
+            domain=[g.r, g.allyear, g.p],
+            description="Periods for which VAR_NCAP.UP = 0",
+        )
+        g.RtpcsVarf = Set(
+            m,
+            name="RTPCS_VARF",
+            domain=[g.allreg, g.allyear, g.p, g.c, g.allts],
+            description="The VAR_FLOs control set",
+        )
+        g.RtpVara = Set(
+            m,
+            name="RTP_VARA",
+            domain=[g.r, g.allyear, g.p],
+            description="The VAR_ACT control set",
+        )
+        g.RtpVarp = Set(
+            m,
+            name="RTP_VARP",
+            domain=[g.r, g.t, g.p],
+            description="RTPs that have a VAR_CAP",
+        )
+        g.RtpVintyr = Set(
+            m,
+            name="RTP_VINTYR",
+            domain=[g.Reg, g.allyear, g.allyear, g.prc],
+            description="v/t years according to vintaging",
+        )
+        g.RtpVntbyr = Set(
+            m,
+            name="RTP_VNTBYR",
+            domain=[g.Reg, g.allyear, g.prc, g.allyear],
+            description="RTP_VINTYR with years swapped",
+        )
+        g.RtpTt = Set(
+            m,
+            name="RTP_TT",
+            domain=[g.r, g.year, g.t, g.prc],
+            description="Retrofit control periods",
+        )
+        g.Rvp = Set(
+            m,
+            name="RVP",
+            domain=[g.r, g.allyear, g.p],
+            description="ALIAS(RTP) for Process/time",
+        )
+        g.RtpCapyr = Set(
+            m,
+            name="RTP_CAPYR",
+            domain=[g.r, g.year, g.year, g.p],
+            description="Capacity vintage years",
+        )
+        g.RtpIshpr = Set(
+            m,
+            name="RTP_ISHPR",
+            domain=[g.Reg, g.allyear, g.prc],
+            description="Attribute existence indicator",
+        )
+        g.RtpCgc = Set(
+            m,
+            name="RTP_CGC",
+            domain=[g.r, g.year, g.p, g.cg, g.cg],
+            description="Multi-purpose work set",
+        )
+        g.RtpsBd = Set(
+            m,
+            name="RTPS_BD",
+            domain=[g.r, g.allyear, g.p, g.s, g.bd],
+            description="Multi-purpose work set",
+        )
+        g.CgGrp = Set(
+            m,
+            name="CG_GRP",
+            domain=[g.Reg, g.prc, g.cg, g.cg],
+            description="Multi-purpose work set",
+        )
+        g.Fsck = Set(
+            m,
+            name="FSCK",
+            domain=[g.Reg, g.prc, g.cg, g.c, g.cg],
+            description="Multi-purpose work set",
+        )
+        g.Fscks = Set(
+            m,
+            name="FSCKS",
+            domain=[g.Reg, g.prc, g.cg, g.c, g.cg, g.ts],
+            description="Multi-purpose work set",
+        )
+        g.RpcIreio = Set(
+            m,
+            name="RPC_IREIO",
+            domain=[g.r, g.p, g.c, g.ie, g.io],
+            description="Types of trade flows",
+        )
+        g.RpcLs = Set(
+            m,
+            name="RPC_LS",
+            domain=[g.r, g.p, g.c],
+            description="Load sifting control",
+        )
+        # * process types
+        g.Ele = Set(
+            m,
+            name="ELE",
+            domain=[g.r, g.p],
+            description="Electric Power Plants",
+        )
+        g.Chp = Set(
+            m, name="CHP", description="Coupled Heat+Power Plants", domain=[g.r, g.p]
+        )
+        g.Hpl = Set(
+            m, name="HPL", description="Heat and Steam Plants", domain=[g.r, g.p]
+        )
+        # * region
+        g.Mreg = Set(
+            m, name="MREG", description="Set of active regions", domain=[g.allr]
+        )
+        g.Rreg = Set(
+            m,
+            name="RREG",
+            description="Set of paired regions",
+            domain=[g.allreg, g.allreg],
+        )
+        # * cumulatives & UCs
+        g.Rhs = Set(m, records=["RHS"], name="RHS", domain=[g.side])
 
-* currency
-  SET RDCUR(REG,CUR)              'Discounted currencies by region';
-  SET OBJ_ICUR(REG,ALLYEAR,P,CUR) 'Capacity-related cost indicator';
+        expand_set(g.ucnumber, g.tslvl.toList())
 
-* commodity types (basic)
-  SET DEM(REG,COM)              'Demand commodities'                  //;
-  SET ENV(REG,COM)              'Environmental indicator commodities' //;
-  SET FIN(REG,COM)              'Financial flow commodities'          //;
-  SET MAT(REG,COM)              'Material commodities'                //;
-  SET NRG(REG,COM)              'Energy carrier commodities'          //;
-
-* process
-  SET RP(R,P)                   'Processes in each region'               //;
-  SET RP_FLO(R,P)               'Processes with VAR_FLOs (not IRE)'      //;
-  SET RP_STD(R,P)               'Standard processes with VAR_FLOs'       //;
-  SET RP_STG(R,P)               'Storage processes'                      //;
-  SET RP_IRE(ALL_REG,P)         'Processes involved in inter-regional trade'//;
-  SET RP_NRG(R,P)               'Processes with an energy carrier PCG'   //;
-  SET RP_INOUT(R,P,IO)          'Indicator if process input/output normalized (according to PG side)'//;
-  SET RP_PG(REG,PRC,CG)         'Primary commodity group (PG)'           //;
-  SET RP_PGTYPE(R,P,CG)         'Group type of the primary group'        //;
-  SET RP_UPL(R,P,L)             'Processes with dispatching equations'   //;
-*  SET RP_UPR(R,P,L)             'Processes with ramping costs'           //;
-  SET RP_UPS(R,P,TSLVL,L)       'Timeslice levels for startup accounting'//;
-  SET RP_UPT(R,P,UPT,BD)        'Start-up types for unit commitment'     //;
-  SET RP_DPL(R,P,TSLVL)         'Dispatching process timeslice levels'   //;
-  SET RP_AIRE(R,P,IE)           'Exchange process activity directions'   //;
-  SET RPC(R,P,C)                'Commodities in/out of a processes'      //;
-  SET RPC_CAPFLO(R,ALLYEAR,P,C) 'Commodities involved in capacity'       //;
-  SET RPC_CONLY(R,ALLYEAR,P,C)  'Commodities ONLY involved in capacity'  //;
-  SET RPC_NOFLO(R,P,C)          'Commodities ONLY involved in capacity'  //;
-  SET RPC_IRE(ALL_REG,P,C,IE)   'Process/commodities involved in inter-regional trade'//;
-  SET RPC_EQIRE(R,P,C,IE)       'Indicator for EQIRE equation generation'//;
-  SET RPC_MARKET(R,P,C,IE)      'Market exchange process indicator'      //;
-  SET RPC_PG(R,P,C)             'Commodities in the primary group'       //;
-  SET RPC_SPG(R,P,C)            'Commodities in the shadow primary group'//;
-  SET RPCS_VAR(R,P,C,ALL_TS)    'Timeslices at which VAR_FLOs are to be created'//;
-  SET RPS_S1(R,P,ALL_TS)        'All timeslices at the PRC_TSL/COM_TSLspg'//;
-  SET RPS_S2(R,P,ALL_TS)        'All timeslices at/above PRC_TSL/COM_TSLspg'//;
-  SET RPS_PRCTS(R,P,ALL_TS)     'All timeslices at/above the PRC_TSL'    //;
-  SET RTC(R,ALLYEAR,C)          'Commodity/time'                         //;
-  SET RTC_SHED(R,YEAR,C,BD,J)   'Elastic shape indexes'                  //;
-  SET RTCS_VARC(R,ALLYEAR,C,ALL_TS) 'The VAR_COMNET/PRDs control set'    //;
-  SET RTP(R,ALLYEAR,P)          'Process/time'                           //;
-  SET RTPC(R,ALLYEAR,P,C)       'Commodities of process in period'       //;
-  SET RTP_CPTYR(R,ALLYEAR,ALLYEAR,P) 'Capcity transfer v/t years'        //;
-  SET RTP_OFF(R,ALLYEAR,P)      'Periods for which VAR_NCAP.UP = 0'      //;
-  SET RTPCS_VARF(ALL_REG,ALLYEAR,P,C,ALL_TS) 'The VAR_FLOs control set'  //;
-  SET RTP_VARA(R,ALLYEAR,P)     'The VAR_ACT control set'                //;
-  SET RTP_VARP(R,T,P)           'RTPs that have a VAR_CAP'               //;
-  SET RTP_VINTYR(REG,ALLYEAR,ALLYEAR,PRC) 'v/t years according to vintaging'//;
-  SET RTP_VNTBYR(REG,ALLYEAR,PRC,ALLYEAR) 'RTP_VINTYR with years swapped'//;
-  SET RTP_TT(R,YEAR,T,PRC)      'Retrofit control periods'               //;
-  SET RVP(R,ALLYEAR,P)          'ALIAS(RTP) for Process/time'            //;
-  SET RTP_CAPYR(R,YEAR,YEAR,P)  'Capacity vintage years'                 //;
-  SET RTP_ISHPR(REG,ALLYEAR,PRC)'Attribute existence indicator'         //;
-  SET RTP_CGC(R,YEAR,P,CG,CG)   'Multi-purpose work set'                //;
-  SET RTPS_BD(R,ALLYEAR,P,S,BD) 'Multi-purpose work set'                //;
-  SET CG_GRP(REG,PRC,CG,CG)     'Multi-purpose work set'                //;
-  SET FSCK(REG,PRC,CG,C,CG)     'Multi-purpose work set'                //;
-  SET FSCKS(REG,PRC,CG,C,CG,TS) 'Multi-purpose work set'                //;
-  SET RPC_IREIO(R,P,C,IE,IO)    'Types of trade flows'                  //;
-  SET RPC_LS(R,P,C)             'Load sifting control'                  //;
-* process types
-  SETS ELE(R,P)                 'Electric Power Plants'
-       CHP(R,P)                 'Coupled Heat+Power Plants'
-       HPL(R,P)                 'Heat and Steam Plants';
-
-* region
-  SET MREG(ALL_R)           'Set of active regions' //;
-  SET RREG(ALL_REG,ALL_REG) 'Set of paired regions' //;
-
-* cumulatives & UCs
-  SET RHS(SIDE) / RHS /;
-  SET UC_NUMBER / SET.TSLVL /;
-  SET UC_ON(ALL_R,UC_N)                          'Active UCs by region' //;
-  SET UC_GMAP_C(REG,UC_N,COM_VAR,COM,UC_GRPTYPE) 'Assigning commodities to UC_GRP';
-  SET UC_GMAP_P(REG,UC_N,UC_GRPTYPE,PRC)         'Assigning processes to UC_GRP';
-  SET UC_GMAP_U(ALL_R,UC_N,UC_N)                 'Assigning constraints to UC_GRP'//;
-  SET UC_JMAP(J,UC_N,SIDE,REG,T,PRC,UC_GRPTYPE)  'Collecting all processes for GMAP';
-  SET UC_DYNBND(UC_N,LIM)                        'Dynamic process-wise UC bounds' //;
-  SET UC_DYNDIR(ALL_R,UC_N,SIDE)                 'Direction of dynamic constraint'//;
-  SET UC_DS(ALL_R,UC_N,TSLVL)                    'Levels of TS-dynamic constraints';
-  SET UC_QAFLO(J,UC_N,SIDE,R,P,C)                'QA_checks for UC FLO/IRE tuples'//;
-  SET UC_RTSUC(ALL_R,ALLYEAR,UC_N)               'RT-map for T_SUCC';
-  SET G_UDS(S,SIDE,S)                            'Timeslice-dynamic candidates';
-  SET RC_CUMCOM(REG,COM_VAR,ALLYEAR,ALLYEAR,COM) 'Cumulative commodity PRD/NET';
-  SET RPC_CUMFLO(REG,PRC,COM,ALLYEAR,ALLYEAR)    'Cumulative process flows';
-
-* time
-  SETS
-    RS_BELOW(ALL_REG,TS,TS)  'Timeslices stictly below a node'     //
-    RS_BELOW1(ALL_REG,TS,TS) 'Timeslices strictly one level below' //
-    RS_TREE(ALL_REG,TS,TS)   'Timeslice subtree'                   //
-    RS_PREV(R,S,S)           'Previous timeslice in parent cycle'  //
-    FINEST(R,ALL_TS)         'Set of the finest timeslices in use' //
-    PASTMILE(ALLYEAR)        'PAST years that are not MILESYONYR'  //
-    EACHYEAR(ALLYEAR)        'Each year from 1st PASTYEAR to last MILESTONYR + DUR_MAX' //
-    EOHYEARS(ALLYEAR)        'Each year from 1st PASTYEAR to last MILESTONYR' //;
-""",
+        g.UcOn = Set(
+            m,
+            name="UC_ON",
+            description="Active UCs by region",
+            domain=[g.allr, g.ucn],
+        )
+        g.UcGmapC = Set(
+            m,
+            name="UC_GMAP_C",
+            description="Assigning commodities to UC_GRP",
+            domain=[g.Reg, g.ucn, g.comvar, g.Com, g.ucgrptype],
+        )
+        g.UcGmapP = Set(
+            m,
+            name="UC_GMAP_P",
+            description="Assigning processes to UC_GRP",
+            domain=[g.Reg, g.ucn, g.ucgrptype, g.prc],
+        )
+        g.UcGmapU = Set(
+            m,
+            name="UC_GMAP_U",
+            description="Assigning constraints to UC_GRP",
+            domain=[g.allr, g.ucn, g.ucn],
+        )
+        g.UcJmap = Set(
+            m,
+            name="UC_JMAP",
+            description="Collecting all processes for GMAP",
+            domain=[g.j, g.ucn, g.side, g.Reg, g.t, g.prc, g.ucgrptype],
+        )
+        g.UcDynbnd = Set(
+            m,
+            name="UC_DYNBND",
+            description="Dynamic process-wise UC bounds",
+            domain=[g.ucn, g.lim],
+        )
+        g.UcDyndir = Set(
+            m,
+            name="UC_DYNDIR",
+            description="Direction of dynamic constraint",
+            domain=[g.allr, g.ucn, g.side],
+        )
+        g.UcDs = Set(
+            m,
+            name="UC_DS",
+            description="Levels of TS-dynamic constraints",
+            domain=[g.allr, g.ucn, g.tslvl],
+        )
+        g.UcQaflo = Set(
+            m,
+            name="UC_QAFLO",
+            description="QA_checks for UC FLO/IRE tuples",
+            domain=[g.j, g.ucn, g.side, g.r, g.p, g.c],
+        )
+        g.UcRtsuc = Set(
+            m,
+            name="UC_RTSUC",
+            description="RT-map for T_SUCC",
+            domain=[g.allr, g.allyear, g.ucn],
+        )
+        g.GUds = Set(
+            m,
+            name="G_UDS",
+            description="Timeslice-dynamic candidates",
+            domain=[g.s, g.side, g.s],
+        )
+        g.RcCumcom = Set(
+            m,
+            name="RC_CUMCOM",
+            description="Cumulative commodity PRD/NET",
+            domain=[g.Reg, g.comvar, g.allyear, g.allyear, g.Com],
+        )
+        g.RpcCumflo = Set(
+            m,
+            name="RPC_CUMFLO",
+            description="Cumulative process flows",
+            domain=[g.Reg, g.prc, g.Com, g.allyear, g.allyear],
+        )
+        # * time
+        g.RsBelow = Set(
+            m,
+            name="RS_BELOW",
+            description="Timeslices stictly below a node",
+            domain=[g.allreg, g.ts, g.ts],
+        )
+        g.RsBelow1 = Set(
+            m,
+            name="RS_BELOW1",
+            description="Timeslices strictly one level below",
+            domain=[g.allreg, g.ts, g.ts],
+        )
+        g.RsTree = Set(
+            m,
+            name="RS_TREE",
+            description="Timeslice subtree",
+            domain=[g.allreg, g.ts, g.ts],
+        )
+        g.RsPrev = Set(
+            m,
+            name="RS_PREV",
+            description="Previous timeslice in parent cycle",
+            domain=[g.r, g.s, g.s],
+        )
+        g.Finest = Set(
+            m,
+            name="FINEST",
+            description="Set of the finest timeslices in use",
+            domain=[g.r, g.allts],
+        )
+        g.Pastmile = Set(
+            m,
+            name="PASTMILE",
+            description="PAST years that are not MILESYONYR",
+            domain=[g.allyear],
+        )
+        g.Eachyear = Set(
+            m,
+            name="EACHYEAR",
+            description="Each year from 1st PASTYEAR to last MILESTONYR + DUR_MAX",
+            domain=[g.allyear],
+        )
+        g.Eohyears = Set(
+            m,
+            name="EOHYEARS",
+            description="Each year from 1st PASTYEAR to last MILESTONYR",
+            domain=[g.allyear],
+        )
+        g.pyr = Alias(m, name="PYR", alias_with=g.Pastyear)
+        g.v = Alias(m, name="V", alias_with=g.Modlyear)
+        # * identifiers for beginning/end of model horizon
+        g.Miyr1 = Set(m, name="MIYR_1", description="First T", domain=[g.allyear])
+        g.MiyrL = Set(m, name="MIYR_L", description="Last year", domain=[g.allyear])
+        # * miscellaneous
+        g.ips = Set(m, records=["IN", "N"], name="IPS", description="")
+        g.Lnx = Set(m, records=["N", "FX"], name="LNX", description="", domain=[g.lA])
+        g.Bdupx = Set(
+            m, records=["UP", "FX"], name="BDUPX", description="", domain=[g.bd]
+        )
+        g.Bdlox = Set(
+            m, records=["LO", "FX"], name="BDLOX", description="", domain=[g.bd]
+        )
+        g.Bdneq = Set(
+            m, records=["LO", "UP"], name="BDNEQ", description="", domain=[g.bd]
+        )
+        g.RpPrc = Set(m, name="RP_PRC", domain=[g.r, g.p])
+        g.RpgRed = Set(m, name="RPG_RED", description="", domain=[g.r, g.p, g.cg, g.io])
+        g.RpGrp = Set(m, name="RP_GRP", domain=[g.Reg, g.prc, g.cg])
+        g.RpCcg = Set(m, name="RP_CCG", domain=[g.Reg, g.prc, g.c, g.cg])
+        g.RpCgg = Set(m, name="RP_CGG", domain=[g.Reg, g.prc, g.c, g.cg, g.cg])
+        g.Trackc = Set(m, name="TRACKC", domain=[g.r, g.c])
+        g.Trackp = Set(m, name="TRACKP", domain=[g.r, g.p])
+        g.Trackpc = Set(m, name="TRACKPC", domain=[g.r, g.p, g.c])
+        g.Trackpg = Set(m, name="TRACKPG", domain=[g.r, g.p, g.cg])
+        g.Rvt = Set(m, name="RVT", domain=[g.r, g.allyear, g.t])
+        g.Rtpx = Set(m, name="RTPX", domain=[g.r, g.t, g.p])
+        g.RtPp = Set(m, name="RT_PP", description="", domain=[g.r, g.t])
+        g.no_rt = Parameter(m, name="NO_RT", description="", domain=[g.allr, g.t])
+        # * ---------------------------------------------------------------------------------------------
+        # * PARAMETERS SECTION
+        # * ---------------------------------------------------------------------------------------------
+        # * Years and splits of timeslices based upon level
+        g.lead = Parameter(m, name="LEAD", description="", domain=[g.allyear])
+        g.lagt = Parameter(m, name="LAGT", description="", domain=[g.allyear])
+        g.fpd = Parameter(m, name="FPD", description="", domain=[g.allyear])
+        g.ipd = Parameter(m, name="IPD", description="", domain=[g.allyear])
+        g.rs_fr = Parameter(m, name="RS_FR", description="", domain=[g.r, g.s, g.s])
+        g.js_ccl = Parameter(m, name="JS_CCL", description="", domain=[g.r, g.j, g.s])
+        # * integrated parameters (created in PREPPM.mod)
+        g.uc_com = Parameter(
+            m,
+            name="UC_COM",
+            description="Multiplier of VAR_COM variables",
+            domain=[
+                g.ucn,
+                g.comvar,
+                g.side,
+                g.Reg,
+                g.allyear,
+                g.Com,
+                g.s,
+                g.ucgrptype,
+            ],
+        )
+        g.com_cum = Parameter(
+            m,
+            name="COM_CUM",
+            description="Cumulative bound on commodity",
+            domain=[g.Reg, g.comvar, g.allyear, g.allyear, g.Com, g.lim],
+        )
+        # * derived coefficient components (created in COEF*.MOD)
+        g.coef_af = Parameter(
+            m,
+            name="COEF_AF",
+            description="Capacity/Activity relationship",
+            domain=[g.r, g.allyear, g.t, g.prc, g.s, g.bd],
+        )
+        g.coef_cpt = Parameter(
+            m,
+            name="COEF_CPT",
+            description="Fraction of capacity available",
+            domain=[g.r, g.allyear, g.t, g.prc],
+        )
+        g.coef_icom = Parameter(
+            m,
+            name="COEF_ICOM",
+            description="Commodity flow at investment time",
+            domain=[g.r, g.allyear, g.t, g.prc, g.c],
+        )
+        g.coef_ocom = Parameter(
+            m,
+            name="COEF_OCOM",
+            description="Commodity flow at decommissioning time",
+            domain=[g.r, g.allyear, g.t, g.prc, g.c],
+        )
+        g.coef_cio = Parameter(
+            m,
+            name="COEF_CIO",
+            description="Capacity-related commodity in/out flows",
+            domain=[g.r, g.allyear, g.t, g.p, g.c, g.io],
+        )
+        g.coef_ptran = Parameter(
+            m,
+            name="COEF_PTRAN",
+            description="Multiplier for EQ_PTRANS",
+            domain=[g.Reg, g.allyear, g.prc, g.cg, g.c, g.cg, g.ts],
+        )
+        g.coef_rpti = Parameter(
+            m,
+            name="COEF_RPTI",
+            description="Repeated investment cycles",
+            domain=[g.r, g.allyear, g.p],
+        )
+        g.coef_iled = Parameter(
+            m,
+            name="COEF_ILED",
+            description="Investment lead time",
+            domain=[g.r, g.allyear, g.p],
+        )
+        g.coef_pvt = Parameter(
+            m,
+            name="COEF_PVT",
+            description="Present value of time in periods",
+            domain=[g.r, g.t],
+        )
+        g.coef_vnt = Parameter(
+            m,
+            name="COEF_VNT",
+            description="COEF_CPT with swapped indexes",
+            domain=[g.r, g.t, g.prc, g.allyear],
+        )
+        g.coef_cap = Parameter(
+            m,
+            name="COEF_CAP",
+            description="Generic re-usable work parameter",
+            domain=[g.r, g.allyear, g.ll, g.p],
+        )
+        g.coef_rtp = Parameter(
+            m,
+            name="COEF_RTP",
+            description="Generic re-usable work parameter",
+            domain=[g.r, g.allyear, g.p],
+        )
+        g.coef_rvpt = Parameter(
+            m,
+            name="COEF_RVPT",
+            description="Generic re-usable work parameter",
+            domain=[g.r, g.allyear, g.prc, g.t],
+        )
+        g.rtp_cpx = Parameter(
+            m,
+            name="RTP_CPX",
+            description="Shape multipliers for capacity transfer",
+            domain=[g.r, g.allyear, g.p, g.ll],
+        )
+        g.ncap_afbx = Parameter(
+            m,
+            name="NCAP_AFBX",
+            description="Shape multipliers for NCAP_AF factors",
+            domain=[g.r, g.allyear, g.p, g.bd],
+        )
+        g.ncap_afsm = Parameter(
+            m, name="NCAP_AFSM", description="", domain=[g.r, g.allyear, g.p]
+        )
+        g.rvprl = Parameter(m, name="RVPRL", description="", domain=[g.r, g.year, g.p])
+        # * OBJ function yearly values established in COEF_OBJ and used in OBJ_*
+        g.obj_rfr = Parameter(
+            m,
+            name="OBJ_RFR",
+            description="Risk-free rates",
+            domain=[g.r, g.year, g.cur],
+        )
+        g.obj_pvt = Parameter(
+            m,
+            name="OBJ_PVT",
+            description="Present value of period",
+            domain=[g.r, g.year, g.cur],
+        )
+        g.obj_crf = Parameter(
+            m,
+            name="OBJ_CRF",
+            description="Capital recovery factor",
+            domain=[g.r, g.allyear, g.p, g.cur],
+        )
+        g.obj_crfd = Parameter(
+            m,
+            name="OBJ_CRFD",
+            description="Capital recovery factor for Decommissioning",
+            domain=[g.r, g.allyear, g.p, g.cur],
+        )
+        g.obj_disc = Parameter(
+            m,
+            name="OBJ_DISC",
+            description="Discounting factor",
+            domain=[g.r, g.allyear, g.cur],
         )
 
-        pastyear = self.tc.container["PASTYEAR"]
-        Alias(container=self.tc.container, name="PYR", alias_with=pastyear)
-        modlyear = self.tc.container["MODLYEAR"]
-        Alias(container=self.tc.container, name="V", alias_with=modlyear)
-
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-* identifiers for beginning/end of model horizon
-  SET MIYR_1(ALLYEAR) 'First T'   //;
-  SET MIYR_L(ALLYEAR) 'Last year' //;
-
-* miscellaneous
-  SET IPS / IN, N /, LNX(L) / N, FX /;
-  SET BDUPX(BD) / UP, FX /;
-  SET BDLOX(BD) / LO, FX /;
-  SET BDNEQ(BD) / LO, UP /;
-  SET RP_PRC(R,P);
-  SET RPG_RED(R,P,CG,IO) //;
-  SET RP_GRP(REG,PRC,CG);
-  SET RP_CCG(REG,PRC,C,CG);
-  SET RP_CGG(REG,PRC,C,CG,CG);
-  SET TRACKC(R,C);
-  SET TRACKP(R,P);
-  SET TRACKPC(R,P,C);
-  SET TRACKPG(R,P,CG);
-  SET RVT(R,ALLYEAR,T);
-  SET RTPX(R,T,P);
-  SET RT_PP(R,T) //;
-  PARAMETER NO_RT(ALL_R,T) //;
-""",
-        )
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=r"""
-* ---------------------------------------------------------------------------------------------
-* PARAMETERS SECTION
-* ---------------------------------------------------------------------------------------------
-* Years and splits of timeslices based upon level
-  PARAMETER LEAD(ALLYEAR) //;
-  PARAMETER LAGT(ALLYEAR) //;
-  PARAMETER FPD(ALLYEAR)  //;
-  PARAMETER IPD(ALLYEAR)  //;
-  PARAMETER RS_FR(R,S,S)  //;
-  PARAMETER JS_CCL(R,J,S) //;
-
-* integrated parameters (created in PREPPM.mod)
-  PARAMETER UC_COM(UC_N,COM_VAR,SIDE,REG,ALLYEAR,COM,S,UC_GRPTYPE) 'Multiplier of VAR_COM variables' //;
-  PARAMETER COM_CUM(REG,COM_VAR,ALLYEAR,ALLYEAR,COM,LIM) 'Cumulative bound on commodity' //;
-
-* derived coefficient components (created in COEF*.MOD)
-  PARAMETER COEF_AF(R,ALLYEAR,T,PRC,S,BD)      'Capacity/Activity relationship'         //;
-  PARAMETER COEF_CPT(R,ALLYEAR,T,PRC)          'Fraction of capacity available'         //;
-  PARAMETER COEF_ICOM(R,ALLYEAR,T,PRC,C)       'Commodity flow at investment time'      //;
-  PARAMETER COEF_OCOM(R,ALLYEAR,T,PRC,C)       'Commodity flow at decommissioning time' //;
-  PARAMETER COEF_CIO(R,ALLYEAR,T,P,C,IO)       'Capacity-related commodity in/out flows'//;
-  PARAMETER COEF_PTRAN(REG,ALLYEAR,PRC,CG,C,CG,TS) 'Multiplier for EQ_PTRANS'           //;
-  PARAMETER COEF_RPTI(R,ALLYEAR,P)             'Repeated investment cycles'             //;
-  PARAMETER COEF_ILED(R,ALLYEAR,P)             'Investment lead time'                   //;
-  PARAMETER COEF_PVT(R,T)                      'Present value of time in periods'       //;
-  PARAMETER COEF_VNT(R,T,PRC,ALLYEAR)          'COEF_CPT with swapped indexes'          //;
-  PARAMETER COEF_CAP(R,ALLYEAR,LL,P)           'Generic re-usable work parameter';
-  PARAMETER COEF_RTP(R,ALLYEAR,P)              'Generic re-usable work parameter';
-  PARAMETER COEF_RVPT(R,ALLYEAR,PRC,T)         'Generic re-usable work parameter';
-  PARAMETER RTP_CPX(R,ALLYEAR,P,LL)            'Shape multipliers for capacity transfer'//;
-  PARAMETER NCAP_AFBX(R,ALLYEAR,P,BD)          'Shape multipliers for NCAP_AF factors'  //;
-  PARAMETER NCAP_AFSM(R,ALLYEAR,P) //;
-  PARAMETER RVPRL(R,YEAR,P) //;
-
-* OBJ function yearly values established in COEF_OBJ and used in OBJ_*
-  PARAMETER OBJ_RFR(R,YEAR,CUR)            'Risk-free rates'          //;
-  PARAMETER OBJ_PVT(R,YEAR,CUR)            'Present value of period'  //;
-  PARAMETER OBJ_CRF(R,ALLYEAR,P,CUR)       'Capital recovery factor'  //;
-  PARAMETER OBJ_CRFD(R,ALLYEAR,P,CUR)      'Capital recovery factor for Decommissioning' //;
-  PARAMETER OBJ_DISC(R,ALLYEAR,CUR)        'Discounting factor'       //;
-""",
-        )
-
-        if self.env.obmac == "YES":
-            self.label_restobj()
-        else:
-            self.tc.add_gams_code(
-                module=self,
-                phase=phase,
-                code=r"""
-  PARAMETER OBJ_ICOST(R,ALLYEAR,P,CUR)     'NCAP_COST for each year'  //;
-  PARAMETER OBJ_ISUB(R,ALLYEAR,P,CUR)      'NCAP_ISUB for each year'  //;
-  PARAMETER OBJ_ITAX(R,ALLYEAR,P,CUR)      'NCAP_ITAX for each year'  //;
-  PARAMETER OBJ_FOM(R,ALLYEAR,P,CUR)       'NCAP_FOM for each year'   //;
-  PARAMETER OBJ_FSB(R,ALLYEAR,P,CUR)       'NCAP_FSUB for each year'  //;
-  PARAMETER OBJ_FTX(R,ALLYEAR,P,CUR)       'NCAP_FTX for each year'   //;
-  PARAMETER OBJ_DCOST(R,ALLYEAR,P,CUR)     'NCAP_DCOST for each year' //;
-  PARAMETER OBJ_DLAGC(R,ALLYEAR,P,CUR)     'NCAP_DLAGC for each year' //;
-  PARAMETER OBJ_ACOST(R,ALLYEAR,P,CUR)     'ACT_COST for each year'   //;
-  PARAMETER OBJ_FCOST(R,ALLYEAR,P,C,S,CUR) 'FLO_COST for each year'   //;
-  PARAMETER OBJ_FDELV(R,ALLYEAR,P,C,S,CUR) 'FLO_DELIV for each year'  //;
-  PARAMETER OBJ_FTAX(R,ALLYEAR,P,C,S,CUR)  'FLO_TAX for each year'    //;
-""",
+        if self.env.obmac != "YES":
+            g.obj_icost = Parameter(
+                m,
+                name="OBJ_ICOST",
+                description="NCAP_COST for each year",
+                domain=[g.r, g.allyear, g.p, g.cur],
             )
-
-    def label_restobj(self) -> None:
-        phase: GamsPhase = "init"
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=r"""
-  PARAMETER OBJ_FSUB(R,ALLYEAR,P,C,S,CUR)  'FLO_SUB for each year'    //;
-  PARAMETER OBJ_COMNT(R,ALLYEAR,C,S,COSTYPE,CUR) 'CSTNET for each year'//;
-  PARAMETER OBJ_COMPD(R,ALLYEAR,C,S,COSTYPE,CUR) 'CSTPRD for each year'//;
-  PARAMETER OBJ_IPRIC(R,ALLYEAR,P,C,S,IE,CUR) 'IRE_PRICE for each year'//;
-
-* Miscellanea
-  PARAMETERS
-    PRC_YMIN(REG,PRC)   'Generic process parameter' //
-    PRC_YMAX(REG,PRC)   'Generic process parameter' //
-    PRC_SC(REG,PRC)     'Process storage cycles'    //
-    PRC_SGL(REG,PRC)    'Process shadow level (< DAYNITE)' //
-    PRC_SEMI(R,P)       'Semi-continuous indicator' //
-    RD_NLP(R,C)         'NLP demand indicator' //
-    RD_SHAR(R,T,C,C)    'Demand aggregation share' //
-    RP_AFB(REG,PRC,BD)  'Processes with NCAP_AF by bound type' //
-    RS_STG(R,ALL_TS)    'Lead from previous storage timeslice'
-    RS_STGPRD(R,ALL_TS) 'Number of storage periods for each timeslice'
-    RS_STGAV(R,ALL_TS)  'Average residence time for storage activity'
-    RS_TSLVL(R,ALL_TS)  'Timeslice levels'
-    TS_ARRAY(ALL_TS)    'Array for leveling parameter values across timeslices'
-    STOA(ALL_TS)        'ORD Lag from each timeslice to ANNUAL'
-    STOAL(ALL_REG,TS)   'ORD Lag from the LVL of each timeslice to ANNUAL'
-    BDSIG(LIM)          'Bound signum' / LO 1, UP -1 /;
-
-
-*-----------------------------------------------------------------------------
-* Initialization interpolation/extrapolation
-*-----------------------------------------------------------------------------
-  SET        FIL(ALLYEAR);
-  SET        MY_FIL(ALLYEAR) //;
-  SET        VNT(ALLYEAR,ALLYEAR);
-  SET        YK1(ALLYEAR,ALLYEAR);
-  PARAMETER  FIL2(ALLYEAR);
-  PARAMETER  MY_FIL2(ALLYEAR) //;
-  PARAMETER  MY_ARRAY(ALLYEAR)//;
-  PARAMETER  YKVAL(ALLYEAR,ALLYEAR);
-
-* flags used in extrapolation
-  SET BACKWARD(YEAR) //;
-  SET FORWARD(YEAR)  //;
-* DM_YEAR is the union of the sets MODLYEAR and DATAYEAR
-  SET DM_YEAR(ALLYEAR)  //;
-
-*------------------------------------------------------------------------------
-* Additional system declarations
-*------------------------------------------------------------------------------
-* Internal Sets:
-  SETS
-    PYR_S(ALLYEAR)       'Residual vintage' //
-    MY_TS(ALL_TS)        'Temporary set for timeslices' //
-    R_UC(ALL_R,UC_N)     'Temporary set for UCs by region' //
-    R_UCT(ALL_REG,UC_N,ALLYEAR) 'Set for UCs by reg & period' //
-    UC_T(UC_N,T)         'Temporary set for UCs by period' //
-    RXX(ALL_R,*,*)       'General triples related to a region'
-    UNCD1(*)             'Non-domain-controlled set'
-    UNCD7(*,*,*,*,*,*,*) 'Non-domain-controlled set of 7-tuples';
-  ALIAS(LIFE,AGE);
-  SET OPYEAR(AGE,LIFE) //;
-
-*------------------------------------------------------------------------------
-* Sets and parameters used in reduction algorithm
-*------------------------------------------------------------------------------
-  SET  NO_ACT(R,P)                    'Process not requiring activity variable'             //;
-  SET  RP_PGACT(R,P)                  'Process with PCG consisting of 1 commodity'          //;
-  SET  RP_PGFLO(R,P)                  'Process with PCG having COM_FR'                      //;
-  SET  RP_XRED(REG,PRC)               'Process with extended reducable pcg flows'           //;
-  SET  RPC_ACT(REG,PRC,CG)            'PG commodity of Process with PCG consisting of 1'    //;
-  SET  RPC_AFLO(REG,PRC,CG)           'ACT_FLO residual groups to be handled specially'     //;
-  SET  RPC_AIRE(ALL_REG,PRC,COM)      'Exchange process with only one commodity exchanged'  //;
-  SET  RPC_EMIS(R,P,COM_GRP)          'Process with emission COM_GRP'                       //;
-  SET  FS_EMIS(R,P,COM_GRP,C,COM)     'Indicator for emission related FLO_SUM'              //;
-  SET  FS_EMIT(R,P,COM,COM_GRP,C)     'Indicator for emission related FLO_SUM'              //;
-  SET  RC_IOP(R,C,IO,P)               'Processes associated with commodity'                 //;
-  SET  RTCS_SING(R,T,C,S,IO)          'Commodity not being consumed'                        //;
-  SET  RTPS_OFF(R,T,P,S)              'Process being turned off'                            //;
-  SET  RTPCS_OUT(R,ALLYEAR,P,C,S)     'Process flows being turned off'                      //;
-  SET  RPC_FFUNC(R,P,C)               'RPC_ACT Commodity in FFUNC'                          //;
-  SET  RPCC_FFUNC(REG,PRC,CG,CG)      'Pair of FFUNC commodities with RPC_ACT commodity'    //;
-  SET  PRC_CAP(REG,PRC)               'Process requiring capacity variable'                 //;
-  SET  PRC_ACT(REG,PRC)               'Process requiring activity equation'                 //;
-  SET  PRC_TS2(REG,PRC,TS)            'Alias for PRC_TS of processes with RPC_ACT'          //;
-  SET  RPCG_PTRAN(R,P,COM,C,CG,CG)    'Set for FLO_FUNC/FLO_SUM based substitution'         //;
-  SET  KEEP_FLOF(R,P,C)               'Set for FFUNC-defined flows retained';
-  ALIAS(CG3,CG4,COM_GRP);
-""",
+            g.obj_isub = Parameter(
+                m,
+                name="OBJ_ISUB",
+                description="NCAP_ISUB for each year",
+                domain=[g.r, g.allyear, g.p, g.cur],
+            )
+            g.obj_itax = Parameter(
+                m,
+                name="OBJ_ITAX",
+                description="NCAP_ITAX for each year",
+                domain=[g.r, g.allyear, g.p, g.cur],
+            )
+            g.obj_fom = Parameter(
+                m,
+                name="OBJ_FOM",
+                description="NCAP_FOM for each year",
+                domain=[g.r, g.allyear, g.p, g.cur],
+            )
+            g.obj_fsb = Parameter(
+                m,
+                name="OBJ_FSB",
+                description="NCAP_FSUB for each year",
+                domain=[g.r, g.allyear, g.p, g.cur],
+            )
+            g.obj_ftx = Parameter(
+                m,
+                name="OBJ_FTX",
+                description="NCAP_FTX for each year",
+                domain=[g.r, g.allyear, g.p, g.cur],
+            )
+            g.obj_dcost = Parameter(
+                m,
+                name="OBJ_DCOST",
+                description="NCAP_DCOST for each year",
+                domain=[g.r, g.allyear, g.p, g.cur],
+            )
+            g.obj_dlagc = Parameter(
+                m,
+                name="OBJ_DLAGC",
+                description="NCAP_DLAGC for each year",
+                domain=[g.r, g.allyear, g.p, g.cur],
+            )
+            g.obj_acost = Parameter(
+                m,
+                name="OBJ_ACOST",
+                description="ACT_COST for each year",
+                domain=[g.r, g.allyear, g.p, g.cur],
+            )
+            g.obj_fcost = Parameter(
+                m,
+                name="OBJ_FCOST",
+                description="FLO_COST for each year",
+                domain=[g.r, g.allyear, g.p, g.c, g.s, g.cur],
+            )
+            g.obj_fdelv = Parameter(
+                m,
+                name="OBJ_FDELV",
+                description="FLO_DELIV for each year",
+                domain=[g.r, g.allyear, g.p, g.c, g.s, g.cur],
+            )
+            g.obj_ftax = Parameter(
+                m,
+                name="OBJ_FTAX",
+                description="FLO_TAX for each year",
+                domain=[g.r, g.allyear, g.p, g.c, g.s, g.cur],
+            )
+        g.obj_fsub = Parameter(
+            m,
+            name="OBJ_FSUB",
+            description="FLO_SUB for each year",
+            domain=[g.r, g.allyear, g.p, g.c, g.s, g.cur],
         )
+        g.obj_comnt = Parameter(
+            m,
+            name="OBJ_COMNT",
+            description="CSTNET for each year",
+            domain=[g.r, g.allyear, g.c, g.s, g.costype, g.cur],
+        )
+        g.obj_compd = Parameter(
+            m,
+            name="OBJ_COMPD",
+            description="CSTPRD for each year",
+            domain=[g.r, g.allyear, g.c, g.s, g.costype, g.cur],
+        )
+        g.obj_ipric = Parameter(
+            m,
+            name="OBJ_IPRIC",
+            description="IRE_PRICE for each year",
+            domain=[g.r, g.allyear, g.p, g.c, g.s, g.ie, g.cur],
+        )
+        # * Miscellanea
+        g.prc_ymin = Parameter(
+            m,
+            name="PRC_YMIN",
+            description="Generic process parameter",
+            domain=[g.Reg, g.prc],
+        )
+        g.prc_ymax = Parameter(
+            m,
+            name="PRC_YMAX",
+            description="Generic process parameter",
+            domain=[g.Reg, g.prc],
+        )
+        g.prc_sc = Parameter(
+            m,
+            name="PRC_SC",
+            description="Process storage cycles",
+            domain=[g.Reg, g.prc],
+        )
+        g.prc_sgl = Parameter(
+            m,
+            name="PRC_SGL",
+            description="Process shadow level (< DAYNITE)",
+            domain=[g.Reg, g.prc],
+        )
+        g.prc_semi = Parameter(
+            m,
+            name="PRC_SEMI",
+            description="Semi-continuous indicator",
+            domain=[g.r, g.p],
+        )
+        g.rd_nlp = Parameter(
+            m, name="RD_NLP", description="NLP demand indicator", domain=[g.r, g.c]
+        )
+        g.rd_shar = Parameter(
+            m,
+            name="RD_SHAR",
+            description="Demand aggregation share",
+            domain=[g.r, g.t, g.c, g.c],
+        )
+        g.rp_afb = Parameter(
+            m,
+            name="RP_AFB",
+            description="Processes with NCAP_AF by bound type",
+            domain=[g.Reg, g.prc, g.bd],
+        )
+        g.rs_stg = Parameter(
+            m,
+            name="RS_STG",
+            description="Lead from previous storage timeslice",
+            domain=[g.r, g.allts],
+        )
+        g.rs_stgprd = Parameter(
+            m,
+            name="RS_STGPRD",
+            description="Number of storage periods for each timeslice",
+            domain=[g.r, g.allts],
+        )
+        g.rs_stgav = Parameter(
+            m,
+            name="RS_STGAV",
+            description="Average residence time for storage activity",
+            domain=[g.r, g.allts],
+        )
+        g.rs_tslvl = Parameter(
+            m, name="RS_TSLVL", description="Timeslice levels", domain=[g.r, g.allts]
+        )
+        g.ts_array = Parameter(
+            m,
+            name="TS_ARRAY",
+            description="Array for leveling parameter values across timeslices",
+            domain=[g.allts],
+        )
+        g.stoa = Parameter(
+            m,
+            name="STOA",
+            description="ORD Lag from each timeslice to ANNUAL",
+            domain=[g.allts],
+        )
+        g.stoal = Parameter(
+            m,
+            name="STOAL",
+            description="ORD Lag from the LVL of each timeslice to ANNUAL",
+            domain=[g.allreg, g.ts],
+        )
+        g.bdsig = Parameter(
+            m,
+            records=[("LO", 1), ("UP", -1)],
+            name="BDSIG",
+            description="Bound signum",
+            domain=[g.lim],
+        )
+        # *-----------------------------------------------------------------------------
+        # * Initialization interpolation/extrapolation
+        # *-----------------------------------------------------------------------------
+        g.Fil = Set(m, name="FIL", domain=[g.allyear])
+        g.MyFil = Set(m, name="MY_FIL", description="", domain=[g.allyear])
+        g.Vnt = Set(m, name="VNT", domain=[g.allyear, g.allyear])
+        g.Yk1 = Set(m, name="YK1", domain=[g.allyear, g.allyear])
+        g.fil2 = Parameter(m, name="FIL2", domain=[g.allyear])
+        g.my_fil2 = Parameter(m, name="MY_FIL2", description="", domain=[g.allyear])
+        g.my_array = Parameter(m, name="MY_ARRAY", domain=[g.allyear])
+        g.ykval = Parameter(m, name="YKVAL", domain=[g.allyear, g.allyear])
+        # * flags used in extrapolation
+        g.Backward = Set(m, name="BACKWARD", description="", domain=[g.year])
+        g.Forward = Set(m, name="FORWARD", description="", domain=[g.year])
+        # * DM_YEAR is the union of the sets MODLYEAR and DATAYEAR
+        g.DmYear = Set(m, name="DM_YEAR", description="", domain=[g.allyear])
+        # *------------------------------------------------------------------------------
+        # * Additional system declarations
+        # *------------------------------------------------------------------------------
+        # * Internal Sets:
+        g.PyrS = Set(
+            m, name="PYR_S", description="Residual vintage", domain=[g.allyear]
+        )
+        g.MyTs = Set(
+            m,
+            name="MY_TS",
+            description="Temporary set for timeslices",
+            domain=[g.allts],
+        )
+        g.RUc = Set(
+            m,
+            name="R_UC",
+            description="Temporary set for UCs by region",
+            domain=[g.allr, g.ucn],
+        )
+        g.RUct = Set(
+            m,
+            name="R_UCT",
+            description="Set for UCs by Reg & period",
+            domain=[g.allreg, g.ucn, g.allyear],
+        )
+        g.UcT = Set(
+            m,
+            name="UC_T",
+            description="Temporary set for UCs by period",
+            domain=[g.ucn, g.t],
+        )
+        g.Rxx = Set(
+            m,
+            name="RXX",
+            description="General triples related to a region",
+            domain=[g.allr, "*", "*"],
+        )
+        g.uncd1 = Set(
+            m, name="UNCD1", description="Non-domain-controlled set", domain=["*"]
+        )
+        g.Uncd7 = Set(
+            m,
+            name="UNCD7",
+            description="Non-domain-controlled set of 7-tuples",
+            domain=["*", "*", "*", "*", "*", "*", "*"],
+        )
+        g.life = Alias(m, name="LIFE", alias_with=g.age)
+        g.Opyear = Set(m, name="OPYEAR", description="", domain=[g.age, g.life])
+        # *------------------------------------------------------------------------------
+        # * Sets and parameters used in reduction algorithm
+        # *------------------------------------------------------------------------------
+        g.NoAct = Set(
+            m,
+            name="NO_ACT",
+            description="Process not requiring activity variable",
+            domain=[g.r, g.p],
+        )
+        g.RpPgact = Set(
+            m,
+            name="RP_PGACT",
+            description="Process with PCG consisting of 1 commodity",
+            domain=[g.r, g.p],
+        )
+        g.RpPgflo = Set(
+            m,
+            name="RP_PGFLO",
+            description="Process with PCG having COM_FR",
+            domain=[g.r, g.p],
+        )
+        g.RpXred = Set(
+            m,
+            name="RP_XRED",
+            description="Process with extended reducable pcg flows",
+            domain=[g.Reg, g.prc],
+        )
+        g.RpcAct = Set(
+            m,
+            name="RPC_ACT",
+            description="PG commodity of Process with PCG consisting of 1",
+            domain=[g.Reg, g.prc, g.cg],
+        )
+        g.RpcAflo = Set(
+            m,
+            name="RPC_AFLO",
+            description="ACT_FLO residual groups to be handled specially",
+            domain=[g.Reg, g.prc, g.cg],
+        )
+        g.RpcAire = Set(
+            m,
+            name="RPC_AIRE",
+            description="Exchange process with only one commodity exchanged",
+            domain=[g.allreg, g.prc, g.Com],
+        )
+        g.RpcEmis = Set(
+            m,
+            name="RPC_EMIS",
+            description="Process with emission COM_GRP",
+            domain=[g.r, g.p, g.comgrp],
+        )
+        g.FsEmis = Set(
+            m,
+            name="FS_EMIS",
+            description="Indicator for emission related FLO_SUM",
+            domain=[g.r, g.p, g.comgrp, g.c, g.Com],
+        )
+        g.FsEmit = Set(
+            m,
+            name="FS_EMIT",
+            description="Indicator for emission related FLO_SUM",
+            domain=[g.r, g.p, g.Com, g.comgrp, g.c],
+        )
+        g.RcIop = Set(
+            m,
+            name="RC_IOP",
+            description="Processes associated with commodity",
+            domain=[g.r, g.c, g.io, g.p],
+        )
+        g.RtcsSing = Set(
+            m,
+            name="RTCS_SING",
+            description="Commodity not being consumed",
+            domain=[g.r, g.t, g.c, g.s, g.io],
+        )
+        g.RtpsOff = Set(
+            m,
+            name="RTPS_OFF",
+            description="Process being turned off",
+            domain=[g.r, g.t, g.p, g.s],
+        )
+        g.RtpcsOut = Set(
+            m,
+            name="RTPCS_OUT",
+            description="Process flows being turned off",
+            domain=[g.r, g.allyear, g.p, g.c, g.s],
+        )
+        g.RpcFfunc = Set(
+            m,
+            name="RPC_FFUNC",
+            description="RPC_ACT Commodity in FFUNC",
+            domain=[g.r, g.p, g.c],
+        )
+        g.RpccFfunc = Set(
+            m,
+            name="RPCC_FFUNC",
+            description="Pair of FFUNC commodities with RPC_ACT commodity",
+            domain=[g.Reg, g.prc, g.cg, g.cg],
+        )
+        g.PrcCap = Set(
+            m,
+            name="PRC_CAP",
+            description="Process requiring capacity variable",
+            domain=[g.Reg, g.prc],
+        )
+        g.PrcAct = Set(
+            m,
+            name="PRC_ACT",
+            description="Process requiring activity equation",
+            domain=[g.Reg, g.prc],
+        )
+        g.PrcTs2 = Set(
+            m,
+            name="PRC_TS2",
+            description="Alias for PRC_TS of processes with RPC_ACT",
+            domain=[g.Reg, g.prc, g.ts],
+        )
+        g.RpcgPtran = Set(
+            m,
+            name="RPCG_PTRAN",
+            description="Set for FLO_FUNC/FLO_SUM based substitution",
+            domain=[g.r, g.p, g.Com, g.c, g.cg, g.cg],
+        )
+        g.KeepFlof = Set(
+            m,
+            name="KEEP_FLOF",
+            description="Set for FFUNC-defined flows retained",
+            domain=[g.r, g.p, g.c],
+        )
+        g.cg3 = Alias(m, "CG3", alias_with=g.comgrp)
+        g.cg4 = Alias(m, "CG4", alias_with=g.comgrp)
         # ------------------------------------------------------------------------------
         # * Parameters used in report routine
         # *------------------------------------------------------------------------------
@@ -412,27 +1224,91 @@ $onMulti
             self.env.set_global("pl", "P.TL:MAX(12,CARD(P.TL))")
             self.env.set_global("cl", "C.TL:MAX(12,CARD(C.TL)")
 
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=r"""
-  PARAMETERS
-   PAR_FLO(R,ALLYEAR,ALLYEAR,P,C,S)          'Flow parameter'                                    //
-   PAR_FLOM(R,ALLYEAR,ALLYEAR,P,C,S)         'Reduced cost of flow variable'                     //
-   PAR_IRE(R,ALLYEAR,ALLYEAR,P,C,S,IMPEXP)   'Parameter for im/export flow'                      //
-   PAR_IREM(R,ALLYEAR,ALLYEAR,P,C,S,IMPEXP)  'Reduced cost of import/export flow'                //
-   PAR_OBJINV(R,ALLYEAR,ALLYEAR,P,CUR)       'Annual discounted investment costs'                //
-   PAR_OBJDEC(R,ALLYEAR,ALLYEAR,P,CUR)       'Annual discounted decommissioning costs'           //
-   PAR_OBJFIX(R,ALLYEAR,ALLYEAR,P,CUR)       'Annual discounted FOM cost'                        //
-   PAR_OBJSAL(R,ALLYEAR,P,CUR)               'Annual discounted salvage value'                   //
-   PAR_OBJLAT(R,ALLYEAR,P,CUR)               'Annual discounted late costs'                      //
-   PAR_OBJACT(R,ALLYEAR,ALLYEAR,P,TS,CUR)    'Annual discounted variable costs'                  //
-   PAR_OBJFLO(R,ALLYEAR,ALLYEAR,P,C,TS,CUR)  'Annual discounted flow costs (incl import/export)' //
-   PAR_OBJCOM(R,ALLYEAR,COM,TS,CUR)          'Annual discounted commodity costs '                //
-   PAR_OBJBLE(R,ALLYEAR,COM,CUR)             'Annual discounted blending costs'                  //
-   PAR_OBJELS(R,ALLYEAR,COM,CUR)             'Annual discounted elastic demand cost term'        //;
-""",
+        g.par_flo = Parameter(
+            m,
+            name="PAR_FLO",
+            description="Flow parameter",
+            domain=[g.r, g.allyear, g.allyear, g.p, g.c, g.s],
         )
+        g.par_flom = Parameter(
+            m,
+            name="PAR_FLOM",
+            description="Reduced cost of flow variable",
+            domain=[g.r, g.allyear, g.allyear, g.p, g.c, g.s],
+        )
+        g.par_ire = Parameter(
+            m,
+            name="PAR_IRE",
+            description="Parameter for im/export flow",
+            domain=[g.r, g.allyear, g.allyear, g.p, g.c, g.s, g.impexp],
+        )
+        g.par_irem = Parameter(
+            m,
+            name="PAR_IREM",
+            description="Reduced cost of import/export flow",
+            domain=[g.r, g.allyear, g.allyear, g.p, g.c, g.s, g.impexp],
+        )
+        g.par_objinv = Parameter(
+            m,
+            name="PAR_OBJINV",
+            description="Annual discounted investment costs",
+            domain=[g.r, g.allyear, g.allyear, g.p, g.cur],
+        )
+        g.par_objdec = Parameter(
+            m,
+            name="PAR_OBJDEC",
+            description="Annual discounted decommissioning costs",
+            domain=[g.r, g.allyear, g.allyear, g.p, g.cur],
+        )
+        g.par_objfix = Parameter(
+            m,
+            name="PAR_OBJFIX",
+            description="Annual discounted FOM cost",
+            domain=[g.r, g.allyear, g.allyear, g.p, g.cur],
+        )
+        g.par_objsal = Parameter(
+            m,
+            name="PAR_OBJSAL",
+            description="Annual discounted salvage value",
+            domain=[g.r, g.allyear, g.p, g.cur],
+        )
+        g.par_objlat = Parameter(
+            m,
+            name="PAR_OBJLAT",
+            description="Annual discounted late costs",
+            domain=[g.r, g.allyear, g.p, g.cur],
+        )
+        g.par_objact = Parameter(
+            m,
+            name="PAR_OBJACT",
+            description="Annual discounted variable costs",
+            domain=[g.r, g.allyear, g.allyear, g.p, g.ts, g.cur],
+        )
+        g.par_objflo = Parameter(
+            m,
+            name="PAR_OBJFLO",
+            description="Annual discounted flow costs (incl import/export)",
+            domain=[g.r, g.allyear, g.allyear, g.p, g.c, g.ts, g.cur],
+        )
+        g.par_objcom = Parameter(
+            m,
+            name="PAR_OBJCOM",
+            description="Annual discounted commodity costs ",
+            domain=[g.r, g.allyear, g.Com, g.ts, g.cur],
+        )
+        g.par_objble = Parameter(
+            m,
+            name="PAR_OBJBLE",
+            description="Annual discounted blending costs",
+            domain=[g.r, g.allyear, g.Com, g.cur],
+        )
+        g.par_objels = Parameter(
+            m,
+            name="PAR_OBJELS",
+            description="Annual discounted elastic demand cost term",
+            domain=[g.r, g.allyear, g.Com, g.cur],
+        )
+
         # *----------------------------------------------------------------------------------------------
         # * GLOBALS SECTION - Safe Set of TIMES Critical Global control variables
         # *----------------------------------------------------------------------------------------------
