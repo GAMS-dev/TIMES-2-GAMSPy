@@ -15,6 +15,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+import gamspy.math as gmath
+from gamspy import Ord, SpecialValues
+
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -39,7 +42,6 @@ class InitExtDsc(GamsClass):
         arg2: str = "",
     ):
         self.env = env.fork()
-        self._sub_modules = {}
         self.tc = tc
         self.compile()
 
@@ -48,9 +50,7 @@ class InitExtDsc(GamsClass):
         if self.tc.defined("PRC_DSCNCAP"):
             self.tc.enqueue(self.assign_ncap_disc)
 
-        self.tc.enqueue(
-            self.project_ncap_semi,
-        )
+        self.tc.enqueue(self.project_ncap_semi)
 
         if self.tc.defined("NCAP_SEMI"):
             self.tc.enqueue(self.assign_prc_semi)
@@ -77,31 +77,35 @@ class InitExtDsc(GamsClass):
 
         self.env.set_global("dsc", self.env.dsc)
 
-        if self.tc.test_run:
-            self.tc.save_test_state(env=self.env, checkpoint="init_ext_dsc_end")
-
     def assign_ncap_disc(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="NCAP_DISC(R,T--ORD(T),P,'0')$PRC_DSCNCAP(R,P) = EPS;",
-        )
+        g = self.tc
+        g.ncap_disc[g.r, g.t.lag(Ord(g.t), "circular"), g.p, "0"].where[
+            g.PrcDscncap[g.r, g.p]
+        ] = SpecialValues.EPS
 
     def project_ncap_semi(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="OPTION PRC_SEMI<NCAP_SEMI; NCAP_SEMI(R,'0',P)$((NCAP_SEMI(R,'0',P)=0)$PRC_SEMI(R,P)) = 10;",
-        )
+        g = self.tc
+        r, p = g.r, g.p
+        gmath.project(source=g.ncap_semi[r, g.allyear, p], target=g.prc_semi[r, p])
+
+        g.ncap_semi[r, "0", p].where[
+            (g.ncap_semi[r, "0", p] == 0) & (g.prc_semi[r, p])
+        ] = 10
 
     def assign_prc_semi(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="PRC_SEMI(R,P) $= NCAP_SEMI(R,'0',P); NCAP_DISC(R,LL,P,'0') $= NCAP_SEMI(R,LL,P);",
-        )
+        g = self.tc
+        r, p = g.r, g.t
+
+        rhs = g.ncap_semi[r, "0", p]
+        g.prc_semi[r, p].where[rhs] = rhs
+
+        rhs = g.ncap_semi[r, g.ll, p]
+        g.ncap_disc[r, g.ll, p, "0"].where[rhs] = rhs
 
     def project_prc_dsncap(self) -> None:
-        self.tc.add_gams_code(
-            module=self, phase="run", code="OPTION PRC_DSCNCAP < NCAP_DISC;"
+        g = self.tc
+        r, p = g.r, g.p
+
+        gmath.project(
+            source=g.ncap_disc[r, g.allyear, p, g.unit], target=g.PrcDscncap[g.r, g.p]
         )

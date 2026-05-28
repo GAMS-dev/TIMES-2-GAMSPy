@@ -1803,7 +1803,6 @@ class InitmtyMod(GamsClass):
                 self.env.set_global("stepped", "+")
             if self.env.is_set("stepped"):
                 self.env.set_global("var_uc", "YES")
-            # TODO: $IF %SYSTEM.LICENSELEVEL%==2 $SETGLOBAL VAR_UC YES
 
         def other_extensions() -> None:
             """Other extensions to TIMES code"""
