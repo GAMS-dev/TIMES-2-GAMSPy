@@ -86,7 +86,7 @@ class InitExtDsc(GamsClass):
     def project_ncap_semi(self) -> None:
         g = self.tc
         r, p = g.r, g.p
-        gmath.project(source=g.ncap_semi[r, g.allyear, p], target=g.prc_semi[r, p])
+        gmath.aggregate(source=g.ncap_semi[r, g.allyear, p], target=g.prc_semi[r, p])
 
         g.ncap_semi[r, "0", p].where[
             (g.ncap_semi[r, "0", p] == 0) & (g.prc_semi[r, p])
