@@ -1282,7 +1282,7 @@ class TimesModelClass:
     tm_ycheck: Parameter = None  # type: ignore[assignment] # [R] TM_YCHECK
     tm_dd: Parameter = None  # type: ignore[assignment] # [R,C,T] TM_DD Demand ratio MSA estimates to TED demand levels
     tm_gdp: Parameter = None  # type: ignore[assignment] # [REG,YEAR] TM_GDP Actualized gross domestic product
-
+    var_sts: Parameter = None  # type: ignore[assignment] # [R,YEAR,T,P,S,L] VAR_STS
     # endregion
 
     def __post_init__(self) -> None:

@@ -137,7 +137,7 @@ SOLVE {model_name} MAXIMIZING VAR_UTIL USING {method};
     ) -> None:
         """solve TIMES as an LP/MIP"""
         eqs = [self.tc.container[e] for e in equations]
-        obj = self.tc.container["OBJZ"]
+        obj = self.tc.OBJZ
         model = Model(
             container=self.tc.container,
             name=model_name,
