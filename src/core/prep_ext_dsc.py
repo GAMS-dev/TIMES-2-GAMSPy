@@ -16,9 +16,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.prepparm_gms import PrepparmGms
+from gamspy import Sum
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
+from core.prepparm_gms import PrepparmGms
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -67,17 +68,19 @@ class PrepExtDsc(GamsClass):
             self.tc.enqueue(self.process_semicontinuous_requests)
 
     def process_semicontinuous_requests(self: PrepExtDsc) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Process semicontinuous requests
-  NCAP_SEMI(RTP(R,T,P))$PRC_DSCNCAP(R,P) = (NCAP_DISC(RTP,'0')+1)-1;
-  NCAP_SEMI(RTP)$SUM(UNIT(J)$NCAP_DISC(RTP,UNIT),1) = 0;
-""",
-        )
+        """Process semicontinuous requests"""
+        g = self.tc
+        r, t, p, j = g.r, g.t, g.p, g.j
+
+        g.ncap_semi[g.Rtp[r, t, p]].where[g.PrcDscncap[r, p]] = (
+            g.ncap_disc[g.Rtp, "0"] + 1
+        ) - 1
+        g.ncap_semi[g.Rtp].where[
+            Sum(g.unit[j].where[g.ncap_disc[g.Rtp, g.unit]], 1)
+        ] = 0
 
     def prepextdsc_exec(self: PrepExtDsc) -> None:
-        self.tc.add_gams_code(
-            module=self, phase="run", code="PRC_DSCNCAP(R,P) $= PRC_SEMI(R,P);"
-        )
+        g = self.tc
+        r, p = g.r, g.p
+
+        g.PrcDscncap[r, p].where[g.prc_semi[r, p]] = g.prc_semi[r, p]
