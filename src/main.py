@@ -15,7 +15,7 @@ from core.maindrv_mod import MainDrvMod
 from core.read_dd import read_dd_file
 from core.utils import EscapeStack
 from utils.compile_environment import CompileEnvironment
-from utils.config import RunConfig
+from utils.config import RunConfig, UserConfig
 from utils.run_registry import REGISTRY
 from utils.times_model_class import TimesModelClass
 
@@ -77,11 +77,10 @@ def run_times(
     )
 
     # Dynamically apply Environment Variables
-    for key, value in config.env_vars.items():
-        env.set_scoped(key, value)
+    validated_config = UserConfig.model_validate(config.env_vars)
+    for key, value in validated_config.model_dump(by_alias=True).items():
+        env.set_global(key, value)
 
-    # env.set_scoped("botime", config.botime)
-    env.set_scoped("botimeGP", int(env.botime))
     env.set_scoped("run_name", config.run_name)
 
     # Dynamically apply Time Slices

@@ -15,11 +15,11 @@ ScopeType = Literal["local", "global", "scoped"]
 class CompileEnvironment:
     def __init__(self, globals_dict: dict[str, Any] | None = None) -> None:
         # Global: Reference to a shared dictionary ($setglobal)
-        self._globals: dict[str, str] = globals_dict if globals_dict is not None else {}
+        self._globals: dict[str, Any] = globals_dict if globals_dict is not None else {}
         # Scoped: Inherited by children, but isolated ($set)
-        self._scoped: dict[str, str] = {}
+        self._scoped: dict[str, Any] = {}
         # Local: Specific to THIS file only ($setlocal)
-        self._local: dict[str, str] = {}
+        self._local: dict[str, Any] = {}
 
     def set_global(self, key: str, value: Any) -> None:
         self._globals[key] = value
@@ -43,7 +43,7 @@ class CompileEnvironment:
             return True
         return False
 
-    def get(self, key: str) -> str | None:
+    def get(self, key: str) -> Any | None:
         # GAMS Priority: Local -> Scoped -> Global
         if key in self._local:
             return self._local[key]
@@ -84,7 +84,7 @@ class CompileEnvironment:
             isinstance(val, str)
             and val.startswith("%")
             and val.endswith("%")
-            and val.upper() == f"%{key}%"
+            and val.upper() == f"%{key.upper()}%"
         )
 
     def is_set_local(self, key: str) -> bool:
@@ -103,7 +103,7 @@ class CompileEnvironment:
             isinstance(val, str)
             and val.startswith("%")
             and val.endswith("%")
-            and val.upper() == f"%{key}%"
+            and val.upper() == f"%{key.upper()}%"
         )
 
     def is_set_global(self, key: str) -> bool:
@@ -122,7 +122,7 @@ class CompileEnvironment:
             isinstance(val, str)
             and val.startswith("%")
             and val.endswith("%")
-            and val.upper() == f"%{key}%"
+            and val.upper() == f"%{key.upper()}%"
         )
 
     def set_if_not_exists(self, key: str, value: Any, scope: ScopeType) -> bool:
