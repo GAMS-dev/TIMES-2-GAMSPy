@@ -183,7 +183,7 @@ $LOAD RPC_IREIN=RPC_IREIO PREMILE=MILESTONYR PAR_IRE
 """,
                 )
 
-                if self.env.gdx_irebnd.upper() == self.env.gdx_ipric:
+                if self.env.gdx_irebnd.upper() == self.env.gdx_ipric.upper():
                     self.label_load2()
 
                 else:
@@ -194,8 +194,15 @@ $LOAD RPC_IREIN=RPC_IREIO PREMILE=MILESTONYR PAR_IRE
     def label_ifprice(self: InitExtVda) -> None:
         if not self.env.is_set("gdx_ipric"):
             return
-        if not Path(f"{self.env.gdxpath}{self.env.gdx_ipric}.gdx").exists():
+        path = f"{self.env.gdxpath}{self.env.gdx_ipric}.gdx"
+        if not Path(path).exists():
             return
+
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=f"$GDXIN {path}",
+        )
         self.label_load2()
 
     def label_load2(self: InitExtVda) -> None:
