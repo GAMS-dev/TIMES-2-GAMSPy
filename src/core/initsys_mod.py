@@ -69,20 +69,18 @@ $ ONEMPTY
 
         g.item = UniverseAlias(m, name="ITEM")
 
-        # $IF NOT SET BOTIME $SETGLOBAL BOTIME 1850
-        if not self.env.is_set("botime"):
-            self.env.set_global("botime", "1850")
-            self.env.set_global("botimeGP", 1850)
+        # moved to UserConfig
+        # # $IF NOT SET BOTIME $SETGLOBAL BOTIME 1850
+        # if not self.env.is_set("botime"):
+        #     self.env.set_global("botime", 1850)
 
-        # $IF NOT SET EOTIME $SETGLOBAL EOTIME 2200
-        if not self.env.is_set("eotime"):
-            self.env.set_global("eotime", "2200")
-            self.env.set_global("eotimeGP", 2200)
+        # moved to UserConfig
+        # # $IF NOT SET EOTIME $SETGLOBAL EOTIME 2200
+        # if not self.env.is_set("eotime"):
+        #     self.env.set_global("eotime", 2200)
 
-        eotime = self.env.eotimeGP
-        assert isinstance(eotime, int), "EOTIME is not an integer"
-        botime = self.env.botimeGP
-        assert isinstance(botime, int), "BOTIME is not an integer"
+        eotime = self.env.eotime
+        botime = self.env.botime
 
         # $IF NOT %SHELL%==ANSWER
         # $IF SET MAXSOW SET ITEM /BOH, 1*%EOTIME%/;
@@ -464,23 +462,23 @@ $ ONEMPTY
         # *  - throw switch other way in *.RUN to change
         # *-------------------------------------------------------------------------------
         # * user should provide name in *.RUN
-        self.env.set_scoped("model_name", "TIMES")
-        self.env.set_scoped("run_name", "TEST")
+        # self.env.set_scoped("model_name", "TIMES") # moved to UserConfig
+        # self.env.set_scoped("run_name", "TEST")  # moved to UserConfig
         # * control of whether all 0 lines are dumped in *.PUT files; user provides 0 to NOT print lines with all 0s (or empty)
         g.dump0 = Parameter(m, name="DUMP0", records=1)
         g.optfileid = Parameter(m, name="OPTFILEID", records=1)
 
         # * user set to 'YES' to activate
-        self.env.set_scoped("debug", "NO")
-        self.env.set_scoped("dumpsol", "NO")
-        self.env.set_scoped("solans", "NO")
+        # self.env.set_scoped("debug", "NO") # moved to UserConfig
+        # self.env.set_scoped("dumpsol", "NO") # moved to UserConfig
+        # self.env.set_scoped("solans", "NO") # moved to UserConfig
 
         # * user set to 'NO' to not abort when error condition fails
-        self.env.set_scoped("err_abort", "YES")
+        # self.env.set_scoped("err_abort", "YES") # moved to UserConfig
         # * user sets to 'WWW' to activate
-        self.env.set_scoped("gams_cgi", "NO")
+        # self.env.set_scoped("gams_cgi", "NO") # moved to UserConfig
         # * user sets to 'NO' if only want to compile
-        self.env.set_scoped("solve_now", "YES")
+        # self.env.set_scoped("solve_now", "YES") # moved to UserConfig
 
         # get list of default units
         self.include(Units(tc=self.tc, env=self.env))
