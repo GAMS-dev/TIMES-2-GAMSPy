@@ -157,7 +157,7 @@ class InitExtVda(GamsClass):
         if self.tc.defined("PRC_REACT"):
             self.env.set_global("powerflo", "YES")
 
-        if g.gr_ptdf.number_records and g.gg_kgf.number_records:
+        if g.gr_ptdf.number_records or g.gg_kgf.number_records:
             self.env.set_global("powerflo", "YES")
 
         # Load bounds/prices for exogenous trade from previous run if requested
