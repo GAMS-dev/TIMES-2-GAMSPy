@@ -17,7 +17,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .base_class import GamsClass
+from gamspy import For, If, Loop, Number
+from gamspy.math import Max, Min, abs, ceil
+
+from core.base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -33,80 +36,126 @@ class CoefNioMod(GamsClass):
     module_name: str = "coef_nio_mod"
     gams_source: str = "coef_nio.mod"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
         self.env = env.fork()
         self._sub_modules: dict[str, GamsClass] = {}
         self.tc = tc
         self.compile()
 
     def compile(self) -> None:
-        self.tc.enqueue(self.exec1)
+        self.tc.enqueue(self.commodity_flows_tied_to_new_capacity)
+        self.tc.enqueue(self.commodity_flows_tied_to_decommissioning_of_capacity)
+        self.tc.enqueue(self.modifications)
+        self.tc.enqueue(self.allow_using_ncap_cled)
 
-    def exec1(self: CoefNioMod) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* commodity flows tied to new capacity
-*V0.5b 980828 re-adjust v,t handling to capture enclosed periods & condition to handle period of length 1
-     RPC_CAPFLO(R,V,P,C)$(NOT RTP(R,V,P)) = 0;
-     FIL(V) = YEARVAL(V) GE MIYR_V1;
-*V05c 980923 - use the capacity flow control set
-     LOOP(RPC_CAPFLO(R,FIL(V),P,C)$NCAP_ICOM(R,V,P,C), DFUNC = COEF_RPTI(R,V,P);
-       MY_F = NCAP_ILED(R,V,P); F = COEF_ILED(R,V,P); CNT = ABS(NCAP_CLED(R,V,P,C));
-       Z = B(V)+MAX(1$(CNT$MY_F=0),MY_F); F = Z-MAX(1,MIN(CNT,F));
-       IF(DFUNC GT 1,
-* repeated investment
-          COEF_ICOM(R,T(V),T,P,C) = (DFUNC * NCAP_ICOM(R,V,P,C) / FPD(T))
-       ELSE
-         LOOP(T$((E(T) >= F) * (B(T) < Z)),
-          COEF_ICOM(R,V,T,P,C) =
-* some part of consumption in T
-*V0.5 980718 - beginning of commodity flow is NCAP_ILED - NCAP_CLED!
-            MAX(0,((MIN(Z-1,E(T))-MAX(F,B(T)) + 1) / FPD(T))) * NCAP_ICOM(R,V,P,C) / (Z-F)
-       );
-      );
-     );
+    def commodity_flows_tied_to_new_capacity(self: CoefNioMod) -> None:
+        g = self.tc
+        r, v, p, c, t = g.r, g.v, g.p, g.c, g.t
 
-* commodity flows tied to decommissioning of capacity
-*V05c 980923 - use the capacity flow control set, including PASTInvestments
-     LOOP(RPC_CAPFLO(R,V,P,C)$NCAP_OCOM(R,V,P,C),
-       F = NCAP_ILED(R,V,P)+NCAP_DLAG(R,V,P); MY_F = NCAP_TLIFE(R,V,P);
-       Z = MAX(1,NCAP_DLIFE(R,V,P)); DFUNC = COEF_RPTI(R,V,P);
-       IF(DFUNC GT 1,
-         FOR(CNT = 1 TO CEIL(DFUNC),
-           COEF_OCOM(R,V,T,P,C)$(YEARVAL(T) >= YEARVAL(V)) =
-                                 COEF_OCOM(R,V,T,P,C) + MIN(1,DFUNC-CNT+1) *
-                                 MAX(0,(MIN(B(V)+F+(CNT*MY_F)+Z,E(T)+1) -
-                                        MAX(B(V)+F+(CNT*MY_F),B(T))
-                                        ) / FPD(T)
-                                    ) * (NCAP_OCOM(R,V,P,C) / Z)
-            )
-       ELSE
-          COEF_OCOM(R,V,T,P,C)$(YEARVAL(T) >= YEARVAL(V)) =
-* some part of release in T
-            MAX(0,(MIN(B(V)+F+MY_F+Z,E(T)+1) -
-                   MAX(B(V)+F+MY_F,B(T))
-                  ) / FPD(T)
-               ) * (NCAP_OCOM(R,V,P,C) / Z)
-       );
-     );
-  OPTION CLEAR = CNT;
-*display coef_icom, coef_ocom;
+        # V0.5b 980828 re-adjust v,t handling to capture enclosed periods & condition to handle period of length 1
+        g.RpcCapflo[r, v, p, c].where[~g.Rtp[r, v, p]] = 0
+        g.Fil[v] = g.yearval[v] >= g.miyr_v1
 
-* Modification: Convert negative ICOM to OCOM so that NCAP-related outputs can also be modeled
-* Modification: Convert negative OCOM to ICOM so that DECOM-related inputs can also be modeled
-  COEF_OCOM(R,V,T,P,C)$((COEF_ICOM(R,V,T,P,C) LT 0)$COEF_ICOM(R,V,T,P,C)) = COEF_OCOM(R,V,T,P,C)-COEF_ICOM(R,V,T,P,C);
-  COEF_ICOM(R,V,T,P,C)$((COEF_ICOM(R,V,T,P,C) LT 0)$COEF_ICOM(R,V,T,P,C)) = 0;
-  COEF_ICOM(R,V,T,P,C)$((COEF_OCOM(R,V,T,P,C) LT 0)$COEF_OCOM(R,V,T,P,C)) = COEF_ICOM(R,V,T,P,C)-COEF_OCOM(R,V,T,P,C);
-  COEF_OCOM(R,V,T,P,C)$((COEF_OCOM(R,V,T,P,C) LT 0)$COEF_OCOM(R,V,T,P,C)) = 0;
+        # V05c 980923 - use the capacity flow control set
+        with Loop(g.RpcCapflo[r, g.Fil[v], p, c].where[g.ncap_icom[r, v, p, c]]):
+            g.dfunc[...] = g.coef_rpti[r, v, p]
+            g.my_f[...] = g.ncap_iled[r, v, p]
+            g.f[...] = g.coef_iled[r, v, p]
+            g.cnt[...] = abs(g.ncap_cled[r, v, p, c])
+            g.z[...] = g.b[v] + Max(Number(1).where[g.cnt.where[g.my_f == 0]], g.my_f)
+            g.f[...] = g.z - Max(1, Min(g.cnt, g.f))
 
-* Allow using NCAP_CLED as NCAP_CLAG, if no NCAP_ICOM
-  NCAP_CLAG(RTP,C,IO)$((NOT NCAP_ICOM(RTP,C))$NCAP_COM(RTP,C,IO)) $= NCAP_CLED(RTP,C);
-  NCAP_CLED(R,V,P,C)$(NOT NCAP_ICOM(R,V,P,C)) = 0;
-""",
-        )
+            with If(g.dfunc > 1):
+                # repeated investment
+                g.coef_icom[r, t[v], t, p, c] = (
+                    g.dfunc * g.ncap_icom[r, v, p, c] / g.fpd[t]
+                )
+
+            # ELSE
+            with If(g.dfunc <= 1):  # noqa: SIM117
+                with Loop(t.where[(g.e[t] >= g.f) * (g.b[t] < g.z)]):
+                    g.coef_icom[r, v, t, p, c] = (
+                        # some part of consumption in T
+                        # V0.5 980718 - beginning of commodity flow is NCAP_ILED - NCAP_CLED!
+                        Max(
+                            0,
+                            ((Min(g.z - 1, g.e[t]) - Max(g.f, g.b[t]) + 1) / g.fpd[t]),
+                        )
+                        * g.ncap_icom[r, v, p, c]
+                        / (g.z - g.f)
+                    )
+
+    def commodity_flows_tied_to_decommissioning_of_capacity(self: CoefNioMod) -> None:
+        g = self.tc
+        r, v, p, c, t = g.r, g.v, g.p, g.c, g.t
+
+        with Loop(g.RpcCapflo[r, v, p, c].where[g.ncap_ocom[r, v, p, c]]):
+            g.f[...] = g.ncap_iled[r, v, p] + g.ncap_dlag[r, v, p]
+            g.my_f[...] = g.ncap_tlife[r, v, p]
+            g.z[...] = Max(1, g.ncap_dlife[r, v, p])
+            g.dfunc[...] = g.coef_rpti[r, v, p]
+
+            with If(g.dfunc > 1):  # noqa: SIM117
+                with For(g.cnt, start=1, end=ceil(g.dfunc)):
+                    g.coef_ocom[r, v, t, p, c].where[g.yearval[t] >= g.yearval[v]] = (
+                        g.coef_ocom[r, v, t, p, c]
+                        + Min(1, g.dfunc - g.cnt + 1)
+                        * Max(
+                            0,
+                            (
+                                Min(g.b[v] + g.f + (g.cnt * g.my_f) + g.z, g.e[t] + 1)
+                                - Max(g.b[v] + g.f + (g.cnt * g.my_f), g.b[t])
+                            )
+                            / g.fpd[t],
+                        )
+                        * (g.ncap_ocom[r, v, p, c] / g.z)
+                    )
+
+            # ELSE
+            with If(g.dfunc <= 1):
+                g.coef_ocom[r, v, t, p, c].where[g.yearval[t] >= g.yearval[v]] = (
+                    # some part of release in T
+                    Max(
+                        0,
+                        (
+                            Min(g.b[v] + g.f + g.my_f + g.z, g.e[t] + 1)
+                            - Max(g.b[v] + g.f + g.my_f, g.b[t])
+                        )
+                        / g.fpd[t],
+                    )
+                    * (g.ncap_ocom[r, v, p, c] / g.z)
+                )
+
+        g.cnt.setRecords(None)
+
+    def modifications(self: CoefNioMod) -> None:
+        """
+        Modification: Convert negative ICOM to OCOM so that NCAP-related outputs can also be modeled
+        Modification: Convert negative OCOM to ICOM so that DECOM-related inputs can also be modeled
+        """
+        g = self.tc
+        r, v, p, c, t = g.r, g.v, g.p, g.c, g.t
+
+        g.coef_ocom[r, v, t, p, c].where[
+            ((g.coef_icom[r, v, t, p, c] < 0).where[g.coef_icom[r, v, t, p, c]])
+        ] = g.coef_ocom[r, v, t, p, c] - g.coef_icom[r, v, t, p, c]
+        g.coef_icom[r, v, t, p, c].where[
+            ((g.coef_icom[r, v, t, p, c] < 0).where[g.coef_icom[r, v, t, p, c]])
+        ] = 0
+        g.coef_icom[r, v, t, p, c].where[
+            ((g.coef_ocom[r, v, t, p, c] < 0).where[g.coef_ocom[r, v, t, p, c]])
+        ] = g.coef_icom[r, v, t, p, c] - g.coef_ocom[r, v, t, p, c]
+        g.coef_ocom[r, v, t, p, c].where[
+            ((g.coef_ocom[r, v, t, p, c] < 0).where[g.coef_ocom[r, v, t, p, c]])
+        ] = 0
+
+    def allow_using_ncap_cled(self: CoefNioMod) -> None:
+        "Allow using NCAP_CLED as NCAP_CLAG, if no NCAP_ICOM"
+        g = self.tc
+        r, v, p, c, io = g.r, g.v, g.p, g.c, g.io
+
+        g.ncap_clag[g.Rtp, c, io].where[
+            ((~g.ncap_icom[g.Rtp, c]).where[g.ncap_com[g.Rtp, c, io]])
+            & g.ncap_cled[g.Rtp, c]
+        ] = g.ncap_cled[g.Rtp, c]
+        g.ncap_cled[r, v, p, c].where[~g.ncap_icom[r, v, p, c]] = 0
