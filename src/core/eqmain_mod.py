@@ -117,7 +117,7 @@ class EqmainMod(GamsClass):
             )
 
         if self.env.obj.upper() != "LIN":
-            self.env.set_local("obj", self.arg1)
+            self.env.set_local("obj", self.arg1.upper())
         if self.env.macro.upper() != "YES":
             self.include(EqobjMod(tc=self.tc, env=self.env, arg1=self.arg1))
         else:

@@ -29,19 +29,6 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 
-# Configure the 'gams_env' logger
-file_handler = logging.FileHandler("logs/missing_macros.log")
-file_handler.setLevel(logging.DEBUG)  # The file catches all the small DEBUG notes
-
-formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-file_handler.setFormatter(formatter)
-
-# Attach handler to our specific logger
-gams_logger = logging.getLogger("gams_env")
-gams_logger.setLevel(logging.DEBUG)
-gams_logger.addHandler(file_handler)
-gams_logger.propagate = False  # Prevent logs from doubling up in the console
-
 
 def run_times(
     config: RunConfig,

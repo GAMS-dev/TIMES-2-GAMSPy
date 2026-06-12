@@ -5,9 +5,12 @@ import logging
 from typing import Any, Literal
 
 import pandas as pd
+from pydantic import TypeAdapter, ValidationError
+
+from utils.config import EnvironmentVariableSchema
 
 # Setup a specific logger for GAMS environment issues
-gams_logger = logging.getLogger("gams_env")
+gams_logger = logging.getLogger(__name__)
 
 ScopeType = Literal["local", "global", "scoped"]
 
@@ -21,13 +24,44 @@ class CompileEnvironment:
         # Local: Specific to THIS file only ($setlocal)
         self._local: dict[str, Any] = {}
 
+    def _validate_assignment(self, key: str, value: Any) -> None:
+        """Validates incoming key/value pairs, checking both python names and Pydantic aliases."""
+        target_field = None
+
+        # Look for a direct match OR an alias match
+        for field_name, field_info in EnvironmentVariableSchema.model_fields.items():
+            if key == field_name or key == field_info.alias:
+                target_field = field_info
+                break
+
+        # If a matching field/alias is found, validate its type
+        if target_field is not None:
+            expected_type = target_field.annotation
+            try:
+                TypeAdapter(
+                    expected_type, config={"arbitrary_types_allowed": True}
+                ).validate_python(value)
+            except ValidationError as e:
+                gams_logger.error(
+                    f"Type validation failed for environment variable '{key}': {e}"
+                )
+                raise
+        else:
+            # Handle strictly missing/undefined variables
+            error_msg = f"Security/Type Risk: '{key}' is not defined in EnvironmentVariableSchema. All environment variables must be explicitly registered."
+            gams_logger.error(error_msg)
+            raise KeyError(error_msg)
+
     def set_global(self, key: str, value: Any) -> None:
+        self._validate_assignment(key, value)
         self._globals[key] = value
 
     def set_scoped(self, key: str, value: Any) -> None:
+        self._validate_assignment(key, value)
         self._scoped[key] = value
 
     def set_local(self, key: str, value: Any) -> None:
+        self._validate_assignment(key, value)
         self._local[key] = value
 
     def drop_local(self, key: str) -> bool:
