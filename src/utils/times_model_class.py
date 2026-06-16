@@ -7,7 +7,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, ParamSpec
 
-from gamspy import Alias, Container, Equation, Options, Parameter, Set, Variable
+from gamspy import (
+    Alias,
+    Container,
+    Equation,
+    Options,
+    Parameter,
+    Set,
+    UniverseAlias,
+    Variable,
+)
 
 from core.base_class import GamsClass
 
@@ -46,7 +55,7 @@ class TimesModelClass:
     # region TIMES symbols
     allts: Set = None  # type: ignore[assignment] # [*] ALL_TS: The universe for time-slices
     phantom: Set = None  # type: ignore[assignment] # [*] PHANTOM:
-    item: Alias = None  # type: ignore[assignment] # [*] ITEM: Aliased with *
+    item: UniverseAlias = None  # type: ignore[assignment] # [*] ITEM: Aliased with *
     bohyear: Set = None  # type: ignore[assignment] # [*] BOHYEAR: BOH + years
     allyear: Set = None  # type: ignore[assignment] # [*] ALLYEAR: All Years
     yearval: Parameter = None  # type: ignore[assignment] # [allyear] YEARVAL: Value of each year
@@ -181,6 +190,7 @@ class TimesModelClass:
     s: Alias = None  # type: ignore[assignment] # [*] S: Aliased with ALL_TS
     sl: Alias = None  # type: ignore[assignment] # [*] SL: Aliased with ALL_TS
     s2: Alias = None  # type: ignore[assignment] # [*] S2: Aliased with ALL_TS
+    kp: Set = None  # type: ignore[assignment] # [*] KP
     kp2: Alias = None  # type: ignore[assignment] # [*] KP1: Aliased with KP
     TsOff: Set = None  # type: ignore[assignment] # [Reg,ts,bohyear,eohyear] TS_OFF: Timeslices turned off
     TsGroup: Set = None  # type: ignore[assignment] # [allreg,tslvl,ts] TS_GROUP: Timeslice Level assignment
@@ -389,6 +399,7 @@ class TimesModelClass:
     cm_result: Parameter = None  # type: ignore[assignment] # [item,item,allyear] CM_RESULT: Climate module results
     cm_maxc_m: Parameter = None  # type: ignore[assignment] # [item,allyear] CM_MAXC_M: Shadow price of climate constraint
     tm_result: Parameter = None  # type: ignore[assignment] # [item,r,allyear] TM_RESULT: MACRO results
+    miyr1: Set = None  # type: ignore[assignment] # MIYR_1:
     miyr_v1: Parameter = None  # type: ignore[assignment] # MIYR_V1:
     miyr_vl: Parameter = None  # type: ignore[assignment] # MIYR_VL:
     pyr_v1: Parameter = None  # type: ignore[assignment] # PYR_V1:
@@ -831,6 +842,7 @@ class TimesModelClass:
     Cgtest: Set = None  # type: ignore[assignment] # [Reg,allyear,prc,cg,c,cg] CGTEST:
     Cgtes2: Set = None  # type: ignore[assignment] # [Reg,allyear,prc,cg,c,cg] CGTES2:
     k: Alias = None  # type: ignore[assignment] # [*] K: Aliased with EACHYEAR
+    cmkind: Set = None  # type: ignore[assignment] # [CM_ITEM] CM_KIND
     Y: Set = None  # type: ignore[assignment] # [allyear] Y:
     YEoh: Set = None  # type: ignore[assignment] # [allyear] Y_EOH:
     Yk: Set = None  # type: ignore[assignment] # [allyear,allyear] YK:

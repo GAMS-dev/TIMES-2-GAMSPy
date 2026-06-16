@@ -48,6 +48,7 @@ class CoefExtCli(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
         if self.arg1 == "SLOPE":
             self.tc.enqueue(self.exec_slope)
             return
@@ -136,8 +137,7 @@ class CoefExtCli(GamsClass):
             )
         )
 
-        cm_kind = self.tc.container["CM_KIND"]
-        forcing_in_cm_kind = "FORCING" in cm_kind.toList()
+        forcing_in_cm_kind = "FORCING" in g.cmkind.toList()
         self.tc.enqueue(self.exec11, forcing=forcing_in_cm_kind, stages=self.env.stages)
 
         self.tc.enqueue(self.exec12)

@@ -16,14 +16,15 @@ import logging
 import sys
 from typing import TYPE_CHECKING
 
-from gamspy import Model, set_options
+from gamspy import Equation, Model, set_options
 
+from core.base_class import GamsClass
 from core.err_stat_mod import ErrStatMod
 from core.pp_clean_mod import PpCleanMod, pp_clean_mod
 
-from .base_class import GamsClass
-
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -136,7 +137,7 @@ SOLVE {model_name} MAXIMIZING VAR_UTIL USING {method};
         self: SolveMod, model_name: str, method: str, equations: list[str]
     ) -> None:
         """solve TIMES as an LP/MIP"""
-        eqs = [self.tc.container[e] for e in equations]
+        eqs: Sequence[Equation] = [self.tc.container[e] for e in equations]
         obj = self.tc.OBJZ
         model = Model(
             container=self.tc.container,

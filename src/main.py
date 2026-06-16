@@ -7,7 +7,7 @@ import os
 import sys
 from pathlib import Path
 
-from gamspy import Options
+from gamspy import Options, Set
 
 from core.initmty_mod import InitmtyMod
 from core.initsys_mod import InitsysMod
@@ -72,7 +72,9 @@ def run_times(
 
     # Dynamically apply Time Slices
     read_dd_file(tc=model, dd_path=config.time_slices)
-    model.allts = model.container["ALL_TS"]
+    all_ts = model.container["ALL_TS"]
+    assert isinstance(all_ts, Set)
+    model.allts = all_ts
 
     try:
         # perform fixed declarations
@@ -87,6 +89,7 @@ def run_times(
 
         # Reduced model to fit with GAMS community license
         milestonyr = model.container["MILESTONYR"]
+        assert isinstance(milestonyr, Set)
         milestonyr.setRecords(config.milestone_years)
 
         model.register_module(MainDrvMod(tc=model, env=env, arg1="mod"))

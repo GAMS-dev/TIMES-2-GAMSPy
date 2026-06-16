@@ -224,7 +224,7 @@ class ModVarsMod(GamsClass):
             description="Upside deviation of OBJ",
         )
 
-        g.OBJZ = Variable(m, name="OBJz", type="Free")
+        g.OBJZ = Variable(m, name="OBJZ", type="Free")
         g.VAR_UC = Variable(
             m,
             name="VAR_UC",

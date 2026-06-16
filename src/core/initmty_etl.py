@@ -42,6 +42,8 @@ class InitmtyEtl(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+
         phase: GamsPhase = "init"
         # OPTCR from default 0.1 to 0.000001, may want to adjust in *.RUN file
         self.tc.enqueue(self.exec1)
@@ -81,8 +83,7 @@ class InitmtyEtl(GamsClass):
 """,
         )
 
-        kp = self.tc.container["KP"]
-        Alias(container=self.tc.container, name="KP2", alias_with=kp)
+        Alias(container=self.tc.container, name="KP2", alias_with=g.kp)
 
         self.tc.add_gams_code(
             module=self,

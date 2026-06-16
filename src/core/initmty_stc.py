@@ -64,10 +64,10 @@ $onMulti
             )
 
         def internal_sets_and_parameters() -> None:
-            m = self.tc.container
+            g = self.tc
+            m = g.container
             # ALIAS (ALLSOW,WW);
-            allsow = m["ALLSOW"]
-            Alias(m, "WW", alias_with=allsow)
+            Alias(m, "WW", alias_with=g.allsow)
             self.tc.add_gams_code(
                 module=self,
                 phase=phase,

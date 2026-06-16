@@ -46,6 +46,9 @@ class PrepExtMlf(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
+
         if len(self.env.ctst):
             self.tc.enqueue(self.prep_ext_mlf_exec)
         # Interpolate MACRO-specific parameters
@@ -81,14 +84,11 @@ class PrepExtMlf(GamsClass):
   SET XTP(LL);
   """,
         )
-        m = self.tc.container
         #   ALIAS (MIYR_1,T_1,TB);
-        miyr_1 = m["MIYR_1"]
-        Alias(m, "T_1", alias_with=miyr_1)
-        Alias(m, "TB", alias_with=miyr_1)
+        Alias(m, "T_1", alias_with=g.miyr1)
+        Alias(m, "TB", alias_with=g.miyr1)
         #   ALIAS (T,TP);
-        t = m["T"]
-        Alias(m, "TP", alias_with=t)
+        Alias(m, "TP", alias_with=g.t)
 
         self.tc.add_gams_code(
             module=self,

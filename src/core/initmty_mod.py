@@ -2000,14 +2000,17 @@ $ GDXIN
             alt_obj[...] = 3
 
     def check_macro(self) -> None:
-        if self.tc.altobj.toValue() > 1:
+        altobj = self.tc.altobj.toValue()
+        assert altobj is not None
+        if altobj > 1:
             raise Exception("MACRO Cannot be used with Alternative Objective")
 
     def validate(self) -> None:
-        altobj = self.tc.altobj
-        if altobj.toValue() > 1:
+        altobj = self.tc.altobj.toValue()
+        assert altobj is not None
+        if altobj > 1:
             raise Exception("VALIDATE Cancels Alternative Objective")
-        altobj[...] = 0
+        self.tc.altobj[...] = 0
 
     def assign_alternative_objective_long(self) -> None:
         self.tc.altobj[...] = -2

@@ -47,6 +47,8 @@ class PrepExtTm(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
         # TODO:
         # hard to translate there is no msaddf.dd
         # GAMS "exist" looks in idir
@@ -93,10 +95,8 @@ $IF NOT DEFINED TM_EC0 OPTION CLEAR=TM_EC0;
 """,
         )
 
-        m = self.tc.container
         # ALIAS (MIYR_1,T_1);
-        miyr_1 = m["MIYR_1"]
-        Alias(m, "T_1", alias_with=miyr_1)
+        Alias(m, "T_1", alias_with=g.miyr1)
 
         self.tc.add_gams_code(
             module=self,
