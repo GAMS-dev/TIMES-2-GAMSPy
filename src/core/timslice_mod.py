@@ -13,10 +13,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter, Set
+
+from core.base_class import GamsClass
 from core.pp_off_mod import pp_off
 from core.pp_qaput_mod import pp_qaput
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -32,11 +33,7 @@ class TimsliceMod(GamsClass):
     module_name: str = "timslice_mod"
     gams_source: str = "timslice.mod"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
         self.env = env.fork()
         self.tc = tc
         self._sub_modules: dict[str, GamsClass] = {}
@@ -47,16 +44,18 @@ class TimsliceMod(GamsClass):
         #  - all below ANNUAL
         #  - each individual to itself, including leaves
         #  - all TS below a node
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="""
-  SET RJLVL(J,R,TSLVL), RLUP(R,TSL,TSL);
-  PARAMETERS RS_HR(R,S) //, MY_SUM /0/, NORTS(R,YEAR,S) //;
-  SETS RS_UP(R,TS,J,TS), RJ_SL(R,J,TS,TS), JS(J,TS) /1.ANNUAL/;
-  PARAMETER RS_MODUS(R,S,J,TS,S) //;
-""",
-        )
+        g = self.tc
+        m = g.container
+
+        g.Rjlvl = Set(m, name="RJLVL", domain=[g.j, g.r, g.tslvl])
+        g.Rlup = Set(m, name="RLUP", domain=[g.r, g.tsl, g.tsl])
+        g.rs_hr = Parameter(m, name="RS_HR", domain=[g.r, g.s])
+        g.my_sum = Parameter(m, name="MY_SUM", records=0)
+        g.norts = Parameter(m, name="NORTS", domain=[g.r, g.year, g.s])
+        g.RsUp = Set(m, name="RS_UP", domain=[g.r, g.ts, g.j, g.ts])
+        g.RjSl = Set(m, name="RJ_SL", domain=[g.r, g.j, g.ts, g.ts])
+        g.Js = Set(m, name="JS", domain=[g.j, g.ts], records=[("1", "ANNUAL")])
+        g.rs_modus = Parameter(m, name="RS_MODUS", domain=[g.r, g.s, g.j, g.ts, g.s])
 
         self.tc.enqueue(self.exec1)
 
