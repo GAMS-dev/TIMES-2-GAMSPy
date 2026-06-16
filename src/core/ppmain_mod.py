@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 
 from gamspy import Alias
 
+from core.base_class import GamsClass
 from core.eqflomrk_mod import EqflomrkMod
 from core.filparam_gms import FilparamGms
 from core.filshape_gms import FilshapeGms
@@ -30,7 +31,7 @@ from core.pp_lvlff_mod import PpLvlffMod
 from core.pp_lvlfs_mod import PpLvlfsMod
 from core.pp_lvlif_mod import PpLvlifMod
 from core.pp_lvlpk_mod import PpLvlpkMod
-from core.pp_lvlus_mod import PpLvlusMod
+from core.pp_lvlus_mod import PpLvlusConfig, PpLvlusMod
 from core.pp_micro_mod import PpMicroMod
 from core.pp_off_mod import pp_off
 from core.pp_prelv_vda import PpPrelvVda
@@ -41,8 +42,6 @@ from core.ppmain_tm import PpmainTm
 from core.preppm_mod import PreppmMod
 from core.prepxtra_mod import PrepxtraMod
 from core.timslice_mod import TimsliceMod
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -67,7 +66,8 @@ class PpmainMod(GamsClass):
 
     def compile(self) -> None:
         phase: GamsPhase = "init"
-        m = self.tc.container
+        g = self.tc
+        m = g.container
         self.tc.add_gams_code(
             module=self,
             phase=phase,
@@ -556,46 +556,17 @@ class PpmainMod(GamsClass):
 
         self.tc.enqueue(self.phase_twentytwo)
 
-        if self.tc.test_run:
-            self.tc.save_test_state(
-                env=self.env, checkpoint="pp_main_mod_prior_pp_lvlus_mod"
-            )
-
         # ...Handle UC_FLO/IRE/ACT/COM leveling by aggregation/inheritance
-        batincludes = [
-            ("UC_ACT", "P", "PRC_TS", ",'0','0'", "", "", "P", "RC"),
-            (
-                "UC_FLO",
-                "P,C",
-                "RPCS_VAR",
-                ",'0'",
-                "",
-                "",
-                "P",
-                "RC",
-                "PRC_SGL(R,P)",
-                ",C",
-            ),
-            ("UC_IRE", "P,C", "PRC_TS", "", ",IE", "", "P", "RC"),
-            ("UC_COM", "C", "COM_TS", "", ",UC_GRPTYPE", ",COM_VAR", "C", "OM"),
+        # fmt: off
+        pp_lvlus_batincludes: list[PpLvlusConfig] = [
+            PpLvlusConfig(uc_parameter=g.uc_act, arg2=(g.p,), arg3=g.PrcTs, arg4=('0', '0'), arg5=(), arg6=(), arg7=g.p, arg8=g.PrcTsl),
+            PpLvlusConfig(uc_parameter=g.uc_flo, arg2=(g.p, g.c), arg3=g.RpcsVar, arg4=('0',), arg5=(), arg6=(), arg7=g.p, arg8=g.PrcTsl, arg9=g.prc_sgl[g.r,g.p], arg10=(g.c,)),
+            PpLvlusConfig(uc_parameter=g.uc_ire, arg2=(g.p, g.c), arg3=g.PrcTs, arg4=(), arg5=(g.ie,), arg6=(), arg7=g.p, arg8=g.PrcTsl),
+            PpLvlusConfig(uc_parameter=g.uc_com, arg2=(g.c,), arg3=g.ComTs, arg4=(), arg5=(g.ucgrptype,), arg6=(g.comvar,), arg7=g.c, arg8=g.ComTsl),
         ]
-        for arg in batincludes:
-            self.include(
-                PpLvlusMod(
-                    tc=self.tc,
-                    env=self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
-                    arg5=arg[4],
-                    arg6=arg[5],
-                    arg7=arg[6],
-                    arg8=arg[7],
-                    arg9=arg[8] if len(arg) > 8 else "",
-                    arg10=arg[9] if len(arg) > 9 else "",
-                )
-            )
+        # fmt: on
+        for config in pp_lvlus_batincludes:
+            self.include(PpLvlusMod(tc=self.tc, env=self.env, config=config))
 
         self.tc.enqueue(
             self.control_set_for_balance_production_equations,

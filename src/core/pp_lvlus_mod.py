@@ -16,15 +16,44 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
-from .base_class import GamsClass
+from gamspy import (
+    Alias,
+    Domain,
+    If,
+    Loop,
+    Ord,
+    Parameter,
+    Set,
+    Smax,
+    SpecialValues,
+    Sum,
+)
+from gamspy.math import Max
+
+from core.base_class import GamsClass
 
 if TYPE_CHECKING:
+    from gamspy._symbols.implicits import ImplicitParameter
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+class PpLvlusConfig(NamedTuple):
+    uc_parameter: Parameter
+    arg2: tuple[Alias | Set, ...]
+    arg3: Set
+    arg4: tuple[str, ...] | tuple[()]
+    arg5: tuple[Set] | tuple[()]
+    arg6: tuple[Set] | tuple[()]
+    arg7: Set
+    arg8: Set
+    arg9: Parameter | ImplicitParameter | int = 0
+    arg10: tuple[Set] | tuple[()] = ()
 
 
 class PpLvlusMod(GamsClass):
@@ -35,122 +64,143 @@ class PpLvlusMod(GamsClass):
     gams_source: str = "pp_lvlus.mod"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
-        arg4: str = "",
-        arg5: str = "",
-        arg6: str = "",
-        arg7: str = "",
-        arg8: str = "",
-        arg9: str = "",
-        arg10: str = "",
+        self, tc: TimesModelClass, env: CompileEnvironment, config: PpLvlusConfig
     ):
+        super().__init__(tc, env)
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
-        self.arg4 = arg4
-        self.arg5 = arg5
-        self.arg6 = arg6
-        self.arg7 = arg7
-        self.arg8 = arg8
-        self.arg9 = arg9
-        self.arg10 = arg10
+        self.config = config
         self.compile()
 
     def compile(self) -> None:
-        self.tc.enqueue(
-            self.exec1,
-            arg1=self.arg1,
-            arg2=self.arg2,
-            arg3=self.arg3,
-            arg4=self.arg4,
-            arg5=self.arg5,
-            arg6=self.arg6,
-            arg7=self.arg7,
-            arg8=self.arg8,
-            arg9=self.arg9,
-            arg10=self.arg10,
-        )
-        self.tc.enqueue(
-            self.simultaneous_aggregation,
-            arg1=self.arg1,
-            arg2=self.arg2,
-            arg3=self.arg3,
-            arg4=self.arg4,
-            arg5=self.arg5,
-            arg6=self.arg6,
-            arg7=self.arg7,
-            arg10=self.arg10,
-        )
+        self.tc.enqueue(self.exec1, self.config)
+        self.tc.enqueue(self.simultaneous_aggregation, self.config)
 
-    def exec1(
-        self: PpLvlusMod,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-        arg4: str,
-        arg5: str,
-        arg6: str,
-        arg7: str,
-        arg8: str,
-        arg9: str,
-        arg10: str,
-    ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-  OPTION CLEAR=UNCD7;
-  LOOP((UC_N{arg6},SIDE,R,T,{arg2},S{arg5})${arg1}(UC_N{arg6},SIDE,R,T,{arg2},S{arg5}),
-    IF((NOT {arg3}(R,{arg7}{arg10},S))$STOA(S),Z=STOAL(R,S);
-      IF(UNCD7(UC_N{arg6},SIDE,R,{arg2}{arg5},'OUT'{arg4}), IF(Z>F, F=9; UNCD7(UC_N{arg6},SIDE,R,{arg2}{arg5},'IN'{arg4})=YES);
-      ELSE F=SMAX({arg7}{arg8}_TSL(R,{arg7},TSL),MAX({arg9}+EPS,ORD(TSL)-1));
-        IF(Z>F, F=9; UNCD7(UC_N{arg6},SIDE,R,{arg2}{arg5},IO{arg4})=YES; ELSE UNCD7(UC_N{arg6},SIDE,R,{arg2}{arg5},'OUT'{arg4})=YES))));
-""",
-        )
+    def exec1(self: PpLvlusMod, cc: PpLvlusConfig) -> None:
+        g = self.tc
+        r, t, s, io, side, ucn, tsl = g.r, g.t, g.s, g.io, g.side, g.ucn, g.tsl
 
-    def simultaneous_aggregation(
-        self: PpLvlusMod,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-        arg4: str,
-        arg5: str,
-        arg6: str,
-        arg7: str,
-        arg10: str,
-    ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-*-----------------------------------------------------------------------------
-* Simultaneous aggregation/inheritance to target timeslices
-*-----------------------------------------------------------------------------
-  LOOP(UNCD7(UC_N{arg6},SIDE,R,{arg2}{arg5},IO{arg4}),
-    IF(IPS(IO), F=0;
-*...Leveling by simultaneous aggregation/inheritance; but only if target level value is not present
-    LOOP(T, TS_ARRAY(S) = {arg1}(UC_N{arg6},SIDE,R,T,{arg2},S{arg5});
-      {arg1}(UC_N{arg6},SIDE,R,T,{arg2},TS{arg5})$((NOT TS_ARRAY(TS))${arg3}(R,{arg7}{arg10},TS)) $=
-        SUM(RS_TREE(FINEST(R,S),TS), G_YRFR(R,S) * (TS_ARRAY(S) +
-          SUM(RS_BELOW(R,ALL_TS,S)$((NOT SUM(TS_MAP(R,SL,S)$RS_BELOW(R,ALL_TS,SL),TS_ARRAY(SL)))$TS_ARRAY(ALL_TS)),
-            TS_ARRAY(ALL_TS))))/G_YRFR(R,TS))
-    ELSEIF F,
-*...Inherit all from above
-    LOOP(T, TS_ARRAY(S) = {arg1}(UC_N{arg6},SIDE,R,T,{arg2},S{arg5});
-      LOOP(RJLVL(J,R,TSL)$(ORD(TSL)<4),
-        LOOP(TS_GROUP(R,TSL,TS),TS_ARRAY(S)$(NOT TS_ARRAY(S)) $= TS_ARRAY(TS)$RS_BELOW(R,TS,S));
-      {arg1}(UC_N{arg6},SIDE,R,T,{arg2},S{arg5})${arg3}(R,{arg7}{arg10},S) $= TS_ARRAY(S)));
-    ELSE F=1));
-*-----------------------------------------------------------------------------
-  {arg1}(UC_N{arg6},SIDE,R,T,{arg2},S{arg5})$({arg3}(R,{arg7}{arg10},S)$(NOT {arg1}(UC_N{arg6},SIDE,R,T,{arg2},S{arg5}))) $= {arg1}(UC_N{arg6},SIDE,R,T,{arg2},'ANNUAL'{arg5});
-  OPTION CLEAR=UNCD7;
-""",
-        )
+        g.Uncd7.setRecords(None)
+
+        loop_domain = [ucn, *cc.arg6, side, r, t, *cc.arg2, s, *cc.arg5]
+
+        with Loop(Domain(*loop_domain).where[cc.uc_parameter[*loop_domain]]):  # noqa: SIM117
+            with If((~cc.arg3[r, cc.arg7, *cc.arg10, s]).where[g.stoa[s]]):
+                g.z[...] = g.stoal[r, s]
+
+                out_marker = g.Uncd7[
+                    ucn, *cc.arg6, side, r, *cc.arg2, *cc.arg5, "OUT", *cc.arg4
+                ]
+                with If(out_marker):  # noqa: SIM117
+                    with If(g.z[...] > g.f[...]):
+                        g.f[...] = 9
+                        g.Uncd7[
+                            ucn, *cc.arg6, side, r, *cc.arg2, *cc.arg5, "IN", *cc.arg4
+                        ] = True
+                # ELSE
+                with If(~out_marker):
+                    g.f[...] = Smax(
+                        cc.arg8[r, cc.arg7, tsl],
+                        Max(cc.arg9 + SpecialValues.EPS, Ord(tsl) - 1),
+                    )
+                    with If(g.z[...] > g.f[...]):
+                        g.f[...] = 9
+                        g.Uncd7[
+                            ucn, *cc.arg6, side, r, *cc.arg2, *cc.arg5, io, *cc.arg4
+                        ] = True
+                    # ELSE
+                    with If(g.z[...] <= g.f[...]):
+                        g.Uncd7[
+                            ucn,
+                            *cc.arg6,
+                            side,
+                            r,
+                            *cc.arg2,
+                            *cc.arg5,
+                            "OUT",
+                            *cc.arg4,
+                        ] = True
+
+    def simultaneous_aggregation(self: PpLvlusMod, cc: PpLvlusConfig) -> None:
+        """Simultaneous aggregation/inheritance to target timeslices"""
+        g = self.tc
+        r, t, s, j, tsl = g.r, g.t, g.s, g.j, g.tsl
+        io, side, ucn, ts, all_ts, sl = g.io, g.side, g.ucn, g.ts, g.allts, g.sl
+
+        with Loop(g.Uncd7[ucn, *cc.arg6, side, r, *cc.arg2, *cc.arg5, io, *cc.arg4]):
+            with If(g.ips[io]):
+                g.f[...] = 0
+                # Leveling by simultaneous aggregation/inheritance; but only if target level value is not present
+                with Loop(t):
+                    g.ts_array[s] = cc.uc_parameter[
+                        ucn, *cc.arg6, side, r, t, *cc.arg2, s, *cc.arg5
+                    ]
+                    sparse_expression = (
+                        Sum(
+                            g.RsTree[g.Finest[r, s], ts],
+                            g.g_yrfr[r, s]
+                            * (
+                                g.ts_array[s]
+                                + Sum(
+                                    all_ts.where[
+                                        g.RsBelow[r, all_ts, s]
+                                        & (
+                                            ~Sum(
+                                                sl.where[g.RsBelow[r, all_ts, sl]],
+                                                g.TsMap[r, sl, s] * g.ts_array[sl],
+                                            )
+                                        )
+                                        & g.ts_array[all_ts]
+                                    ],
+                                    g.ts_array[all_ts],
+                                )
+                            ),
+                        )
+                        / g.g_yrfr[r, ts]
+                    )
+                    cc.uc_parameter[
+                        ucn, *cc.arg6, side, r, t, *cc.arg2, ts, *cc.arg5
+                    ].where[
+                        (~g.ts_array[ts]).where[cc.arg3[r, cc.arg7, *cc.arg10, ts]]
+                        & sparse_expression
+                    ] = sparse_expression
+            # ELSEIF
+            with If((~g.ips[io]) & (g.f[...] != 0)):  # noqa: SIM117
+                # Inherit all from above
+                with Loop(t):
+                    g.ts_array[s] = cc.uc_parameter[
+                        ucn, *cc.arg6, side, r, t, *cc.arg2, s, *cc.arg5
+                    ]
+                    with Loop(g.Rjlvl[j, r, tsl].where[Ord(tsl) < 4]):
+                        with Loop(g.TsGroup[r, tsl, ts]):
+                            sparse_expression = g.ts_array[ts].where[
+                                g.RsBelow[r, ts, s]
+                            ]
+                            g.ts_array[s].where[~g.ts_array[s] & sparse_expression] = (
+                                sparse_expression
+                            )
+                        cc.uc_parameter[
+                            ucn, *cc.arg6, side, r, t, *cc.arg2, s, *cc.arg5
+                        ].where[
+                            cc.arg3[r, cc.arg7, *cc.arg10, s] & g.ts_array[s]
+                        ] = g.ts_array[s]
+            # ELSE
+            with If((~g.ips[io]) & (g.f[...] == 0)):
+                g.f[...] = 1
+
+        # *-----------------------------------------------------------------------------
+
+        sparse_expression = cc.uc_parameter[
+            ucn, *cc.arg6, side, r, t, *cc.arg2, "ANNUAL", *cc.arg5
+        ]
+        cc.uc_parameter[ucn, *cc.arg6, side, r, t, *cc.arg2, s, *cc.arg5].where[
+            (
+                cc.arg3[r, cc.arg7, *cc.arg10, s].where[
+                    ~cc.uc_parameter[ucn, *cc.arg6, side, r, t, *cc.arg2, s, *cc.arg5]
+                ]
+            )
+            & sparse_expression
+        ] = sparse_expression
+
+        g.Uncd7.setRecords(None)
