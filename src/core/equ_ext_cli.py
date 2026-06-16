@@ -43,6 +43,8 @@ class EquExtCli(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+
         # CLIMATE MODULE EQUATIONS
         if self.env.stages.upper() == "YES":
             self.env.set_local("swtd", "SUM(SOW,")
@@ -57,6 +59,7 @@ class EquExtCli(GamsClass):
         if self.env.stages == "YES":
             self.env.set_local("swtd", "SUM(SW_TSW(SOW,T-1,W),")
             self.env.set_local("swd", ",W")
+            self.env.set_local("swd_GP", (g.w,))
             self.env.set_local("send", "")
             self.env.set_local("swt", "$SW_T(T,SOW)")
         else:

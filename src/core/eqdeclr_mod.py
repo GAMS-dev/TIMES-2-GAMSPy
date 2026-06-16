@@ -16,9 +16,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.eqdeclr_tm import EqdeclrTm
+from gamspy import Equation
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
+from core.eqdeclr_tm import EqdeclrTm
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -42,6 +43,12 @@ class EqdeclrMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
+
+        r, year, spe, allsow = g.r, g.year, g.spe, g.allsow
+        ble = g.Ble
+
         if self.env.macro.upper() == "YES":
             self.include(EqdeclrTm(self.tc, self.env))
         else:
@@ -226,17 +233,40 @@ class EqdeclrMod(GamsClass):
     EQL_UCRSU(R,T,UC_N) 		'User-constraints (=L=)'
 """,
             )
+
+        # *GG* V07_2 BLENDing equation
+        g.eql_blnd = Equation(
+            m,
+            name="EQL_BLND",
+            domain=[r, year, ble, spe, allsow],
+            description="Blending (=L=)",
+        )
+        g.eqg_blnd = Equation(
+            m,
+            name="EQG_BLND",
+            domain=[r, year, ble, spe, allsow],
+            description="Blending (=G=)",
+        )
+        g.eqe_blnd = Equation(
+            m,
+            name="EQE_BLND",
+            domain=[r, year, ble, spe, allsow],
+            description="Blending (=E=)",
+        )
+        g.eqn_blnd = Equation(
+            m,
+            name="EQN_BLND",
+            domain=[r, year, ble, spe, allsow],
+            type="nonbinding",
+            description="Blending non-binding",
+        )
+
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=rf"""
   EQUATIONS
 *-----------------------------------------------------------------------------
-*GG* V07_2 BLENDing equation
-    EQL_BLND(R,YEAR,BLE,SPE,ALLSOW) 		'Blending (=L=)'
-    EQG_BLND(R,YEAR,BLE,SPE,ALLSOW) 		'Blending (=G=)'
-    EQE_BLND(R,YEAR,BLE,SPE,ALLSOW) 		'Blending (=E=)'
-    EQN_BLND(R,YEAR,BLE,SPE,ALLSOW) 		'Blending non-binding'
 
 * Damage Extension
     {self.env.eq}_DAMAGE(R,T,C {self.env.swd}) 	'Damages'

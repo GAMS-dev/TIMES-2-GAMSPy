@@ -2,6 +2,8 @@
 from pathlib import Path
 from typing import Literal
 
+from gamspy import Alias, Number, Set
+from gamspy._symbols.implicits import ImplicitSet
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -126,6 +128,9 @@ class EnvironmentVariableSchema(BaseModel):
 
     # Core Macro String Tokens
     r_t: str = Field(
+        description="Tracking string substitution index layer representing the baseline active multi-region mapping node."
+    )
+    r_t_GP: tuple[Set | Alias, Set | Alias] = Field(
         description="Tracking string substitution index layer representing the baseline active multi-region mapping node."
     )
 
@@ -286,7 +291,10 @@ class EnvironmentVariableSchema(BaseModel):
     capwd: str = Field(
         description="Capacity width adjustment parameter string mapping operating lifetimes."
     )
-    sow: str = Field(
+    sow: Literal["", ",SOW", ",WW", ",0", "1", "SOW.TL"] = Field(
+        description="Stochastic World (Scenario State) active indexing identifier token."
+    )
+    sow_GP: tuple[Literal["0", "1"] | Set | Alias] | tuple[()] = Field(
         description="Stochastic World (Scenario State) active indexing identifier token."
     )
     sowend: str = Field(
@@ -341,7 +349,10 @@ class EnvironmentVariableSchema(BaseModel):
     swstmp: str = Field(
         description="Temporary matrix scenario tracker state parameter."
     )
-    swd: str = Field(
+    swd: Literal["", ",WW", ",W"] = Field(
+        description="Solution domain tracking token mapped to variable dimensions."
+    )
+    swd_GP: tuple[Set | Alias] | tuple[()] = Field(
         description="Solution domain tracking token mapped to variable dimensions."
     )
     sw1: str = Field(
@@ -462,7 +473,13 @@ class EnvironmentVariableSchema(BaseModel):
     swx: str = Field(
         description="Primary structural execution switch template mapping parameters."
     )
+    swx_GP: tuple[Literal["1"] | Set | Alias] | tuple[()] = Field(
+        description="Primary structural execution switch template mapping parameters."
+    )
     swtx: str = Field(
+        description="Secondary structural execution switch template mapping parameters."
+    )
+    swtx_GP: Number | ImplicitSet = Field(
         description="Secondary structural execution switch template mapping parameters."
     )
     sw_stvars: str = Field(

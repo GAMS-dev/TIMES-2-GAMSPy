@@ -68,6 +68,7 @@ class PpmainMod(GamsClass):
         phase: GamsPhase = "init"
         g = self.tc
         m = g.container
+
         self.tc.add_gams_code(
             module=self,
             phase=phase,
@@ -573,25 +574,19 @@ class PpmainMod(GamsClass):
         # *******************************************************************************
         # *GG* V07_2  Create any Combined & Control Sets Needed for BLENDing Execution
         # *******************************************************************************
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code="""
-SET BLE_SPE(R,COM,SPE)        //;
-SET BLE_TP(R,ALLYEAR,*)       //;
-SET BLE_SPEOPR(R,COM,SPE,OPR) //;
-SET BLE_OPR(R,COM,COM)        //;
-SET BLE_INP(R,COM,COM)        //;
-SET BLE_SPEINP(R,COM,SPE,COM) //;
-SET BLE_ENV(R,COM,COM,OPR)    //;
-PARAMETER BLE_BAL(R,YEAR,C,C) //;
-""",
-        )
+        g.BleSpe = Set(m, name="BLE_SPE", domain=[g.r, g.Com, g.spe])
+        g.BleTp = Set(m, name="BLE_TP", domain=[g.r, g.allyear, "*"])
+        g.BleSpeopr = Set(m, name="BLE_SPEOPR", domain=[g.r, g.Com, g.spe, g.Opr])
+        g.BleOpr = Set(m, name="BLE_OPR", domain=[g.r, g.Com, g.Com])
+        g.BleInp = Set(m, name="BLE_INP", domain=[g.r, g.Com, g.Com])
+        g.BleSpeinp = Set(m, name="BLE_SPEINP", domain=[g.r, g.Com, g.spe, g.Com])
+        g.BleEnv = Set(m, name="BLE_ENV", domain=[g.r, g.Com, g.Com, g.Opr])
+        g.ble_bal = Parameter(m, name="BLE_BAL", domain=[g.r, g.year, g.c, g.c])
 
         self.tc.enqueue(self.phase_twentythree)
 
         # Coefficients for BLENDing
-        Alias(m, name="OPR2", alias_with=g.Opr)
+        g.opr2 = Alias(m, name="OPR2", alias_with=g.Opr)
 
         self.tc.enqueue(self.phase_twentyfour)
 

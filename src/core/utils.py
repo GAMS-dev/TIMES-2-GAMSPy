@@ -1,5 +1,8 @@
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Literal
+
+from utils.compile_environment import CompileEnvironment
+from utils.times_model_class import TimesModelClass
 
 
 class EscapeStack(Exception):
@@ -42,3 +45,62 @@ def expand_set(symbol: Any, elements: Sequence[str | tuple[str, str]]) -> None:
 
     # 3. Update the GAMSPy symbol with the combined list of tuples
     symbol.setRecords(updated_records)
+
+
+def apply_sw_tags(env: CompileEnvironment, g: TimesModelClass) -> None:
+    if (
+        env.sw_tags
+        == "SET EQ 'ES' SET VAR 'VAS' SET SWD ',WW' SET SWTD ',T,WW' SET SWS ',W)' SET SOW ',SOW' SET SWT ',SW_T(T,SOW)' SET VART 'SUM(SW_TSW(SOW,T,W),VAS' SET VARV 'SUM(SW_TSW(SOW,V,W),VAS' SET VARM 'SUM(SW_TSW(SOW,MODLYEAR,W),VAS'"
+    ):
+        env.set_scoped("eq", "ES")
+        env.set_scoped("var", "VAS")
+        env.set_scoped("swd", ",WW")
+        env.set_scoped("swd_GP", (g.ww,))
+        env.set_scoped("swtd", ",T,WW")
+        env.set_scoped("sws", ",W)")
+        env.set_scoped("sow", ",SOW")
+        env.set_scoped("sow_GP", (g.Sow,))
+        env.set_scoped("swt", ",SW_T(T,SOW)")
+        env.set_scoped("vart", "SUM(SW_TSW(SOW,T,W),VAS")
+        env.set_scoped("varv", "SUM(SW_TSW(SOW,V,W),VAS")
+        env.set_scoped("varm", "SUM(SW_TSW(SOW,MODLYEAR,W),VAS")
+    else:
+        raise ValueError(f"Unknown value in sw_tags: {env.sw_tags}")
+
+
+def apply_sw_notags(env: CompileEnvironment) -> None:
+    """Applies a list of compile time variable changes"""
+    if (
+        env.sw_notags
+        == "SET EQ 'EQ' SET VAR 'VAR' SET SWS '' SET SOW '' SET SWT '' SET SWD '' SET SWTD '' SET SWSW '' SET VART 'VAR' SET VARV 'VAR' SET VARM 'VAR' SET VARTT VAR"
+    ):
+        env.set_scoped("eq", "EQ")
+        env.set_scoped("var", "VAR")
+        env.set_scoped("sws", "")
+        env.set_scoped("sow", "")
+        env.set_scoped("sow_GP", tuple())
+        env.set_scoped("swt", "")
+        env.set_scoped("swd", "")
+        env.set_scoped("swd_GP", tuple())
+        env.set_scoped("swtd", "")
+        env.set_scoped("swsw", "")
+        env.set_scoped("vart", "VAR")
+        env.set_scoped("varv", "VAR")
+        env.set_scoped("varm", "VAR")
+        env.set_scoped("vartt", "VAR")
+    else:
+        raise ValueError(f"Unknown value in sw_notags: {env.sw_notags}")
+
+
+def generate_equation(lhs: Any, type: Literal["E", "N", "L", "G"], rhs: Any) -> Any:
+    match type:
+        case "E" | "N":
+            return lhs == rhs
+        case "L":
+            return lhs <= rhs
+        case "G":
+            return lhs >= rhs
+        case _:
+            raise ValueError(
+                f"CRITICAL: Unrecognized compilation operator type flag: '{type}'"
+            )

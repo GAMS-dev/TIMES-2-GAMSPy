@@ -43,6 +43,7 @@ class RptExtIer(GamsClass):
             return
         if self.env.vda == "YES":
             self.env.set_scoped("sow", ",'0'")
+            self.env.set_scoped("sow_GP", ("0",))
 
         self.tc.add_gams_code(
             module=self,

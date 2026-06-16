@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from core.equcwrap_mod import EqucwrapArg6Type
@@ -427,14 +427,16 @@ class EqmainMod(GamsClass):
 
         # *GG* V07_2 Refinery blending
         # Blending constraint to a specification characteristic
-        eqblnd_batincludes: list[tuple[str, str]] = [
-            ("L", "1"),
-            ("G", "2"),
-            ("E", "3"),
-            ("N", "4"),
+        eqblnd_batincludes: list[tuple[Literal["L", "G", "E", "N"], int]] = [
+            ("L", 1),
+            ("G", 2),
+            ("E", 3),
+            ("N", 4),
         ]
-        for arg1, arg2 in eqblnd_batincludes:
-            self.include(EqblndMod(tc=self.tc, env=self.env, arg1=arg1, arg2=arg2))
+        for type, code in eqblnd_batincludes:
+            self.include(
+                EqblndMod(tc=self.tc, env=self.env, equation_type=type, blnd_code=code)
+            )
 
         # MACRO equations
         if self.env.macro == "YES":
