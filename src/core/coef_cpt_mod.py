@@ -16,9 +16,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.pp_shapr_mod import PpShaprMod
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -41,6 +40,10 @@ class CoefCptMod(GamsClass):
         self.compile()
 
     def compile(self: CoefCptMod) -> None:
+        g = self.tc
+
+        r, v, p, s, t, bd = g.r, g.v, g.p, g.s, g.t, g.bd
+
         self.tc.enqueue(
             self.exec_capacity_transfer,
             ctst=self.env.ctst,
@@ -53,12 +56,12 @@ class CoefCptMod(GamsClass):
             PpShaprMod(
                 self.tc,
                 self.env,
-                arg1="NCAP_AF",
-                arg2="(R,V,P,S,BD)",
-                arg3="TRACKP(R,P)*RP_AFB(R,P,BD)*PRC_TS(R,P,S)",
-                arg4="COEF_AF(RTP_CPTYR(R,V,T,P),S,BD)",
-                arg5="NCAP_AFM(R,V,P)",
-                arg6="B",
+                arg1=g.ncap_af,
+                arg2=(r, v, p, s, bd),
+                arg3=g.Trackp[r, p] * g.rp_afb[r, p, bd] * g.PrcTs[r, p, s],
+                arg4=g.coef_af[g.RtpCptyr[r, v, t, p], s, bd],
+                arg5=g.ncap_afm[r, v, p],
+                arg6=g.ncap_afbx,
             )
         )
 
@@ -68,12 +71,12 @@ class CoefCptMod(GamsClass):
             PpShaprMod(
                 self.tc,
                 self.env,
-                arg1="NCAP_AFS",
-                arg2="(R,V,P,S,BD)",
-                arg3="RTPS_BD(R,V,P,S,BD)",
-                arg4="COEF_AF(RTP_CPTYR(R,V,T,P),S,BD)",
-                arg5="NCAP_AFSM(R,V,P)",
-                arg6="",
+                arg1=g.ncap_afs,
+                arg2=(r, v, p, s, bd),
+                arg3=g.RtpsBd[r, v, p, s, bd],
+                arg4=g.coef_af[g.RtpCptyr[r, v, t, p], s, bd],
+                arg5=g.ncap_afsm[r, v, p],
+                arg6=g.ncap_afsx,
             )
         )
 

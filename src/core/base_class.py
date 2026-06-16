@@ -35,7 +35,7 @@ class GamsClass(ABC):
             SET ITEM / OBJ /;
             add_records_to_universe_item(records=['OBJ'])
         """
-        dummy = self.tc.container["INT_DEFAULT"]
+        dummy = self.tc.intdefault
         for uel in records:
             dummy[uel].where[False] = False
 

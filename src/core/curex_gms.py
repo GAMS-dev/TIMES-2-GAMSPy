@@ -241,6 +241,8 @@ OPTION PRO{prf},CLEAR=RYPM,CLEAR=RYPCSM,CLEAR=RYPCSRXM,CLEAR=RYCSM;
         )
 
     def comp1(self: CurexGms) -> None:
+        g = self.tc
+        m = g.container
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -248,6 +250,4 @@ OPTION PRO{prf},CLEAR=RYPM,CLEAR=RYPCSM,CLEAR=RYPCSRXM,CLEAR=RYCSM;
 SET CURMAP(REG,CUR,CUR);
 """,
         )
-        m = self.tc.container
-        cur = m["CUR"]
-        Alias(m, "CRU", alias_with=cur)
+        Alias(m, "CRU", alias_with=g.cur)

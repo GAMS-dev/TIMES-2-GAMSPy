@@ -68,7 +68,6 @@ class DumpsolvMod(GamsClass):
             # out=self.tc.soldump,
             out=Path("SOLDUMP"),
             whtype=self.arg1,
-            dump0=self.tc.container.dump0.toValue(),
             symbols=self.symbols,
         )
 
@@ -76,7 +75,6 @@ class DumpsolvMod(GamsClass):
         self: DumpsolvMod,
         out: TextIO | Path,
         whtype: str,
-        dump0: int,
         symbols: list[str],
     ) -> None:
         # TODO: needs to change
@@ -100,7 +98,6 @@ class DumpsolvMod(GamsClass):
             _write_vtable(
                 out=out,
                 container=self.tc.container,
-                dump0=dump0,
                 whtype=whtype,
                 symbol_name=symbol_name,
                 symbol=symbol,
@@ -172,7 +169,6 @@ def _write_vtable(
     *,
     out: TextIO,
     container: Any,
-    dump0: int,
     whtype: str,
     symbol_name: str,
     symbol: Any,

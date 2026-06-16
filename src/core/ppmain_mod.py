@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Alias
+from gamspy import Alias, Parameter, Set
 
 from core.eqflomrk_mod import EqflomrkMod
 from core.filparam_gms import FilparamGms
@@ -67,7 +67,8 @@ class PpmainMod(GamsClass):
 
     def compile(self) -> None:
         phase: GamsPhase = "init"
-        m = self.tc.container
+        g = self.tc
+        m = g.container
         self.tc.add_gams_code(
             module=self,
             phase=phase,
@@ -104,14 +105,8 @@ class PpmainMod(GamsClass):
         # *-----------------------------------------------------------------------------
         # * spread NCAP_PASTI and determine PASTYEAR
         # *-----------------------------------------------------------------------------
-        self.tc.add_gams_code(
-            module=self,
-            phase=phase,
-            code=r"""
-    SET PHYR(ALLYEAR) //;
-    PARAMETER PASTSUM(R,ALLYEAR,P) //;
-""",
-        )
+        g.Phyr = Set(m, name="PHYR", domain=[g.allyear])
+        g.pastsum = Parameter(m, name="PASTSUM", domain=[g.r, g.allyear, g.p])
 
         self.tc.enqueue(self.phase_two)
         self.add_records_to_universe_item(records=["PASTI"])
@@ -626,8 +621,7 @@ PARAMETER BLE_BAL(R,YEAR,C,C) //;
         self.tc.enqueue(self.phase_twentythree)
 
         # Coefficients for BLENDing
-        opr = m["OPR"]
-        Alias(m, name="OPR2", alias_with=opr)
+        Alias(m, name="OPR2", alias_with=g.Opr)
 
         self.tc.enqueue(self.phase_twentyfour)
 

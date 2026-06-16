@@ -64,13 +64,15 @@ class Dumpsol1Mod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        dump = self.tc.dump0.toValue()
+        assert isinstance(dump, float)
         self.tc.enqueue(
             self.exec_dumpsol1,
             # TODO: not sure how to handle soldump without knowing how post-solve phase is executed.
             # out=self.tc.soldump,
             out=Path("SOLDUMP"),
             whtype=self.arg1,
-            dump0=self.tc.container.dump0.toValue(),
+            dump0=int(dump),
             symbols=self.symbols,
         )
 
@@ -102,10 +104,10 @@ class Dumpsol1Mod(GamsClass):
                 )
                 preditem = "scalar"
             elif dim == 1:
-                _write_parameter_1d(out, dump0, symbol_name, symbol)
+                _write_parameter_1d(out, symbol_name, symbol)
                 preditem = "parameter"
             elif dim == 2:
-                _write_parameter_2d(out, dump0, symbol_name, symbol)
+                _write_parameter_2d(out, symbol_name, symbol)
                 preditem = "parameter"
             elif dim >= 3:
                 _write_table(out, dump0, whtype, symbol_name, symbol)
@@ -162,7 +164,7 @@ def _write_scalar(
     out.write(f"{' ':15}{symbol_name:<10}/ {_format_value(value)} /\n")
 
 
-def _write_parameter_1d(out: TextIO, dump0: int, symbol_name: str, symbol: Any) -> None:
+def _write_parameter_1d(out: TextIO, symbol_name: str, symbol: Any) -> None:
     records = symbol.records
     if records is None or records.empty:
         return
@@ -181,7 +183,7 @@ def _write_parameter_1d(out: TextIO, dump0: int, symbol_name: str, symbol: Any) 
     out.write(f"{'':69}/\n\n")
 
 
-def _write_parameter_2d(out: TextIO, dump0: int, symbol_name: str, symbol: Any) -> None:
+def _write_parameter_2d(out: TextIO, symbol_name: str, symbol: Any) -> None:
     records = symbol.records
     if records is None or records.empty:
         return
