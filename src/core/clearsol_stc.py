@@ -12,10 +12,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.eqdeclr_mod import EqdeclrMod
 from core.mod_vars_mod import ModVarsMod
-
-from .base_class import GamsClass
+from core.utils import apply_sw_notags
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -39,24 +39,7 @@ class ClearsolStc(GamsClass):
 
     def compile(self) -> None:
         if self.arg1 != "":
-            if (
-                self.env.sw_notags
-                == "SET EQ 'EQ' SET VAR 'VAR' SET SWS '' SET SOW '' SET SWT '' SET SWD '' SET SWTD '' SET SWSW '' SET VART 'VAR' SET VARV 'VAR' SET VARM 'VAR' SET VARTT VAR"
-            ):
-                self.env.set_scoped("eq", "EQ")
-                self.env.set_scoped("var", "VAR")
-                self.env.set_scoped("sws", "")
-                self.env.set_scoped("sow", "")
-                self.env.set_scoped("swt", "")
-                self.env.set_scoped("swd", "")
-                self.env.set_scoped("swtd", "")
-                self.env.set_scoped("swsw", "")
-                self.env.set_scoped("vart", "VAR")
-                self.env.set_scoped("varv", "VAR")
-                self.env.set_scoped("varm", "VAR")
-                self.env.set_scoped("vartt", "VAR")
-            else:
-                raise ValueError(f"Unknown value in sw_notags: {self.env.sw_notags}")
+            apply_sw_notags(env=self.env)
 
             self.include(ModVarsMod(tc=self.tc, env=self.env))
             self.include(EqdeclrMod(tc=self.tc, env=self.env, arg1=""))

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 import logging
 from typing import Any, Literal
 
@@ -93,7 +92,7 @@ class CompileEnvironment:
         3. Local is reset (child doesn't see parent's $setlocal).
         """
         new_env = CompileEnvironment(self._globals)
-        new_env._scoped = copy.deepcopy(self._scoped)
+        new_env._scoped = self._scoped.copy()
         new_env._local = {}
 
         return new_env

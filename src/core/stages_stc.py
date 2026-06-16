@@ -45,6 +45,8 @@ class StagesStc(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+
         if self.env.macro == "YES":
             raise NotImplementedError("Stochastic MACRO Not Implemented - aborted.")
         if self.arg1 == "MCA":  # L10: GOTO POST
@@ -60,12 +62,16 @@ class StagesStc(GamsClass):
                     r"""SET VARTT 'SUM(SW_TSW(SOW,TT,W),VAS' SET SWSW SW_TSW(SOW,T,WW),""",
                 )
             self.env.set_global("swd", "',WW'")
+            self.env.set_global("swd_GP", (g.ww,))
             self.env.set_global("witspine", "")
             if self.env.stages == "YES":
                 self.env.set_global("swx", "',SOW'")
+                self.env.set_global("swx_GP", (g.Sow,))
                 self.env.set_global("swtx", "SW_T(T,SOW)$")
+                self.env.set_global("swtx_GP", g.SwT[g.t, g.Sow])
             if self.env.sensis == "YES":
                 self.env.set_global("swd", "")
+                self.env.set_global("swd_GP", tuple())
             self.tc.enqueue(self.set_auxsow)
             self.env.set_global("var_uc", "YES")
             if not self.env.var_uc == "YES":

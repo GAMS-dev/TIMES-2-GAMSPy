@@ -25,9 +25,9 @@ from typing import TYPE_CHECKING
 from core.atlearn1_etl import atlearn1_etl
 from core.atlearn8_etl import atlearn8_etl
 from core.atsc_etl import atsc_etl
+from core.base_class import GamsClass
 from core.mod_vars_etl import ModVarsEtl
-
-from .base_class import GamsClass
+from core.utils import apply_sw_notags, apply_sw_tags
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -54,49 +54,17 @@ class AtlearnEtl(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+
         self.tc.enqueue(self.exec1, self.env.run_name)
 
         if self.env.stages != "YES":
             pass
         else:
-            if (
-                self.env.sw_notags
-                == "SET EQ 'EQ' SET VAR 'VAR' SET SWS '' SET SOW '' SET SWT '' SET SWD '' SET SWTD '' SET SWSW '' SET VART 'VAR' SET VARV 'VAR' SET VARM 'VAR' SET VARTT VAR"
-            ):
-                self.env.set_scoped("eq", "EQ")
-                self.env.set_scoped("var", "VAR")
-                self.env.set_scoped("sws", "")
-                self.env.set_scoped("sow", "")
-                self.env.set_scoped("swt", "")
-                self.env.set_scoped("swd", "")
-                self.env.set_scoped("swtd", "")
-                self.env.set_scoped("swsw", "")
-                self.env.set_scoped("vart", "VAR")
-                self.env.set_scoped("varv", "VAR")
-                self.env.set_scoped("varm", "VAR")
-                self.env.set_scoped("vartt", "VAR")
-            else:
-                raise ValueError(f"Unknown value in sw_notags: {self.env.sw_notags}")
+            apply_sw_notags(env=self.env)
             self.include(ModVarsEtl(self.tc, self.env))
             # $ BATINCLUDE eqdeclr.etl <- file is missing
-            if (
-                self.env.sw_tags
-                == "SET EQ 'ES' SET VAR 'VAS' SET SWD ',WW' SET SWTD ',T,WW' SET SWS ',W)' SET SOW ',SOW' SET SWT ',SW_T(T,SOW)' SET VART 'SUM(SW_TSW(SOW,T,W),VAS' SET VARV 'SUM(SW_TSW(SOW,V,W),VAS' SET VARM 'SUM(SW_TSW(SOW,MODLYEAR,W),VAS'"
-            ):
-                self.env.set_scoped("eq", "ES")
-                self.env.set_scoped("var", "VAS")
-                self.env.set_scoped("swd", ",WW")
-                self.env.set_scoped("swtd", ",T,WW")
-                self.env.set_scoped("sws", ",W)")
-                self.env.set_scoped("sow", ",SOW")
-                self.env.set_scoped("swt", ",SW_T(T,SOW)")
-                self.env.set_scoped("vart", "SUM(SW_TSW(SOW,T,W),VAS")
-                self.env.set_scoped("varv", "SUM(SW_TSW(SOW,V,W),VAS")
-                self.env.set_scoped("varm", "SUM(SW_TSW(SOW,MODLYEAR,W),VAS")
-            else:
-                raise ValueError(
-                    f"Unknown value in sw_notags: {self.env.sw_nosw_tagstags}"
-                )
+            apply_sw_tags(env=self.env, g=g)
 
         self.tc.enqueue(
             self.exec_loop,

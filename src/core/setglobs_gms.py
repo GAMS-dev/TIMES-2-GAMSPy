@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from core.base_class import GamsClass
 from core.utils import expand_set
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
-from gamspy import Alias, Parameter, Set
+from gamspy import Alias, Number, Parameter, Set
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class SetglobsGms(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
+        arg1: Literal["1", ""],
         arg2: str = "",
     ):
         self.env = env.fork()
@@ -1372,6 +1372,15 @@ class SetglobsGms(GamsClass):
 
         self.env.set_global("swx", self.x1)
         self.env.set_global("swtx", self.x1)
+        if self.x1 == "1":
+            self.env.set_global("swx_GP", (self.x1,))
+            self.env.set_global("swtx_GP", Number(1))  # signals true
+        elif self.x1 == "":
+            self.env.set_global("swx_GP", tuple())
+            self.env.set_global("swtx_GP", Number(1))  # signals true
+        else:
+            raise ValueError(f"Unexpected value {self.x1} for x1.")
+
         self.env.set_global("varmac", self.x1)
         swx = self.env.swx
         swtx = self.env.swtx
@@ -1379,6 +1388,7 @@ class SetglobsGms(GamsClass):
         if f"{swx}{swtx}{varmac}" != f"{self.x1}{self.x1}{self.x1}":
             raise ValueError(f"{msg}: SWX")
         self.env.set_global("swx", ",'1'")
+        self.env.set_global("swx_GP", ("1",))
 
         # $SET TMP '%CTST%'
         self.env.set_scoped("tmp", self.env.ctst)

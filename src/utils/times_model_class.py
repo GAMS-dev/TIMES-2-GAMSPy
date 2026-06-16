@@ -1384,3 +1384,9 @@ class TimesModelClass:
         return symbol.upper() in self.container.listSymbols() and (
             self.container[symbol.upper()].number_records > 0
         )
+
+    def get_equation(self, name: str) -> Any:
+        return getattr(self, name.lower())
+
+    def get_variable(self, name: str) -> Any:
+        return getattr(self, name.upper())

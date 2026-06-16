@@ -95,7 +95,9 @@ class EqbndcstMod(GamsClass):
 
         if self.env.stages == "YES":
             self.env.set_scoped("swd", self.env.sow)
+            self.env.set_scoped("swd_GP", self.env.sow_GP)
             self.env.set_scoped("sow", self.env.swd)
+            self.env.set_scoped("sow_GP", self.env.swd_GP)
             self.env.set_scoped("swtd", "SUM")
 
         if self.env.obj.upper() != "LIN":
@@ -148,6 +150,7 @@ class EqbndcstMod(GamsClass):
 
         if self.env.stages == "YES":
             self.env.set_scoped("sow", self.env.swd)
+            self.env.set_scoped("sow_GP", self.env.swd_GP)
 
     def equation(
         self: EqbndcstMod,

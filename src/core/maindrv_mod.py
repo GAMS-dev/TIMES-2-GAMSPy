@@ -18,9 +18,9 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.bndmain_mod import BndmainMod
 from core.coef_ext_abs import CoefExtAbs
 from core.coef_ext_cli import CoefExtCli
@@ -75,9 +75,8 @@ from core.solve_stc import SolveStc
 from core.solve_stp import SolveStp
 from core.spoint_mod import SpointMod
 from core.stages_stc import StagesStc
+from core.utils import apply_sw_notags, apply_sw_tags
 from core.wrtbprice_mod import WrtbpriceMod
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -103,6 +102,8 @@ class MainDrvMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+
         self.env.set_local("src", self.arg1)
 
         if self.tc.test_run:
@@ -148,12 +149,14 @@ class MainDrvMod(GamsClass):
         if self.env.is_set("timestep"):
             self.env.set_global("stepped", "+")
         self.env.set_scoped("r_t", "R,T")
+        self.env.set_scoped("r_t_GP", (g.r, g.t))
         self.env.set_scoped("tx", "T")
         self.env.set_scoped("r_v_t", "R,V,T")
         self.env.set_scoped("rtpx", "")
 
         if self.env.is_set("stepped"):
             self.env.set_scoped("r_t", "R,SUBT(T)")
+            self.env.set_scoped("r_t_GP", (g.r, g.Subt[g.t]))
             self.env.set_scoped("tx", "SUBT(T)")
             self.env.set_scoped("r_v_t", "R,V,SUBT(T)")
 
@@ -161,6 +164,7 @@ class MainDrvMod(GamsClass):
             r_t = self.env.r_t
             r_v_t = self.env.r_v_t
             self.env.set_scoped("r_t", f"RT_PP({r_t})")
+            self.env.set_scoped("r_t_GP", g.RtPp[*self.env.r_t_GP])
             self.env.set_scoped("r_v_t", f"RVT({r_v_t})")
             self.env.set_scoped("rtpx", "X")
 
@@ -222,9 +226,9 @@ class MainDrvMod(GamsClass):
         if self.env.stages.upper() == "YES":
             self.include(StagesStc(tc=self.tc, env=self.env))
         if self.env.stages == "YES":
-            self.apply_inline_sets(set_string=self.env.sw_tags)
+            apply_sw_tags(env=self.env, g=g)
         else:
-            self.apply_inline_sets(set_string=self.env.sw_notags)
+            apply_sw_notags(env=self.env)
 
         # *-----------------------------------------------------------------------------
         # * build the coefficients
@@ -536,41 +540,6 @@ MODEL {model_name} / {", ".join(equations)} /;
                 arg3="*** ERRORS IN GAMS EXECUTION ***",
             )
         )
-
-    def apply_inline_sets(self: MainDrvMod, set_string: str) -> None:
-        """
-        Parses a string of consecutive GAMS SET, SETGLOBAL, or SETLOCAL commands
-        and applies them to the compile environment.
-        """
-        # Regex breakdown:
-        # 1. `(?i)`                      -> Makes the entire match case-insensitive
-        # 2. `(SETGLOBAL|SETLOCAL|SET)`  -> Capture Group 1: The exact command used
-        # 3. `\s+`                       -> Matches whitespace
-        # 4. `(\w+)`                     -> Capture Group 2: The key (e.g., EQ, VAR)
-        # 5. `\s+`                       -> Matches whitespace before the value
-        # 6. `('[^']*'|"[^"]*"|\S+)`     -> Capture Group 3: The value (single quotes, double quotes, or unquoted)
-        pattern = r"(?i)(SETGLOBAL|SETLOCAL|SET)\s+(\w+)\s+('[^']*'|\"[^\"]*\"|\S+)"
-
-        # re.findall returns a list of tuples: [('SET', 'EQ', "'EQ'"), ('SETGLOBAL', 'VAR', '"VAR"'), ...]
-        matches = re.findall(pattern, set_string)
-
-        for command, key, value in matches:
-            # Standardize the key to lowercase for your env dictionary
-            clean_key = key.lower()
-
-            # Strip both single and double surrounding quotes (if they exist)
-            clean_value = value.strip("'\"")
-
-            # Route to the correct env method based on the command
-            command_upper = command.upper()
-            if command_upper == "SETGLOBAL":
-                self.env.set_global(clean_key, clean_value)
-            elif command_upper == "SET":
-                self.env.set_scoped(clean_key, clean_value)
-            elif command_upper == "SETLOCAL":
-                self.env.set_local(clean_key, clean_value)
-            else:
-                raise Exception(command_upper, "not in [SETGLOBAL, SET, SETSCOPED]")
 
     def exec_datadump(self) -> None:
         self.tc.add_gams_code(

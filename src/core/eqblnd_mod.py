@@ -65,9 +65,12 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
-from .base_class import GamsClass
+from gamspy import Sum
+
+from core.base_class import GamsClass
+from core.utils import generate_equation
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -86,28 +89,44 @@ class EqblndMod(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
+        equation_type: Literal["L", "E", "N", "G"],
+        blnd_code: int,
     ):
         self.env = env.fork()
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
+        self.equation_type: Literal["L", "E", "N", "G"] = equation_type
+        self.blnd_code: int = blnd_code
         self._sub_modules = {}
         self.compile()
 
     def compile(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-*============================================================================*
-*  BLENDing equation by type                                                 *
-*============================================================================*
-  EQ{self.arg1}_BLND(BLE_TP({self.env.r_t},BLE),SPE{self.env.swx})$({self.env.swtx}(BL_TYPE(R,BLE,SPE)={self.arg2}))..
-  SUM(OPR$BLE_OPR(R,BLE,OPR), (BL_COM(R,BLE,OPR,SPE) - BL_SPEC(R,BLE,SPE)) *
-                              RU_CVT(R,BLE,SPE,OPR) * {self.env.var}_BLND(R,T,BLE,OPR {self.env.sow}))
-  ={self.arg1}=
-  0;
-""",
+        """
+        *============================================================================*
+        *  BLENDing equation by type                                                 *
+        *============================================================================*
+        """
+        g = self.tc
+
+        r, t, spe = g.r, g.t, g.spe
+        Ble, Opr = g.Ble, g.Opr
+
+        r_t = self.env.r_t_GP
+        swx = self.env.swx_GP
+        sow = self.env.sow_GP
+        swtx = self.env.swtx_GP
+
+        VAR_BLND = g.get_variable(f"{self.env.var}_BLND")
+        eq = g.get_equation(f"EQ{self.equation_type}_BLND")
+
+        eq[g.BleTp[*r_t, Ble], spe, *swx].where[
+            swtx & (g.bl_type[r, Ble, spe] == self.blnd_code)
+        ] = generate_equation(
+            Sum(
+                Opr.where[g.BleOpr[r, Ble, Opr]],
+                (g.bl_com[r, Ble, Opr, spe] - g.bl_spec[r, Ble, spe])
+                * g.ru_cvt[r, Ble, spe, Opr]
+                * VAR_BLND[r, t, Ble, Opr, *sow],
+            ),
+            self.equation_type,
+            0,
         )

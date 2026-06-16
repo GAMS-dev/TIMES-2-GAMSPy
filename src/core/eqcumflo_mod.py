@@ -44,10 +44,12 @@ class EqcumfloMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
         self.env.set_local("sw1", "")
         self.env.set_local("sw2", "")
         if self.env.stages + self.env.scum == "YES":
             self.env.set_scoped("sow", "',WW'")
+            self.env.set_scoped("sow_GP", (g.ww,))
             self.env.set_scoped("swt", "',SOW'")
             self.env.set_scoped("sw1", "'S_'")
             self.env.set_scoped("sw2", ",'1',SOW")

@@ -82,6 +82,7 @@ class EqusercoMod(GamsClass):
             self.env.set_local("hs", "'LHS'")
             if self.arg8 == "2":
                 self.env.set_scoped("sow", self.env.swd)
+                self.env.set_scoped("sow_GP", self.env.swd_GP)
                 self.env.set_scoped("swt", self.env.sow)
             elif self.arg8 == "S":
                 self.env.set_local("hs", "SIDE")
@@ -262,10 +263,13 @@ class EqusercoMod(GamsClass):
         is_stages: bool,
         is_cli: bool,
     ) -> str:
+        g = self.tc
+
         self.env.set_scoped("swflo", self.env.var)
         if is_stages:
             self.env.set_scoped("var", f"SUM({self.arg5}{self.env.var}")
             self.env.set_scoped("sow", ",WW)")
+            self.env.set_scoped("sow_GP", (g.ww,))
             self.env.set_scoped("swflo", f"{self.env.var},WW SUM {self.arg5}")
 
         self.env.set_local("tsum", "SUM(UC_TMAP(TT,T,T,SIDE,'N'),UC_SIGN(SIDE)*")

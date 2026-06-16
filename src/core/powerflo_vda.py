@@ -57,6 +57,8 @@ class PowerfloVda(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+
         self.env.set_scoped("mx", f"{self.arg3}")
         self.env.set_scoped("pdtol", "1E-5")
         self.env.set_scoped("bigm", "10")
@@ -280,6 +282,7 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
                 self.env.set_scoped("sowpre", self.env.sow)
                 if self.env.stages == "YES":
                     self.env.set_scoped("sow", ",WW")
+                    self.env.set_scoped("sow_GP", (g.ww,))
                 self.eq_objbal(
                     sowpre=self.env.sowpre,
                     var=self.env.var,

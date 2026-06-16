@@ -52,6 +52,8 @@ class EqobjvarMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+
         self.env.set_scoped("tpulse", "PERIODYR(T,Y_EOH),OBJ_DISC(R,Y_EOH,CUR)")
         if self.env.obj.upper() == "ALT":
             self.env.set_scoped(
@@ -70,6 +72,7 @@ class EqobjvarMod(GamsClass):
         if self.env.stages == "YES":
             self.env.set_local("swtd", "SUM(SW_TSW(SOW,T,WW),")
             self.env.set_scoped("sow", ",WW")
+            self.env.set_scoped("sow_GP", (g.ww,))
         if self.tc.defined("RTP_FFCS"):
             self.env.set_scoped("mx", f"*({self.env.shff}S(R,V,P,C,C{self.env.sow}))")
         if self.env.stages == "YES":
@@ -115,6 +118,7 @@ class EqobjvarMod(GamsClass):
 
         if self.env.stages == "YES":
             self.env.set_scoped("sow", ",SOW")
+            self.env.set_scoped("sow_GP", (g.Sow,))
 
 
 def eqobjvar_mod(

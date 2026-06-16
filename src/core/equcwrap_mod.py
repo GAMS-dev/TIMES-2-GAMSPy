@@ -79,6 +79,7 @@ class EqucwrapMod(GamsClass):
         if self.env.stages == "YES":
             self.env.set_local("sws", "(SW_UCT(UC_N,T,SOW)*")
             self.env.set_local("swd", ")")
+            # TODO: How to set swd_GP
             self.env.set_local("tst", self.env.tsum)
             self.env.set_local("tsum", f"({self.env.tsum}WW)${self.env.swsw}")
             self.env.set_local("swtd", "SW_TSW(SOW,TT,WW),")

@@ -54,6 +54,8 @@ class RptmainStc(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+
         self.env.set_scoped("eqs", self.env.eq)
         self.env.set_scoped("v", self.env.var)
 
@@ -149,6 +151,7 @@ class RptmainStc(GamsClass):
         self.include(RptliteRpt(self.tc, self.env, arg1="S", arg2="WW,"))
 
         self.env.set_scoped("sow", ",SOW")
+        self.env.set_scoped("sow_GP", (g.Sow,))
         self.env.set_scoped("EQ", self.env.eqs)
         self.env.set_scoped("var", self.env.v)
 
@@ -179,6 +182,7 @@ class RptmainStc(GamsClass):
         self.include(PextlevsStc(self.tc, self.env, arg1=self.arg1))
 
         self.env.set_scoped("sow", "")
+        self.env.set_scoped("sow_GP", tuple())
         self.env.set_scoped("EQ", "EQ")
         self.env.set_scoped("var", "VAR")
 
