@@ -102,7 +102,6 @@ class CompileEnvironment:
         Mimics GAMS '$IF set [variable]'.
         Checks Local, then Scoped, then Global.
         """
-        key = str(key)
         if key in self._local:
             val = self._local[key]
         elif key in self._scoped:
@@ -113,7 +112,11 @@ class CompileEnvironment:
             return False
 
         # Return False if value is %key%
-        return not (
+        return not self.is_default(key, val)
+
+    def is_default(self, key: str, val: Any) -> bool:
+        """Checks if the value is the default %<key>%"""
+        return bool(
             isinstance(val, str)
             and val.startswith("%")
             and val.endswith("%")
@@ -125,10 +128,9 @@ class CompileEnvironment:
         Mimics GAMS '$IF SETLOCAL [variable]'.
         Checks only the Local
         """
-        key = str(key)
-        val = self._local[key]
-
-        if val is None:
+        if key in self._local:
+            val = self._local[key]
+        else:
             return False
 
         # Return False if value is %key%
@@ -138,25 +140,31 @@ class CompileEnvironment:
             and val.endswith("%")
             and val.upper() == f"%{key.upper()}%"
         )
+
+    def is_set_scoped(self, key: str) -> bool:
+        """.
+        Checks only the Scoped
+        """
+        if key in self._scoped:
+            val = self._scoped[key]
+        else:
+            return False
+
+        # Return False if value is %key%
+        return not self.is_default(key, val)
 
     def is_set_global(self, key: str) -> bool:
         """
         Mimics GAMS '$IF SETGLOBAL [variable]'.
         Checks only the Global.
         """
-        key = str(key)
-        val = self._globals[key]
-
-        if val is None:
+        if key in self._globals:
+            val = self._globals[key]
+        else:
             return False
 
         # Return False if value is %key%
-        return not (
-            isinstance(val, str)
-            and val.startswith("%")
-            and val.endswith("%")
-            and val.upper() == f"%{key.upper()}%"
-        )
+        return not self.is_default(key, val)
 
     def set_if_not_exists(self, key: str, value: Any, scope: ScopeType) -> bool:
         """

@@ -1,6 +1,9 @@
 from collections.abc import Sequence
 from typing import Any, Literal
 
+from gamspy import SpecialValues
+from gamspy.math import rpower
+
 from utils.compile_environment import CompileEnvironment
 from utils.times_model_class import TimesModelClass
 
@@ -45,6 +48,18 @@ def expand_set(symbol: Any, elements: Sequence[str | tuple[str, str]]) -> None:
 
     # 3. Update the GAMSPy symbol with the combined list of tuples
     symbol.setRecords(updated_records)
+
+
+def resolve_ctst(exp: Any, val: Literal["", "**EPS", "**0", "1"]) -> Any:
+    match val:
+        case "":
+            return exp
+        case "**EPS":
+            return rpower(exp, SpecialValues.EPS)
+        case "**0":
+            return rpower(exp, 0)
+        case "1":
+            raise ValueError(f"Unexpected value {val} for CTST.")
 
 
 def apply_sw_tags(env: CompileEnvironment, g: TimesModelClass) -> None:

@@ -1391,7 +1391,7 @@ class SetglobsGms(GamsClass):
         self.env.set_global("swx_GP", ("1",))
 
         # $SET TMP '%CTST%'
-        self.env.set_scoped("tmp", self.env.ctst)
+        tmp = self.env.ctst
         # SETGLOBAL CTST %X1%
         self.env.set_global("ctst", self.x1)
         # $IF NOT "%CTST%"=='%X1%' $%ControlAbort%: CTST
@@ -1399,7 +1399,7 @@ class SetglobsGms(GamsClass):
             control_abort = self.env.get("ControlAbort")
             raise ValueError(f"{control_abort}: CTST")
         # $SETGLOBAL CTST %TMP%
-        self.env.set_global("ctst", self.env.tmp)
+        self.env.set_global("ctst", tmp)
 
         # Tags for stochastic TIMES (set in stages.stc)
         self.env.set_global("sw_tags", self.x1)

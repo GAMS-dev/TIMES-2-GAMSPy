@@ -458,7 +458,7 @@ class EnvironmentVariableSchema(BaseModel):
     gdate: str = Field(
         description="System generation calendar date variable indicator."
     )
-    ctst: str = Field(
+    ctst: Literal["", "**EPS", "**0", "1"] = Field(
         description="Calculation time step parameter used inside optimization updates."
     )
     rts: str = Field(

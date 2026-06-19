@@ -63,10 +63,15 @@ def run_times(
         solve_options=solve_options,
     )
 
-    # Dynamically apply Environment Variables
+    # Dynamically apply non default %<key>% Environment Variables
     validated_config = UserConfig.model_validate(config.env_vars)
-    for key, value in validated_config.model_dump(by_alias=True).items():
-        env.set_global(key, value)
+    full_dump = validated_config.model_dump(by_alias=True)
+    clean_dump = {}
+    for alias_key, value in full_dump.items():
+        if not env.is_default(key=alias_key, val=value):
+            clean_dump[alias_key] = value
+    for key, value in clean_dump.items():
+        env.set_scoped(key, value)
 
     env.set_scoped("run_name", config.run_name)
 
