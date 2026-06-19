@@ -14,10 +14,14 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
+
+from gamspy import Loop, Number, Ord, SpecialValues, Sum
+from gamspy.math import Max, Min, project
 
 from core.base_class import GamsClass
 from core.pp_shapr_mod import PpShaprMod
+from core.utils import resolve_ctst
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -36,7 +40,6 @@ class CoefCptMod(GamsClass):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
         self.compile()
 
     def compile(self: CoefCptMod) -> None:
@@ -47,7 +50,7 @@ class CoefCptMod(GamsClass):
         self.tc.enqueue(
             self.exec_capacity_transfer,
             ctst=self.env.ctst,
-            validate_yes=(self.env.validate == "YES"),
+            validate=self.env.validate == "YES",
         )
 
         self.tc.enqueue(self.exec_prepare_af_shape)
@@ -83,85 +86,133 @@ class CoefCptMod(GamsClass):
         self.tc.enqueue(self.exec_finalize)
 
     def exec_capacity_transfer(
-        self: CoefCptMod,
-        ctst: str,
-        validate_yes: bool,
+        self: CoefCptMod, ctst: Literal["", "**EPS", "**0", "1"], validate: bool
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-*-----------------------------------------------------------------------------
-* copy the period values into the years within the period
-  LOOP(PERIODYR(T,V)$((NOT PHYR(V))$VNT(V,T)),
-    B(V) = B(T); E(V) = E(T);
-    M(V) = M(T); D(V) = D(T);
-  );
-* capacity transfer - set here only when no alternate objective
-  OPTION CLEAR=FIL; FIL(V)=(NOT 0{ctst});
-  PASTSUM(RTP(R,FIL(V),P))$PRC_CAP(R,P) = B(V)+NCAP_ILED(RTP)+COEF_RPTI(RTP)*NCAP_TLIFE(RTP);
-  COEF_CPT(RTP_CPTYR(R,FIL(V),T,P))$PASTSUM(R,V,P) =
-    MAX(0, (MIN(E(T)+1,PASTSUM(R,V,P))-MAX(B(V)+NCAP_ILED(R,V,P),B(T))) / D(T));
+        g = self.tc
+        r, p, t, v = g.r, g.p, g.t, g.v
 
-  {"COEF_CPT(RTP_CPTYR(R,T,T,P)) = 1;" if validate_yes else ""}
-  OPTION CLEAR=PASTSUM;
-""",
+        # copy the period values into the years within the period
+        with Loop(g.Periodyr[t, v].where[(~g.Phyr[v]).where[g.Vnt[v, t]]]):
+            g.b[v] = g.b[t]
+            g.e[v] = g.e[t]
+            g.m[v] = g.m[t]
+            g.d[v] = g.d[t]
+
+        # capacity transfer - set here only when no alternate objective
+        g.Fil.setRecords(None)
+        g.Fil[v] = ~resolve_ctst(Number(0), ctst)
+
+        g.pastsum[r, v, p].where[g.Rtp[r, v, p] & g.Fil[v] & g.PrcCap[r, p]] = (
+            g.b[v] + g.ncap_iled[r, v, p] + g.coef_rpti[r, v, p] * g.ncap_tlife[r, v, p]
         )
+
+        min_con = Min(g.e[t] + 1, g.pastsum[r, v, p])
+        max_con = Max(g.b[v] + g.ncap_iled[r, v, p], g.b[t])
+        g.coef_cpt[g.RtpCptyr[r, g.Fil[v], t, p]].where[g.pastsum[r, v, p]] = Max(
+            0, (min_con - max_con) / g.d[t]
+        )
+
+        if validate:
+            g.coef_cpt[g.RtpCptyr[r, t, t, p]] = 1
+
+        g.pastsum.setRecords(None)
 
     def exec_prepare_af_shape(self: CoefCptMod) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-*-------------------------------------------------------------------------------
-* Set NCAP_AF to be the minimum of NCAP_AF and NCAP_AFS, if both at same timeslice
-  MY_TS(S)=NOT ANNUAL(S);
-  NCAP_AF(RTP(R,V,P),MY_TS(S),BD)$(PRC_TS(R,P,S)$NCAP_AFS(RTP,S,BD)) = MIN(NCAP_AF(RTP,S,BD)+INF$(NOT NCAP_AF(RTP,S,BD)),NCAP_AFS(RTP,S,BD));
-  NCAP_AF(RTP(R,V,P),S,BDNEQ)$(PRC_TS(R,P,S)$NCAP_AFS(RTP,S,'FX')) = 0;
-* Remove NCAP_AFS from timeslices that are not above PRC_TS:
-  NCAP_AFS(RTP(R,V,P),MY_TS(S),BD)$(PRC_TS(R,P,S) OR (NOT RPS_PRCTS(R,P,S))) = 0;
+        g = self.tc
 
-*-------------------------------------------------------------------------------
-* have COEF_AF SHAPEd
-* [AL] Rules for vintage-dependent availabilities:
-* -- If P is Vintaged, both NCAP_AF and NCAP_AFS are vintage-dependent;
-* -- If P is NOT Vintaged but NCAP_AFX is specified, then only NCAP_AF is vintage-dependent;
-* -- If P is NOT Vintaged nor NCAP_AFX is specified, then neither is vintage-dependent (except AFS(ANNUAL));
-* -- NCAP_AFA is always non-vintage-dependent, but NCAP_AFS(ANNUAL) overrides it and is always vintaged.
+        # Sets
+        r, p, s, v, bd = g.r, g.p, g.s, g.v, g.bd
+        ll, Rtp = g.ll, g.Rtp
 
-  NCAP_AFX(R,LL--ORD(LL),P) $= NCAP_AFM(R,LL,P);
-  OPTION TRACKP < NCAP_AFX;
-  TRACKP(RP)$(NOT PRC_CAP(RP)) = NO;
-  TRACKP(RP)$RP_UPL(RP,'FX') = NO;
-  TRACKP(PRC_CAP(PRC_VINT)) = YES;
-  NCAP_AFBX(RTP(R,V,P),BD)$(RP_AFB(R,P,BD)>0) $= NCAP_AFX(RTP);
-""",
+        # Set NCAP_AF to be the minimum of NCAP_AF and NCAP_AFS, if both at same timeslice
+        g.MyTs[s] = ~g.Annual[s]
+
+        min_1 = (
+            g.ncap_af[Rtp, s, bd]
+            + Number(SpecialValues.POSINF).where[~g.ncap_af[Rtp, s, bd]]
         )
+        min_2 = g.ncap_afs[Rtp, s, bd]
+        g.ncap_af[Rtp[r, v, p], g.MyTs[s], bd].where[
+            g.PrcTs[r, p, s].where[g.ncap_afs[Rtp, s, bd]]
+        ] = Min(min_1, min_2)
+
+        g.ncap_af[Rtp[r, v, p], s, g.Bdneq].where[
+            g.PrcTs[r, p, s].where[g.ncap_afs[Rtp, s, "FX"]]
+        ] = 0
+
+        # Remove NCAP_AFS from timeslices that are not above PRC_TS:
+        g.ncap_afs[Rtp[r, v, p], g.MyTs[s], bd].where[
+            g.PrcTs[r, p, s] | (~g.RpsPrcts[r, p, s])
+        ] = 0
+
+        # * have COEF_AF SHAPEd
+        # * [AL] Rules for vintage-dependent availabilities:
+        # * -- If P is Vintaged, both NCAP_AF and NCAP_AFS are vintage-dependent;
+        # * -- If P is NOT Vintaged but NCAP_AFX is specified, then only NCAP_AF is vintage-dependent;
+        # * -- If P is NOT Vintaged nor NCAP_AFX is specified, then neither is vintage-dependent (except AFS(ANNUAL));
+        # * -- NCAP_AFA is always non-vintage-dependent, but NCAP_AFS(ANNUAL) overrides it and is always vintaged.
+
+        g.ncap_afx[r, ll.lag(Ord(ll), "circular"), p].where[g.ncap_afm[r, ll, p]] = (
+            g.ncap_afm[r, ll, p]
+        )
+
+        project(source=g.ncap_afx, target=g.Trackp)
+
+        g.Trackp[g.Rp].where[~g.PrcCap[g.Rp]] = False
+        g.Trackp[g.Rp].where[g.RpUpl[g.Rp, "FX"]] = False
+        g.Trackp[g.PrcCap[g.PrcVint]] = True
+        g.ncap_afbx[Rtp[r, v, p], bd].where[
+            (g.rp_afb[r, p, bd] > 0).where[g.ncap_afx[Rtp]]
+        ] = g.ncap_afx[Rtp]
 
     def exec_copy_non_shaped_af(self: CoefCptMod) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-  TRACKP(PRC_CAP(R,P)) = (NOT TRACKP(R,P));
-  COEF_AF(RTP_CPTYR(R,V,T,P),S,BD)$(PRC_TS(R,P,S)$TRACKP(R,P)) $= NCAP_AF(R,T,P,S,BD);
-  COEF_AF(RTP_CPTYR(R,V,T,P),ANNUAL,BD)$PRC_CAP(R,P) $= NCAP_AFA(R,T,P,BD);
+        g = self.tc
 
-*V07_2 add seasonal AF in addition to process tslvl
-  OPTION RP_PRC < NCAP_AFSM; NCAP_AFSM(R,V,P)$(NOT RP_PRC(R,P)) $= NCAP_AFM(R,V,P);
-  NCAP_AFSX(RTP,BD)$NCAP_AFSM(RTP) = NCAP_AFSX(RTP,BD)+EPS;
-  RTPS_BD(RTP(R,V,P),S,BD)$((PRC_VINT(R,P)+ANNUAL(S)+YES$NCAP_AFSX(RTP,BD))$NCAP_AFS(RTP,S,BD)) = YES;
-  OPTION RP_PRC<NCAP_AFSX; NCAP_AFSX(R,V,P,BD)$SUM(RTPS_BD(R,V,P,S,BD),1) $= NCAP_AFX(R,V,P)$(NOT RP_PRC(R,P));
-""",
+        r, p, s, v, t, bd = g.r, g.p, g.s, g.v, g.t, g.bd
+        Annual, Rtp = g.Annual, g.Rtp
+
+        g.Trackp[g.PrcCap[r, p]] = ~g.Trackp[r, p]
+        g.coef_af[g.RtpCptyr[r, v, t, p], s, bd].where[
+            g.PrcTs[r, p, s].where[g.Trackp[r, p].where[g.ncap_af[r, t, p, s, bd]]]
+        ] = g.ncap_af[r, t, p, s, bd]
+        g.coef_af[g.RtpCptyr[r, v, t, p], Annual, bd].where[
+            g.PrcCap[r, p].where[g.ncap_afa[r, t, p, bd]]
+        ] = g.ncap_afa[r, t, p, bd]
+
+        # V07_2 add seasonal AF in addition to process tslvl
+        project(source=g.ncap_afsm, target=g.RpPrc)
+
+        g.ncap_afsm[r, v, p].where[(~g.RpPrc[r, p]).where[g.ncap_afm[r, v, p]]] = (
+            g.ncap_afm[r, v, p]
         )
+        g.ncap_afsx[Rtp, bd].where[g.ncap_afsm[Rtp]] = (
+            g.ncap_afsx[Rtp, bd] + SpecialValues.EPS
+        )
+        g.RtpsBd[Rtp[r, v, p], s, bd].where[
+            (g.PrcVint[r, p] | Annual[s] | (g.ncap_afsx[Rtp, bd] != 0))
+            & g.ncap_afs[Rtp, s, bd]
+        ] = True
+
+        project(source=g.ncap_afsx, target=g.RpPrc)
+
+        sparseExpression = g.ncap_afx[r, v, p].where[~g.RpPrc[r, p]]
+        g.ncap_afsx[r, v, p, bd].where[
+            Sum(g.RtpsBd[r, v, p, s, bd], 1).where[sparseExpression]
+        ] = sparseExpression
 
     def exec_finalize(self: CoefCptMod) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-  COEF_AF(RTP_CPTYR(R,V,T,P),S,BD)$(NOT RTPS_BD(R,V,P,S,BD)) $= NCAP_AFS(R,T,P,S,BD)$PRC_CAP(R,P);
-  COEF_AF(RTP_CPTYR(R,V,T,P),ANNUAL,BDNEQ)$NCAP_AFA(R,T,P,'FX') = 0;
-  OPTION CLEAR=TRACKP,CLEAR=RTPS_BD,CLEAR=NCAP_AFBX;
-""",
-        )
+        g = self.tc
+        r, v, t, p, s, bd = g.r, g.v, g.t, g.p, g.s, g.bd
+
+        # Assignments
+        sparseExpression = g.ncap_afs[r, t, p, s, bd].where[g.PrcCap[r, p]]
+        g.coef_af[g.RtpCptyr[r, v, t, p], s, bd].where[
+            (~g.RtpsBd[r, v, p, s, bd]).where[sparseExpression]
+        ] = sparseExpression
+        g.coef_af[g.RtpCptyr[r, v, t, p], g.Annual, g.Bdneq].where[
+            g.ncap_afa[r, t, p, "FX"]
+        ] = 0
+
+        g.Trackp.setRecords(None)
+        g.RtpsBd.setRecords(None)
+        g.ncap_afbx.setRecords(None)
