@@ -5,6 +5,7 @@ import argparse
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 
 from gamspy import Options, Set
@@ -123,4 +124,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     run_config: RunConfig = REGISTRY[args.run]
+
+    start = time.time()
     result = run_times(config=run_config)
+    gamspy_time = time.time() - start
+
+    print(f"GAMSPy Performance: {gamspy_time}s")
