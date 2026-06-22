@@ -19,15 +19,43 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
-from .base_class import GamsClass
+from gamspy import (
+    Alias,
+    Domain,
+    ElseIf,
+    If,
+    Loop,
+    Number,
+    Ord,
+    Parameter,
+    Set,
+    SpecialValues,
+)
+from gamspy._symbols.implicits import ImplicitSet
+from gamspy.math import Round, mod
+
+from core.base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+class FilparamGmsConfig(NamedTuple):
+    src: Parameter
+    arg2: tuple[Set | Alias, ...] | tuple[()]
+    tail1: tuple[Set | Alias, ...] | tuple[()]
+    arg4: tuple[str, ...]
+    arg5: Set
+    arg6: Set
+    arg7: ImplicitSet | Number = Number(1)
+    arg8: ImplicitSet | Number = Number(1)
+    arg9: int = 0
+    arg10: tuple[Set | Alias, ...] | tuple[()] = ()
 
 
 class FilparamGms(GamsClass):
@@ -38,56 +66,94 @@ class FilparamGms(GamsClass):
     gams_source: str = "filparam.gms"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
-        arg4: str = "",
-        arg5: str = "",
-        arg6: str = "",
-        arg7: str = "",
-        arg8: str = "",
-        arg9: str = "",
-        arg10: str = "",
+        self, tc: TimesModelClass, env: CompileEnvironment, config: FilparamGmsConfig
     ):
+        super().__init__(tc, env)
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
-        self.arg4 = arg4
-        self.arg5 = arg5
-        self.arg6 = arg6
-        self.arg7 = arg7
-        self.arg8 = arg8
-        self.arg9 = arg9
-        self.arg10 = arg10
+        self.config = config
         self.compile()
 
     def compile(self) -> None:
-        self.tc.enqueue(self.exec1, dflbl=self.env.dflbl)
-
-    def exec1(self: FilparamGms, dflbl: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=filparam_gms(
-                arg1=self.arg1,
-                arg2=self.arg2,
-                arg3=self.arg3,
-                arg4=self.arg4,
-                arg5=self.arg5,
-                arg6=self.arg6,
-                arg7=self.arg7,
-                arg8=self.arg8,
-                arg9=self.arg9,
-                arg10=self.arg10,
-                dflbl=dflbl,
-            ),
+        self.tc.enqueue(
+            filparam_gms_gp, g=self.tc, cc=self.config, dflbl=self.env.dflbl
         )
+
+
+def filparam_gms_gp(g: TimesModelClass, cc: FilparamGmsConfig, dflbl: str) -> None:
+    ll, yearval = g.ll, g.yearval
+
+    tail2 = cc.tail1
+    tail1 = ("",) if cc.tail1 == () else cc.tail1
+
+    g.Uncd7.setRecords(None)
+
+    if cc.arg10 == ():
+        with Loop(
+            Domain(*cc.arg2, cc.arg5, *tail2).where[cc.src[*cc.arg2, cc.arg5, *tail2]]
+        ):
+            g.Uncd7[*cc.arg2, *tail1, *cc.arg4] = True
+    else:
+        g.Uncd7[*cc.arg2, ll.lag(Ord(ll), "circular"), *tail1, *cc.arg4].where[
+            cc.src[*cc.arg2, ll, *tail2]
+        ] = True
+
+    with Loop(g.Uncd7[*cc.arg2, *cc.arg10, *tail1, *cc.arg4]):
+        g.f[...] = 0
+        g.z[...] = SpecialValues.POSINF
+        g.my_fyear[...] = 9999
+        g.dfunc[...] = Round(cc.src[*cc.arg2, dflbl, *tail2])
+
+        if cc.arg9:
+            with If(~g.dfunc):
+                g.dfunc[...] = cc.arg9
+
+        with If(g.dfunc >= 0):
+            g.my_array[cc.arg5] = cc.src[*cc.arg2, cc.arg5, *tail2]
+            g.my_array[dflbl] = 0
+
+            # do interpolate
+            with Loop(
+                cc.arg5.where[g.my_array[cc.arg5]]
+            ):  # check for nonzero (including EPS)
+                g.my_f[...] = g.my_array[cc.arg5]
+                g.z[...] = yearval[cc.arg5]
+
+                with If(g.z > (g.my_fyear + 1)):  # linear interpolation
+                    cc.src[*cc.arg2, cc.arg6, *tail2].where[
+                        (g.z > yearval[cc.arg6]).where[yearval[cc.arg6] > g.my_fyear]
+                    ] = g.last_val + (g.my_f - g.last_val) / (g.z - g.my_fyear) * (
+                        yearval[cc.arg6] - g.my_fyear
+                    )  # not the first one
+
+                with ElseIf(g.z < g.my_fyear):
+                    #  remember the value and year
+                    g.f[...] = g.z[...]
+                    g.first_val[...] = g.my_f[...]
+
+                g.last_val[...] = g.my_f[...]
+                g.my_fyear[...] = g.z[...]
+
+            # Do back/forward extrapolate
+            with If(g.dfunc >= 1):
+                g.dfunc[...] = mod(g.dfunc, 10)
+                with If(g.dfunc == 2):
+                    g.first_val[...] = SpecialValues.EPS
+                    g.last_val[...] = SpecialValues.EPS
+                with ElseIf(g.dfunc == 4):
+                    g.z[...] = SpecialValues.POSINF
+                with ElseIf(g.dfunc == 5):
+                    g.f[...] = 0
+
+            with If(g.dfunc != 1):
+                sparse_expression = (
+                    g.first_val[...].where[cc.arg7.where[yearval[cc.arg6] < g.f]]
+                    + g.last_val[...].where[cc.arg8.where[yearval[cc.arg6] > g.z]]
+                )
+                cc.src[*cc.arg2, cc.arg6, *tail2].where[sparse_expression] = (
+                    sparse_expression
+                )
 
 
 def filparam_gms(

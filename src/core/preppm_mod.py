@@ -12,10 +12,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.curex_gms import CurexGms
 from core.fillparm_gms import FillparmGms
 from core.fillvint_gms import FillvintGms
-from core.filparam_gms import FilparamGms
+from core.filparam_gms import FilparamGms, FilparamGmsConfig
 from core.main_ext_mod import include_extension
 from core.prep_ext_abs import PrepExtAbs
 from core.prep_ext_dsc import PrepExtDsc
@@ -28,8 +29,6 @@ from core.prepparm_gms import PrepparmGms
 from core.prepret_dsc import PrepretDsc
 from core.prepxtra_mod import PrepxtraMod
 from core.preshape_gms import PreshapeGms
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -57,6 +56,10 @@ class PreppmMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+
+        r, v, t, ucn = g.r, g.v, g.t, g.ucn
+
         self.env.set_scoped("reset", "0")
         if self.env.intext_only.upper() == "YES":
             self.env.set_scoped("reset", "15")
@@ -128,13 +131,28 @@ class PreppmMod(GamsClass):
         # *=============================================================================
         # * COST PARAMETERS: Interpolated by COEF_OBJ, only special options processed here
 
+        # *-----------------------------------------------------------------------------
+        # * General attributes
+        # *-----------------------------------------------------------------------------
+        # *$BATINCLUDE prepparm G_DRATE R CUR ",'0','0','0','0'" YEAR 1 1
+        # ("filparam", "G_RFRIR", "R,", "", ",'0','0','0','0','0'", "YEAR", "V", "", "", "", ""),
+        self.include(
+            FilparamGms(
+                self.tc,
+                self.env,
+                config=FilparamGmsConfig(
+                    src=g.g_rfrir,
+                    arg2=(r,),
+                    tail1=(),
+                    arg4=("0", "0", "0", "0", "0"),
+                    arg5=g.year,
+                    arg6=v,
+                ),
+            )
+        )
+
         # fmt: off
         batincludes1 = [
-            # *-----------------------------------------------------------------------------
-            # * General attributes
-            # *-----------------------------------------------------------------------------
-            # *$BATINCLUDE prepparm G_DRATE R CUR ",'0','0','0','0'" YEAR 1 1
-            ("filparam", "G_RFRIR", "R,", "", ",'0','0','0','0','0'", "YEAR", "V", "", "", "", ""),
             # *-----------------------------------------------------------------------------
             # * Capacity related attributes
             # *-----------------------------------------------------------------------------
@@ -186,23 +204,6 @@ class PreppmMod(GamsClass):
             elif arg[0] == "fillparm":
                 self.include(
                     FillparmGms(
-                        self.tc,
-                        self.env,
-                        arg1=arg[1],
-                        arg2=arg[2],
-                        arg3=arg[3],
-                        arg4=arg[4],
-                        arg5=arg[5],
-                        arg6=arg[6],
-                        arg7=arg[7],
-                        arg8=arg[8],
-                        arg9=arg[9],
-                        arg10=arg[10],
-                    )
-                )
-            elif arg[0] == "filparam":
-                self.include(
-                    FilparamGms(
                         self.tc,
                         self.env,
                         arg1=arg[1],
@@ -285,8 +286,53 @@ class PreppmMod(GamsClass):
             ("fillparm", "FLO_PKCOI", "R", "P,C,TS", ",'0','0','0'", "V", "RVP(R,V,P)", "GE 0", "", "", ""),
             ("fillparm", "FLO_SUM", "R", "P,CG1,C,CG2,TS", ",'0'", "V", "RVP(R,V,P)", "GE 0", "X_RPGCGS", "", ""),
             ("fillparm", "PRC_ACTFLO", "R", "P,CG", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RPG", "", ""),
+        ]
+        # fmt: on
+        for _, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10 in batincludes2:
+            self.include(
+                FillparmGms(
+                    self.tc,
+                    self.env,
+                    arg1=a1,
+                    arg2=a2,
+                    arg3=a3,
+                    arg4=a4,
+                    arg5=a5,
+                    arg6=a6,
+                    arg7=a7,
+                    arg8=a8,
+                    arg9=a9,
+                    arg10=a10,
+                )
+            )
+
+        # fmt: off
+        batincludes3 = [
             ("prepparm", "FLO_MARK", "R", "P,C,BD", ",'0','0'", "T", "1", "1", "3", "X_RPCL", ""),
             ("prepparm", "PRC_MARK", "R", "P,ITEM,C,BD", ",'0'", "T", "1", "1", "11", "X_MARK", ""),
+        ]
+        # fmt: on
+
+        for _, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10 in batincludes3:
+            self.include(
+                PrepparmGms(
+                    self.tc,
+                    self.env,
+                    arg1=a1,
+                    arg2=a2,
+                    arg3=a3,
+                    arg4=a4,
+                    arg5=a5,
+                    arg6=a6,
+                    arg7=a7,
+                    arg8=a8,
+                    arg9=a9,
+                    arg10=a10,
+                )
+            )
+
+        # fmt: off
+        batincludes4 = [
             ("fillparm", "IRE_FLO", "R", "P,C,REG,COM,TS", ",'0'", "V", "(RVP(R,V,P) OR RTP(REG,V,P))", "GE 0", "", "", ""),
             ("fillparm", "IRE_FLOSUM", "R", "P,C,TS,IE,COM,IO", "", "V", "RVP(R,V,P)", "GE 0", "", "", ""),
             # *-----------------------------------------------------------------------------
@@ -306,98 +352,326 @@ class PreppmMod(GamsClass):
             ("fillparm", "UC_IRE", "UC_N,SIDE,R", "P,C,TS,IE", "", "T", "RTP(R,T,P)", "GE 0", "", "", ""),
             ("fillparm", "UC_NCAP", "UC_N,SIDE,R", "P", ",'0','0','0'", "T", "RTP(R,T,P)", "GE 0", "", "", ""),
             ("fillparm", "UC_UCN", "UC_N,SIDE,R", "UCN", ",'0','0','0'", "T", "1", "GE 0", "", "", ""),
-            ("filparam", "UC_TIME", "UC_N,R,", "", ",'0','0','0'", "DATAYEAR", "T", "", "", "", "YEAR,"),
+        ]
+        # fmt: on
+        for _, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10 in batincludes4:
+            self.include(
+                FillparmGms(
+                    self.tc,
+                    self.env,
+                    arg1=a1,
+                    arg2=a2,
+                    arg3=a3,
+                    arg4=a4,
+                    arg5=a5,
+                    arg6=a6,
+                    arg7=a7,
+                    arg8=a8,
+                    arg9=a9,
+                    arg10=a10,
+                )
+            )
+
+            self.include(
+                FilparamGms(
+                    self.tc,
+                    self.env,
+                    config=FilparamGmsConfig(
+                        src=g.uc_time,
+                        arg2=(ucn, r),
+                        tail1=(),
+                        arg4=("0", "0", "0"),
+                        arg5=g.Datayear,
+                        arg6=t,
+                        arg10=(g.year,),
+                    ),
+                )
+            )
+        batincludes5 = [
             # *=============================================================================
             # ******* NON-REGULAR NON-COST PARAMETERS: NOT interpolated by default *********
             # *-----------------------------------------------------------------------------
             # * Capacity and commodity related attributes
             # *-----------------------------------------------------------------------------
-            ("prepparm", "CAP_BND", "R", "P,BD", ",'0','0','0'", "T", "RTP(R,T,P)", "1", "", "X_RPB", ""),
-            ("prepparm", "NCAP_BND", "R", "P,BD", ",'0','0','0'", "T", "RTP(R,T,P)", "1", "", "X_RPB", ""),
-            ("prepparm", "COM_BNDNET", "R", "C,TS,BD", ",'0','0'", "T", "1", "1", "", "", ""),
-            ("prepparm", "COM_BNDPRD", "R", "C,TS,BD", ",'0','0'", "T", "1", "1", "", "", ""),
+            (
+                "prepparm",
+                "CAP_BND",
+                "R",
+                "P,BD",
+                ",'0','0','0'",
+                "T",
+                "RTP(R,T,P)",
+                "1",
+                "",
+                "X_RPB",
+                "",
+            ),
+            (
+                "prepparm",
+                "NCAP_BND",
+                "R",
+                "P,BD",
+                ",'0','0','0'",
+                "T",
+                "RTP(R,T,P)",
+                "1",
+                "",
+                "X_RPB",
+                "",
+            ),
+            (
+                "prepparm",
+                "COM_BNDNET",
+                "R",
+                "C,TS,BD",
+                ",'0','0'",
+                "T",
+                "1",
+                "1",
+                "",
+                "",
+                "",
+            ),
+            (
+                "prepparm",
+                "COM_BNDPRD",
+                "R",
+                "C,TS,BD",
+                ",'0','0'",
+                "T",
+                "1",
+                "1",
+                "",
+                "",
+                "",
+            ),
             # *-----------------------------------------------------------------------------
             # * Flow related attributes & inter-regional exchange
             # *-----------------------------------------------------------------------------
-            ("prepparm", "ACT_BND", "R", "P,TS,BD", ",'0','0'", "T", "RTP(R,T,P)", "1", "", "X_RPSB", ""),
-            ("prepparm", "FLO_BND", "R", "P,CG,TS,BD", ",'0'", "T", "RTP(R,T,P)", "1", "", "X_RPGSB", ""),
-            ("prepparm", "FLO_BDLVL", "R", "P,CG,S,BD", ",'0'", "T", "RTP(R,T,P)", "1", "", "X_RPGSB", ""),
-            ("prepparm", "FLO_FR", "R", "P,C,TS,LIM", ",'0'", "T", "RTP(R,T,P)", "1", "", "X_RPCSL", ""),
-            ("prepparm", "FLO_SHAR", "R", "P,C,CG,TS,BD", "", "V", "RVP(R,V,P)", "1", "", "X_RPCGSB", "+"),
-            ("prepparm", "IRE_BND", "R", "C,TS,ALL_REG,IE,BD", "", "T", "1", "1", "", "", ""),
-            ("prepparm", "IRE_XBND", "ALL_REG", "C,TS,IE,BD", ",'0'", "T", "1", "1", "", "", ""),
+            (
+                "prepparm",
+                "ACT_BND",
+                "R",
+                "P,TS,BD",
+                ",'0','0'",
+                "T",
+                "RTP(R,T,P)",
+                "1",
+                "",
+                "X_RPSB",
+                "",
+            ),
+            (
+                "prepparm",
+                "FLO_BND",
+                "R",
+                "P,CG,TS,BD",
+                ",'0'",
+                "T",
+                "RTP(R,T,P)",
+                "1",
+                "",
+                "X_RPGSB",
+                "",
+            ),
+            (
+                "prepparm",
+                "FLO_BDLVL",
+                "R",
+                "P,CG,S,BD",
+                ",'0'",
+                "T",
+                "RTP(R,T,P)",
+                "1",
+                "",
+                "X_RPGSB",
+                "",
+            ),
+            (
+                "prepparm",
+                "FLO_FR",
+                "R",
+                "P,C,TS,LIM",
+                ",'0'",
+                "T",
+                "RTP(R,T,P)",
+                "1",
+                "",
+                "X_RPCSL",
+                "",
+            ),
+            (
+                "prepparm",
+                "FLO_SHAR",
+                "R",
+                "P,C,CG,TS,BD",
+                "",
+                "V",
+                "RVP(R,V,P)",
+                "1",
+                "",
+                "X_RPCGSB",
+                "+",
+            ),
+            (
+                "prepparm",
+                "IRE_BND",
+                "R",
+                "C,TS,ALL_REG,IE,BD",
+                "",
+                "T",
+                "1",
+                "1",
+                "",
+                "",
+                "",
+            ),
+            (
+                "prepparm",
+                "IRE_XBND",
+                "ALL_REG",
+                "C,TS,IE,BD",
+                ",'0'",
+                "T",
+                "1",
+                "1",
+                "",
+                "",
+                "",
+            ),
             # *-----------------------------------------------------------------------------
             # * Storage attributes
             # *-----------------------------------------------------------------------------
-            ("prepparm", "STGIN_BND", "R", "P,C,S,BD", ",'0'", "T", "RTP(R,T,P)", "1", "", "", ""),
-            ("prepparm", "STGOUT_BND", "R", "P,C,S,BD", ",'0'", "T", "RTP(R,T,P)", "1", "", "", ""),
+            (
+                "prepparm",
+                "STGIN_BND",
+                "R",
+                "P,C,S,BD",
+                ",'0'",
+                "T",
+                "RTP(R,T,P)",
+                "1",
+                "",
+                "",
+                "",
+            ),
+            (
+                "prepparm",
+                "STGOUT_BND",
+                "R",
+                "P,C,S,BD",
+                ",'0'",
+                "T",
+                "RTP(R,T,P)",
+                "1",
+                "",
+                "",
+                "",
+            ),
             # *-----------------------------------------------------------------------------
             # * User constraints
             # *-----------------------------------------------------------------------------
-            ("prepparm", "UC_RHSRT", "ALL_R,UC_N", "LIM", ",'0','0','0'", "T", "1", "1", "", "X_RUL", ""),
-            ("prepparm", "UC_RHSRTS", "ALL_R,UC_N", "TS,L", ",'0','0'", "T", "1", "1", "", "X_RUSL", ""),
-            ("prepparm", "UC_RHST", "UC_N", "LIM", ",'0','0','0','0'", "T", "1", "1", "", "", ""),
-            ("prepparm", "UC_RHSTS", "UC_N", "TS,LIM", ",'0','0','0'", "T", "1", "1", "", "", ""),
-            ("prepparm", "REG_BNDCST", "R", "COSTAGG,CUR,BD", ",'0','0'", "T", "1", "1", "", "", ""),
+            (
+                "prepparm",
+                "UC_RHSRT",
+                "ALL_R,UC_N",
+                "LIM",
+                ",'0','0','0'",
+                "T",
+                "1",
+                "1",
+                "",
+                "X_RUL",
+                "",
+            ),
+            (
+                "prepparm",
+                "UC_RHSRTS",
+                "ALL_R,UC_N",
+                "TS,L",
+                ",'0','0'",
+                "T",
+                "1",
+                "1",
+                "",
+                "X_RUSL",
+                "",
+            ),
+            (
+                "prepparm",
+                "UC_RHST",
+                "UC_N",
+                "LIM",
+                ",'0','0','0','0'",
+                "T",
+                "1",
+                "1",
+                "",
+                "",
+                "",
+            ),
+            (
+                "prepparm",
+                "UC_RHSTS",
+                "UC_N",
+                "TS,LIM",
+                ",'0','0','0'",
+                "T",
+                "1",
+                "1",
+                "",
+                "",
+                "",
+            ),
+            (
+                "prepparm",
+                "REG_BNDCST",
+                "R",
+                "COSTAGG,CUR,BD",
+                ",'0','0'",
+                "T",
+                "1",
+                "1",
+                "",
+                "",
+                "",
+            ),
             # *-----------------------------------------------------------------------------
             # * Parameters that are by default inter/extrapolated over PASTYEARS
             # *----------------------------------------------------------------------------
-            ("prepparm", "FLO_SHAR", "R", "P,C,CG,TS,BD", "", "PASTMILE", "RVP(R,PASTMILE,P)", "1", "3", "X_RPCGSB", "-ABS"),
+            (
+                "prepparm",
+                "FLO_SHAR",
+                "R",
+                "P,C,CG,TS,BD",
+                "",
+                "PASTMILE",
+                "RVP(R,PASTMILE,P)",
+                "1",
+                "3",
+                "X_RPCGSB",
+                "-ABS",
+            ),
         ]
         # fmt: on
 
-        for cmd, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10 in batincludes2:
-            if cmd == "prepparm":
-                self.include(
-                    PrepparmGms(
-                        self.tc,
-                        self.env,
-                        arg1=a1,
-                        arg2=a2,
-                        arg3=a3,
-                        arg4=a4,
-                        arg5=a5,
-                        arg6=a6,
-                        arg7=a7,
-                        arg8=a8,
-                        arg9=a9,
-                        arg10=a10,
-                    )
+        for _, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10 in batincludes5:
+            self.include(
+                PrepparmGms(
+                    self.tc,
+                    self.env,
+                    arg1=a1,
+                    arg2=a2,
+                    arg3=a3,
+                    arg4=a4,
+                    arg5=a5,
+                    arg6=a6,
+                    arg7=a7,
+                    arg8=a8,
+                    arg9=a9,
+                    arg10=a10,
                 )
-            elif cmd == "fillparm":
-                self.include(
-                    FillparmGms(
-                        self.tc,
-                        self.env,
-                        arg1=a1,
-                        arg2=a2,
-                        arg3=a3,
-                        arg4=a4,
-                        arg5=a5,
-                        arg6=a6,
-                        arg7=a7,
-                        arg8=a8,
-                        arg9=a9,
-                        arg10=a10,
-                    )
-                )
-            elif cmd == "filparam":
-                self.include(
-                    FilparamGms(
-                        self.tc,
-                        self.env,
-                        arg1=a1,
-                        arg2=a2,
-                        arg3=a3,
-                        arg4=a4,
-                        arg5=a5,
-                        arg6=a6,
-                        arg7=a7,
-                        arg8=a8,
-                        arg9=a9,
-                        arg10=a10,
-                    )
-                )
+            )
 
         if self.tc.test_run:
             self.tc.save_test_state(env=self.env, checkpoint="preppm_prior_prepextstc")

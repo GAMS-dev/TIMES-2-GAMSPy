@@ -12,9 +12,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.filparam_gms import FilparamGms
-
-from .base_class import GamsClass
+from core.base_class import GamsClass
+from core.filparam_gms import FilparamGms, FilparamGmsConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -41,17 +40,21 @@ class PpmExtMlf(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+
         self.tc.enqueue(self.exec1)
         self.include(
             FilparamGms(
                 self.tc,
                 self.env,
-                arg1="TM_DMC",
-                arg2="R,",
-                arg3="C",
-                arg4=",'','','','',''",
-                arg5="DATAYEAR",
-                arg6="T",
+                config=FilparamGmsConfig(
+                    src=g.tm_dmc,
+                    arg2=(g.r,),
+                    tail1=(g.c,),
+                    arg4=("", "", "", "", ""),
+                    arg5=g.Datayear,
+                    arg6=g.t,
+                ),
             )
         )
         self.tc.enqueue(self.exec2)

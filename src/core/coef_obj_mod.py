@@ -15,10 +15,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.fillcost_gms import FillcostGms
-from core.filparam_gms import FilparamGms
-
-from .base_class import GamsClass
+from core.filparam_gms import FilparamGms, FilparamGmsConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -47,6 +46,8 @@ class CoefObjMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+
         self.declaration1()
         self.tc.enqueue(self.exec1)
         self.declaration2()
@@ -61,14 +62,16 @@ class CoefObjMod(GamsClass):
             FilparamGms(
                 self.tc,
                 self.env,
-                arg1="G_DRATE",
-                arg2="R,",
-                arg3="CUR",
-                arg4=",'','','','',''",
-                arg5="ALLYEAR",
-                arg6="LL",
-                arg7="FIL(LL)$",
-                arg8="FIL(LL)$",
+                config=FilparamGmsConfig(
+                    src=g.g_drate,
+                    arg2=(g.r,),
+                    tail1=(g.cur,),
+                    arg4=("", "", "", "", ""),
+                    arg5=g.allyear,
+                    arg6=g.ll,
+                    arg7=g.Fil[g.ll],  # "FIL(LL)$" handle $ at end
+                    arg8=g.Fil[g.ll],  # "FIL(LL)$" handle $ at end
+                ),
             )
         )
 
