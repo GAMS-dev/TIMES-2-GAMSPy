@@ -86,7 +86,7 @@ class EqdamageMod(GamsClass):
                     arg4=("0", "0", "0", "0"),
                     arg5=g.Datayear,
                     arg6=g.t,
-                    arg10=g.year,
+                    arg10=(g.year,),
                 ),
             )
         )
