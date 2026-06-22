@@ -15,9 +15,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.filparam_gms import FilparamGms
-
-from .base_class import GamsClass
+from core.base_class import GamsClass
+from core.filparam_gms import FilparamGms, FilparamGmsConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -50,6 +49,8 @@ class EqdamageMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+
         if self.arg1 == "E":
             self._label_lpdam()
             return
@@ -78,16 +79,15 @@ class EqdamageMod(GamsClass):
             FilparamGms(
                 self.tc,
                 self.env,
-                arg1="DAM_TQTY",
-                arg2="R,",
-                arg3="C",
-                arg4=",'0','0','0','0'",
-                arg5="DATAYEAR",
-                arg6="T",
-                arg7="",
-                arg8="",
-                arg9="",
-                arg10="YEAR,",
+                config=FilparamGmsConfig(
+                    src=g.dam_tqty,
+                    arg2=(g.r,),
+                    tail1=(g.c,),
+                    arg4=("0", "0", "0", "0"),
+                    arg5=g.Datayear,
+                    arg6=g.t,
+                    arg10=g.year,
+                ),
             )
         )
 

@@ -196,6 +196,8 @@ class TimesModelClass:
     TsGroup: Set = None  # type: ignore[assignment] # [allreg,tslvl,ts] TS_GROUP: Timeslice Level assignment
     TsMap: Set = None  # type: ignore[assignment] # [allreg,allts,allts] TS_MAP: Timeslice hierarchy tree: node+below
 
+    Xtp: Set = None  # type: ignore[assignment] # [LL] XTP:
+
     Milestonyr: Set = None  # type: ignore[assignment] # [allyear] MILESTONYR: Projection years for which model to be run
     t: Alias = None  # type: ignore[assignment] # [*] T: Aliased with MILESTONYR
     tt: Alias = None  # type: ignore[assignment] # [*] TT: Aliased with MILESTONYR
@@ -1298,6 +1300,21 @@ class TimesModelClass:
     tm_dd: Parameter = None  # type: ignore[assignment] # [R,C,T] TM_DD Demand ratio MSA estimates to TED demand levels
     tm_gdp: Parameter = None  # type: ignore[assignment] # [REG,YEAR] TM_GDP Actualized gross domestic product
     var_sts: Parameter = None  # type: ignore[assignment] # [R,YEAR,T,P,S,L] VAR_STS
+    cm_history: Parameter = None  # type: ignore[assignment] # [ALLYEAR,CM_ITEM] CM_HISTORY Calibration values for CO2 and forcing
+    cm_stats: Parameter = None  # type: ignore[assignment] # [CM_ITEM,ALLYEAR,CM_Q] CM_STATS Calibration values for CO2 and forcing
+    cmhists: Set = None  # type: ignore[assignment] # [CG] CM_HISTS Calibration sets for CO2 and forcing
+    cmbox: Set = None  # type: ignore[assignment] # [CM_Q] CM_BOX Reservoir buckets
+    cmboxmap: Set = None  # type: ignore[assignment] # [CM_ITEM,CM_ITEM,CM_BOX] CM_BOXMAP Calibration boxes for CO2 and forcing
+    cm_evar: Parameter = None  # type: ignore[assignment] # [CM_ITEM,LL] CM_EVAR
+    cm_bemi: Parameter = None  # type: ignore[assignment] # [CM_ITEM,LL] CM_BEMI
+    cmemis: Set = None  # type: ignore[assignment] # [CM_ITEM] CM_EMIS
+    cm_maxco2c: Parameter = None  # type: ignore[assignment] # [ALLYEAR] CM_MAXCO2C
+    cm_linfor: Parameter = None  # type: ignore[assignment] # [ALLYEAR,CM_ITEM,LIM] CM_LINFOR
+    cm_maxc: Parameter = None  # type: ignore[assignment] # [ALLYEAR,ITEM] CM_MAXC
+    cm_exoforc: Parameter = None  # type: ignore[assignment] # [ALLYEAR] CM_EXOFORC
+    s_cm_maxco2c: Parameter = None  # type: ignore[assignment] # [ALLYEAR,J,ALLSOW] S_CM_MAXCO2C
+    s_cm_maxc: Parameter = None  # type: ignore[assignment] # [ALLYEAR,ITEM,J,ALLSOW] S_CM_MAXC
+    SwTstg: Set = None  # type: ignore[assignment] # [LL,J] SW_TSTG
     # endregion
 
     def __post_init__(self) -> None:

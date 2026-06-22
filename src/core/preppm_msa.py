@@ -11,13 +11,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.filparam_gms import FilparamGms
+from core.base_class import GamsClass
+from core.filparam_gms import FilparamGms, FilparamGmsConfig
 from core.forcupd_cli import forcupd_cli
 
 # from core.MSADDF_dd import MSADDF
 from core.rpt_dam_mod import rpt_dam_mod
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -67,6 +66,8 @@ class PreppmMsa(GamsClass):
             self.tc.enqueue(self._label_tolp)
 
     def _label_msa(self) -> None:
+        g = self.tc
+
         self.env.set_global("msa", "CSA")
         if self.env.macro != "N":
             self.env.set_global("msa", self.env.macro)
@@ -93,29 +94,43 @@ class PreppmMsa(GamsClass):
         self.tc.enqueue(self.label_msa_exec1)
 
         # Interpolate MACRO-specific parameters
-        # fmt: off
-        batincludes = [
-            ("TM_DDF",   "R,", "C", ",'','','','',''", "YEAR", "T",   "", ""),
-            ("TM_GR",    "R,", "",  ",'','','','',''", "YEAR", "T",   "", ""),
-            ("TM_GROWV", "R,", "",  ",'','','','',''", "YEAR", "XTP", "", ""),
-            ("TM_HSX",   "R,", "",  ",'','','','',''", "YEAR", "XTP", "", ""),
+        batincludes: list[FilparamGmsConfig] = [
+            FilparamGmsConfig(
+                src=g.tm_ddf,
+                arg2=(g.r,),
+                tail1=(g.c,),
+                arg4=("", "", "", "", ""),
+                arg5=g.year,
+                arg6=g.t,
+            ),
+            FilparamGmsConfig(
+                src=g.tm_gr,
+                arg2=(g.r,),
+                tail1=(),
+                arg4=("", "", "", "", ""),
+                arg5=g.year,
+                arg6=g.t,
+            ),
+            FilparamGmsConfig(
+                src=g.tm_growv,
+                arg2=(g.r,),
+                tail1=(),
+                arg4=("", "", "", "", ""),
+                arg5=g.year,
+                arg6=g.Xtp,
+            ),
+            FilparamGmsConfig(
+                src=g.tm_hsx,
+                arg2=(g.r,),
+                tail1=(),
+                arg4=("", "", "", "", ""),
+                arg5=g.year,
+                arg6=g.Xtp,
+            ),
         ]
-        # fmt: on
-        for arg in batincludes:
-            self.include(
-                FilparamGms(
-                    self.tc,
-                    self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
-                    arg5=arg[4],
-                    arg6=arg[5],
-                    arg7=arg[6],
-                    arg8=arg[7],
-                )
-            )
+
+        for config in batincludes:
+            self.include(FilparamGms(self.tc, self.env, config=config))
 
         self.tc.enqueue(self.label_msa_exec2)
 

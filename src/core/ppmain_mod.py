@@ -15,11 +15,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Alias, Parameter, Set
+from gamspy import Alias, Number, Parameter, Set
 
 from core.base_class import GamsClass
 from core.eqflomrk_mod import EqflomrkMod
-from core.filparam_gms import FilparamGms
+from core.filparam_gms import FilparamGms, FilparamGmsConfig
 from core.filshape_gms import FilshapeGms
 from core.main_ext_mod import include_extension
 from core.pp_chp_ier import PpChpIer
@@ -132,15 +132,15 @@ class PpmainMod(GamsClass):
                 FilparamGms(
                     tc=self.tc,
                     env=self.env,
-                    arg1="G_OFFTHD",
-                    arg2="",
-                    arg3="",
-                    arg4=",'','','','','',''",
-                    arg5="YEAR",
-                    arg6="T",
-                    arg7="",
-                    arg8="",
-                    arg9="5",
+                    config=FilparamGmsConfig(
+                        src=g.g_offthd,
+                        arg2=(),
+                        tail1=(),
+                        arg4=("", "", "", "", "", ""),
+                        arg5=g.year,
+                        arg6=g.t,
+                        arg9=5,
+                    ),
                 )
             )
 
@@ -248,14 +248,15 @@ class PpmainMod(GamsClass):
             FilparamGms(
                 tc=self.tc,
                 env=self.env,
-                arg1="MULTI",
-                arg2="J,",
-                arg3="",
-                arg4=",'','','','',''",
-                arg5="LL",
-                arg6="EOHYEARS",
-                arg7="NO$",
-                arg8="",
+                config=FilparamGmsConfig(
+                    src=g.multi,
+                    arg2=(g.j,),
+                    tail1=(),
+                    arg4=("", "", "", "", ""),
+                    arg5=g.ll,
+                    arg6=g.Eohyears,
+                    arg7=Number(0),  # "NO$"
+                ),
             )
         )
 

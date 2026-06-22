@@ -12,13 +12,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.cal_red_red import cal_red_red
 from core.fillparm_gms import FillparmGms
-from core.filparam_gms import FilparamGms
+from core.filparam_gms import FilparamGms, FilparamGmsConfig
 from core.gasgrids_vda import GasgridsVda
 from core.pp_lvlfc_mod import PpLvlfcMod
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -154,13 +153,14 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
                     FilparamGms(
                         self.tc,
                         self.env,
-                        "GR_XBND",
-                        "R,",
-                        "",
-                        ",'0','0','0','0','0'",
-                        "DATAYEAR",
-                        "T",
-                        "",
+                        FilparamGmsConfig(
+                            src=g.gr_xbnd,
+                            arg2=g.r,
+                            tail1=(),
+                            arg4=("0", "0", "0", "0", "0"),
+                            arg5=g.Datayear,
+                            arg6=g.t,
+                        ),
                     )
                 )
 

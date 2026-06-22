@@ -14,12 +14,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.fillsow_stc import FillsowStc, exec_fillsow_stc
 
 # from core.fillparm_gms import FillparmGms
-from core.filparam_gms import FilparamGms
-
-from .base_class import GamsClass
+from core.filparam_gms import FilparamGms, FilparamGmsConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -67,13 +66,14 @@ class CoefExtCli(GamsClass):
             FilparamGms(
                 self.tc,
                 self.env,
-                arg1="CM_HISTORY",
-                arg2="",
-                arg3="CM_HISTS",
-                arg4=",'','','','','',''",
-                arg5="LL",
-                arg6="FIL",
-                arg7="",
+                FilparamGmsConfig(
+                    src=g.cm_history,
+                    arg2=(),
+                    tail1=(g.cmhists,),
+                    arg4=("", "", "", "", "", ""),
+                    arg5=g.ll,
+                    arg6=g.Fil,
+                ),
             )
         )
 
@@ -83,12 +83,14 @@ class CoefExtCli(GamsClass):
             FilparamGms(
                 self.tc,
                 self.env,
-                arg1="CM_STATS",
-                arg2="CM_HISTS,",
-                arg3="CM_BOX",
-                arg4=",'','','','',''",
-                arg5="LL",
-                arg6="FIL",
+                config=FilparamGmsConfig(
+                    src=g.cm_stats,
+                    arg2=(g.cmhists,),
+                    tail1=(g.cmbox,),
+                    arg4=("", "", "", "", ""),
+                    arg5=g.ll,
+                    arg6=g.Fil,
+                ),
             )
         )
 
@@ -111,14 +113,14 @@ class CoefExtCli(GamsClass):
             FilparamGms(
                 self.tc,
                 self.env,
-                arg1="CM_BEMI",
-                arg2="CM_EMIS,",
-                arg3="",
-                arg4=",'','','','',''",
-                arg5="LL",
-                arg6="FIL",
-                arg7="",
-                arg8="",
+                config=FilparamGmsConfig(
+                    src=g.cm_bemi,
+                    arg2=(g.cmemis,),
+                    tail1=(),
+                    arg4=("", "", "", "", ""),
+                    arg5=g.ll,
+                    arg6=g.Fil,
+                ),
             )
         )
 
@@ -126,14 +128,14 @@ class CoefExtCli(GamsClass):
             FilparamGms(
                 self.tc,
                 self.env,
-                arg1="CM_BEMI",
-                arg2="CM_EVAR,",
-                arg3="",
-                arg4=",'','','','',''",
-                arg5="LL",
-                arg6="FIL",
-                arg7="",
-                arg8="",
+                config=FilparamGmsConfig(
+                    src=g.cm_bemi,
+                    arg2=(g.cm_evar,),
+                    tail1=(),
+                    arg4=("", "", "", "", ""),
+                    arg5=g.ll,
+                    arg6=g.Fil,
+                ),
             )
         )
 
@@ -145,67 +147,79 @@ class CoefExtCli(GamsClass):
         # * Prepare input parameters
         # *-----------------------------------------------------------------------------
         # * Interpolate parameters by default or if requested by user:
-        batincludes = [
-            (
-                "CM_LINFOR",
-                "",
-                "CM_VAR,LIM",
-                ",'','','','',''",
-                "DATAYEAR",
-                "FIL",
-                "",
-                "",
+        batincludes: list[FilparamGmsConfig] = [
+            FilparamGmsConfig(
+                src=g.cm_linfor,
+                arg2=(),
+                tail1=(g.cmvar, g.lim),
+                arg4=("", "", "", "", ""),
+                arg5=g.Datayear,
+                arg6=g.Fil,
             ),
-            ("CM_MAXCO2C", "", "", ",'','','','','',''", "LL", "T", "", "", "-1"),
-            ("CM_MAXC", "", "CG", ",'','','','','',''", "LL", "FIL", "", "", "-1"),
-            ("CM_EXOFORC", "", "", ",'','','','','',''", "LL", "MY_FIL", "", ""),
-            ("UC_CLI", "UC_N,SIDE,R,", "CM_VAR", ",'','',''", "DATAYEAR", "T"),
+            FilparamGmsConfig(
+                src=g.cm_maxco2c,
+                arg2=(),
+                tail1=(),
+                arg4=("", "", "", "", ""),
+                arg5=g.ll,
+                arg6=g.t,
+                arg9=-1,
+            ),
+            FilparamGmsConfig(
+                src=g.cm_maxc,
+                arg2=(),
+                tail1=(g.cg,),
+                arg4=("", "", "", "", ""),
+                arg5=g.ll,
+                arg6=g.Fil,
+                arg9=-1,
+            ),
+            FilparamGmsConfig(
+                src=g.cm_exoforc,
+                arg2=(),
+                tail1=(),
+                arg4=("", "", "", "", ""),
+                arg5=g.ll,
+                arg6=g.MyFil,
+            ),
+            FilparamGmsConfig(
+                src=g.uc_cli,
+                arg2=(g.ucn, g.side, g.r),
+                tail1=(g.cmvar,),
+                arg4=("", "", ""),
+                arg5=g.Datayear,
+                arg6=g.t,
+            ),
         ]
 
         if self.env.stages.upper() == "YES":
             batincludes.append(
-                (
-                    "S_CM_MAXCO2C",
-                    "",
-                    "J,WW",
-                    ",'','','','',''",
-                    "DATAYEAR",
-                    "T",
-                    "SW_TSTG(T,J)$",
-                    "",
-                    "-1",
+                FilparamGmsConfig(
+                    src=g.s_cm_maxco2c,
+                    arg2=(),
+                    tail1=(g.j, g.ww),
+                    arg4=("", "", "", "", ""),
+                    arg5=g.Datayear,
+                    arg6=g.t,
+                    arg7=g.SwTstg[g.t, g.j],
+                    arg9=-1,
                 )
             )
             batincludes.append(
-                (
-                    "S_CM_MAXC",
-                    "",
-                    "CG,J,WW",
-                    ",'','','',''",
-                    "DATAYEAR",
-                    "T",
-                    "SW_TSTG(T,J)$",
-                    "",
-                    "-1",
+                FilparamGmsConfig(
+                    src=g.s_cm_maxc,
+                    arg2=(),
+                    tail1=(g.cg, g.j, g.ww),
+                    arg4=("", "", "", ""),
+                    arg5=g.Datayear,
+                    arg6=g.t,
+                    arg7=g.SwTstg[g.t, g.j],
+                    arg9=-1,
                 )
             )
 
-        for arg in batincludes:
-            self.include(
-                FilparamGms(
-                    self.tc,
-                    self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
-                    arg5=arg[4],
-                    arg6=arg[5],
-                    arg7=arg[6],
-                    arg8=arg[7],
-                    arg9=arg[8] if len(arg) > 8 else "",
-                )
-            )
+        for config in batincludes:
+            self.include(FilparamGms(self.tc, self.env, config=config))
 
         self.tc.enqueue(self.exec15)
 

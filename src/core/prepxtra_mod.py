@@ -13,11 +13,12 @@ import datetime
 import logging
 from typing import TYPE_CHECKING
 
-from core.fillparm_gms import FillparmGms
-from core.filparam_gms import FilparamGms
-from core.prepparm_gms import PrepparmGms
+from gamspy import Number
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
+from core.fillparm_gms import FillparmGms
+from core.filparam_gms import FilparamGms, FilparamGmsConfig
+from core.prepparm_gms import PrepparmGms
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -46,6 +47,8 @@ class PrepxtraMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+
         if self.arg1.upper() == "XTIE":
             # * COST PARAMETERS: Interpolated over T
             # fmt: off
@@ -157,27 +160,27 @@ class PrepxtraMod(GamsClass):
                 )
 
             # * General attribs
-            # fmt: off
-            batincludes = [
-                ("MULTI", "J,", "", ",'','','','',''", "LL", "MILESTONYR", "NO$", ""),
-                ("G_DRATE", "R,", "CUR", ",'','','','',''", "YEAR", "T", "", ""),
-      ]
-            # fmt: on
-            for arg in batincludes:
-                self.include(
-                    FilparamGms(
-                        self.tc,
-                        self.env,
-                        arg1=arg[0],
-                        arg2=arg[1],
-                        arg3=arg[2],
-                        arg4=arg[3],
-                        arg5=arg[4],
-                        arg6=arg[5],
-                        arg7=arg[6],
-                        arg8=arg[7],
-                    )
-                )
+            filparam_batincludes: list[FilparamGmsConfig] = [
+                FilparamGmsConfig(
+                    src=g.multi,
+                    arg2=(g.j,),
+                    tail1=(),
+                    arg4=("", "", "", "", ""),
+                    arg5=g.ll,
+                    arg6=g.Milestonyr,
+                    arg7=Number(0),  # "NO$"
+                ),
+                FilparamGmsConfig(
+                    src=g.g_drate,
+                    arg2=(g.r,),
+                    tail1=(g.cur,),
+                    arg4=("", "", "", "", ""),
+                    arg5=g.year,
+                    arg6=g.t,
+                ),
+            ]
+            for config in filparam_batincludes:
+                self.include(FilparamGms(self.tc, self.env, config=config))
 
         if self.arg1.upper() in ["XTIE", "POST"]:
             self.tc.enqueue(
