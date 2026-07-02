@@ -20,6 +20,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter, Set
+
 from core.eqobjann_tm import EqobjannTm
 from core.eqobjels_mod import EqobjelsMod
 from core.eqobjfix_mod import EqobjfixMod
@@ -53,6 +55,9 @@ class EqobjTm(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
+
         self.tc.add_gams_code(module=self, phase="init", code="SET K_EOH(ALLYEAR);")
         self.tc.enqueue(self.exec1)
         self.tc.add_gams_code(
@@ -60,22 +65,18 @@ class EqobjTm(GamsClass):
         )
         self.tc.enqueue(self.exec2)
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="""
-* Cases for ILED and TLIFE/D(t); values assigned in EQOBJINV
-  SET OBJ_1A(R,ALLYEAR,P) //;
-  SET OBJ_1B(R,ALLYEAR,P) //;
-  SET OBJ_2A(R,ALLYEAR,P) //;
-  SET OBJ_2B(R,ALLYEAR,P) //;
-* Salvage controls
-  SET OBJ_SUMS(R,ALLYEAR,P) //;
-  SET OBJ_SUMS3(R,ALLYEAR,P) //;
-  SET OBJ_SUMSI(R,ALLYEAR,P,ALLYEAR) //;
-  PARAMETER OBJ_DCEOH(REG,CUR) //;
-""",
-        )
+        r, allyear, p, reg, cur = g.r, g.allyear, g.p, g.Reg, g.cur
+
+        # * Cases for ILED and TLIFE/D(t); values assigned in EQOBJINV
+        g.Obj1a = Set(m, name="OBJ_1A", domain=[r, allyear, p])
+        g.Obj1b = Set(m, name="OBJ_1B", domain=[r, allyear, p])
+        g.Obj2a = Set(m, name="OBJ_2A", domain=[r, allyear, p])
+        g.Obj2b = Set(m, name="OBJ_2B", domain=[r, allyear, p])
+        # * Salvage controls
+        g.ObjSums = Set(m, name="OBJ_SUMS", domain=[r, allyear, p])
+        g.ObjSums3 = Set(m, name="OBJ_SUMS3", domain=[r, allyear, p])
+        g.ObjSumsi = Set(m, name="OBJ_SUMSI", domain=[r, allyear, p, allyear])
+        g.obj_dceoh = Parameter(m, name="OBJ_DCEOH", domain=[reg, cur])
 
         # Investment Cost, Fixed Cost and Variable Cost components
         self.include(EqobjinvMod(self.tc, self.env, "tm", "exit"))

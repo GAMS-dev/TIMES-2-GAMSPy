@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 from core.clearsol_stp import clearsol_stp
 from core.ddfupd_msa import ddfupd_msa
 from core.preppm_msa import preppm_msa_label_tolp
-from core.rptlite_rpt import RptliteRpt
+from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
 from core.solprep_msa import solprep_msa
 from core.writeddf_msa import writeddf_msa
 
@@ -156,7 +156,11 @@ class SolveMsa(GamsClass):
 
         self.env.set_scoped("solveda", "1")
         self.include(
-            RptliteRpt(self.tc, self.env, arg1="", arg2="", arg3="", arg4="NO")
+            RptliteRpt(
+                self.tc,
+                self.env,
+                config=RptliteRptConfig(arg4=("NO",)),
+            )
         )
 
         if self.env.qsf.upper() == "YES":

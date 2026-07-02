@@ -19,6 +19,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Set
+
 from core.eqobjann_tm import EqobjannTm
 from core.eqobjels_mod import EqobjelsMod
 from core.eqobjels_rpt import EqobjelsRpt
@@ -61,6 +63,9 @@ class EqobjMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
+
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -75,21 +80,19 @@ class EqobjMod(GamsClass):
         )
         self.add_records_to_universe_item(["OBJELS"])
         self.tc.enqueue(self.exec2)
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="""
-* Cases for ILED and TLIFE/D(t); values assigned in EQOBJINV
-  SET OBJ_1A(R,ALLYEAR,P) //;
-  SET OBJ_1B(R,ALLYEAR,P) //;
-  SET OBJ_2A(R,ALLYEAR,P) //;
-  SET OBJ_2B(R,ALLYEAR,P) //;
-* Salvage controls
-  SET OBJ_SUMS(R,ALLYEAR,P)   //;
-  SET OBJ_SUMS3(R,ALLYEAR,P)  //;
-  SET OBJ_SUMSI(R,ALLYEAR,P,ALLYEAR) //;
-""",
-        )
+
+        r, allyear, p = g.r, g.allyear, g.p
+
+        # * Cases for ILED and TLIFE/D(t); values assigned in EQOBJINV
+        g.Obj1a = Set(m, name="OBJ_1A", domain=[r, allyear, p])
+        g.Obj1b = Set(m, name="OBJ_1B", domain=[r, allyear, p])
+        g.Obj2a = Set(m, name="OBJ_2A", domain=[r, allyear, p])
+        g.Obj2b = Set(m, name="OBJ_2B", domain=[r, allyear, p])
+        # * Salvage controls
+        g.ObjSums = Set(m, name="OBJ_SUMS", domain=[r, allyear, p])
+        g.ObjSums3 = Set(m, name="OBJ_SUMS3", domain=[r, allyear, p])
+        g.ObjSumsi = Set(m, name="OBJ_SUMSI", domain=[r, allyear, p, allyear])
+
         if "VNRET" in self.tc.container.listSymbols():
             self.include(
                 PrepretDsc(

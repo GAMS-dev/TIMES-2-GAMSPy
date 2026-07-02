@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 from core.bnd_ucw_mod import bnd_ucw_mod
 from core.rpt_dam_mod import rpt_dam_mod
 from core.rpt_par_cli import rpt_par_cli
-from core.rptlite_rpt import RptliteRpt, rptlite_rpt
+from core.rptlite_rpt import RptliteRpt, RptliteRptConfig, rptlite_rpt
 from core.sensis_stc import sensis_stc
 from core.solve_mod import solve_mod
 
@@ -66,7 +66,13 @@ class SolveStc(GamsClass):
             )
 
         if self.env.stages != "YES":
-            self.include(RptliteRpt(self.tc, self.env, arg1="S", arg2="WW,"))
+            self.include(
+                RptliteRpt(
+                    self.tc,
+                    self.env,
+                    config=RptliteRptConfig(arg1=(self.tc.s,), arg2=(self.tc.ww,)),
+                )
+            )
 
         # TODO!
         # $IF %OBMAC%==YES
@@ -81,8 +87,7 @@ class SolveStc(GamsClass):
 
         rptlite_no_code = (
             rptlite_rpt(
-                arg1="S",
-                arg3="WW,",
+                config=RptliteRptConfig(arg1=(self.tc.s,), arg2=(self.tc.ww,)),
                 sow="ALLSOW,",
                 sysprefix=self.env.sysprefix,
                 sensis=self.env.sensis,

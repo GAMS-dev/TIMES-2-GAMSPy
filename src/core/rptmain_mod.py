@@ -27,7 +27,7 @@ from core.rpt_ext_ecb import RptExtEcb
 from core.rpt_ext_ier import RptExtIer
 from core.rpt_ext_mlf import RptExtMlf
 from core.rpt_ext_msa import RptExtMsa
-from core.rptlite_rpt import RptliteRpt
+from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
 from core.rptmain_rpt import RptmainRpt
 from core.rptmain_stc import RptmainStc
 from core.rptmain_tm import RptmainTm
@@ -92,7 +92,11 @@ class RptmainMod(GamsClass):
                     elif self.env.solveda.upper() == "1":
                         self.include(
                             RptliteRpt(
-                                self.tc, self.env, arg1="S", arg2="WW,", arg3="'1',"
+                                self.tc,
+                                self.env,
+                                config=RptliteRptConfig(
+                                    arg1=(self.tc.s,), arg2=(self.tc.ww,), arg3=("'1'",)
+                                ),
                             )
                         )
 
