@@ -121,11 +121,6 @@ class PpmainMod(GamsClass):
 
         self.tc.enqueue(self.phase_four)
 
-        if self.tc.test_run:
-            self.tc.save_test_state(
-                env=self.env, checkpoint="pp_main_mod_prior_filparam"
-            )
-
         # Inter/Extrapolate G_OFFTHD if specified
         if self.tc.defined("G_OFFTHD"):
             self.include(
@@ -146,21 +141,11 @@ class PpmainMod(GamsClass):
 
         self.tc.enqueue(self.g_offthd_to_zero)
 
-        if self.tc.test_run:
-            self.tc.save_test_state(
-                env=self.env, checkpoint="pp_main_mod_after_filparam"
-            )
-
         # *-----------------------------------------------------------------------------
         # * complete timeslice declarations
         # *-----------------------------------------------------------------------------
         # * Include preprocessing of timeslice attributes
         self.include(TimsliceMod(tc=self.tc, env=self.env))
-
-        if self.tc.test_run:
-            self.tc.save_test_state(
-                env=self.env, checkpoint="pp_main_mod_after_timslice"
-            )
 
         self.tc.enqueue(self.phase_five, botime=self.env.botime)
 
@@ -174,9 +159,6 @@ class PpmainMod(GamsClass):
         # *-----------------------------------------------
         # * Call interpolation subsystem
         self.include(PreppmMod(tc=self.tc, env=self.env))
-
-        if self.tc.test_run:
-            self.tc.save_test_state(env=self.env, checkpoint="pp_main_mod_after_preppm")
 
         if self.env.intext_only.upper() == "YES":
             return
@@ -194,11 +176,6 @@ class PpmainMod(GamsClass):
 
         self.tc.enqueue(self.phase_seven, ctst=self.env.ctst)
 
-        if self.tc.test_run:
-            self.tc.save_test_state(
-                env=self.env, checkpoint="pp_main_mod_prior_phase_eight"
-            )
-
         # override the lead delay on capacity if M2T, if viable period
         if self.env.validate == "YES":
             self.tc.enqueue(self.activate_rtp_cptyr)
@@ -211,11 +188,6 @@ class PpmainMod(GamsClass):
             pgprim=self.env.pgprim,
             prc_simv_defined=self.tc.defined("PRC_SIMV"),
         )
-
-        if self.tc.test_run:
-            self.tc.save_test_state(
-                env=self.env, checkpoint="pp_main_mod_prior_main_ext_mod"
-            )
 
         # Extensions after establishing RPCS_VAR and PRC_CAPACT but before levelising
         extensions = {"VDA": PpPrelvVda}

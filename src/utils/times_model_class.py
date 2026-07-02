@@ -48,6 +48,7 @@ class TimesModelClass:
     compile_states: dict[str, Any] = field(default_factory=dict)
     _modules: list[GamsClass] = field(default_factory=list)
     container: Container = field(default_factory=Container)
+    assigned_symbols: set[Set | Parameter | Variable] = field(default_factory=set)
 
     # POST-INIT VARIABLES
     logger: logging.Logger = field(init=False)
@@ -139,7 +140,7 @@ class TimesModelClass:
     nrgtype: Set = None  # type: ignore[assignment] # [*] NRG_TYPE: List of energy types
     prcgrp: Set = None  # type: ignore[assignment] # [*] PRC_GRP: List of process groups
     prcrsourc: Set = None  # type: ignore[assignment] # [*] PRC_RSOURC: List of domestic resource supply groups
-    cmvar: Alias = None  # type: ignore[assignment] # [*] CM_VAR: CM_HISTS
+    CmVar: Alias = None  # type: ignore[assignment] # [*] CM_VAR: CM_HISTS
 
     uc_cli: Parameter = None  # type: ignore[assignment] # [UC_N,SIDE,REG,ALLYEAR,CM_ITEM] UC_CLI: Climate variable
     g_dyear: Parameter = None  # type: ignore[assignment] # G_DYEAR: Year to discount to
@@ -844,7 +845,8 @@ class TimesModelClass:
     Cgtest: Set = None  # type: ignore[assignment] # [Reg,allyear,prc,cg,c,cg] CGTEST:
     Cgtes2: Set = None  # type: ignore[assignment] # [Reg,allyear,prc,cg,c,cg] CGTES2:
     k: Alias = None  # type: ignore[assignment] # [*] K: Aliased with EACHYEAR
-    cmkind: Set = None  # type: ignore[assignment] # [CM_ITEM] CM_KIND
+    CmKind: Set = None  # type: ignore[assignment] # [CM_ITEM] CM_KIND
+    CmTkind: Set = None  # type: ignore[assignment]
     Y: Set = None  # type: ignore[assignment] # [allyear] Y:
     YEoh: Set = None  # type: ignore[assignment] # [allyear] Y_EOH:
     Yk: Set = None  # type: ignore[assignment] # [allyear,allyear] YK:
@@ -885,38 +887,71 @@ class TimesModelClass:
     dp_non: Parameter = None  # type: ignore[assignment] # [r,ll,p,upt,tsl,bd] DP_NON: Bounds on non-operational time between shut-down and next start-up
     obv: Set = None  # type: ignore[assignment] # [*] OBV:
     VAR_ACT: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,s] VAR_ACT: Overall activity of a process
+    VAS_ACT: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,s] VAS_ACT: Overall activity of a process
     VAR_CAP: Variable = None  # type: ignore[assignment]# [r,allyear,p] VAR_CAP: Installed capacity of a process
+    VAS_CAP: Variable = None  # type: ignore[assignment]# [r,allyear,p] VAS_CAP: Installed capacity of a process
     VAR_FLO: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,s] VAR_FLO: Level of process commodity flow
+    VAS_FLO: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,s] VAS_FLO: Level of process commodity flow
     VAR_IRE: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,s,ie] VAR_IRE: Inter-regional trade flow
+    VAS_IRE: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,s,ie] VAS_IRE: Inter-regional trade flow
     VAR_NCAP: Variable = None  # type: ignore[assignment]# [r,allyear,p] VAR_NCAP: New capacity of a process
+    VAS_NCAP: Variable = None  # type: ignore[assignment]# [r,allyear,p] VAS_NCAP: New capacity of a process
     VAR_COMNET: Variable = None  # type: ignore[assignment]# [r,allyear,c,s] VAR_COMNET: Net commodity level
+    VAS_COMNET: Variable = None  # type: ignore[assignment]# [r,allyear,c,s] VAS_COMNET: Net commodity level
     VAR_COMPRD: Variable = None  # type: ignore[assignment]# [r,allyear,c,s] VAR_COMPRD: Production of commodity
+    VAS_COMPRD: Variable = None  # type: ignore[assignment]# [r,allyear,c,s] VAS_COMPRD: Production of commodity
     VAR_ELAST: Variable = None  # type: ignore[assignment]# [r,allyear,c,s,j,bd] VAR_ELAST: Demand change due to price elasticity
+    VAS_ELAST: Variable = None  # type: ignore[assignment]# [r,allyear,c,s,j,bd] VAS_ELAST: Demand change due to price elasticity
     VAR_DEM: Variable = None  # type: ignore[assignment]# [r,Milestonyr,c] VAR_DEM: Demand variable for MACRO
+    VAS_DEM: Variable = None  # type: ignore[assignment]# [r,Milestonyr,c] VAS_DEM: Demand variable for MACRO
     VAR_CUMCOM: Variable = None  # type: ignore[assignment]# [r,c,comvar,allyear,allyear] VAR_CUMCOM: Cumulative commodity PRD or NET
+    VAS_CUMCOM: Variable = None  # type: ignore[assignment]# [r,c,comvar,allyear,allyear] VAS_CUMCOM: Cumulative commodity PRD or NET
     VAR_CUMFLO: Variable = None  # type: ignore[assignment]# [r,p,c,allyear,allyear] VAR_CUMFLO: Cumulative process flow
+    VAS_CUMFLO: Variable = None  # type: ignore[assignment]# [r,p,c,allyear,allyear] VAS_CUMFLO: Cumulative process flow
     VAR_CUMCST: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,costagg,cur] VAR_CUMCST: Cumulative regional cost
+    VAS_CUMCST: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,costagg,cur] VAS_CUMCST: Cumulative regional cost
     VAR_SIN: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,s] VAR_SIN: Input flow into storage
+    VAS_SIN: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,s] VAS_SIN: Input flow into storage
     VAR_SOUT: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,s] VAR_SOUT: Output flow from storage
+    VAS_SOUT: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,s] VAS_SOUT: Output flow from storage
     VAR_BLND: Variable = None  # type: ignore[assignment]  # [r,allyear,Com,Com] VAR_BLND: Refinery blending
+    VAS_BLND: Variable = None  # type: ignore[assignment]  # [r,allyear,Com,Com] VAS_BLND: Refinery blending
     VAR_DAM: Variable = None  # type: ignore[assignment]  # [r,t,c,bd,j] VAR_DAM: Damage variables
+    VAS_DAM: Variable = None  # type: ignore[assignment]  # [r,t,c,bd,j] VAS_DAM: Damage variables
     VAR_RCAP: Variable = None  # type: ignore[assignment]  # [r,allyear,ll,p] VAR_RCAP: New retirements
+    VAS_RCAP: Variable = None  # type: ignore[assignment]  # [r,allyear,ll,p] VAS_RCAP: New retirements
     VAR_SCAP: Variable = None  # type: ignore[assignment]# [r,allyear,ll,p] VAR_SCAP: Cumulative retirements
+    VAS_SCAP: Variable = None  # type: ignore[assignment]# [r,allyear,ll,p] VAS_SCAP: Cumulative retirements
     VAR_UPS: Variable = None  # type: ignore[assignment]  # [r,allyear,allyear,p,s,l] VAR_UPS: Start-ups
+    VAS_UPS: Variable = None  # type: ignore[assignment]  # [r,allyear,allyear,p,s,l] VAS_UPS: Start-ups
     VAR_UPT: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,s,upt] VAR_UPT: Start-ups by type
+    VAS_UPT: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,s,upt] VAS_UPT: Start-ups by type
     VAR_UDP: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,s,l] VAR_UDP: Unit dispatching
+    VAS_UDP: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,s,l] VAS_UDP: Unit dispatching
     VAR_RLD: Variable = None  # type: ignore[assignment]  # [r,t,s,item] VAR_RLD: Residual loads
+    VAS_RLD: Variable = None  # type: ignore[assignment]  # [r,t,s,item] VAS_RLD: Residual loads
     VAR_OBJ: Variable = None  # type: ignore[assignment]# [r,obv,cur] VAR_OBJ: Objective costs INV,SAL,FIX,VAR,DAM
+    VAS_OBJ: Variable = None  # type: ignore[assignment]# [r,obv,cur] VAS_OBJ: Objective costs INV,SAL,FIX,VAR,DAM
     VAR_OBJELS: Variable = None  # type: ignore[assignment]# [r,bd,cur] VAR_OBJELS: Change in Consumer surplus
+    VAS_OBJELS: Variable = None  # type: ignore[assignment]# [r,bd,cur] VAS_OBJELS: Change in Consumer surplus
+    VAS_EXPOBJ: Variable = None  # type: ignore[assignment] # VAS_EXPOBJ Expected value of total OBJ
     VAS_UPDEV: Variable = None  # type: ignore[assignment]  # [allsow] VAS_UPDEV: Upside deviation of OBJ
     VAR_UC: Variable = None  # type: ignore[assignment]  # [ucn] VAR_UC: Slacks for UC constraints
+    VAS_UC: Variable = None  # type: ignore[assignment]  # [ucn] VAS_UC: Slacks for UC constraints
     VAR_UCR: Variable = None  # type: ignore[assignment]  # [ucn,r] VAR_UCR: Slacks for UCR constraints
+    VAS_UCR: Variable = None  # type: ignore[assignment]  # [ucn,r] VAS_UCR: Slacks for UCR constraints
     VAR_UCT: Variable = None  # type: ignore[assignment]  # [ucn,t] VAR_UCT: Slacks for UCT constraints
+    VAS_UCT: Variable = None  # type: ignore[assignment]  # [ucn,t] VAS_UCT: Slacks for UCT constraints
     VAR_UCRT: Variable = None  # type: ignore[assignment]  # [ucn,r,t] VAR_UCRT: Slacks for UCRT constraints
+    VAS_UCRT: Variable = None  # type: ignore[assignment]  # [ucn,r,t] VAS_UCRT: Slacks for UCRT constraints
     VAR_UCTS: Variable = None  # type: ignore[assignment]  # [ucn,t,s] VAR_UCTS: Slacks for UCTS constraints
+    VAS_UCTS: Variable = None  # type: ignore[assignment]  # [ucn,t,s] VAS_UCTS: Slacks for UCTS constraints
     VAR_UCRTS: Variable = None  # type: ignore[assignment] # [ucn,r,t,s] VAR_UCRTS: Slacks for UCRTS constraints
+    VAS_UCRTS: Variable = None  # type: ignore[assignment] # [ucn,r,t,s] VAS_UCRTS: Slacks for UCRTS constraints
     VAR_DNCAP: Variable = None  # type: ignore[assignment]  # [r,allyear,p,unit] VAR_DNCAP:
+    VAS_DNCAP: Variable = None  # type: ignore[assignment]  # [r,allyear,p,unit] VAS_DNCAP:
     VAR_SNCAP: Variable = None  # type: ignore[assignment]  # [r,allyear,p] VAR_SNCAP:
+    VAS_SNCAP: Variable = None  # type: ignore[assignment]  # [r,allyear,p] VAS_SNCAP:
     eq_obj: Equation = None  # type: ignore[assignment]  #  EQ_OBJ: Overall Objective Function
     eq_objels: Equation = None  # type: ignore[assignment]  # [r,bd,cur] EQ_OBJELS: Costs of elastic demands
     eq_objfix: Equation = None  # type: ignore[assignment]  # [r,cur] EQ_OBJFIX: Fixed Costs
@@ -1302,19 +1337,57 @@ class TimesModelClass:
     var_sts: Parameter = None  # type: ignore[assignment] # [R,YEAR,T,P,S,L] VAR_STS
     cm_history: Parameter = None  # type: ignore[assignment] # [ALLYEAR,CM_ITEM] CM_HISTORY Calibration values for CO2 and forcing
     cm_stats: Parameter = None  # type: ignore[assignment] # [CM_ITEM,ALLYEAR,CM_Q] CM_STATS Calibration values for CO2 and forcing
-    cmhists: Set = None  # type: ignore[assignment] # [CG] CM_HISTS Calibration sets for CO2 and forcing
-    cmbox: Set = None  # type: ignore[assignment] # [CM_Q] CM_BOX Reservoir buckets
-    cmboxmap: Set = None  # type: ignore[assignment] # [CM_ITEM,CM_ITEM,CM_BOX] CM_BOXMAP Calibration boxes for CO2 and forcing
+    CmHists: Set = None  # type: ignore[assignment] # [CG] CM_HISTS Calibration sets for CO2 and forcing
+    CmBox: Set = None  # type: ignore[assignment] # [CM_Q] CM_BOX Reservoir buckets
+    CmBoxmap: Set = None  # type: ignore[assignment] # [CM_ITEM,CM_ITEM,CM_BOX] CM_BOXMAP Calibration boxes for CO2 and forcing
     cm_evar: Parameter = None  # type: ignore[assignment] # [CM_ITEM,LL] CM_EVAR
     cm_bemi: Parameter = None  # type: ignore[assignment] # [CM_ITEM,LL] CM_BEMI
-    cmemis: Set = None  # type: ignore[assignment] # [CM_ITEM] CM_EMIS
+    CmEmis: Set = None  # type: ignore[assignment] # [CM_ITEM] CM_EMIS
     cm_maxco2c: Parameter = None  # type: ignore[assignment] # [ALLYEAR] CM_MAXCO2C
     cm_linfor: Parameter = None  # type: ignore[assignment] # [ALLYEAR,CM_ITEM,LIM] CM_LINFOR
     cm_maxc: Parameter = None  # type: ignore[assignment] # [ALLYEAR,ITEM] CM_MAXC
     cm_exoforc: Parameter = None  # type: ignore[assignment] # [ALLYEAR] CM_EXOFORC
     s_cm_maxco2c: Parameter = None  # type: ignore[assignment] # [ALLYEAR,J,ALLSOW] S_CM_MAXCO2C
     s_cm_maxc: Parameter = None  # type: ignore[assignment] # [ALLYEAR,ITEM,J,ALLSOW] S_CM_MAXC
+    cmpredef: Set = None  # type: ignore[assignment]
+    cmitem: Set = None  # type: ignore[assignment]
+    cmq: Set = None  # type: ignore[assignment]
+    CmOfor: Set = None  # type: ignore[assignment]
+    cm_co2gtc: Parameter = None  # type: ignore[assignment]
+    cm_ghgmap: Parameter = None  # type: ignore[assignment]
+    cm_ppm: Parameter = None  # type: ignore[assignment]
+    cm_decay: Parameter = None  # type: ignore[assignment]
+    cm_couple: Parameter = None  # type: ignore[assignment]
     SwTstg: Set = None  # type: ignore[assignment] # [LL,J] SW_TSTG
+    attlvl: Parameter = None  # type: ignore[assignment] # ATTLVL
+    vallvl: Parameter = None  # type: ignore[assignment] # VALLVL
+    cm_calib: Parameter = None  # type: ignore[assignment] # CM_CALIB
+    cm_dt_forc: Parameter = None  # type: ignore[assignment] #
+    cm_sresult: Parameter = None  # type: ignore[assignment] #
+    cm_smaxc_m: Parameter = None  # type: ignore[assignment] #
+    cmstcc: Set = None  # type: ignore[assignment] #
+    CmConc: Set = None  # type: ignore[assignment] #
+    CmAtmap: Set = None  # type: ignore[assignment] #
+    CmBuck: Set = None  # type: ignore[assignment] #
+    Pret: Set = None  # type: ignore[assignment] #
+    CmForcmap: Set = None  # type: ignore[assignment] #
+    cm_stat0: Parameter = None  # type: ignore[assignment] #
+    cm_sig1: Parameter = None  # type: ignore[assignment] #
+    cm_phi: Parameter = None  # type: ignore[assignment] #
+    cm_sig: Parameter = None  # type: ignore[assignment] #
+    cm_aa: Parameter = None  # type: ignore[assignment] #
+    cm_bb: Parameter = None  # type: ignore[assignment] #
+    cm_cc: Parameter = None  # type: ignore[assignment] #
+    cm_rr: Parameter = None  # type: ignore[assignment] #
+    cm_deltat: Parameter = None  # type: ignore[assignment] #
+    cm_led: Parameter = None  # type: ignore[assignment] #
+    cm_const: Parameter = None  # type: ignore[assignment] #
+    cm_default: Parameter = None  # type: ignore[assignment] #
+    gg_m1: Parameter = None  # type: ignore[assignment]  # GG_M1
+    gg_mm: Parameter = None  # type: ignore[assignment] # GG_MM
+    gg_ppm: Parameter = None  # type: ignore[assignment] # GG_PPM
+    gg_ppw: Parameter = None  # type: ignore[assignment] # GG_PPW
+
     # endregion
 
     def __post_init__(self) -> None:
@@ -1377,8 +1450,7 @@ class TimesModelClass:
     # -----------------------
     def initialization(self) -> None:
         """Modules are initialized / compiled within their __init__ method. Only used to write GDX state after compilation."""
-        # self.container.write(self.output_compile, eps_to_zero=False)
-        self.container.addGamsCode(f"execute_unload '{self.output_compile}';")
+        self.container.write(self.output_compile, eps_to_zero=False)
 
     def enqueue(
         self, func: Callable[P, Any], *args: P.args, **kwargs: P.kwargs
@@ -1391,18 +1463,45 @@ class TimesModelClass:
         self.logger.info("Phase: run")
         for func, args, kwargs in self.execution_list:
             func(*args, **kwargs)
-        # self.container.write(self.output_execute, eps_to_zero=False)
-        self.container.addGamsCode(f"execute_unload '{self.output_execute}';")
+        self.container.write(self.output_execute, eps_to_zero=False)
 
     # -----------------------
     # Utils
     # -----------------------
-    def defined(self, symbol: str) -> bool:
-        return symbol.upper() in self.container.listSymbols() and (
-            self.container[symbol.upper()].number_records > 0
-        )
+    def declared(self, symbol: Set | Parameter | Variable | str) -> bool:
+        if isinstance(symbol, str):
+            return symbol in self.container.listSymbols()
+        else:
+            return symbol is not None
+
+    def defined(self, symbol: Set | Parameter | Variable | str) -> bool:
+        if not self.declared(symbol):
+            return False
+        else:
+            if isinstance(symbol, str):
+                symbol = self.container[symbol]  # type: ignore
+            assert not isinstance(symbol, str)
+            return bool(symbol.number_records > 0)
+
+    def defined_assigned(self, symbol: Set | Parameter | Variable | str) -> bool:
+        if not self.declared(symbol):
+            return False
+        else:
+            if isinstance(symbol, str):
+                symbol = self.container[symbol]  # type: ignore
+            assert not isinstance(symbol, str)
+            return self.defined(symbol) | self.assigned(symbol)
+
+    def assigned(self, symbol: Set | Parameter | Variable) -> bool:
+        return symbol in self.assigned_symbols
+
+    def register_assignment(self, symbol: Set | Parameter | Variable) -> None:
+        self.assigned_symbols.add(symbol)
 
     def get_equation(self, name: str) -> Any:
+        return getattr(self, name.lower())
+
+    def get_parameter(self, name: str) -> Any:
         return getattr(self, name.lower())
 
     def get_variable(self, name: str) -> Any:
@@ -1413,3 +1512,6 @@ class TimesModelClass:
 
     def set_equation(self, name: str, eq: Equation) -> None:
         setattr(self, name.lower(), eq)
+
+    def set_variable(self, name: str, var: Variable) -> None:
+        setattr(self, name.upper(), var)

@@ -15,13 +15,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.equcrtp_vda import EqucrtpVda
 from core.fillparm_gms import FillparmGms
 from core.fillvint_gms import FillvintGms
 from core.powerflo_vda import PowerfloVda
 from core.resloadc_vda import ResloadcVda
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -92,21 +91,10 @@ class PrepExtVda(GamsClass):
                 )
             )
 
-        if self.env.powerflow.upper() == "YES":
-            self.include(
-                PowerfloVda(
-                    self.tc,
-                    self.env,
-                    arg1="PREP",
-                )
-            )
+        if self.env.powerflo.upper() == "YES":
+            self.include(PowerfloVda(self.tc, self.env, arg1="PREP"))
         if self.tc.defined("GR_VARGEN"):
             self.include(ResloadcVda(self.tc, self.env))
-
-        if self.tc.test_run:
-            self.tc.save_test_state(
-                env=self.env, checkpoint="prep_ext_vda_prio_equcrtp"
-            )
 
         self.include(EqucrtpVda(self.tc, self.env, arg1="PREP_EXT"))
 

@@ -176,7 +176,7 @@ class EqactupsVda(GamsClass):
                 arg1="ACT_UPS",
                 arg2="P",
                 arg3="PRC_TS",
-                arg4="',BD'",
+                arg4=",BD",
                 arg5=",'','',''",
                 arg6="ALL_TS",
                 arg7="V",
@@ -194,7 +194,7 @@ class EqactupsVda(GamsClass):
   RTP_PL(RTP(R,V,P))$((ACT_LOSPL(RTP,'LO')=ACT_MINLD(RTP))$RP_UPL(R,P,'FX'))$=RP_PL(R,P,'N');
 * Check for cycling limits
   RP_UPC(R,P,TSL,'N')$RP_UPR(R,P,'N') $= SUM(RP_UPS(PRC_TSL(R,P,TSLVL),L),RLUP(R,TSLVL,TSL));
-  RP_UPC(PRC_TSL(RP,TSL),BDNEQ(BD))$RP_UPS(RP,TSL,'UP') $= RP_UPR(RP,BD));
+  RP_UPC(PRC_TSL(RP,TSL),BDNEQ(BD))$RP_UPS(RP,TSL,'UP') $= RP_UPR(RP,BD);
 """,
             )
         self.tc.add_gams_code(

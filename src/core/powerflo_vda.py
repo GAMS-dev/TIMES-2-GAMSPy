@@ -155,7 +155,7 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
                         self.env,
                         FilparamGmsConfig(
                             src=g.gr_xbnd,
-                            arg2=g.r,
+                            arg2=(g.r,),
                             tail1=(),
                             arg4=("0", "0", "0", "0", "0"),
                             arg5=g.Datayear,

@@ -90,9 +90,14 @@ def filparam_gms_gp(g: TimesModelClass, cc: FilparamGmsConfig, dflbl: str) -> No
     g.Uncd7.setRecords(None)
 
     if cc.arg10 == ():
-        with Loop(
-            Domain(*cc.arg2, cc.arg5, *tail2).where[cc.src[*cc.arg2, cc.arg5, *tail2]]
-        ):
+        # TODO: Wait for Domain to be able to process a single set
+        index_list = [*cc.arg2, cc.arg5, *tail2]
+        if len(index_list) >= 2:
+            loop_domain = Domain(*cc.arg2, cc.arg5, *tail2)
+        else:
+            loop_domain = cc.arg5  # type: ignore
+
+        with Loop(loop_domain.where[cc.src[*cc.arg2, cc.arg5, *tail2]]):
             g.Uncd7[*cc.arg2, *tail1, *cc.arg4] = True
     else:
         g.Uncd7[*cc.arg2, ll.lag(Ord(ll), "circular"), *tail1, *cc.arg4].where[

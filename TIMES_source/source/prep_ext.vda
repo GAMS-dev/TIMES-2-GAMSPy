@@ -36,15 +36,7 @@ $IF DEFINED UC_FLOBET $BATINCLUDE fillparm UC_FLOBET 'UC_N,R' 'P,C' ",'0','0','0
 $IF DEFINED COM_CSTBAL $BATINCLUDE fillparm COM_CSTBAL R 'C,S,ITEM,CUR' ",'0','0'" T 1 'GE 0'
 $IFI %POWERFLO%==YES  $BATINCLUDE powerflo.vda PREP
 $IF DEFINED GR_VARGEN $BATINCLUDE resloadc.vda
-$onlisting
-display "prep_ext_vda_prio_equcrtp";
-$show
-$offlisting
 $BATINCLUDE equcrtp.vda PREP_EXT
-$onlisting
-display "prep_ext_vda_after_equcrtp";
-$show
-$offlisting
 *------------------------------------------------------------------------------
 * Special vintaging options
 $IF %VINTOPT%==1 $BATINCLUDE fillvint VDA_FLOP R 'P,CG,TS' X_RPGS

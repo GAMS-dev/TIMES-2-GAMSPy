@@ -95,7 +95,7 @@ class BndUcvMod(GamsClass):
             stages=self.env.stages,
             swd=self.env.swd,
             sow=self.env.sow,
-            arg1_defined=self.tc.defined(self.arg1),
+            arg1_defined=self.tc.defined_assigned(self.arg1),
         )
 
     def exec_bnd_ucv_mod(

@@ -105,12 +105,7 @@ class MainDrvMod(GamsClass):
         g = self.tc
 
         self.env.set_local("src", self.arg1)
-
-        if self.tc.test_run:
-            self.tc.save_test_state(env=self.env, checkpoint="setglobs_gms_start")
         self.include(SetglobsGms(tc=self.tc, env=self.env, arg1="1"))
-        if self.tc.test_run:
-            self.tc.save_test_state(env=self.env, checkpoint="setglobs_gms_end")
 
         self.env.set_scoped("model_name", "TIMES")
 
@@ -167,11 +162,6 @@ class MainDrvMod(GamsClass):
             self.env.set_scoped("r_t_GP", g.RtPp[*self.env.r_t_GP])
             self.env.set_scoped("r_v_t", f"RVT({r_v_t})")
             self.env.set_scoped("rtpx", "X")
-
-        if self.tc.test_run:
-            self.tc.save_test_state(
-                env=self.env, checkpoint="maindrv_mod_prior_err_stat_mod"
-            )
 
         arg1 = "$IF NOT ERRORFREE"
         arg2 = "ABORT"
@@ -357,7 +347,7 @@ class MainDrvMod(GamsClass):
         def_com_cstbal = self.tc.defined("COM_CSTBAL")
         def_gr_vargen = self.tc.defined("GR_VARGEN")
         def_rtc_ms = self.tc.defined("RTC_MS")
-        def_gg_mm = self.tc.defined("GG_MM")
+        def_gg_mm = self.tc.defined_assigned("GG_MM")
 
         if self.env.merge.upper() != "YES" and self.env.extend != "":
             requested_exts = set(self.env.extend.split())

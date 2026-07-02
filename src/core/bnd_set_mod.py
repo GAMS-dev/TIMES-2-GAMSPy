@@ -71,7 +71,7 @@ class BndSetMod(GamsClass):
             stages=self.env.stages,
             swd=self.env.swd,
             sow=self.env.sow,
-            stochastic_symbol_declared=self.tc.defined(f"S_{self.arg3}"),
+            stochastic_symbol_declared=self.tc.declared(f"S_{self.arg3}"),
         )
 
     def exec_bnd_set_mod(
