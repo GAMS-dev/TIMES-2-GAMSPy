@@ -12,6 +12,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Set
+
 from core.base_class import GamsClass
 from core.curex_gms import CurexGms
 from core.fillparm_gms import FillparmGms
@@ -57,6 +59,7 @@ class PreppmMod(GamsClass):
 
     def compile(self) -> None:
         g = self.tc
+        m = g.container
 
         r, v, t, ucn = g.r, g.v, g.t, g.ucn
 
@@ -83,14 +86,18 @@ class PreppmMod(GamsClass):
 
         self.tc.enqueue(self.exec3)
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="""
- SET OBJ_VFLO(R,P,C,CUR,UC_COST);
- SET RPC_CUR(REG,PRC,COM,CUR);
-""",
+        p, c, cur, uccost, reg, prc, com = (
+            g.p,
+            g.c,
+            g.cur,
+            g.UcCost,
+            g.Reg,
+            g.prc,
+            g.Com,
         )
+
+        g.ObjVflo = Set(m, name="OBJ_VFLO", domain=[r, p, c, cur, uccost])
+        g.RpcCur = Set(m, name="RPC_CUR", domain=[reg, prc, com, cur])
 
         self.tc.enqueue(self.prepare_flags_for_flow_tax_sub, dflbl=self.env.dflbl)
 

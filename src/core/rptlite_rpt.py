@@ -11,8 +11,13 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal
 
+from gamspy import Alias, Loop, Number, Parameter, Set, Sum
+from gamspy.math import project
+
+from core.base_class import GamsClass
 from core.cost_ann_rpt import cost_ann_rpt
 from core.par_uc_rpt import par_uc_rpt
 from core.rpt_obj_rpt import rpt_obj_rpt
@@ -21,14 +26,21 @@ from core.sol_flo_red import sol_flo_red
 from core.sol_ire_rpt import sol_ire_rpt
 from core.solsetv_v3 import SolsetvV3
 from core.solsysd_v3 import SolsysdV3
-
-from .base_class import GamsClass
+from core.utils import resolve_ctst
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class RptliteRptConfig:
+    arg1: tuple[Alias] | tuple[()] = ()  # Alias s
+    arg2: tuple[Alias] | tuple[()] = ()  # Alias ww
+    arg3: tuple[Literal["'1'"]] | tuple[()] = ()
+    arg4: tuple[Literal["NO"]] | tuple[()] = ()
 
 
 class RptliteRpt(GamsClass):
@@ -38,33 +50,28 @@ class RptliteRpt(GamsClass):
     gams_source: str = "rptlite.rpt"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
-        arg4: str = "",
+        self, tc: TimesModelClass, env: CompileEnvironment, config: RptliteRptConfig
     ):
         self.env = env.fork()
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
-        self.arg4 = arg4
+        self.config = config
         self._sub_modules = {}
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
+        cc = self.config
+
         # $IF NOT %SOLVEDA%==1 $SHIFT SHIFT SHIFT
         if self.env.solveda != "1":
-            self.arg1 = self.arg4
-            self.arg2 = ""
-            self.arg3 = ""
-            self.arg4 = ""
+            cc.arg1 = cc.arg4
+            cc.arg2 = ()
+            cc.arg3 = ()
+            cc.arg4 = ()
 
-        if self.arg4 == "NO":
-            self._label_report()
+        if cc.arg4 == ("NO",):
+            self._label_report(cc=cc)
             return
 
         self.include(
@@ -119,142 +126,471 @@ class RptliteRpt(GamsClass):
             )
         )
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-ALIAS(ALLSOW,WW);
-""",
-        )
+        g.ww = Alias(m, name="WW", alias_with=g.allsow)
 
         if self.env.is_set("rpt_opt"):
-            self.tc.add_gams_code(
-                module=self,
-                phase="init",
-                code=rf"PARAMETER RPT_OPT / {self.env.rpt_opt} /;",
-            )
+            g.rpt_opt = Parameter(m, name="RPT_OPT", records=self.env.rpt_opt)
 
         if self.env.rpt_flots == "COM":
             self.tc.enqueue(self.exec1)
 
         self.tc.enqueue(self.exec2)
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-*------------------------------------------------------------------------------
-* Other general parameters and sets
- PARAMETERS
-   RTP_OBJ(J,R,ALLYEAR,P,CUR)      //
-   RTP_NPV(J,R,ALLYEAR,P,CUR)      //
-   PAR_ACTC(J,R,LL,T,P,C,CUR)
-   PAR_FLOC(J,R,LL,T,P,C,CUR)
-   PAR_COMC(J,R,T,C,CUR)
-   PAR_RPMX(R,P,J,LL,T,C,CUR)
-   PAR_RCMX(R,C,J,T,CUR)
-   PAR_OBJCAP(R,ALLYEAR,P,CUR)
-   PAR_XPRI(R,T,P,C,TS,REG,COM)
-   COEF_OBJINV(R,ALLYEAR,PRC)      //
-   COEF_OBINV(R,ALLYEAR,P,CUR)     //
-   COEF_OBFIX(R,ALLYEAR,P,CUR)     //
-   COEF_CRF(R,ALLYEAR,P,CUR)       //
-   VAR_NCAPRNG(R,ALLYEAR,P,BD)     //
-   CSTVNT(J,R,LL,YEAR,P,SYSUC)     //
-   CSTVPJ(R,LL,P,J,SYSUC,YEAR)
-   F_VIO(R,ALLYEAR,T,P,IO)
-   F_IOS(R,ALLYEAR,T,P,C,S)        //
-   F_INOUT(R,ALLYEAR,T,P,C,IO)     //
-   F_INOUTS(R,ALLYEAR,T,P,C,S,IO)  //
-   REG_OBJ(REG)                    //
-   BC_INVACT(R,ALLYEAR,LL,PRC,S)   //
-   BC_INVTOT(R,ALLYEAR,PRC)        //
-   VAL_FLO(R,ALLYEAR,LL,PRC,C)     //
-   PAR_RTCS(R,T,C,S)
-   PAR_TOP(R,T,P,C,IO);
+        (
+            j,
+            r,
+            allyear,
+            p,
+            cur,
+            ll,
+            t,
+            c,
+            ts,
+            reg,
+            com,
+            prc,
+            bd,
+            year,
+            sysuc,
+            io,
+            s,
+            item,
+            cg,
+            ie,
+            allr,
+            ucn,
+            costagg,
+            ucgrptype,
+        ) = (
+            g.j,
+            g.r,
+            g.allyear,
+            g.p,
+            g.cur,
+            g.ll,
+            g.t,
+            g.c,
+            g.ts,
+            g.Reg,
+            g.Com,
+            g.prc,
+            g.bd,
+            g.year,
+            g.sysuc,
+            g.io,
+            g.s,
+            g.item,
+            g.cg,
+            g.ie,
+            g.allr,
+            g.ucn,
+            g.costagg,
+            g.ucgrptype,
+        )
 
- SET NCAP_YES(R,ALLYEAR,P)         //;
- SET F_IOSET(R,ALLYEAR,T,P,C,S,IO) //;
- SET RVTPC(R,ALLYEAR,T,P,C)        //;
- SET RTTC(R,ALLYEAR,C);
- SET PASTCV / '0','€' /, RPM / '-','+' /;
- SET RNGLIM(SYSUC), SYSINV(SYSUC);
- SET SUCMAP(J,SYSUC) /2.{self.env.sysprefix}LUMPINV,2.{self.env.sysprefix}INV+,1.{self.env.sysprefix}LUMPIX,1.{self.env.sysprefix}INVX+/;
- SET RNGMAP(SYSUC,BD) / {self.env.sysprefix}RNGLO.LO, {self.env.sysprefix}RNGUP.UP /;
-""",
+        g.rtp_obj = Parameter(m, name="RTP_OBJ", domain=[j, r, allyear, p, cur])
+        g.rtp_npv = Parameter(m, name="RTP_NPV", domain=[j, r, allyear, p, cur])
+        g.par_actc = Parameter(m, name="PAR_ACTC", domain=[j, r, ll, t, p, c, cur])
+        g.par_floc = Parameter(m, name="PAR_FLOC", domain=[j, r, ll, t, p, c, cur])
+        g.par_comc = Parameter(m, name="PAR_COMC", domain=[j, r, t, c, cur])
+        g.par_rpmx = Parameter(m, name="PAR_RPMX", domain=[r, p, j, ll, t, c, cur])
+        g.par_rcmx = Parameter(m, name="PAR_RCMX", domain=[r, c, j, t, cur])
+        g.par_objcap = Parameter(m, name="PAR_OBJCAP", domain=[r, allyear, p, cur])
+        g.par_xpri = Parameter(m, name="PAR_XPRI", domain=[r, t, p, c, ts, reg, com])
+        g.coef_objinv = Parameter(m, name="COEF_OBJINV", domain=[r, allyear, prc])
+        g.coef_obinv = Parameter(m, name="COEF_OBINV", domain=[r, allyear, p, cur])
+        g.coef_obfix = Parameter(m, name="COEF_OBFIX", domain=[r, allyear, p, cur])
+        g.coef_crf = Parameter(m, name="COEF_CRF", domain=[r, allyear, p, cur])
+        g.var_ncaprng = Parameter(m, name="VAR_NCAPRNG", domain=[r, allyear, p, bd])
+        g.cstvnt = Parameter(m, name="CSTVNT", domain=[j, r, ll, year, p, sysuc])
+        g.cstvpj = Parameter(m, name="CSTVPJ", domain=[r, ll, p, j, sysuc, year])
+        g.f_vio = Parameter(m, name="F_VIO", domain=[r, allyear, t, p, io])
+        g.f_ios = Parameter(m, name="F_IOS", domain=[r, allyear, t, p, c, s])
+        g.f_inout = Parameter(m, name="F_INOUT", domain=[r, allyear, t, p, c, io])
+        g.f_inouts = Parameter(m, name="F_INOUTS", domain=[r, allyear, t, p, c, s, io])
+        g.reg_obj = Parameter(m, name="REG_OBJ", domain=[reg])
+        g.bc_invact = Parameter(m, name="BC_INVACT", domain=[r, allyear, ll, prc, s])
+        g.bc_invtot = Parameter(m, name="BC_INVTOT", domain=[r, allyear, prc])
+        g.val_flo = Parameter(m, name="VAL_FLO", domain=[r, allyear, ll, prc, c])
+        g.par_rtcs = Parameter(m, name="PAR_RTCS", domain=[r, t, c, s])
+        g.par_top = Parameter(m, name="PAR_TOP", domain=[r, t, p, c, io])
+
+        g.NcapYes = Set(m, name="NCAP_YES", domain=[r, allyear, p])
+        g.FIoset = Set(m, name="F_IOSET", domain=[r, allyear, t, p, c, s, io])
+        g.Rvtpc = Set(m, name="RVTPC", domain=[r, allyear, t, p, c])
+        g.Rttc = Set(m, name="RTTC", domain=[r, allyear, c])
+        g.pastcv = Set(m, name="PASTCV", records=["0", "€"])
+        rpm = g.rpm = Set(m, name="RPM", records=["-", "+"])
+        g.Rnglim = Set(m, name="RNGLIM", domain=[sysuc])
+        g.Sysinv = Set(m, name="SYSINV", domain=[sysuc])
+        g.Sysinv = Set(m, name="SYSINV", domain=[sysuc])
+        g.Sucmap = Set(
+            m,
+            name="SUCMAP",
+            domain=[j, sysuc],
+            records=[
+                ("2", f"{self.env.sysprefix}LUMPINV"),
+                ("2", f"{self.env.sysprefix}INV+"),
+                ("1", f"{self.env.sysprefix}LUMPIX"),
+                ("1", f"{self.env.sysprefix}INVX+"),
+            ],
+        )
+        g.Rngmap = Set(
+            m,
+            name="RNGMAP",
+            domain=[sysuc, bd],
+            records=[
+                (f"{self.env.sysprefix}RNGLO", "LO"),
+                (f"{self.env.sysprefix}RNGUP", "UP"),
+            ],
         )
 
         self.tc.enqueue(self.exec3)
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
- SCALAR OBJVAL_1 / 0 /, OBJVAL_2 / 0 /;
- PARAMETER SYSONE(SYSUC) / {self.env.sysprefix}INV 1 /, SYSPLIT(SYSUC);
+        g.objval_1 = Parameter(m, name="OBJVAL_1", records=0)
+        g.objval_2 = Parameter(m, name="OBJVAL_2", records=0)
 
-*------------------------------------------------------------------------------
-* Stochastic result parameters
- PARAMETER {self.arg1}CST_PVC({self.arg2}SYSUC,R,C)       //;
- PARAMETER {self.arg1}CST_PVP({self.arg2}SYSUC,R,P)       //;
- PARAMETER {self.arg1}F_IN({self.arg2}R,ALLYEAR,T,P,C,S)  //;
- PARAMETER {self.arg1}F_OUT({self.arg2}R,ALLYEAR,T,P,C,S) //;
- PARAMETER {self.arg1}P_OUT({self.arg2}R,T,P,C,S)         //;
- PARAMETER {self.arg1}AGG_OUT({self.arg2}R,T,C,TS)        //;
- PARAMETER {self.arg1}PAR_ACTL({self.arg2}R,LL,LL,P,S)    //;
- PARAMETER {self.arg1}PAR_ACTM({self.arg2}R,LL,LL,P,S)    //;
- PARAMETER {self.arg1}PAR_PASTI({self.arg2}R,T,P,ITEM)    //;
- PARAMETER {self.arg1}PAR_CAPL({self.arg2}R,YEAR,P)       //;
- PARAMETER {self.arg1}PAR_CAPM({self.arg2}R,YEAR,P)       //;
- PARAMETER {self.arg1}PAR_CAPBD({self.arg2}R,YEAR,P,BD)   //;
- PARAMETER {self.arg1}PAR_CUMRET({self.arg2}R,YEAR,YEAR,P)//;
- PARAMETER {self.arg1}PAR_NCAPL({self.arg2}R,ALLYEAR,P)   //;
- PARAMETER {self.arg1}PAR_NCAPM({self.arg2}R,ALLYEAR,P)   //;
- PARAMETER {self.arg1}PAR_NCAPR({self.arg2}R,ALLYEAR,P,ITEM) //;
- PARAMETER {self.arg1}PAR_OBJSAL({self.arg2}R,ALLYEAR,P,CUR) //;
+        g.sysone = Parameter(
+            m, name="SYSONE", domain=[sysuc], records=[(f"{self.env.sysprefix}INV", 1)]
+        )
+        g.sysplit = Parameter(m, name="SYSPLIT", domain=[sysuc])
 
- PARAMETER {self.arg1}PAR_COMPRDL({self.arg2}R,ALLYEAR,C,S)   //;
- PARAMETER {self.arg1}PAR_COMPRDM({self.arg2}R,ALLYEAR,C,S)   //;
- PARAMETER {self.arg1}PAR_COMNETL({self.arg2}R,ALLYEAR,C,S)   //;
- PARAMETER {self.arg1}PAR_COMNETM({self.arg2}R,ALLYEAR,C,S)   //;
- PARAMETER {self.arg1}PAR_COMBALEM({self.arg2}R,ALLYEAR,C,S)  //;
- PARAMETER {self.arg1}PAR_COMBALGM({self.arg2}R,ALLYEAR,C,S)  //;
- PARAMETER {self.arg1}PAR_IPRIC({self.arg2}R,YEAR,P,C,TS,IE)  //;
- PARAMETER {self.arg1}PAR_PEAKM({self.arg2}R,ALLYEAR,CG,S)    //;
- PARAMETER {self.arg1}PAR_UCSL({self.arg2}UC_N,*,*,*)         //;
- PARAMETER {self.arg1}PAR_UCSM({self.arg2}UC_N,*,*,*)         //;
- PARAMETER {self.arg1}PAR_UCMRK({self.arg2}R,T,ITEM,C,S)      //;
- PARAMETER {self.arg1}PAR_UCMAX({self.arg2}UC_N,ALL_R,ITEM,C) //;
- PARAMETER {self.arg1}PAR_CUMFLOL({self.arg2}R,P,C,LL,LL)     //;
- PARAMETER {self.arg1}PAR_CUMFLOM({self.arg2}R,P,C,LL,LL)     //;
- PARAMETER {self.arg1}PAR_CUMCST({self.arg2}R,LL,LL,COSTAGG,CUR) //;
- PARAMETER {self.arg1}PAR_UCRTP({self.arg2}UC_N,R,T,P,UC_GRPTYPE)//;
+        arg1 = next(iter(cc.arg1), "")
+        g.set_parameter(
+            name=f"{arg1}CST_PVC",
+            parameter=Parameter(
+                m, name=f"{arg1}CST_PVC", domain=[*cc.arg2, sysuc, r, c]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}CST_PVC",
+            parameter=Parameter(
+                m, name=f"{arg1}CST_PVC", domain=[*cc.arg2, sysuc, r, c]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}CST_PVP",
+            parameter=Parameter(
+                m, name=f"{arg1}CST_PVP", domain=[*cc.arg2, sysuc, r, p]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}F_IN",
+            parameter=Parameter(
+                m, name=f"{arg1}F_IN", domain=[*cc.arg2, r, allyear, t, p, c, s]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}F_OUT",
+            parameter=Parameter(
+                m, name=f"{arg1}F_OUT", domain=[*cc.arg2, r, allyear, t, p, c, s]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}P_OUT",
+            parameter=Parameter(
+                m, name=f"{arg1}P_OUT", domain=[*cc.arg2, r, t, p, c, s]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}AGG_OUT",
+            parameter=Parameter(
+                m, name=f"{arg1}AGG_OUT", domain=[*cc.arg2, r, t, c, ts]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_ACTL",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_ACTL", domain=[*cc.arg2, r, ll, ll, p, s]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_ACTM",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_ACTM", domain=[*cc.arg2, r, ll, ll, p, s]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_PASTI",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_PASTI", domain=[*cc.arg2, r, t, p, item]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_CAPL",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_CAPL", domain=[*cc.arg2, r, year, p]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_CAPM",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_CAPM", domain=[*cc.arg2, r, year, p]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_CAPBD",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_CAPBD", domain=[*cc.arg2, r, year, p, bd]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_CUMRET",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_CUMRET", domain=[*cc.arg2, r, year, year, p]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_NCAPL",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_NCAPL", domain=[*cc.arg2, r, allyear, p]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_NCAPM",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_NCAPM", domain=[*cc.arg2, r, allyear, p]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_NCAPR",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_NCAPR", domain=[*cc.arg2, r, allyear, p, item]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_OBJSAL",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_OBJSAL", domain=[*cc.arg2, r, allyear, p, cur]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_COMPRDL",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_COMPRDL", domain=[*cc.arg2, r, allyear, c, s]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_COMPRDM",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_COMPRDM", domain=[*cc.arg2, r, allyear, c, s]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_COMNETL",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_COMNETL", domain=[*cc.arg2, r, allyear, c, s]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_COMNETM",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_COMNETM", domain=[*cc.arg2, r, allyear, c, s]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_COMBALEM",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_COMBALEM", domain=[*cc.arg2, r, allyear, c, s]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_COMBALGM",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_COMBALGM", domain=[*cc.arg2, r, allyear, c, s]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_IPRIC",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_IPRIC", domain=[*cc.arg2, r, allyear, p, c, ts, ie]
+            ),
+        )
 
-* Stochastic cost parameters
- PARAMETER REG_WOBJ(REG,ITEM,CUR)              //;
- PARAMETER {self.arg1}REG_WOBJ({self.arg2}REG,ITEM,CUR)          //;
- PARAMETER {self.arg1}REG_IREC({self.arg2}REG)                   //;
- PARAMETER {self.arg1}REG_ACOST({self.arg2}R,ALLYEAR,ITEM)       //;
- PARAMETER {self.arg1}CST_INVC({self.arg2}R,ALLYEAR,T,P,SYSUC)   //;
- PARAMETER {self.arg1}CST_INVX({self.arg2}R,ALLYEAR,T,P,SYSUC)   //;
- PARAMETER {self.arg1}CST_DECC({self.arg2}R,ALLYEAR,T,P)         //;
- PARAMETER {self.arg1}CST_FIXC({self.arg2}R,ALLYEAR,T,P)         //;
- PARAMETER {self.arg1}CST_FIXX({self.arg2}R,ALLYEAR,T,P)         //;
- PARAMETER {self.arg1}CST_ACTC({self.arg2}R,ALLYEAR,T,P,RPM)     //;
- PARAMETER {self.arg1}CST_FLOC({self.arg2}R,ALLYEAR,T,P,C)       //;
- PARAMETER {self.arg1}CST_FLOX({self.arg2}R,ALLYEAR,T,P,C)       //;
- PARAMETER {self.arg1}CST_IREC({self.arg2}R,ALLYEAR,T,P,C)       //;
- PARAMETER {self.arg1}CST_COMC({self.arg2}R,ALLYEAR,C)           //;
- PARAMETER {self.arg1}CST_COMX({self.arg2}R,ALLYEAR,C)           //;
- PARAMETER {self.arg1}CST_COME({self.arg2}R,ALLYEAR,C)           //;
- PARAMETER {self.arg1}CST_SALV({self.arg2}R,ALLYEAR,P)           //;
- PARAMETER {self.arg1}CST_TIME({self.arg2}R,ALLYEAR,S,SYSUC)     //;
- PARAMETER {self.arg1}CAP_NEW({self.arg2}R,ALLYEAR,P,T,SYSUC)    //;
-* Damage cost and custom parameters
- PARAMETER {self.arg1}DAM_OBJ({self.arg2}R,T,C,CUR);
- PARAMETER {self.arg1}CST_DAM({self.arg2}R,T,C) 'Damage costs'   //;
- PARAMETER {self.arg1}PAR_EOUT({self.arg2}R,ALLYEAR,T,P,C)       //;
-""",
+        g.set_parameter(
+            name=f"{arg1}PAR_PEAKM",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_PEAKM", domain=[*cc.arg2, r, allyear, cg, s]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_UCSL",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_UCSL", domain=[*cc.arg2, ucn, "*", "*", "*"]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_UCSM",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_UCSM", domain=[*cc.arg2, ucn, "*", "*", "*"]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_UCMRK",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_UCMRK", domain=[*cc.arg2, r, t, item, c, s]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_UCMAX",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_UCMAX", domain=[*cc.arg2, ucn, allr, item, c]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_CUMFLOL",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_CUMFLOL", domain=[*cc.arg2, r, p, c, ll, ll]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_CUMFLOM",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_CUMFLOM", domain=[*cc.arg2, r, p, c, ll, ll]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_CUMCST",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_CUMCST", domain=[*cc.arg2, r, ll, ll, costagg, cur]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_UCRTP",
+            parameter=Parameter(
+                m, name=f"{arg1}PAR_UCRTP", domain=[*cc.arg2, ucn, r, t, p, ucgrptype]
+            ),
+        )
+        g.reg_wobj = Parameter(m, name="REG_WOBJ", domain=[reg, item, cur])
+        g.set_parameter(
+            name=f"{arg1}REG_WOBJ",
+            parameter=Parameter(
+                m, name=f"{arg1}REG_WOBJ", domain=[*cc.arg2, reg, item, cur]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}REG_IREC",
+            parameter=Parameter(m, name=f"{arg1}REG_IREC", domain=[*cc.arg2, reg]),
+        )
+        g.set_parameter(
+            name=f"{arg1}REG_ACOST",
+            parameter=Parameter(
+                m, name=f"{arg1}REG_ACOST", domain=[*cc.arg2, r, allyear, item]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}CST_INVC",
+            parameter=Parameter(
+                m, name=f"{arg1}CST_INVC", domain=[*cc.arg2, r, allyear, t, p, sysuc]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}CST_INVX",
+            parameter=Parameter(
+                m, name=f"{arg1}CST_INVX", domain=[*cc.arg2, r, allyear, t, p, sysuc]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}CST_DECC",
+            parameter=Parameter(
+                m, name=f"{arg1}CST_DECC", domain=[*cc.arg2, r, allyear, t, p]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}CST_FIXC",
+            parameter=Parameter(
+                m, name=f"{arg1}CST_FIXC", domain=[*cc.arg2, r, allyear, t, p]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}CST_FIXX",
+            parameter=Parameter(
+                m, name=f"{arg1}CST_FIXX", domain=[*cc.arg2, r, allyear, t, p]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}CST_ACTC",
+            parameter=Parameter(
+                m, name=f"{arg1}CST_ACTC", domain=[*cc.arg2, r, allyear, t, p, rpm]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}CST_FLOC",
+            parameter=Parameter(
+                m, name=f"{arg1}CST_FLOC", domain=[*cc.arg2, r, allyear, t, p, c]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}CST_FLOX",
+            parameter=Parameter(
+                m, name=f"{arg1}CST_FLOX", domain=[*cc.arg2, r, allyear, t, p, c]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}CST_IREC",
+            parameter=Parameter(
+                m, name=f"{arg1}CST_IREC", domain=[*cc.arg2, r, allyear, t, p, c]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}CST_COMC",
+            parameter=Parameter(
+                m, name=f"{arg1}CST_COMC", domain=[*cc.arg2, r, allyear, c]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}CST_COMX",
+            parameter=Parameter(
+                m, name=f"{arg1}CST_COMX", domain=[*cc.arg2, r, allyear, c]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}CST_COME",
+            parameter=Parameter(
+                m, name=f"{arg1}CST_COME", domain=[*cc.arg2, r, allyear, c]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}CST_SALV",
+            parameter=Parameter(
+                m, name=f"{arg1}CST_SALV", domain=[*cc.arg2, r, allyear, p]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}CST_TIME",
+            parameter=Parameter(
+                m, name=f"{arg1}CST_TIME", domain=[*cc.arg2, r, allyear, s, sysuc]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}CAP_NEW",
+            parameter=Parameter(
+                m, name=f"{arg1}CAP_NEW", domain=[*cc.arg2, r, allyear, p, t, sysuc]
+            ),
+        )
+        # * Damage cost and custom parameters
+        g.set_parameter(
+            name=f"{arg1}DAM_OBJ",
+            parameter=Parameter(
+                m, name=f"{arg1}DAM_OBJ", domain=[*cc.arg2, r, t, c, cur]
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}CST_DAM",
+            parameter=Parameter(
+                m,
+                name=f"{arg1}CST_DAM",
+                domain=[*cc.arg2, reg, t, com],
+                description="Damage costs",
+            ),
+        )
+        g.set_parameter(
+            name=f"{arg1}PAR_EOUT",
+            parameter=Parameter(
+                m,
+                name=f"{arg1}PAR_EOUT",
+                domain=[*cc.arg2, r, allyear, t, p, c],
+            ),
         )
 
         self.tc.enqueue(self.exec4, ctst=self.env.ctst)
@@ -267,13 +603,12 @@ ALIAS(ALLSOW,WW);
         if self.env.solveda == "1":
             return
 
-        self._label_report()
+        self._label_report(cc=cc)
 
-    def _label_report(self) -> None:
+    def _label_report(self, cc: RptliteRptConfig) -> None:
         self.tc.enqueue(
             self.exec_label_report,
-            arg1=self.arg1,
-            arg3=self.arg3,
+            config=cc,
             sow=self.env.sow,
             sysprefix=self.env.sysprefix,
             sensis=self.env.sensis,
@@ -314,8 +649,7 @@ ALIAS(ALLSOW,WW);
 
     def exec_label_report(
         self: RptliteRpt,
-        arg1: str,
-        arg3: str,
+        config: RptliteRptConfig,
         sow: str,
         sysprefix: str,
         sensis: str,
@@ -357,8 +691,7 @@ ALIAS(ALLSOW,WW);
             module=self,
             phase="run",
             code=rptlite_rpt(
-                arg1=arg1,
-                arg3=arg3,
+                config=config,
                 sow=sow,
                 sysprefix=sysprefix,
                 sensis=sensis,
@@ -399,59 +732,74 @@ ALIAS(ALLSOW,WW);
         )
 
     def exec1(self: RptliteRpt) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="RPT_OPT('FLO','1')=1;",
-        )
+        g = self.tc
+        g.rpt_opt["FLO", "1"] = 1
 
     def exec2(self: RptliteRpt) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""
-  RPT_OPT(ITEM,J)$(RPT_OPT(ITEM,J)=0)=0;
-  RPT_OPT('FLO','1')$RPT_OPT('FLO','3')=1;
-""",
-        )
+        g = self.tc
+
+        rpt_opt, item, j = g.rpt_opt, g.item, g.j
+
+        rpt_opt[item, j].where[rpt_opt[item, j] == 0] = 0
+        rpt_opt["FLO", "1"].where[rpt_opt["FLO", "3"]] = 1
 
     def exec3(self: RptliteRpt) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=" OPTION RNGLIM < RNGMAP;",
+        g = self.tc
+        project(source=g.Rngmap, target=g.Rnglim)
+
+    def exec4(self: RptliteRpt, ctst: Literal["", "**EPS", "**0", "1"]) -> None:
+        """
+        Prepare some sets and parameters that can be used for all SOW
+        """
+        g = self.tc
+        number = resolve_ctst(Number(0), ctst)
+        # ctst = float(self.env.ctst) if self.env.ctst else 0
+        p, v, r, salv_inv, cur, objVflo, c, com, ie, ts, io, t = (
+            g.p,
+            g.v,
+            g.r,
+            g.salv_inv,
+            g.cur,
+            g.ObjVflo,
+            g.c,
+            g.Com,
+            g.ie,
+            g.ts,
+            g.io,
+            g.t,
         )
 
-    def exec4(self: RptliteRpt, ctst: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-*------------------------------------------------------------------------------
-* Prepare some sets and parameters that can be used for all SOW
-*------------------------------------------------------------------------------
-  SALV_INV(OBJ_SUMS(R,PASTMILE(V),P),V)=SUM(OBJ_ICUR(R,V,P,CUR)$OBJ_PASTI(R,V,P,CUR),SALV_INV(R,V,P,V)*(NCAP_PASTI(R,V,P)/OBJ_PASTI(R,V,P,CUR)))*(1-0{ctst});
-* Hold on to costs
-  OBJ_VFLO(R,P,C,CUR,UC_COST)$(NOT RDCUR(R,CUR)) = NO;
-  OBJ_VFLO(R,P,C,CUR,'TAX')$=OBJ_VFLO(R,P,C,CUR,'SUB');
-  SYSINV(SYSUC)$=SYSONE(SYSUC);
-* Hold on to auxliary flows and past investments
-  LOOP(RPC_IRE(R,P,COM,IE),F_IOSET(RTP_VINTYR(R,V,T,P),C,TS,IO)$(RPCS_VAR(R,P,COM,TS)$IRE_FLOSUM(R,T,P,COM,TS,IE,C,IO)) = RC(R,C));
-""",
+        salv_inv[g.ObjSums[g.r, g.Pastmile[v], p], v] = Sum(
+            g.ObjIcur[r, v, p, g.cur].where[g.obj_pasti[r, v, p, cur]],
+            salv_inv[r, v, p, v]
+            * (g.ncap_pasti[r, v, p] / g.obj_pasti[r, v, p, cur])
+            * (1.0 - number),
         )
+        # * Hold on to costs
+
+        objVflo[r, p, c, cur, g.UcCost].where[~g.Rdcur[r, cur]] = False
+        sparseExpression = objVflo[r, p, c, cur, "SUB"]
+        objVflo[r, p, c, cur, "TAX"].where[sparseExpression] = sparseExpression
+
+        g.Sysinv[g.sysuc].where[g.sysone[g.sysuc]] = g.sysone[g.sysuc]
+
+        # * Hold on to auxliary flows and past investments
+        with Loop(g.RpcIre[r, p, com, ie]):
+            g.FIoset[g.RtpVintyr[r, v, t, p], c, ts, io].where[
+                (
+                    g.RpcsVar[r, p, com, ts].where[
+                        g.ire_flosum[r, t, p, com, ts, ie, c, io]
+                    ]
+                )
+            ] = g.Rc[r, c]
 
     def exec5(self: RptliteRpt) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="OPTION CLEAR=COEF_RTP;",
-        )
+        self.tc.coef_rtp.setRecords(None)
 
 
 def rptlite_rpt(
     *,
-    arg1: str,
-    arg3: str,
+    config: RptliteRptConfig,
     sow: str,
     sysprefix: str,
     sensis: str,
@@ -494,6 +842,8 @@ def rptlite_rpt(
     stages_yes = stages == "YES"
     obmac_yes = obmac.upper() == "YES"
     abs_yes = abs_.upper() == "YES"
+    arg1 = next(iter(config.arg1), "")
+    arg3 = next(iter(config.arg3), "")
 
     return rf"""
 *------------------------------------------------------------------------------

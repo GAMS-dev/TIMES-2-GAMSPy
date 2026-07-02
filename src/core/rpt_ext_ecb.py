@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.rptlite_rpt import RptliteRpt
+from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
 from core.solve_mod import SolveMod
 
 from .base_class import GamsClass
@@ -75,10 +75,7 @@ class RptExtEcb(GamsClass):
             RptliteRpt(
                 self.tc,
                 self.env,
-                arg1="",
-                arg2="",
-                arg3="",
-                arg4="NO",
+                config=RptliteRptConfig(arg4=("NO",)),
             )
         )
         self.tc.enqueue(self.exec2)

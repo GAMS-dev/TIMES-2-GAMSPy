@@ -21,6 +21,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Alias, Parameter, Set
+
 from core.coef_alt_lin import CoefAltLin
 
 from .base_class import GamsClass
@@ -61,35 +63,46 @@ class EqobjinvMod(GamsClass):
         # change INVLIF and DECLIF to TLIFE and DLIFE instead of ELIFE and DELIF
         self.env.set_global("invlif", "ELIFE")
         self.env.set_global("declif", "DELIF")
+        g = self.tc
+        m = g.container
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-* For loop controls
-  ALIAS(AGE,JOT);
-  SCALARS OBJ_C /0/, OBJ_D /0/;
-* OBJ coefficient SUM control set with the ALLYEAR indexes in sequence =
-*   V - investment vintage year, K - commissioning index, Y - decommissioning index
-  SET OBJ_SUMII(R,ALLYEAR,P,AGE,ALLYEAR,AGE)      //;
-  SET OBJ_SUMIII(R,ALLYEAR,P,ALLYEAR,YEAR,ALLYEAR)//;
-  SET OBJ_YES(REG,ALLYEAR,P)                      //;
-  SET OBJ_I2(REG,ALLYEAR,P)                       //;
-  SET YKAGE(ALLYEAR,ALLYEAR,AGE)                  //;
-  SET KAGE(ALLYEAR,AGE)                           //;
-  SET OBJ_SPRED(R,ALLYEAR,P,AGE)                  //;
-  SET INVSTEP(ALLYEAR,AGE,ALLYEAR,AGE)            //;
-  SET INVSPRED(ALLYEAR,AGE,ALLYEAR,ALLYEAR)       //;
-  PARAMETER OBJ_PASTI(REG,ALLYEAR,P,CUR)          //;
-  PARAMETER SALV_INV(REG,ALLYEAR,PRC,ALLYEAR)     //;
-  PARAMETER COR_SALVI(REG,ALLYEAR,PRC,CUR)        //;
-  PARAMETER COR_SALVD(REG,ALLYEAR,PRC,CUR)        //;
-  PARAMETER OBJ_DIVI(REG,ALLYEAR,PRC)             //;
-  PARAMETER OBJ_DIVIII(REG,ALLYEAR,PRC)           //;
-  SET OBJ_IDC(R,ALLYEAR,P,LIFE,ALLYEAR,AGE);
-  PARAMETER OBJ_IAD(R,CUR);
-""",
+        r, reg, allyear, p, age, year, life, prc, cur = (
+            g.r,
+            g.Reg,
+            g.allyear,
+            g.p,
+            g.age,
+            g.year,
+            g.life,
+            g.prc,
+            g.cur,
         )
+
+        # * For loop controls
+        g.jot = Alias(m, name="JOT", alias_with=g.age)
+        g.obj_c = Parameter(m, name="OBJ_C", records=0)
+        g.obj_d = Parameter(m, name="OBJ_D", records=0)
+        # * OBJ coefficient SUM control set with the ALLYEAR indexes in sequence =
+        # *   V - investment vintage year, K - commissioning index, Y - decommissioning index
+        g.ObjSumii = Set(m, name="OBJ_SUMII", domain=[r, allyear, p, age, allyear, age])
+        g.ObjSumiii = Set(
+            m, name="OBJ_SUMIII", domain=[r, allyear, p, allyear, year, allyear]
+        )
+        g.ObjYes = Set(m, name="OBJ_YES", domain=[reg, allyear, p])
+        g.ObjI2 = Set(m, name="OBJ_I2", domain=[reg, allyear, p])
+        g.Ykage = Set(m, name="YKAGE", domain=[allyear, allyear, age])
+        g.Kage = Set(m, name="KAGE", domain=[allyear, age])
+        g.ObjSpred = Set(m, name="OBJ_SPRED", domain=[r, allyear, p, age])
+        g.Invstep = Set(m, name="INVSTEP", domain=[allyear, age, allyear, age])
+        g.Invspred = Set(m, name="INVSPRED", domain=[allyear, age, allyear, allyear])
+        g.obj_pasti = Parameter(m, name="OBJ_PASTI", domain=[reg, allyear, p, cur])
+        g.salv_inv = Parameter(m, name="SALV_INV", domain=[reg, allyear, prc, allyear])
+        g.cor_salvi = Parameter(m, name="COR_SALVI", domain=[reg, allyear, prc, cur])
+        g.cor_salvd = Parameter(m, name="COR_SALVD", domain=[reg, allyear, prc, cur])
+        g.obj_divi = Parameter(m, name="OBJ_DIVI", domain=[reg, allyear, prc])
+        g.obj_diviii = Parameter(m, name="OBJ_DIVIII", domain=[reg, allyear, prc])
+        g.ObjIdc = Set(m, name="OBJ_IDC", domain=[r, allyear, p, life, allyear, age])
+        g.obj_iad = Parameter(m, name="OBJ_IAD", domain=[r, cur])
 
         self.tc.enqueue(
             self.exec1,

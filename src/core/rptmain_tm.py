@@ -23,7 +23,7 @@ from core.cost_ann_rpt import CostAnnRpt
 from core.ddfupd_msa import ddfupd_msa
 from core.par_uc_rpt import ParUcRpt
 from core.rpt_obj_rpt import RptObjRpt
-from core.rptlite_rpt import RptliteRpt
+from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
 from core.rptmisc_rpt import RptmiscRpt
 from core.sol_flo_red import SolFloRed
 from core.sol_ire_rpt import SolIreRpt
@@ -64,7 +64,13 @@ class RptmainTm(GamsClass):
     def compile(self) -> None:
         # * Common reporting parameter declarations
         self.env.set_scoped("solveda", "1")
-        self.include(RptliteRpt(self.tc, self.env))
+        self.include(
+            RptliteRpt(
+                self.tc,
+                self.env,
+                config=RptliteRptConfig(),
+            )
+        )
         self.tc.add_gams_code(
             module=self,
             phase="init",

@@ -16,7 +16,7 @@ from core.clearsol_stc import ClearsolStc
 from core.cost_ann_rpt import cost_ann_rpt
 from core.pextlevs_stc import PextlevsStc
 from core.rpt_obj_rpt import rpt_obj_rpt
-from core.rptlite_rpt import RptliteRpt
+from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
 from core.rptmisc_rpt import rptmisc_rpt
 from core.sol_flo_red import SolFloRed, sol_flo_red
 from core.sol_ire_rpt import SolIreRpt, sol_ire_rpt
@@ -75,7 +75,13 @@ class RptmainStc(GamsClass):
 
         if str(self.env.spines + self.env.solveda).upper() != "YES1":
             self.env.set_scoped("solveda", "1")
-            self.include(RptliteRpt(self.tc, self.env, arg1="S", arg2="WW,"))
+            self.include(
+                RptliteRpt(
+                    self.tc,
+                    self.env,
+                    config=RptliteRptConfig(arg1=(self.tc.s,), arg2=(self.tc.ww,)),
+                )
+            )
 
             self.tc.enqueue(self.calculate_sw_unpb, spines=self.env.spines)
             # NOTE/TODO: L33, The LOOP does not effect the batinclude and the lines till L64
@@ -148,7 +154,13 @@ class RptmainStc(GamsClass):
             raise ValueError(f"Unknown value in sw_notags: {self.env.sw_notags}")
 
         self.tc.enqueue(self.report_param)
-        self.include(RptliteRpt(self.tc, self.env, arg1="S", arg2="WW,"))
+        self.include(
+            RptliteRpt(
+                self.tc,
+                self.env,
+                config=RptliteRptConfig(arg1=(self.tc.s,), arg2=(self.tc.ww,)),
+            )
+        )
 
         self.env.set_scoped("sow", ",SOW")
         self.env.set_scoped("sow_GP", (g.Sow,))
@@ -191,7 +203,13 @@ class RptmainStc(GamsClass):
 
         self.tc.enqueue(self.clear_symbols)
         self.include(
-            RptliteRpt(self.tc, self.env, arg1="S", arg2="WW,", arg3="'1',", arg4="NO")
+            RptliteRpt(
+                self.tc,
+                self.env,
+                config=RptliteRptConfig(
+                    arg1=(self.tc.s,), arg2=(self.tc.ww,), arg3=("'1'",), arg4=("NO",)
+                ),
+            )
         )
 
         if "RTP_FFCS" in self.tc.container.listSymbols():
