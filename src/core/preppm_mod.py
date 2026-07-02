@@ -107,9 +107,6 @@ class PreppmMod(GamsClass):
 
         self.tc.enqueue(self.exec4)
 
-        if self.tc.test_run:
-            self.tc.save_test_state(env=self.env, checkpoint="preppm_prior_prepret")
-
         if self.env.is_set("retire"):
             self.include(
                 PrepretDsc(
@@ -679,9 +676,6 @@ class PreppmMod(GamsClass):
                     arg10=a10,
                 )
             )
-
-        if self.tc.test_run:
-            self.tc.save_test_state(env=self.env, checkpoint="preppm_prior_prepextstc")
 
         if self.env.stages.upper() == "YES":
             self.include(PrepExtStc(self.tc, self.env))

@@ -533,6 +533,12 @@ class EnvironmentVariableSchema(BaseModel):
         description="GAMS control variable used to pass the scenario reference path for loadpoint features."
     )
 
+    powerflo: str
+    pdtol: str
+    bigm: str
+    gg_wn: str
+    ireauxbal: str
+
 
 class UserConfig(BaseModel):
     validate_: Literal["NO", "%validate%"] = Field(
@@ -567,6 +573,7 @@ class UserConfig(BaseModel):
     cli: Literal["YES", "%cli%"] = "%cli%"
     fixboh: int | Literal["%fixboh%"] = "%fixboh%"
     lpoint: str = "%lpoint%"
+    dsc: str = "%dsc%"
 
 
 class RunConfig(BaseModel):
@@ -579,4 +586,4 @@ class RunConfig(BaseModel):
     data_modules: list[Path]
 
     time_slices: Path
-    lp_solver: str = Field(default="CBC")
+    lp_solver: str = Field(default="CPLEX")

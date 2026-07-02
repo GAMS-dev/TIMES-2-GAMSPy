@@ -41,7 +41,7 @@ $offEcho
 option lp=convert, mip=convert;
 SOLVE %MODEL_NAME% MINIMIZING objZ USING %METHOD%;
 
-option lp=cbc, mip=cplex;
+option lp=cplex, mip=cplex;
 SOLVE %MODEL_NAME% MINIMIZING objZ USING %METHOD%;
 $LABEL CHECK
 * do an check on solution errors

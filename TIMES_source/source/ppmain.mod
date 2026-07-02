@@ -186,20 +186,10 @@ $IFI '%OBLONG%'==YES IF(MIYR_V1+SUM(T,E(T)+1-B(T))-MIYR_VL NE 1,ABORT "Inconsist
 * create list of all years in each period
     PERIODYR(T,EOHYEARS)$((YEARVAL(EOHYEARS) >= B(T)) * (YEARVAL(EOHYEARS) <= E(T))) = YES;
 
-$onlisting
-display "pp_main_mod_prior_filparam";
-$show
-$offlisting
-
 
 * Inter/Extrapolate G_OFFTHD if specified
 $IF DEFINED G_OFFTHD $BATINCLUDE filparam G_OFFTHD '' '' ",'','','','','',''" YEAR T '' '' 5
     G_OFFTHD('0') = 0;
-
-$onlisting
-display "pp_main_mod_after_filparam";
-$show
-$offlisting
 
 
 *-----------------------------------------------------------------------------
@@ -207,12 +197,6 @@ $offlisting
 *-----------------------------------------------------------------------------
 * Include preprocessing of timeslice attributes
 $ INCLUDE timslice.mod
-
-$onlisting
-display "pp_main_mod_after_timslice";
-$show
-$offlisting
-
 *-----------------------------------------------------------------------------
 * Migrate PASTIs defined on Milestonyr if requested
   IF(INT_DEFAULT('PASTI'), LOOP(PYR(T(LL))$(M(T)>B(T)), VNT(LL-1,T)=YES);
@@ -263,11 +247,6 @@ $     BATINCLUDE pp_off.%1 PRC_NOFF P "" "RTP_OFF(R,T,P)$(" YES
 *-----------------------------------------------
 * Call interpolation subsystem
 $ INCLUDE preppm.mod
-
-$onlisting
-display "pp_main_mod_after_preppm";
-$show
-$offlisting
 
 $ IFI %INTEXT_ONLY% == YES $EXIT
 *-----------------------------------------------
@@ -539,11 +518,6 @@ $      BATINCLUDE pp_qaput.%1 PUTOUT PUTGRP 01 'NCAP_TLIFE out of feasible range
    OPTION CLEAR=YKVAL,CLEAR=COEF_RTP;
 * override the lead delay on capacity if M2T, if viable period
 
-$onlisting
-display "pp_main_mod_prior_phase_eight";
-$show
-$offlisting
-
 $IF %VALIDATE% == YES    RTP_CPTYR(R,T,T,P)$RTP(R,T,P) = YES;
    RTP_CPTYR(R,MIYR_1(T),T,P)$(RTP(R,T,P)$PRC_MAP(R,'STK',P)) = YES;
 *-----------------------------------------------------------------------------
@@ -639,10 +613,6 @@ $IF DEFINED PRC_SIMV LOOP(T,NO_RVP(R,TT-1,P)$(RTP_CPTYR(R,TT,T,P)$PRC_SIMV(R,P))
    RP_PGACT(RP_FLO(R,P))$(SUM(RPC_PG(R,P,C),1) EQ 1) = YES;
    RP_PGACT(RP_IRE(R,P))$(SUM(RPC_IRE(RPC_PG(R,P,C),IE),1) EQ 1) = YES;
 
-$onlisting
-display "pp_main_mod_prior_main_ext_mod";
-$show
-$offlisting
 *-----------------------------------------------------------------------------
 * Extensions after establishing RPCS_VAR and PRC_CAPACT but before levelising
 $  BATINCLUDE main_ext.mod pp_prelv %EXTEND%

@@ -15,29 +15,13 @@
 *$ONLISTING
 * adjust GAMS language defaults to allow mixed mode $ tests and allow latest syntax
 *-----------------------------------------------------------------------------
-
-$onlisting
-display "maindrv_mod_start";
-$show
-$offlisting
-
 $   ONEMPTY
 $   ONMIXED
 $   USE999
 $   SETLOCAL SRC %1
 $   SETENV GDXCOMPRESS 1
 
-$onlisting
-display "setglobs_gms_start";
-$show
-$offlisting
-
 $   BATINCLUDE setglobs 1
-
-$onlisting
-display "setglobs_gms_end";
-$show
-$offlisting
 
 $   SET MODEL_NAME TIMES
 $   IFI %MICRO%%TIMESED%==YES0 $SET TIMESED YES
@@ -61,11 +45,6 @@ $   IF DEFINED REG_FIXT $SET R_T 'RT_PP(%R_T%)' SET R_V_T 'RVT(%R_V_T%)' SET RTP
 * do a check on user data
 *-----------------------------------------------------------------------------
 
-$onlisting
-display "maindrv_mod_prior_err_stat_mod";
-$show
-$offlisting
-
 $   BATINCLUDE err_stat.mod '$IF NOT ERRORFREE' ABORT '*** ERRORS IN INPUT DATA/COMPILE ***'
 
 *-----------------------------------------------------------------------------
@@ -73,8 +52,6 @@ $   BATINCLUDE err_stat.mod '$IF NOT ERRORFREE' ABORT '*** ERRORS IN INPUT DATA/
 *-----------------------------------------------------------------------------
 $   IF NOT '%EXTEND%' == '' $BATINCLUDE main_ext.mod init_ext %EXTEND%
 $   BATINCLUDE ppmain.%1 %1
-
-
 $   IFI %INTEXT_ONLY% ==YES $GOTO SKIPTOEND
 $   IF NOT '%EXTEND%' == '' $BATINCLUDE main_ext.mod ppm_ext %EXTEND%
 *-----------------------------------------------------------------------------

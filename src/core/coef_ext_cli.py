@@ -69,7 +69,7 @@ class CoefExtCli(GamsClass):
                 FilparamGmsConfig(
                     src=g.cm_history,
                     arg2=(),
-                    tail1=(g.cmhists,),
+                    tail1=(g.CmHists,),
                     arg4=("", "", "", "", "", ""),
                     arg5=g.ll,
                     arg6=g.Fil,
@@ -85,8 +85,8 @@ class CoefExtCli(GamsClass):
                 self.env,
                 config=FilparamGmsConfig(
                     src=g.cm_stats,
-                    arg2=(g.cmhists,),
-                    tail1=(g.cmbox,),
+                    arg2=(g.CmHists,),
+                    tail1=(g.CmBox,),
                     arg4=("", "", "", "", ""),
                     arg5=g.ll,
                     arg6=g.Fil,
@@ -115,7 +115,7 @@ class CoefExtCli(GamsClass):
                 self.env,
                 config=FilparamGmsConfig(
                     src=g.cm_bemi,
-                    arg2=(g.cmemis,),
+                    arg2=(g.CmEmis,),
                     tail1=(),
                     arg4=("", "", "", "", ""),
                     arg5=g.ll,
@@ -139,7 +139,7 @@ class CoefExtCli(GamsClass):
             )
         )
 
-        forcing_in_cm_kind = "FORCING" in g.cmkind.toList()
+        forcing_in_cm_kind = "FORCING" in g.CmKind.toList()
         self.tc.enqueue(self.exec11, forcing=forcing_in_cm_kind, stages=self.env.stages)
 
         self.tc.enqueue(self.exec12)
@@ -151,7 +151,7 @@ class CoefExtCli(GamsClass):
             FilparamGmsConfig(
                 src=g.cm_linfor,
                 arg2=(),
-                tail1=(g.cmvar, g.lim),
+                tail1=(g.CmVar, g.lim),
                 arg4=("", "", "", "", ""),
                 arg5=g.Datayear,
                 arg6=g.Fil,
@@ -185,7 +185,7 @@ class CoefExtCli(GamsClass):
             FilparamGmsConfig(
                 src=g.uc_cli,
                 arg2=(g.ucn, g.side, g.r),
-                tail1=(g.cmvar,),
+                tail1=(g.CmVar,),
                 arg4=("", "", ""),
                 arg5=g.Datayear,
                 arg6=g.t,

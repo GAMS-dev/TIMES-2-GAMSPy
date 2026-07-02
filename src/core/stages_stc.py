@@ -254,7 +254,7 @@ DISPLAY SW_START,SW_SUBS,SW_CHILD,SW_TREE,SW_MAP,SW_STAGE,SW_T,SW_TSW,SW_TPROB,S
     def post(self: StagesStc) -> None:
         # fmt: off
         pp_lvlfc_mod_bat_include_params = [
-            ("S_COM_TAX","C","COM_TS","',COM_VAR,CUR,J,WW'","","ALL_TS","T","RC(R,C)$(ORD(J)=1)","","","","")
+            ("S_COM_TAX","C","COM_TS",",COM_VAR,CUR,J,WW","","ALL_TS","T","RC(R,C)$(ORD(J)=1)","","","","")
         ]
         # fmt: on
         # LABLE POST

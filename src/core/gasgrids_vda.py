@@ -11,7 +11,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Literal
 
-from .base_class import GamsClass
+from gamspy import Parameter
+
+from core.base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -55,6 +57,11 @@ class GasgridsVda(GamsClass):
             raise ValueError("Wrong argument passed.")
 
     def _init_phase(self: GasgridsVda) -> None:
+        g = self.tc
+        m = g.container
+
+        r, t, p, c, j, year = g.r, g.t, g.p, g.c, g.j, g.year
+
         self.env.set_global("gg_wn", "19")
 
         # Internal SETs and Parameters
@@ -72,14 +79,24 @@ class GasgridsVda(GamsClass):
     GG_RTPC(R,MILESTONYR,P,C)   Grid pipelines by period
     GG_WTX(R,P,C)               Pipelines with Taylor expansion
     OMG(J) /1*51/, GG_O(J) / 1*{self.env.gg_wn} /, GG_VI(J) /1,2,99/;
-
-  SCALARS GG_M1 /0/;
-  PARAMETERS
-    GG_MM(R,T,P,C)              Big-M estimates
-    GG_PPM(R,YEAR,P,C,R,C,J)    Alternate pressure points
-    GG_PPW(R,YEAR,P,C,R,C,J)    Alternate Weymouth points
-  ;
 """,
+        )
+
+        g.gg_m1 = Parameter(m, name="GG_M1", records=0)
+        g.gg_mm = Parameter(
+            m, name="GG_MM", domain=[r, t, p, c], description="Big-M estimates"
+        )
+        g.gg_ppm = Parameter(
+            m,
+            name="GG_PPM",
+            domain=[r, year, p, c, r, c, j],
+            description="Alternate pressure points",
+        )
+        g.gg_ppw = Parameter(
+            m,
+            name="GG_PPW",
+            domain=[r, year, p, c, r, c, j],
+            description="Alternate Weymouth points",
         )
 
         # Set global SOLMIP to True if G_PP has records
@@ -93,6 +110,7 @@ class GasgridsVda(GamsClass):
         self.tc.enqueue(self.bounds_gamma_links)
         self.tc.enqueue(self.assign_gg, solmip=self.env.solmip)
         self.tc.enqueue(self.autogenerate_pressure_points)
+        self.tc.register_assignment(self.tc.gg_mm)
         self.tc.enqueue(self.gamma_controls_bigM)
 
     def collect_gas_grid_node(self: GasgridsVda) -> None:
@@ -304,7 +322,7 @@ EQUATIONS
 $ MACRO VAR_GG_PRU(r,t,p,c,s) sum(actcg(com2),VAR_GG_PDIF(r,t,p,c,r,com2,s))
 $ MACRO VAR_GG_Y2(r,t,p,c,reg,com,s) (VAR_GG_Y(R,T,P,C,S)$GG_TOP(R,C,REG,COM,P)+(1-VAR_GG_Y(REG,T,P,COM,S))$GG_TOP(REG,COM,R,C,P))
 $ MACRO VAR_GG_PRIO(r,t,p,c,s) (VAR_GG_PR(r,t,c,s)+VAR_GG_PADD(r,t,p,c,s)$GG_GAMMA(r,t,p,c))
-$ MACRO VAR_GG_HLIP(r,t,p,s) VAR_GG_PADD(r,t,p,{self.env.pgprim},s)
+$ MACRO VAR_GG_HLIP(r,t,p,s) VAR_GG_PADD(r,t,p,'{self.env.pgprim}',s)
 $ MACRO VAR_GG_WSLAC(r,t,p,c,reg,com,s) sum(com2(actcg)$GG_KGF(r,t,p,c),var_gg_pdif(r,t,p,com2,r,c,s)+8/11*var_gg_pdif(reg,t,p,com2,reg,com,s)$gg_wink(reg,p,com,r,c)$(GG_M1->0))
 * Max pr-diffs in LP vs. MIP CASE
 $ MACRO VAR_GG_PDMAX(r,t,p,c,reg,com,ts,z) MAX(POWER(GG_PRBD(R,T,C,'UP')*max(1,GG_GAMMA(r,t,p,c)),Z)-POWER(GG_PRBD(REG,T,COM,'LO'),Z),0))*((VAR_GG_Y(r,t,p,c,ts)$GG_TOP(r,c,reg,com,p) + (1-VAR_GG_Y(reg,t,p,com,ts))$GG_TOP(reg,com,r,c,p))

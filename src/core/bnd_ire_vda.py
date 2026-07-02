@@ -46,7 +46,8 @@ class BndIreVda(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        if not self.tc.defined("PREMILE"):
+        g = self.tc
+        if not self.tc.defined_assigned(g.Premile):
             return
 
         self.tc.enqueue(self.exec1)

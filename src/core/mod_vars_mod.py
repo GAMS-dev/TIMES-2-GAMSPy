@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Parameter, Set, Variable
+from gamspy import Set, Variable
 
 from core.base_class import GamsClass
 from core.powerflo_vda import PowerfloVda
@@ -48,173 +48,284 @@ class ModVarsMod(GamsClass):
         # Set of standard objective components
         g.obv = Set(m, "OBV", records=["OBJINV", "OBJFIX", "OBJSAL", "OBJVAR"])
 
-        g.VAR_ACT = Variable(
-            m,
-            name="VAR_ACT",
-            type="Positive",
-            domain=[g.r, g.allyear, g.allyear, g.p, g.s],
-            description="Overall activity of a process",
+        var = self.env.var
+        swd = self.env.swd_GP
+
+        # *-----------------------------------------------------------------------------
+        # POSITIVE VARIABLES
+        # *-----------------------------------------------------------------------------
+        # * Process-related variables
+        # *-----------------------------------------------------------------------------
+
+        g.set_variable(
+            name=f"{var}_ACT",
+            var=Variable(
+                m,
+                name=f"{var}_ACT",
+                type="Positive",
+                domain=[g.r, g.allyear, g.allyear, g.p, g.s, *swd],
+                description="Overall activity of a process",
+            ),
         )
-        g.VAR_CAP = Variable(
-            m,
-            name="VAR_CAP",
-            type="Positive",
-            domain=[g.r, g.allyear, g.p],
-            description="Installed capacity of a process",
+        g.set_variable(
+            name=f"{var}_CAP",
+            var=Variable(
+                m,
+                name=f"{var}_CAP",
+                type="Positive",
+                domain=[g.r, g.allyear, g.p, *swd],
+                description="Installed capacity of a process",
+            ),
         )
-        Variable(
-            m,
-            name="VAR_FLO",
-            type="Positive",
-            domain=[g.r, g.allyear, g.allyear, g.p, g.c, g.s],
-            description="Level of process commodity flow",
+        g.set_variable(
+            name=f"{var}_FLO",
+            var=Variable(
+                m,
+                name=f"{var}_FLO",
+                type="Positive",
+                domain=[g.r, g.allyear, g.allyear, g.p, g.c, g.s, *swd],
+                description="Level of process commodity flow",
+            ),
         )
-        Variable(
-            m,
-            name="VAR_IRE",
-            type="Positive",
-            domain=[g.r, g.allyear, g.allyear, g.p, g.c, g.s, g.ie],
-            description="Inter regional trade flow",
+        g.set_variable(
+            name=f"{var}_IRE",
+            var=Variable(
+                m,
+                name=f"{var}_IRE",
+                type="Positive",
+                domain=[g.r, g.allyear, g.allyear, g.p, g.c, g.s, g.ie, *swd],
+                description="Inter regional trade flow",
+            ),
         )
-        g.VAR_NCAP = Variable(
-            m,
-            name="VAR_NCAP",
-            type="Positive",
-            domain=[g.r, g.allyear, g.p],
-            description="New capacity of a process",
+        g.set_variable(
+            name=f"{var}_NCAP",
+            var=Variable(
+                m,
+                name=f"{var}_NCAP",
+                type="Positive",
+                domain=[g.r, g.allyear, g.p, *swd],
+                description="New capacity of a process",
+            ),
         )
-        g.VAR_COMNET = Variable(
-            m,
-            name="VAR_COMNET",
-            type="Positive",
-            domain=[g.r, g.allyear, g.c, g.s],
-            description="Net commodity level",
+
+        # *-----------------------------------------------------------------------------
+        # * Commodity-related variables
+        # *-----------------------------------------------------------------------------
+
+        g.set_variable(
+            name=f"{var}_COMNET",
+            var=Variable(
+                m,
+                name=f"{var}_COMNET",
+                type="Positive",
+                domain=[g.r, g.allyear, g.c, g.s, *swd],
+                description="Net commodity level",
+            ),
         )
-        g.VAR_COMPRD = Variable(
-            m,
-            name="VAR_COMPRD",
-            type="Positive",
-            domain=[g.r, g.allyear, g.c, g.s],
-            description="Production of commodity",
+        g.set_variable(
+            name=f"{var}_COMPRD",
+            var=Variable(
+                m,
+                name=f"{var}_COMPRD",
+                type="Positive",
+                domain=[g.r, g.allyear, g.c, g.s, *swd],
+                description="Production of commodity",
+            ),
         )
-        g.VAR_ELAST = Variable(
-            m,
-            name="VAR_ELAST",
-            type="Positive",
-            domain=[g.r, g.allyear, g.c, g.s, g.j, g.bd],
-            description="Demand change due to price elasticity",
+        g.set_variable(
+            name=f"{var}_ELAST",
+            var=Variable(
+                m,
+                name=f"{var}_ELAST",
+                type="Positive",
+                domain=[g.r, g.allyear, g.c, g.s, g.j, g.bd, *swd],
+                description="Demand change due to price elasticity",
+            ),
         )
-        g.VAR_DEM = Variable(
-            m,
-            name="VAR_DEM",
-            type="Positive",
-            domain=[g.r, g.Milestonyr, g.c],
-            description="Demand variable for MACRO",
+        g.set_variable(
+            name=f"{var}_DEM",
+            var=Variable(
+                m,
+                name=f"{var}_DEM",
+                type="Positive",
+                domain=[g.r, g.Milestonyr, g.c, *swd],
+                description="Demand variable for MACRO",
+            ),
         )
-        g.VAR_CUMCOM = Variable(
-            m,
-            name="VAR_CUMCOM",
-            type="Positive",
-            domain=[g.r, g.c, g.comvar, g.allyear, g.allyear],
-            description="Cumulative commodity PRD or NET",
+
+        # *-----------------------------------------------------------------------------
+        # * Cumulative variables
+        # *-----------------------------------------------------------------------------
+
+        g.set_variable(
+            name=f"{var}_CUMCOM",
+            var=Variable(
+                m,
+                name=f"{var}_CUMCOM",
+                type="Positive",
+                domain=[g.r, g.c, g.comvar, g.allyear, g.allyear, *swd],
+                description="Cumulative commodity PRD or NET",
+            ),
         )
-        g.VAR_CUMFLO = Variable(
-            m,
-            name="VAR_CUMFLO",
-            type="Positive",
-            domain=[g.r, g.p, g.c, g.allyear, g.allyear],
-            description="Cumulative process flow",
+        g.set_variable(
+            name=f"{var}_CUMFLO",
+            var=Variable(
+                m,
+                name=f"{var}_CUMFLO",
+                type="Positive",
+                domain=[g.r, g.p, g.c, g.allyear, g.allyear, *swd],
+                description="Cumulative process flow",
+            ),
         )
-        g.VAR_CUMCST = Variable(
-            m,
-            name="VAR_CUMCST",
-            type="Positive",
-            domain=[g.r, g.allyear, g.allyear, g.costagg, g.cur],
-            description="Cumulative regional cost",
+        g.set_variable(
+            name=f"{var}_CUMCST",
+            var=Variable(
+                m,
+                name=f"{var}_CUMCST",
+                type="Positive",
+                domain=[g.r, g.allyear, g.allyear, g.costagg, g.cur, *swd],
+                description="Cumulative regional cost",
+            ),
         )
-        g.VAR_SIN = Variable(
-            m,
-            name="VAR_SIN",
-            type="Positive",
-            domain=[g.r, g.allyear, g.allyear, g.p, g.c, g.s],
-            description="Input flow into storage",
+
+        # *-----------------------------------------------------------------------------
+        # * Storage variables
+        # *-----------------------------------------------------------------------------
+
+        g.set_variable(
+            name=f"{var}_SIN",
+            var=Variable(
+                m,
+                name=f"{var}_SIN",
+                type="Positive",
+                domain=[g.r, g.allyear, g.allyear, g.p, g.c, g.s, *swd],
+                description="Input flow into storage",
+            ),
         )
-        g.VAR_SOUT = Variable(
-            m,
-            name="VAR_SOUT",
-            type="Positive",
-            domain=[g.r, g.allyear, g.allyear, g.p, g.c, g.s],
-            description="Output flow from storage",
+
+        g.set_variable(
+            name=f"{var}_SOUT",
+            var=Variable(
+                m,
+                name=f"{var}_SOUT",
+                type="Positive",
+                domain=[g.r, g.allyear, g.allyear, g.p, g.c, g.s, *swd],
+                description="Output flow from storage",
+            ),
         )
-        g.VAR_BLND = Variable(
-            m,
-            name="VAR_BLND",
-            type="Positive",
-            domain=[g.r, g.allyear, g.Com, g.Com],
-            description="Refinery blending",
+
+        # *-----------------------------------------------------------------------------
+        # * Additional features
+        # *-----------------------------------------------------------------------------
+
+        g.set_variable(
+            name=f"{var}_BLND",
+            var=Variable(
+                m,
+                name=f"{var}_BLND",
+                type="Positive",
+                domain=[g.r, g.allyear, g.Com, g.Com, *swd],
+                description="Refinery blending",
+            ),
         )
-        g.VAR_DAM = Variable(
-            m,
-            name="VAR_DAM",
-            type="Positive",
-            domain=[g.r, g.t, g.c, g.bd, g.j],
-            description="Damage variables",
+        g.set_variable(
+            name=f"{var}_DAM",
+            var=Variable(
+                m,
+                name=f"{var}_DAM",
+                type="Positive",
+                domain=[g.r, g.t, g.c, g.bd, g.j, *swd],
+                description="Damage variables",
+            ),
         )
-        g.VAR_RCAP = Variable(
-            m,
-            name="VAR_RCAP",
-            type="Positive",
-            domain=[g.r, g.allyear, g.ll, g.p],
-            description="New retirements",
+        g.set_variable(
+            name=f"{var}_RCAP",
+            var=Variable(
+                m,
+                name=f"{var}_RCAP",
+                type="Positive",
+                domain=[g.r, g.allyear, g.ll, g.p, *swd],
+                description="New retirements",
+            ),
         )
-        g.VAR_SCAP = Variable(
-            m,
-            name="VAR_SCAP",
-            type="Positive",
-            domain=[g.r, g.allyear, g.ll, g.p],
-            description="Cumulative retirements",
+        g.set_variable(
+            name=f"{var}_SCAP",
+            var=Variable(
+                m,
+                name=f"{var}_SCAP",
+                type="Positive",
+                domain=[g.r, g.allyear, g.ll, g.p, *swd],
+                description="Cumulative retirements",
+            ),
         )
-        g.VAR_UPS = Variable(
-            m,
-            name="VAR_UPS",
-            type="Positive",
-            domain=[g.r, g.allyear, g.allyear, g.p, g.s, g.lA],
-            description="Start ups",
+        g.set_variable(
+            name=f"{var}_UPS",
+            var=Variable(
+                m,
+                name=f"{var}_UPS",
+                type="Positive",
+                domain=[g.r, g.allyear, g.allyear, g.p, g.s, g.lA, *swd],
+                description="Start ups",
+            ),
         )
-        g.VAR_UPT = Variable(
-            m,
-            name="VAR_UPT",
-            type="Positive",
-            domain=[g.r, g.allyear, g.allyear, g.p, g.s, g.upt],
-            description="Start ups by type",
+        g.set_variable(
+            name=f"{var}_UPT",
+            var=Variable(
+                m,
+                name=f"{var}_UPT",
+                type="Positive",
+                domain=[g.r, g.allyear, g.allyear, g.p, g.s, g.upt, *swd],
+                description="Start ups by type",
+            ),
         )
-        g.VAR_UDP = Variable(
-            m,
-            name="VAR_UDP",
-            type="Positive",
-            domain=[g.r, g.allyear, g.allyear, g.p, g.s, g.lA],
-            description="Unit dispatching",
+        g.set_variable(
+            name=f"{var}_UDP",
+            var=Variable(
+                m,
+                name=f"{var}_UDP",
+                type="Positive",
+                domain=[g.r, g.allyear, g.allyear, g.p, g.s, g.lA, *swd],
+                description="Unit dispatching",
+            ),
         )
-        g.VAR_RLD = Variable(
-            m,
-            name="VAR_RLD",
-            type="Positive",
-            domain=[g.r, g.t, g.s, g.item],
-            description="Residual loads",
+        g.set_variable(
+            name=f"{var}_RLD",
+            var=Variable(
+                m,
+                name=f"{var}_RLD",
+                type="Positive",
+                domain=[g.r, g.t, g.s, g.item, *swd],
+                description="Residual loads",
+            ),
         )
-        g.VAR_OBJ = Variable(
-            m,
-            name="VAR_OBJ",
-            type="Positive",
-            domain=[g.r, g.obv, g.cur],
-            description="Objective costs INV,SAL,FIX,VAR,DAM",
+
+        # *=============================================================================*
+        # * Objective Function Components
+        # *   - investment cost + tax/sub + decommissioning in INV
+        # *   - fixed O&M + fixed tax/sub in FIX
+        # *   - variable O&M + commodity direct costs
+        # *   - salvage
+        # *=============================================================================*
+
+        g.set_variable(
+            name=f"{var}_OBJ",
+            var=Variable(
+                m,
+                name=f"{var}_OBJ",
+                type="Positive",
+                domain=[g.r, g.obv, g.cur, *swd],
+                description="Objective costs INV,SAL,FIX,VAR,DAM",
+            ),
         )
-        g.VAR_OBJELS = Variable(
-            m,
-            name="VAR_OBJELS",
-            type="Positive",
-            domain=[g.r, g.bd, g.cur],
-            description="Change in Consumer surplus",
+        g.set_variable(
+            name=f"{var}_OBJELS",
+            var=Variable(
+                m,
+                name=f"{var}_OBJELS",
+                type="Positive",
+                domain=[g.r, g.bd, g.cur, *swd],
+                description="Change in Consumer surplus",
+            ),
         )
         g.VAS_UPDEV = Variable(
             m,
@@ -224,55 +335,96 @@ class ModVarsMod(GamsClass):
             description="Upside deviation of OBJ",
         )
 
+        # *=============================================================================*
+        # * Objective Function Variables
+        # *   - total discounted system cost
+        # *=============================================================================*
         g.OBJZ = Variable(m, name="OBJZ", type="Free")
-        g.VAR_UC = Variable(
-            m,
-            name="VAR_UC",
-            type="Free",
-            domain=[g.ucn],
-            description="Slacks for UC constraints",
+        g.VAS_EXPOBJ = Variable(
+            m, name="VAS_EXPOBJ", description="Expected value of total OBJ"
         )
-        g.VAR_UCR = Variable(
-            m,
-            name="VAR_UCR",
-            type="Free",
-            domain=[g.ucn, g.r],
-            description="Slacks for UCR constraints",
+
+        # *-----------------------------------------------------------------------------
+        # * Slack variables of user-constraints
+        # *-----------------------------------------------------------------------------
+
+        g.set_variable(
+            name=f"{var}_UC",
+            var=Variable(
+                m,
+                name=f"{var}_UC",
+                type="Free",
+                domain=[g.ucn, *swd],
+                description="Slacks for UC constraints",
+            ),
         )
-        g.VAR_UCT = Variable(
-            m,
-            name="VAR_UCT",
-            type="Free",
-            domain=[g.ucn, g.t],
-            description="Slacks for UCT constraints",
+        g.set_variable(
+            name=f"{var}_UCR",
+            var=Variable(
+                m,
+                name=f"{var}_UCR",
+                type="Free",
+                domain=[g.ucn, g.r, *swd],
+                description="Slacks for UCR constraints",
+            ),
         )
-        g.VAR_UCRT = Variable(
-            m,
-            name="VAR_UCRT",
-            type="Free",
-            domain=[g.ucn, g.r, g.t],
-            description="Slacks for UCRT constraints",
+        g.set_variable(
+            name=f"{var}_UCT",
+            var=Variable(
+                m,
+                name=f"{var}_UCT",
+                type="Free",
+                domain=[g.ucn, g.t, *swd],
+                description="Slacks for UCT constraints",
+            ),
         )
-        g.VAR_UCTS = Variable(
-            m,
-            name="VAR_UCTS",
-            type="Free",
-            domain=[g.ucn, g.t, g.s],
-            description="Slacks for UCTS constraints",
+        g.set_variable(
+            name=f"{var}_UCRT",
+            var=Variable(
+                m,
+                name=f"{var}_UCRT",
+                type="Free",
+                domain=[g.ucn, g.r, g.t, *swd],
+                description="Slacks for UCRT constraints",
+            ),
         )
-        g.VAR_UCRTS = Variable(
-            m,
-            name="VAR_UCRTS",
-            type="Free",
-            domain=[g.ucn, g.r, g.t, g.s],
-            description="Slacks for UCRTS constraints",
+        g.set_variable(
+            name=f"{var}_UCTS",
+            var=Variable(
+                m,
+                name=f"{var}_UCTS",
+                type="Free",
+                domain=[g.ucn, g.t, g.s, *swd],
+                description="Slacks for UCTS constraints",
+            ),
         )
+        g.set_variable(
+            name=f"{var}_UCRTS",
+            var=Variable(
+                m,
+                name=f"{var}_UCRTS",
+                type="Free",
+                domain=[g.ucn, g.r, g.t, g.s, *swd],
+                description="Slacks for UCRTS constraints",
+            ),
+        )
+
+        # *-----------------------------------------------------------------------------
+        # * Other variables in model extensions
+        # *-----------------------------------------------------------------------------
+        # * [AL] ETL variables automatically by extension manager
 
         if "VNRET" in self.tc.container.listSymbols():
             self.include(PrepretDsc(self.tc, self.env, arg1="DECL"))
         if self.tc.defined("PRC_REACT"):
             self.include(PowerfloVda(self.tc, self.env, arg1="DECL"))
-        if self.tc.defined("VAR_STS"):
-            g.var_sts = Parameter(
-                m, "VAR_STS", domain=[g.r, g.year, g.t, g.p, g.s, g.lA]
-            )
+        # TODO: Wait for GAMSPy macros
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code="$IF NOT DEFINED VAR_STS PARAMETER VAR_STS(R,YEAR,T,P,S,L) //;",
+        )
+        # if not self.tc.defined("VAR_STS"):
+        #     g.var_sts = Parameter(
+        #         m, name="VAR_STS", domain=[g.r, g.year, g.t, g.p, g.s, g.lA]
+        #     )
