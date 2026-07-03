@@ -74,7 +74,7 @@ class EqobjvarMod(GamsClass):
             self.env.set_scoped("sow", ",WW")
             self.env.set_scoped("sow_GP", (g.ww,))
         if self.tc.defined("RTP_FFCS"):
-            self.env.set_scoped("mx", f"*({self.env.shff}S(R,V,P,C,C{self.env.sow}))")
+            self.env.set_scoped("mx", f"*(1+RTP_FFCS(R,V,P,C,C{self.env.sow}))")
         if self.env.stages == "YES":
             self.env.set_scoped("sowtmpend", ",SOW")
         else:
@@ -100,7 +100,6 @@ class EqobjvarMod(GamsClass):
             varm=self.env.varm,
             cal_red=self.env.cal_red,
             swtd=self.env.swtd,
-            shff=self.env.shff,
         )
 
         self.tc.add_gams_code(
@@ -137,7 +136,6 @@ def eqobjvar_mod(
     varv: str,
     varm: str,
     cal_red: str,
-    shff: str,
 ) -> str:
     include_cal_caps_ = cal_caps_mod(
         is_vnret_defined=is_vnret_defined,
@@ -160,7 +158,6 @@ def eqobjvar_mod(
             var=var,
             sow=sow,
             pgprim=pgprim,
-            shff=shff,
             def_rtp_ffcs=is_def_rtp_ffcs,
         )
     elif cal_red == "cal_nored.red":
@@ -172,7 +169,6 @@ def eqobjvar_mod(
             arg5="T",
             var=var,
             sow=sow,
-            shff=shff,
             pgprim=pgprim,
             def_rtp_ffcs=is_def_rtp_ffcs,
         )

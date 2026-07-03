@@ -29,7 +29,6 @@ logger = logging.getLogger(__name__)
 
 def cal_fflo_mod(
     reduce: str,
-    shff: str,
     sow: str,
     var: str,
     pgprim: str,
@@ -44,9 +43,9 @@ def cal_fflo_mod(
         shp1_inner = ""
 
         if is_rtp_ffcs_defined:
-            shp1_inner = f"*{shff}S(R,V{shg}{sow}))"
+            shp1_inner = f"*1+RTP_FFCS(R,V{shg}{sow}))"
 
-        shp1_val = f"*({shff}X(R,V,T{shg})$PRC_VINT(R,P)){shp1_inner}"
+        shp1_val = f"*(1+RTP_FFCX(R,V,T{shg})$PRC_VINT(R,P)){shp1_inner}"
 
         return rf"""
 *V05c 980923 - check that commodity not just capacity related
@@ -76,7 +75,6 @@ def cal_fflo_mod(
             var=var,
             sow=sow,
             pgprim=pgprim,
-            shff=shff,
             def_rtp_ffcs=is_rtp_ffcs_defined,
         )
         include_cal_red_2 = cal_red_red(
@@ -93,7 +91,6 @@ def cal_fflo_mod(
             var=var,
             sow=sow,
             pgprim=pgprim,
-            shff=shff,
             def_rtp_ffcs=is_rtp_ffcs_defined,
         )
 

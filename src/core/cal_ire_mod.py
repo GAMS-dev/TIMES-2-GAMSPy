@@ -29,7 +29,6 @@ logger = logging.getLogger(__name__)
 def cal_ire_mod(
     var: str,
     sow: str,
-    shff: str,
     is_rtp_ffcs_defined: bool,
     is_ireauxbal: bool,
     arg1: str = "",
@@ -42,7 +41,7 @@ def cal_ire_mod(
 ) -> str:
     """Translation unit for cal_ire.mod."""
 
-    mx_val = f"({shff}S(R,V,P,C,C{sow}))*" if is_rtp_ffcs_defined else ""
+    mx_val = f"(1+RTP_FFCS(R,V,P,C,C{sow}))*" if is_rtp_ffcs_defined else ""
     # *V0.9 022100 - handle the fact that called 2x for aux
     ie_val = arg3 if arg3.strip() != "" else f"'{arg1}'"
 

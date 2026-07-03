@@ -102,7 +102,6 @@ class RptmainStc(GamsClass):
                 eq=self.env.eq,
                 arg1=self.env.arg1,
                 v=self.env.v,
-                shff=self.env.shff,
                 pgprim=self.env.pgprim,
                 sow=self.env.sow,
                 rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
@@ -301,7 +300,6 @@ OPTION CLEAR=RPC_EMIS,CLEAR=RPC_FFUNC,CLEAR=F_IOSET; SOW(W)=AUXSOW(W);
         eq: str,
         arg1: str,
         v: str,
-        shff: str,
         pgprim: str,
         sow: str,
         rtp_ffcs_defined: bool,
@@ -374,7 +372,6 @@ OPTION CLEAR=RPC_EMIS,CLEAR=RPC_FFUNC,CLEAR=F_IOSET; SOW(W)=AUXSOW(W);
                     arg2="''",
                     arg3=".L",
                     v=v,
-                    shff=shff,
                     pgprim=pgprim,
                     sow=sow,
                     rtp_ffcs_defined=rtp_ffcs_defined,
@@ -386,7 +383,6 @@ OPTION CLEAR=RPC_EMIS,CLEAR=RPC_FFUNC,CLEAR=F_IOSET; SOW(W)=AUXSOW(W);
                     arg2="M",
                     arg3=".M",
                     v=v,
-                    shff=shff,
                     pgprim=pgprim,
                     sow=sow,
                     rtp_ffcs_defined=rtp_ffcs_defined,
@@ -395,7 +391,6 @@ OPTION CLEAR=RPC_EMIS,CLEAR=RPC_FFUNC,CLEAR=F_IOSET; SOW(W)=AUXSOW(W);
 {
                 sol_ire_rpt(
                     v=v,
-                    shff=shff,
                     sow=sow,
                     rtp_ffcs_defined=rtp_ffcs_defined,
                 )

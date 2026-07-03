@@ -240,7 +240,6 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
                     varv=self.env.varv,
                     sws=self.env.sws,
                     pgprim=self.env.pgprim,
-                    shff=self.env.shff,
                     def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
                 )
                 self.include(GasgridsVda(self.tc, self.env, arg1="MODEL"))
@@ -294,7 +293,6 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
                     condition=self.env.stages == "YES",
                     cal_red=self.env.cal_red,
                     pgprim=self.env.pgprim,
-                    shff=self.env.shff,
                     def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
                 )
 
@@ -584,7 +582,6 @@ $ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,'{pgprim}',s,ie{sow}
         varv: str,
         sws: str,
         pgprim: str,
-        shff: str,
         def_rtp_ffcs: bool,
     ) -> None:
         # both includes are the same
@@ -597,7 +594,6 @@ $ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,'{pgprim}',s,ie{sow}
             var=var,
             sow=sow,
             pgprim=pgprim,
-            shff=shff,
             def_rtp_ffcs=def_rtp_ffcs,
         )
         self.tc.add_gams_code(
@@ -767,7 +763,6 @@ OPTION CLEAR=RC_GRID,CLEAR=GR_ALLMAP,CLEAR=GR_ALGMAP,CLEAR=GR_DEMMAP,CLEAR=GR_PR
         sow: str,
         tpulse: str,
         pgprim: str,
-        shff: str,
         def_rtp_ffcs: bool,
         condition: bool,
     ) -> None:
@@ -787,7 +782,6 @@ OPTION CLEAR=RC_GRID,CLEAR=GR_ALLMAP,CLEAR=GR_ALGMAP,CLEAR=GR_DEMMAP,CLEAR=GR_PR
             var=var,
             sow=sow,
             pgprim=pgprim,
-            shff=shff,
             def_rtp_ffcs=def_rtp_ffcs,
         )
         self.tc.add_gams_code(

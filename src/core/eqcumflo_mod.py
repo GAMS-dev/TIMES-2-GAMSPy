@@ -85,7 +85,7 @@ class EqcumfloMod(GamsClass):
             equation += f"SUM({self.env.swsw} ("
 
         equation += rf"""
-{cal_red_func(arg1="C", arg2="COM", arg3="TS", arg4="P", arg5="T", def_rtp_ffcs=self.tc.defined("RTP_FFCS"), var=self.env.var, sow=self.env.sow, shff=self.env.shff, pgprim=self.env.pgprim)}
+{cal_red_func(arg1="C", arg2="COM", arg3="TS", arg4="P", arg5="T", def_rtp_ffcs=self.tc.defined("RTP_FFCS"), var=self.env.var, sow=self.env.sow, pgprim=self.env.pgprim)}
                          $RP_STD(R,P) +
                          (SUM(RPC_IRE(R,P,C,IE),{self.env.var}_IRE(R,V,T,P,C,TS,IE{self.env.sow}))$(NOT RPC_AIRE(R,P,C)) +
                           ({self.env.var}_ACT(R,V,T,P,TS{self.env.sow})*PRC_ACTFLO(R,V,P,C))$RPC_AIRE(R,P,C))$RP_IRE(R,P)

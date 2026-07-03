@@ -72,7 +72,6 @@ class EqpeakMod(GamsClass):
             sow=self.env.sow,
             mx=self.env.mx,
             condition=self.env.timesed == "YES",
-            shff=self.env.shff,
             is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
             is_ireauxbal=self.env.is_set("ireauxbal"),
             reduce=self.env.reduce,
@@ -93,7 +92,6 @@ class EqpeakMod(GamsClass):
         sow: str,
         mx: str,
         condition: bool,
-        shff: str,
         is_rtp_ffcs_defined: bool,
         is_ireauxbal: bool,
         reduce: str,
@@ -102,7 +100,6 @@ class EqpeakMod(GamsClass):
         include_cal_ire_1 = cal_ire_mod(
             var=var,
             sow=sow,
-            shff=shff,
             is_rtp_ffcs_defined=is_rtp_ffcs_defined,
             is_ireauxbal=is_ireauxbal,
             arg1="IMP",
@@ -114,7 +111,6 @@ class EqpeakMod(GamsClass):
         include_cal_ire_2 = cal_ire_mod(
             var=var,
             sow=sow,
-            shff=shff,
             is_rtp_ffcs_defined=is_rtp_ffcs_defined,
             is_ireauxbal=is_ireauxbal,
             arg1="EXP",
@@ -137,7 +133,6 @@ class EqpeakMod(GamsClass):
         )
         include_cal_fflo_1 = cal_fflo_mod(
             reduce=reduce,
-            shff=shff,
             sow=sow,
             var=var,
             pgprim=pgprim,
@@ -154,7 +149,6 @@ class EqpeakMod(GamsClass):
                 varv=varv,
                 sws=sws,
                 reduce=reduce,
-                shff=shff,
                 sow=sow,
                 var=var,
                 pgprim=pgprim,
@@ -162,7 +156,6 @@ class EqpeakMod(GamsClass):
             )
         include_cal_fflo_2 = cal_fflo_mod(
             reduce=reduce,
-            shff=shff,
             sow=sow,
             var=var,
             pgprim=pgprim,
@@ -175,7 +168,6 @@ class EqpeakMod(GamsClass):
         include_cal_ire_3 = cal_ire_mod(
             var=var,
             sow=sow,
-            shff=shff,
             is_rtp_ffcs_defined=is_rtp_ffcs_defined,
             is_ireauxbal=is_ireauxbal,
             arg1="EXP",

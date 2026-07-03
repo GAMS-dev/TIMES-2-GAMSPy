@@ -24,7 +24,6 @@ def cal_red_red(
     var: str,
     sow: str,
     pgprim: str,
-    shff: str,
     def_rtp_ffcs: bool,
     arg1: str,
     arg2: str,
@@ -48,15 +47,15 @@ def cal_red_red(
     if arg7 != "T":
         vnt = "V"
     if def_rtp_ffcs:
-        shp1 = f"*({shff}S(R,{vnt}{shg1}{sow}))"
-        shp2 = f"*({shff}S(R,{vnt}{shg2}{sow}))"
-        shp3 = f"*({shff}S(R,{vnt}{shg}{sow}))"
+        shp1 = f"*(1+RTP_FFCS(R,{vnt}{shg1}{sow}))"
+        shp2 = f"*(1+RTP_FFCS(R,{vnt}{shg2}{sow}))"
+        shp3 = f"*(1+RTP_FFCS(R,{vnt}{shg}{sow}))"
     if arg7 == "V":
         tst = ""
     if arg7 != "T":
-        shp1 = f"*({shff}X(R,V,{arg5}{shg1}){tst}){shp1}"
-        shp2 = f"*({shff}X(R,V,{arg5}{shg2}){tst}){shp2}"
-        shp3 = f"*({shff}X(R,V,{arg5}{shg}){tst}){shp3}"
+        shp1 = f"*(1+RTP_FFCX(R,V,{arg5}{shg1}){tst}){shp1}"
+        shp2 = f"*(1+RTP_FFCX(R,V,{arg5}{shg2}){tst}){shp2}"
+        shp3 = f"*(1+RTP_FFCX(R,V,{arg5}{shg}){tst}){shp3}"
 
     return rf"""
 (

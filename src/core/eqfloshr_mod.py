@@ -73,7 +73,7 @@ class EqfloshrMod(GamsClass):
             )$(NOT RPG_RED(R,P,CG,'{self.arg3}')) +
 
          SUM((TOP(R,P,COM,'{self.arg3}'),RTPCS_VARF(R,T,P,COM,TS))$COM_GMAP(R,CG,COM),
-{cal_red_func(var=self.env.var, sow=self.env.sow, pgprim=self.env.pgprim, shff=self.env.shff, def_rtp_ffcs=self.tc.defined("RTP_FFCS"), arg1="COM", arg2="COM1", arg3="TS", arg4="P", arg5="T")}
+{cal_red_func(var=self.env.var, sow=self.env.sow, pgprim=self.env.pgprim, def_rtp_ffcs=self.tc.defined("RTP_FFCS"), arg1="COM", arg2="COM1", arg3="TS", arg4="P", arg5="T")}
                       *
 * share-ts coarser than variable or share finer than variable
              RS_FR(R,S,TS)*(1+RTCS_FR(R,T,COM,S,TS))
@@ -85,7 +85,7 @@ class EqfloshrMod(GamsClass):
 * commodity working on, summed for all
         {self.env.var}_FLO(R,V,T,P,C,S {self.env.sow})$(NOT RPG_RED(R,P,CG,'{self.arg3}')) +
         (
-{cal_red_func(var=self.env.var, sow=self.env.sow, pgprim=self.env.pgprim, shff=self.env.shff, def_rtp_ffcs=self.tc.defined("RTP_FFCS"), arg1="C", arg2="COM", arg3="S", arg4="P", arg5="T")}
+{cal_red_func(var=self.env.var, sow=self.env.sow, pgprim=self.env.pgprim, def_rtp_ffcs=self.tc.defined("RTP_FFCS"), arg1="C", arg2="COM", arg3="S", arg4="P", arg5="T")}
         )$RPG_RED(R,P,CG,'{self.arg3}')
     ;
 """,

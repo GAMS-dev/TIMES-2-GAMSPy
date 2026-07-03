@@ -57,7 +57,6 @@ class EqchpelcIer(GamsClass):
             varv=self.env.varv,
             pgprim=self.env.pgprim,
             def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
-            shff=self.env.shff,
             sow=self.env.sow,
             var=self.env.var,
         )
@@ -75,7 +74,6 @@ class EqchpelcIer(GamsClass):
         varv: str,
         pgprim: str,
         def_rtp_ffcs: bool,
-        shff: str,
         sow: str,
         var: str,
     ) -> None:
@@ -94,7 +92,6 @@ class EqchpelcIer(GamsClass):
             arg5="T",
             pgprim=pgprim,
             def_rtp_ffcs=def_rtp_ffcs,
-            shff=shff,
             sow=sow,
             var=var,
         )

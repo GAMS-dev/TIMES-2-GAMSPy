@@ -1342,15 +1342,13 @@ class SetglobsGms(GamsClass):
             )
 
         # Helper for process tranformation shape controls
-        self.env.set_global("shff", self.x1)
+        shff = self.x1
         self.env.set_global("rcapsub", self.x1)
         self.env.set_global("rcapsbm", self.x1)
-        shff = self.env.shff
         rcapsub = self.env.rcapsub
         rcapsbm = self.env.rcapsbm
         if f"{shff}{rcapsub}{rcapsbm}" != f"{self.x1}{self.x1}{self.x1}":
             raise ValueError(f"{msg}: shff / rcapsub")
-        self.env.set_global("shff", "1+RTP_FFC")
 
         # Additional tags for stochastic
         self.env.set_global("mx", self.x1)

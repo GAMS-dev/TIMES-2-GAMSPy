@@ -96,7 +96,6 @@ class SolveStc(GamsClass):
                 obmac=self.env.obmac,
                 abs_=self.env.abs,
                 var=self.env.var,
-                shff=self.env.shff,
                 pgprim=self.env.pgprim,
                 bencost=self.env.bencost,
                 rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),

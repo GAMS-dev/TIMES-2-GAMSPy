@@ -21,7 +21,6 @@ def cal_nored_red(
     var: str,
     sow: str,
     pgprim: str,
-    shff: str,
     def_rtp_ffcs: bool,
     arg1: str,
     arg2: str,
@@ -44,9 +43,9 @@ def cal_nored_red(
     if arg7 != "T":
         vnt = "V"
     if def_rtp_ffcs:
-        shp3 = f"*({shff}S(R,{vnt}{shg}{sow}))"
+        shp3 = f"*(1+RTP_FFCS(R,{vnt}{shg}{sow}))"
     if vnt == "V":
-        shp3 = f"*({shff}X(R,V,{arg5}{shg}){tst}){shp3}"
+        shp3 = f"*(1+RTP_FFCX(R,V,{arg5}{shg}){tst}){shp3}"
 
     return rf"""
 {arg8}({arg9}

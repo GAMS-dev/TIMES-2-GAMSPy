@@ -488,9 +488,6 @@ class EnvironmentVariableSchema(BaseModel):
     scum: str = Field(
         description="Cumulative scaling parameters check array parameter tracking strings."
     )
-    shff: str = Field(
-        description="Shifting frequency variable string mapped inside sub-annual loops."
-    )
     ControlAbort: str = Field(
         description="System termination signal parameter matching execution logs."
     )

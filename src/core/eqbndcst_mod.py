@@ -143,7 +143,6 @@ class EqbndcstMod(GamsClass):
             var=self.env.var,
             sowend=self.env.sowend,
             pgprim=self.env.pgprim,
-            shff=self.env.shff,
             sow=self.env.sow,
             def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
         )
@@ -168,7 +167,6 @@ class EqbndcstMod(GamsClass):
         var: str,
         sowend: str,
         pgprim: str,
-        shff: str,
         sow: str,
         def_rtp_ffcs: bool,
     ) -> None:
@@ -184,7 +182,6 @@ class EqbndcstMod(GamsClass):
                 arg5="T",
                 pgprim=pgprim,
                 def_rtp_ffcs=def_rtp_ffcs,
-                shff=shff,
                 sow=sow,
                 var=var,
             )
@@ -196,7 +193,6 @@ class EqbndcstMod(GamsClass):
                 arg4="P",
                 arg5="T",
                 def_rtp_ffcs=def_rtp_ffcs,
-                shff=shff,
                 sow=sow,
                 var=var,
                 pgprim=pgprim,

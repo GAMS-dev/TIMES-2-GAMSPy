@@ -106,7 +106,6 @@ class EqcombalMod(GamsClass):
     ) -> None:
         include_cal_fflo_1 = cal_fflo_mod(
             reduce=self.env.reduce,
-            shff=self.env.shff,
             sow=self.env.sow,
             var=self.env.var,
             pgprim=self.env.pgprim,
@@ -118,7 +117,6 @@ class EqcombalMod(GamsClass):
         include_cal_ire_1 = cal_ire_mod(
             var=self.env.var,
             sow=self.env.sow,
-            shff=self.env.shff,
             is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
             is_ireauxbal=self.env.is_set("ireauxbal"),
             arg1="IMP",
@@ -147,7 +145,6 @@ class EqcombalMod(GamsClass):
         )
         include_cal_fflo_2 = cal_fflo_mod(
             reduce=self.env.reduce,
-            shff=self.env.shff,
             sow=self.env.sow,
             var=self.env.var,
             pgprim=self.env.pgprim,
@@ -159,7 +156,6 @@ class EqcombalMod(GamsClass):
         include_cal_ire_2 = cal_ire_mod(
             var=self.env.var,
             sow=self.env.sow,
-            shff=self.env.shff,
             is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
             is_ireauxbal=self.env.is_set("ireauxbal"),
             arg1="EXP",
