@@ -16,7 +16,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .base_class import GamsClass
+from gamspy import Number, SpecialValues
+
+from core.base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -42,21 +44,16 @@ class PpmExtDsc(GamsClass):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
         self.compile()
 
     def compile(self) -> None:
         if self.env.dsc.upper() == "YES":
-            self.tc.enqueue(self.exec1)
+            self.tc.enqueue(self.discrete_capacity_extensions)
 
-    def exec1(self: PpmExtDsc) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Discrete capacity extensions
-*-----------------------------------------------------------------------------
-  NCAP_DISC(RTP(R,T,P),'0')$PRC_DSCNCAP(R,P) = EPS$(NOT NCAP_SEMI(R,T,P));
-  """,
-        )
+    def discrete_capacity_extensions(self: PpmExtDsc) -> None:
+        g = self.tc
+        r, t, p = g.r, g.t, g.p
+
+        g.ncap_disc[g.Rtp[r, t, p], "0"].where[g.PrcDscncap[r, p]] = Number(
+            SpecialValues.EPS
+        ).where[~g.ncap_semi[r, t, p]]
