@@ -1508,9 +1508,6 @@ class TimesModelClass:
     def get_parameter(self, name: str) -> Any:
         return getattr(self, name.lower())
 
-    def set_equation(self, name: str, eq: Equation) -> None:
-        setattr(self, name.lower(), eq)
-
     def get_variable(self, name: str) -> Any:
         return getattr(self, name.upper())
 
