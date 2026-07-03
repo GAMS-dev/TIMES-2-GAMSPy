@@ -20,15 +20,46 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, NamedTuple
 
-from .base_class import GamsClass
+from gamspy import (
+    Alias,
+    Else,
+    Expression,
+    For,
+    If,
+    Loop,
+    Number,
+    Ord,
+    Parameter,
+    Set,
+    set_options,
+)
+
+from core.base_class import GamsClass
 
 if TYPE_CHECKING:
+    from gamspy import Card
+    from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+class FillcostGmsConfig(NamedTuple):
+    arg1: Parameter
+    arg2: Alias | Set
+    arg3: tuple[Set, ...]
+    arg4: tuple[str, ...]
+    arg5: Alias | Set
+    arg6: ImplicitSet | Card | Literal[1]
+    bext: Expression | Literal[1]
+    fext: Expression | Literal[1]
+    arg9: Parameter
+    arg10: str
+    arg11: int = 0
 
 
 class FillcostGms(GamsClass):
@@ -39,114 +70,124 @@ class FillcostGms(GamsClass):
     gams_source: str = "fillcost.gms"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
-        arg4: str = "",
-        arg5: str = "",
-        arg6: str = "",
-        arg7: str = "",
-        arg8: str = "",
-        arg9: str = "",
-        arg10: str = "",
-        arg11: str = "",
+        self, tc: TimesModelClass, env: CompileEnvironment, config: FillcostGmsConfig
     ):
+        super().__init__(tc, env)
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
-        self.arg4 = arg4
-        self.arg5 = arg5
-        self.arg6 = arg6
-        self.arg7 = arg7
-        self.arg8 = arg8
-        self.arg9 = arg9
-        self.arg10 = arg10
-        self.arg11 = arg11
+        self.config = config
         self.compile()
 
     def compile(self) -> None:
-        self.env.set_local("src", f"{self.arg9}")
-        self.env.set_local("data", f"{self.arg10}({self.arg2},{self.arg3},{self.arg5})")
-        self.env.set_local("take", f"${self.arg6}")
-        self.env.set_local("tmp", f"{self.arg3}{self.arg4}")
+        g = self.tc
+        cc = self.config
 
-        if len(self.tc.container[self.arg9.upper()].domain) == 8:
-            self.env.set_local("tmp", f"{self.arg4}")
-
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-PARAMETER {self.arg10}({self.arg2},{self.arg3},ALLYEAR);
-""",
+        param = Parameter(
+            container=self.tc.container,
+            name=cc.arg10,
+            domain=[cc.arg2, *cc.arg3, g.allyear],
         )
+        g.set_parameter(name=cc.arg10, parameter=param)
+
+        src = cc.arg9
+        data = param[cc.arg2, *cc.arg3, cc.arg5]
+        take = cc.arg6
+        tmp: tuple[Set | str, ...] = (*cc.arg3, *cc.arg4)
+
+        if len(cc.arg9.domain) == 8:
+            tmp = (*cc.arg4,)
 
         self.tc.enqueue(
             self.exec1,
-            arg1=self.arg1,
-            arg2=self.arg2,
-            arg3=self.arg3,
-            arg5=self.arg5,
-            arg7=self.arg7,
-            arg8=self.arg8,
-            arg9=self.arg9,
-            arg10=self.arg10,
-            tmp=self.env.tmp,
-            take=self.env.take,
-            src=self.env.src,
-            data=self.env.data,
-            condition1=(self.arg11 == "1"),
-            condition2=(self.arg11 == "2"),
+            cc,
+            new_param=param,
+            tmp=tmp,
+            take=take,
+            src=src,
+            data=data,
+            condition1=(cc.arg11 == 1),
+            condition2=(cc.arg11 == 2),
         )
 
     def exec1(
         self: FillcostGms,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-        arg5: str,
-        arg7: str,
-        arg8: str,
-        arg9: str,
-        arg10: str,
-        tmp: str,
-        take: str,
-        src: str,
-        data: str,
+        cc: FillcostGmsConfig,
+        new_param: Parameter,
+        tmp: tuple[Set | str, ...],
+        take: ImplicitSet | Card | Literal[1],
+        src: Parameter,
+        data: ImplicitParameter,
         condition1: bool,
         condition2: bool,
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
- IF(YES,OPTION CLEAR=UNCD7;
-{f"{arg1}({arg2},DATAYEAR,{arg3}) $= {arg9}({arg2},DATAYEAR,{arg3}){take};" if condition1 else ""}
-{f"$SETLOCAL TAKE '' SETLOCAL SRC {arg1}" if condition1 else ""}
- UNCD7({arg2},LL--ORD(LL),{tmp}){take} $= {src}({arg2},LL,{arg3});
- LOOP(UNCD7({arg2},YEAR,{tmp}), F=0; LAST_VAL=0;
-    OPTION CLEAR=MY_FIL2; MY_ARRAY(DM_YEAR)= {src}({arg2},DM_YEAR,{arg3});
-* do linear interpolation
-* check for nonzero
-	LOOP(DM_YEAR(LL)$MY_ARRAY(DM_YEAR),
-	  MY_F = MY_ARRAY(LL); Z = YEARVAL(LL);
-	  IF(LAST_VAL, LAST_VAL=(MY_F-LAST_VAL)/(Z-MY_FYEAR);
-	     FOR(CNT=MY_FYEAR-Z+1 TO -1, MY_FIL2({arg5}(LL+CNT)) = MY_F+LAST_VAL*CNT;);
-	  ELSE F = Z; FIRST_VAL = MY_F;);
-* remember the value and year
-	  LAST_VAL = MY_F; MY_FYEAR=Z);
-* Do back/forward extrapolate
-{f" MY_FIL2({arg5}) $= MY_ARRAY({arg5});" if condition2 else ""}
-    {data} $= FIRST_VAL$({arg7}(YEARVAL({arg5}) LT F)) + MY_FIL2({arg5}) + LAST_VAL$({arg8}(YEARVAL({arg5}) GT Z));
-  );
-);
-{f" {arg1}({arg2},{arg5},{arg3}) $= {data}; OPTION CLEAR={arg10};" if not condition2 else ""}
-{f"{arg10}('EMPTY',{arg3},'EMPTY')=0;" if condition2 else ""}
-""",
+        g = self.tc
+        ll, year = g.ll, g.year
+        Uncd7, Datayear, DmYear = g.Uncd7, g.Datayear, g.DmYear
+
+        Uncd7.setRecords(None)
+
+        take_condition: ImplicitSet | Card | Number = (
+            Number(take) if isinstance(take, int) else take
         )
+
+        if condition1:
+            sparse_expression = cc.arg9[cc.arg2, Datayear, *cc.arg3].where[
+                take_condition
+            ]
+            cc.arg1[cc.arg2, Datayear, *cc.arg3].where[sparse_expression] = (
+                sparse_expression
+            )
+            take_condition = Number(1)
+            src = cc.arg1
+
+        sparse_expression_2 = src[cc.arg2, ll, *cc.arg3]
+        Uncd7[cc.arg2, ll.lag(Ord(ll), "circular"), *tmp].where[
+            take_condition.where[sparse_expression_2]
+        ] = sparse_expression_2
+
+        with Loop(Uncd7[cc.arg2, year, *tmp]):
+            g.f[...] = 0
+            g.last_val[...] = 0
+            g.my_fil2.setRecords(None)
+            g.my_array[DmYear] = src[cc.arg2, DmYear, *cc.arg3]
+            # do linear interpolation
+            with Loop(DmYear[ll].where[g.my_array[DmYear]]):  # check for nonzero
+                g.my_f[...] = g.my_array[ll]
+                g.z[...] = g.yearval[ll]
+                with If(g.last_val):
+                    g.last_val[...] = (g.my_f[...] - g.last_val[...]) / (
+                        g.z[...] - g.my_fyear[...]
+                    )
+                    with For(g.cnt, start=g.my_fyear[...] - g.z[...] + 1, end=-1):
+                        g.my_fil2[cc.arg5[ll.lead(g.cnt)]] = (
+                            g.my_f[...] + g.last_val[...] * g.cnt[...]
+                        )
+                with Else():
+                    g.f[...] = g.z[...]
+                    g.first_val[...] = g.my_f[...]
+
+                g.last_val[...] = g.my_f[...]  # remember the value and year
+                g.my_fyear[...] = g.z[...]
+
+            # Do back/forward extrapolate
+            if condition2:
+                g.my_fil2[cc.arg5].where[g.my_array[cc.arg5]] = g.my_array[cc.arg5]
+
+            cond1 = cc.bext & (g.yearval[cc.arg5] < g.f[...])
+            cond2 = cc.fext & (g.yearval[cc.arg5] > g.z[...])
+
+            sparse_expression = (
+                g.first_val[...].where[cond1]
+                + g.my_fil2[cc.arg5]
+                + g.last_val[...].where[cond2]
+            )
+            data.where[sparse_expression] = sparse_expression
+
+        if condition2:
+            set_options({"VALIDATION": 0})  # TODO: Remove in future GAMSPY version
+            new_param["EMPTY", *cc.arg3, "EMPTY"] = 0
+            set_options({"VALIDATION": 1})  # TODO: Remove in future GAMSPY version
+        else:
+            cc.arg1[cc.arg2, cc.arg5, *cc.arg3].where[data] = data
+            new_param.setRecords(None)

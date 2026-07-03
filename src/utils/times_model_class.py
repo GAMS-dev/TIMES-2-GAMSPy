@@ -330,6 +330,7 @@ class TimesModelClass:
     flo_tax: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com,ts,cur] FLO_TAX: Tax on the production/use of a commodity
     flo_cum: Parameter = None  # type: ignore[assignment] # [Reg,prc,Com,item,item,lim] FLO_CUM: Bound on cumulative flow
     flo_mark: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com,bd] FLO_MARK: Process-wise market share in total commodity production
+    flo_ire: Parameter = None  # type: ignore[assignment] # [RR,LL,P,C,S,IE] FLO_IRE:
     prc_mark: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,item,c,lim] PRC_MARK: Process group-wise market share
     prc_resid: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] PRC_RESID: Residual capacity available in each period
     prc_refit: Parameter = None  # type: ignore[assignment] # [Reg,prc,prc] PRC_REFIT: Process with retrofit or life-extension
