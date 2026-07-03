@@ -59,7 +59,6 @@ class SolIreRpt(GamsClass):
             arg3=self.arg3,
             arg4=self.arg4,
             v=self.env.v,
-            shff=self.env.shff,
             sow=self.env.sow,
             rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
         )
@@ -80,7 +79,6 @@ class SolIreRpt(GamsClass):
         arg3: str,
         arg4: str,
         v: str,
-        shff: str,
         sow: str,
         rtp_ffcs_defined: bool,
     ) -> None:
@@ -93,7 +91,6 @@ class SolIreRpt(GamsClass):
                 arg3=arg3,
                 arg4=arg4,
                 v=v,
-                shff=shff,
                 sow=sow,
                 rtp_ffcs_defined=rtp_ffcs_defined,
             ),
@@ -107,7 +104,6 @@ def sol_ire_rpt(
     arg3: str = "",
     arg4: str = "",
     v: str,
-    shff: str,
     sow: str,
     rtp_ffcs_defined: bool,
 ) -> str:
@@ -130,7 +126,7 @@ def sol_ire_rpt(
 
     mx = ""
     if rtp_ffcs_defined:
-        mx = f"({shff}S(R,V,P,COM,COM{sow}))*"
+        mx = f"(1+RTP_FFCS(R,V,P,COM,COM{sow}))*"
 
     return rf"""
   OPTION CLEAR=PAR_IRE,CLEAR=PAR_IREM;

@@ -68,7 +68,6 @@ class UcbetVda(GamsClass):
                 arg4="P",
                 arg5="T",
                 def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
-                shff=self.env.shff,
                 sow=self.env.sow,
                 var=self.env.var,
                 pgprim=self.env.pgprim,
@@ -82,7 +81,6 @@ class UcbetVda(GamsClass):
                 arg5="T",
                 pgprim=self.env.pgprim,
                 def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
-                shff=self.env.shff,
                 sow=self.env.sow,
                 var=self.env.var,
             )

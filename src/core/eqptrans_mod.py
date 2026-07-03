@@ -50,11 +50,11 @@ class EqptransMod(GamsClass):
         self.env.set_scoped("shg", ",P,COM_GRP,CG")
         if self.tc.defined("RTP_FFCS"):
             self.env.set_scoped(
-                "shp1", f"*({self.env.shff}S(R,V{self.env.shg}{self.env.sow}))"
+                "shp1", f"*(1+RTP_FFCS(R,V{self.env.shg}{self.env.sow}))"
             )
         self.env.set_scoped(
             "shp1",
-            f"*({self.env.shff}X(R,V,T{self.env.shg})$PRC_VINT(R,P)){self.env.shp1}",
+            f"*(1+RTP_FFCX(R,V,T{self.env.shg})$PRC_VINT(R,P)){self.env.shp1}",
         )
 
         self.comp1(
@@ -66,7 +66,6 @@ class EqptransMod(GamsClass):
             var=self.env.var,
             sow=self.env.sow,
             pgprim=self.env.pgprim,
-            shff=self.env.shff,
             def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
         )
 
@@ -80,7 +79,6 @@ class EqptransMod(GamsClass):
         var: str,
         sow: str,
         pgprim: str,
-        shff: str,
         def_rtp_ffcs: bool,
     ) -> None:
         include_cal_red = ""
@@ -95,7 +93,6 @@ class EqptransMod(GamsClass):
                 var=var,
                 sow=sow,
                 pgprim=pgprim,
-                shff=shff,
                 def_rtp_ffcs=def_rtp_ffcs,
             )
         elif cal_red == "cal_nored.red":
@@ -107,7 +104,6 @@ class EqptransMod(GamsClass):
                 arg5="T",
                 var=var,
                 sow=sow,
-                shff=shff,
                 pgprim=pgprim,
                 def_rtp_ffcs=def_rtp_ffcs,
             )

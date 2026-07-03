@@ -25,7 +25,6 @@ def solprep_msa(
     arg2: str,
     msa: str,
     v: str,
-    shff: str,
     pgprim: str,
     sow: str,
     rtp_ffcs_defined: bool,
@@ -66,7 +65,6 @@ def solprep_msa(
     if arg1 in ["", "INIT"]:
         execution_str += _solprep_msa_init(
             v=v,
-            shff=shff,
             pgprim=pgprim,
             sow=sow,
             rtp_ffcs_defined=rtp_ffcs_defined,
@@ -116,7 +114,6 @@ def solprep_msa(
 
 def _solprep_msa_init(
     v: str,
-    shff: str,
     pgprim: str,
     sow: str,
     rtp_ffcs_defined: bool,
@@ -159,7 +156,6 @@ def _solprep_msa_init(
         arg2="",
         arg3=".L",
         v=v,
-        shff=shff,
         pgprim=pgprim,
         sow=sow,
         rtp_ffcs_defined=rtp_ffcs_defined,
@@ -167,7 +163,6 @@ def _solprep_msa_init(
 
     execution_str += sol_ire_rpt(
         v=v,
-        shff=shff,
         sow=sow,
         rtp_ffcs_defined=rtp_ffcs_defined,
     )

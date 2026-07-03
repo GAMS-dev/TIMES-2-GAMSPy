@@ -22,7 +22,6 @@ def eqpk_ect_ier(
     sws: str,
     # args for cal_fflo_mod
     reduce: str,
-    shff: str,
     sow: str,
     var: str,
     pgprim: str,
@@ -31,7 +30,6 @@ def eqpk_ect_ier(
     """Translation unit for eqpk_ect.ier."""
     include_cal_fflo = cal_fflo_mod(
         reduce=reduce,
-        shff=shff,
         sow=sow,
         var=var,
         pgprim=pgprim,

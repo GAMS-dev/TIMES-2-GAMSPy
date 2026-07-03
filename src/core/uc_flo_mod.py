@@ -35,7 +35,6 @@ def uc_flo_mod(
     var: str,
     swt: str,
     def_rtp_ffcs: bool,
-    shff: str,
     sow: str,
     cufscal: str,
     pgprim: str,
@@ -72,7 +71,6 @@ def uc_flo_mod(
             arg5=arg4,
             pgprim=pgprim,
             def_rtp_ffcs=def_rtp_ffcs,
-            shff=shff,
             sow=sow,
             var=var,
         )
@@ -84,7 +82,6 @@ def uc_flo_mod(
             arg4="P",
             arg5=arg4,
             def_rtp_ffcs=def_rtp_ffcs,
-            shff=shff,
             sow=sow,
             var=var,
             pgprim=pgprim,

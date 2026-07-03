@@ -116,7 +116,6 @@ class EqobjcstTm(GamsClass):
                 vart=self.env.vart,
                 sws=self.env.sws,
                 mx=self.env.mx,
-                shff=self.env.shff,
                 condition1=self.env.stages.upper() == "YES",
                 condition2=self.env.stages == "YES",
                 is_vnret_defined=self.tc.defined("VNRET"),

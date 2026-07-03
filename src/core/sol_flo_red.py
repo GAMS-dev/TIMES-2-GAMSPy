@@ -64,7 +64,6 @@ class SolFloRed(GamsClass):
             arg5=self.arg5,
             arg6=self.arg6,
             v=self.env.v,
-            shff=self.env.shff,
             pgprim=self.env.pgprim,
             sow=self.env.sow,
             rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
@@ -88,7 +87,6 @@ class SolFloRed(GamsClass):
         arg5: str,
         arg6: str,
         v: str,
-        shff: str,
         pgprim: str,
         sow: str,
         rtp_ffcs_defined: bool,
@@ -104,7 +102,6 @@ class SolFloRed(GamsClass):
                 arg5=arg5,
                 arg6=arg6,
                 v=v,
-                shff=shff,
                 pgprim=pgprim,
                 sow=sow,
                 rtp_ffcs_defined=rtp_ffcs_defined,
@@ -121,7 +118,6 @@ def sol_flo_red(
     arg5: str = "",
     arg6: str = "",
     v: str,
-    shff: str,
     pgprim: str,
     sow: str,
     rtp_ffcs_defined: bool,
@@ -134,11 +130,11 @@ def sol_flo_red(
     shp3 = ""
 
     if rtp_ffcs_defined:
-        shp1 = f"*({shff}S(R,V{shg1}{sow}))"
-        shp3 = f"*({shff}S(R,V{shg}{sow}))"
+        shp1 = f"*(1+RTP_FFCS(R,V{shg1}{sow}))"
+        shp3 = f"*(1+RTP_FFCS(R,V{shg}{sow}))"
 
-    shp1 = f"*({shff}X(R,V,T{shg1}){tst}){shp1}"
-    shp3 = f"*({shff}X(R,V,T{shg}){tst}){shp3}"
+    shp1 = f"*(1+RTP_FFCX(R,V,T{shg1}){tst}){shp1}"
+    shp3 = f"*(1+RTP_FFCX(R,V,T{shg}){tst}){shp3}"
 
     non_substituted = (
         f"{arg1}(R,V,T,P,C,S{arg5}) $= {v}_FLO{arg3}(R,V,T,P,C,S{arg5});"

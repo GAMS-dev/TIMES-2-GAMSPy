@@ -38,7 +38,6 @@ def cal_nored_red(
     arg8: str = "",
     arg9: str = "",
     def_rtp_ffcs: bool = False,
-    shff: str = "",
     sow: str = "",
     var: str = "",
 ) -> str:
@@ -58,7 +57,6 @@ def cal_red_red(
     arg10: str = "",
     pgprim: str = "",
     def_rtp_ffcs: bool = False,
-    shff: str = "",
     sow: str = "",
     var: str = "",
 ) -> str:
@@ -124,7 +122,6 @@ class ResloadcVda(GamsClass):
                     arg4="P",
                     arg5="T",
                     def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
-                    shff=self.env.shff,
                     sow=self.env.sow,
                     var=self.env.var,
                 )
@@ -137,7 +134,6 @@ class ResloadcVda(GamsClass):
                     arg5="T",
                     pgprim=self.env.pgprim,
                     def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
-                    shff=self.env.shff,
                     sow=self.env.sow,
                     var=self.env.var,
                 )

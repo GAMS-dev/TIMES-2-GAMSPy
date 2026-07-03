@@ -64,7 +64,6 @@ class EqmrkcomIer(GamsClass):
     def compile(self) -> None:
         include_cal_fflo_1 = cal_fflo_mod(
             reduce=self.env.reduce,
-            shff=self.env.shff,
             sow=self.env.sow,
             var=self.env.var,
             pgprim=self.env.pgprim,
@@ -76,7 +75,6 @@ class EqmrkcomIer(GamsClass):
         include_cal_ire_1 = cal_ire_mod(
             var=self.env.var,
             sow=self.env.sow,
-            shff=self.env.shff,
             is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
             is_ireauxbal=self.tc.defined("IS_IREAUXBAL"),
             arg1="IMP",
@@ -104,7 +102,6 @@ class EqmrkcomIer(GamsClass):
 
         include_cal_fflo_2 = cal_fflo_mod(
             reduce=self.env.reduce,
-            shff=self.env.shff,
             sow=self.env.sow,
             var=self.env.var,
             pgprim=self.env.pgprim,
@@ -116,7 +113,6 @@ class EqmrkcomIer(GamsClass):
         include_cal_ire_2 = cal_ire_mod(
             var=self.env.var,
             sow=self.env.sow,
-            shff=self.env.shff,
             is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
             is_ireauxbal=self.tc.defined("IS_IREAUXBAL"),
             arg1="EXP",
@@ -158,7 +154,6 @@ class EqmrkcomIer(GamsClass):
             arg5="T",
             pgprim=self.env.pgprim,
             def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
-            shff=self.env.shff,
             sow=self.env.sow,
             var=self.env.var,
         )

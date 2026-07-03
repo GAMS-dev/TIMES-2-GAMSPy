@@ -56,11 +56,11 @@ SCALAR MICRO / 1E-6 /;
             self.env.set_scoped("shg", f",P,CG,'{self.env.pgprim}'")
             if self.tc.defined("RTP_FFCS"):
                 self.env.set_scoped(
-                    "shp1", f"*({self.env.shff}S(R,V{self.env.shg}{self.env.sow}))"
+                    "shp1", f"*(1+RTP_FFCS(R,V{self.env.shg}{self.env.sow}))"
                 )
             self.env.set_scoped(
                 "shp1",
-                f"*({self.env.shff}X(R,V,T{self.env.shg})$PRC_VINT(R,P)){self.env.shp1}",
+                f"*(1+RTP_FFCX(R,V,T{self.env.shg})$PRC_VINT(R,P)){self.env.shp1}",
             )
 
             self.define_equation(
