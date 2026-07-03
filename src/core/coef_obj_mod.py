@@ -13,13 +13,15 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from core.base_class import GamsClass
-from core.fillcost_gms import FillcostGms
+from core.fillcost_gms import FillcostGms, FillcostGmsConfig
 from core.filparam_gms import FilparamGms, FilparamGmsConfig
 
 if TYPE_CHECKING:
+    from gamspy._symbols.implicits import ImplicitSet
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -47,6 +49,9 @@ class CoefObjMod(GamsClass):
 
     def compile(self) -> None:
         g = self.tc
+
+        r, p, c, s, ie, cur, costype = g.r, g.p, g.c, g.s, g.ie, g.cur, g.costype
+        Rp, Rdcur, Fil, ComTs, RpcsVar = g.Rp, g.Rdcur, g.Fil, g.ComTs, g.RpcsVar
 
         self.declaration1()
         self.tc.enqueue(self.exec1)
@@ -76,83 +81,55 @@ class CoefObjMod(GamsClass):
         )
 
         self.tc.enqueue(self.set_obj_disc)
-
         self.env.set_scoped("take", "RDCUR(R,CUR)")
+        take: ImplicitSet | Literal[1] = Rdcur[r, cur]
         self.env.set_scoped("tmp", "1")
+        tmp = 1
         # * Can we use macroes?
         if self.env.obmac == "YES":
             self.env.set_scoped("tmp", "2")
+            tmp = 2
 
         if self.tc.defined("R_CUREX"):
-            self.env.set_scoped("take", "1")
+            self.env.set_scoped("take", 1)
+            take = 1
 
         self.tc.enqueue(
-            self.determine_min_max_year,
-            condition=self.env.validata == "YES",
+            self.determine_min_max_year, condition=self.env.validata == "YES"
         )
 
         self.env.set_local("bext", "(YEARVAL(FIL) GE PRC_YMIN(R,P))$")
+        bext = g.yearval[Fil] >= g.prc_ymin[r, p]
         self.env.set_local("fext", "(YEARVAL(FIL) LE PRC_YMAX(R,P))$")
+        fext = g.yearval[Fil] <= g.prc_ymax[r, p]
 
         # * investment related costs
         # fmt: off
-        batincludes = [
-            ("OBJ_ICOST", "R", "P,CUR", ",'0','0','0'", "FIL", f"{self.env.take}", f"{self.env.bext}", f"{self.env.fext}", "NCAP_COST", "OB_ICOST", f"{self.env.tmp}"),
-            ("OBJ_ISUB", "R", "P,CUR", ",'0','0','0'", "FIL", f"{self.env.take}", f"{self.env.bext}", f"{self.env.fext}", "NCAP_ISUB", "OB_ISUB", f"{self.env.tmp}"),
-            ("OBJ_ITAX", "R", "P,CUR", ",'0','0','0'", "FIL", f"{self.env.take}", f"{self.env.bext}", f"{self.env.fext}", "NCAP_ITAX", "OB_ITAX", f"{self.env.tmp}"),
-            ("NCAP_ISPCT", "R", "P", ",'0','0','0','0'", "FIL", "1", f"{self.env.bext}", f"{self.env.fext}", "NCAP_ISPCT", "X_RP", f"{self.env.tmp}"),
+        fillcost_gms_batincludes = [
+            FillcostGmsConfig(arg1=g.obj_icost, arg2=r, arg3=(p,cur), arg4=('0','0','0'),arg5=Fil, arg6=take, bext=bext, fext=fext, arg9=g.ncap_cost, arg10="OB_ICOST", arg11=tmp),
+            FillcostGmsConfig(arg1=g.obj_isub, arg2=r, arg3=(p,cur), arg4=('0','0','0'), arg5=Fil, arg6=take, bext=bext, fext=fext, arg9=g.ncap_isub, arg10="OB_ISUB", arg11=tmp),
+            FillcostGmsConfig(arg1=g.obj_itax, arg2=r, arg3=(p,cur), arg4=('0','0','0'), arg5=Fil, arg6=take, bext=bext, fext=fext, arg9=g.ncap_itax, arg10="OB_ITAX", arg11=tmp),
+            FillcostGmsConfig(arg1=g.ncap_ispct, arg2=r, arg3=(p,), arg4=('0','0','0','0'), arg5=Fil, arg6=1, bext=bext, fext=fext, arg9=g.ncap_ispct, arg10="X_RP", arg11=tmp),
         ]
         # fmt: on
-        for arg in batincludes:
-            self.include(
-                FillcostGms(
-                    self.tc,
-                    self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
-                    arg5=arg[4],
-                    arg6=arg[5],
-                    arg7=arg[6],
-                    arg8=arg[7],
-                    arg9=arg[8],
-                    arg10=arg[9],
-                    arg11=arg[10],
-                )
-            )
+        for config in fillcost_gms_batincludes:
+            self.include(FillcostGms(self.tc, self.env, config))
 
         self.tc.enqueue(self.exec2)
 
         # * fixed O&M and taxes
         # fmt: off
-        batincludes = [
-            ("OBJ_FOM", "R", "P,CUR", ",'0','0','0'", "FIL", f"{self.env.take}", f"{self.env.bext}", f"{self.env.fext}", "NCAP_FOM", "OB_FOM", f"{self.env.tmp}"),
-            ("OBJ_FSB", "R", "P,CUR", ",'0','0','0'", "FIL", f"{self.env.take}", f"{self.env.bext}", f"{self.env.fext}", "NCAP_FSUB", "OB_FSB", f"{self.env.tmp}"),
-            ("OBJ_FTX", "R", "P,CUR", ",'0','0','0'", "FIL", f"{self.env.take}", f"{self.env.bext}", f"{self.env.fext}", "NCAP_FTAX", "OB_FTX", f"{self.env.tmp}"),
+        fillcost_gms_batincludes = [
+            FillcostGmsConfig(arg1=g.obj_fom, arg2=r, arg3=(p,cur), arg4=('0','0','0'), arg5=Fil, arg6=take, bext=bext, fext=fext, arg9=g.ncap_fom, arg10="OB_FOM", arg11=tmp),
+            FillcostGmsConfig(arg1=g.obj_fsb, arg2=r, arg3=(p,cur), arg4=('0','0','0'), arg5=Fil, arg6=take, bext=bext, fext=fext, arg9=g.ncap_fsub, arg10="OB_FSB", arg11=tmp),
+            FillcostGmsConfig(arg1=g.obj_ftx, arg2=r, arg3=(p,cur), arg4=('0','0','0'), arg5=Fil, arg6=take, bext=bext, fext=fext, arg9=g.ncap_ftax, arg10="OB_FTX", arg11=tmp),
             # * decommissioning (actual & surveillance)
-            ("OBJ_DCOST", "R", "P,CUR", ",'0','0','0'", "FIL", f"{self.env.take}", f"{self.env.bext}", f"{self.env.fext}", "NCAP_DCOST", "OB_DCC", f"{self.env.tmp}"),
-            ("OBJ_DLAGC", "R", "P,CUR", ",'0','0','0'", "FIL", f"{self.env.take}", f"{self.env.bext}", f"{self.env.fext}", "NCAP_DLAGC", "OB_DLC", f"{self.env.tmp}"),
+            FillcostGmsConfig(arg1=g.obj_dcost, arg2=r, arg3=(p,cur), arg4=('0','0','0'), arg5=Fil, arg6=take, bext=bext, fext=fext, arg9=g.ncap_dcost, arg10="OB_DCC", arg11=tmp),
+            FillcostGmsConfig(arg1=g.obj_dlagc, arg2=r, arg3=(p,cur), arg4=('0','0','0'), arg5=Fil, arg6=take, bext=bext, fext=fext, arg9=g.ncap_dlagc, arg10="OB_DLC", arg11=tmp),
         ]
         # fmt: on
-        for arg in batincludes:
-            self.include(
-                FillcostGms(
-                    self.tc,
-                    self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
-                    arg5=arg[4],
-                    arg6=arg[5],
-                    arg7=arg[6],
-                    arg8=arg[7],
-                    arg9=arg[8],
-                    arg10=arg[9],
-                    arg11=arg[10],
-                )
-            )
+        for config in fillcost_gms_batincludes:
+            self.include(FillcostGms(self.tc, self.env, config))
 
         self.tc.enqueue(
             self.exec3,
@@ -162,60 +139,29 @@ class CoefObjMod(GamsClass):
 
         # * variable costs
         # fmt: off
-        batincludes = [
-            ("OBJ_ACOST", "R", "P,CUR", ",'0','0','0'", "FIL", "RP(R,P)", "", "", "ACT_COST", "OB_ACT", f"{self.env.tmp}"),
+        fillcost_gms_batincludes = [
+            FillcostGmsConfig(arg1=g.obj_acost, arg2=r, arg3=(p,cur), arg4=('0','0','0'), arg5=Fil, arg6=Rp[r,p], bext=1, fext=1, arg9=g.act_cost, arg10="OB_ACT", arg11=tmp),
             # * commodity costs
-            ("OBJ_COMNT", "R", "C,S,COSTYPE,CUR", ",'0'", "FIL", "COM_TS(R,C,S)", "", "", "OBJ_COMNT", "OB_COM", ""),
-            ("OBJ_COMPD", "R", "C,S,COSTYPE,CUR", ",'0'", "FIL", "COM_TS(R,C,S)", "", "", "OBJ_COMPD", "OB_COM", ""),
-            ("OBJ_IPRIC", "R", "P,C,S,IE,CUR", "", "FIL", "RPCS_VAR(R,P,C,S)", "", "", "OBJ_IPRIC", "OB_IRE", ""),
+            FillcostGmsConfig(arg1=g.obj_comnt, arg2=r, arg3=(c,s,costype,cur), arg4=('0',), arg5=Fil, arg6=ComTs[r,c,s], bext=1, fext=1, arg9=g.obj_comnt, arg10="OB_COM"),
+            FillcostGmsConfig(arg1=g.obj_compd, arg2=r, arg3=(c,s,costype,cur), arg4=('0',), arg5=Fil, arg6=ComTs[r,c,s], bext=1, fext=1, arg9=g.obj_compd, arg10="OB_COM"),
+            FillcostGmsConfig(arg1=g.obj_ipric, arg2=r, arg3=(p,c,s,ie,cur), arg4=(), arg5=Fil, arg6=RpcsVar[r,p,c,s], bext=1, fext=1, arg9=g.obj_ipric, arg10="OB_IRE"),
         ]
         # fmt: on
-        for arg in batincludes:
-            self.include(
-                FillcostGms(
-                    self.tc,
-                    self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
-                    arg5=arg[4],
-                    arg6=arg[5],
-                    arg7=arg[6],
-                    arg8=arg[7],
-                    arg9=arg[8],
-                    arg10=arg[9],
-                    arg11=arg[10],
-                )
-            )
+        for config in fillcost_gms_batincludes:
+            self.include(FillcostGms(self.tc, self.env, config))
 
         # * flow cost
         self.env.set_scoped("take", "(RPCS_VAR(R,P,C,S)+ANNUAL(S))")
+        take = RpcsVar[r, p, c, s] + g.Annual[s]
         # fmt: off
-        batincludes = [
-            ("OBJ_FCOST", "R", "P,C,S,CUR", ",'0'", "FIL", f"{self.env.take}", "", "", "FLO_COST", "OB_FCOS", f"{self.env.tmp}"),
-            ("OBJ_FDELV", "R", "P,C,S,CUR", ",'0'", "FIL", f"{self.env.take}", "", "", "FLO_DELIV", "OB_FDEL", f"{self.env.tmp}"),
-            ("OBJ_FTAX", "R", "P,C,S,CUR", ",'0'", "FIL", f"{self.env.take}", "", "", "OBJ_FSUB", "OB_FTAX", f"{self.env.tmp}"),
+        fillcost_gms_batincludes = [
+            FillcostGmsConfig(arg1=g.obj_fcost, arg2=r, arg3=(p,c,s,cur), arg4=('0',), arg5=Fil, arg6=take, bext=1, fext=1, arg9=g.flo_cost, arg10="OB_FCOS", arg11=tmp),
+            FillcostGmsConfig(arg1=g.obj_fdelv, arg2=r, arg3=(p,c,s,cur), arg4=('0',), arg5=Fil, arg6=take, bext=1, fext=1, arg9=g.flo_deliv, arg10="OB_FDEL", arg11=tmp),
+            FillcostGmsConfig(arg1=g.obj_ftax, arg2=r, arg3=(p,c,s,cur), arg4=('0',), arg5=Fil, arg6=take, bext=1, fext=1, arg9=g.obj_fsub, arg10="OB_FTAX", arg11=tmp),
         ]
         # fmt: on
-        for arg in batincludes:
-            self.include(
-                FillcostGms(
-                    self.tc,
-                    self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
-                    arg5=arg[4],
-                    arg6=arg[5],
-                    arg7=arg[6],
-                    arg8=arg[7],
-                    arg9=arg[8],
-                    arg10=arg[9],
-                    arg11=arg[10],
-                )
-            )
+        for config in fillcost_gms_batincludes:
+            self.include(FillcostGms(self.tc, self.env, config))
 
         self.tc.enqueue(self.exec4)
 

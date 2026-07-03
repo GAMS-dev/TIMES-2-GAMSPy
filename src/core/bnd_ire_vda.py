@@ -13,9 +13,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.fillcost_gms import FillcostGms
+from gamspy import Card, Parameter
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
+from core.fillcost_gms import FillcostGms, FillcostGmsConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -47,41 +48,28 @@ class BndIreVda(GamsClass):
 
     def compile(self) -> None:
         g = self.tc
+        m = g.container
+
         if not self.tc.defined_assigned(g.Premile):
             return
 
         self.tc.enqueue(self.exec1)
 
-        self.tc.add_gams_code(
-            module=self, phase="init", code=" PARAMETER FLO_IRE(R,LL,P,C,S,IE);"
+        g.flo_ire = Parameter(
+            m, name="FLO_IRE", domain=[g.r, g.ll, g.p, g.c, g.s, g.ie]
         )
 
         self.tc.enqueue(self.exec2, var=self.env.var, swd=self.env.swd)
 
         # fmt: off
         batincludes = [
-            ("FLO_IRE", "R", 'P,C,TS,IE', ",'0'", "FIL", "CARD(FIL)", '', '', "FLO_IRE", "X_IREFLO"),
-            ("PAR_IPRIC", "R", 'P,C,TS,IE', ",'0'", "FIL", "CARD(FIL)", '', '', "PAR_IPRIC", "X_IREFLO")
+            FillcostGmsConfig(arg1=g.flo_ire, arg2=g.r, arg3=(g.p,g.c,g.ts,g.ie), arg4=('0',), arg5=g.Fil, arg6=Card(g.Fil), bext=1, fext=1, arg9=g.flo_ire, arg10="X_IREFLO"),
+            FillcostGmsConfig(arg1=g.par_ipric, arg2=g.r, arg3=(g.p,g.c,g.ts,g.ie), arg4=('0',), arg5=g.Fil, arg6=Card(g.Fil), bext=1, fext=1, arg9=g.par_ipric, arg10="X_IREFLO")
         ]
         # fmt: on
 
-        for arg in batincludes:
-            self.include(
-                FillcostGms(
-                    tc=self.tc,
-                    env=self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
-                    arg5=arg[4],
-                    arg6=arg[5],
-                    arg7=arg[6],
-                    arg8=arg[7],
-                    arg9=arg[8],
-                    arg10=arg[9],
-                )
-            )
+        for config in batincludes:
+            self.include(FillcostGms(tc=self.tc, env=self.env, config=config))
 
         self.tc.enqueue(self.exec3, var=self.env.var, swd=self.env.swd)
 
