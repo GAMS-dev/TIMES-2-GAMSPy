@@ -85,8 +85,8 @@ class PrepExtMlf(GamsClass):
   """,
         )
         #   ALIAS (MIYR_1,T_1,TB);
-        Alias(m, "T_1", alias_with=g.miyr1)
-        Alias(m, "TB", alias_with=g.miyr1)
+        Alias(m, "T_1", alias_with=g.Miyr1)
+        Alias(m, "TB", alias_with=g.Miyr1)
         #   ALIAS (T,TP);
         Alias(m, "TP", alias_with=g.t)
 

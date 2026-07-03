@@ -13,12 +13,12 @@ import datetime
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Number
+from gamspy import Number, SpecialValues
 
 from core.base_class import GamsClass
 from core.fillparm_gms import FillparmGms
 from core.filparam_gms import FilparamGms, FilparamGmsConfig
-from core.prepparm_gms import PrepparmGms
+from core.prepparm_gms import PrepparmGms, PrepparmGmsConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -49,90 +49,227 @@ class PrepxtraMod(GamsClass):
     def compile(self) -> None:
         g = self.tc
 
+        r, p, c, s, t, cur = g.r, g.p, g.c, g.s, g.t, g.cur
+
         if self.arg1.upper() == "XTIE":
-            # * COST PARAMETERS: Interpolated over T
-            # fmt: off
-            batincludes = [
-                ("NCAP_COST", "R", "P,CUR", ",'0','0','0'", "T", "RTP(R,T,P)", "EPS", "3"),
-                ("NCAP_DCOST", "R", "P,CUR", ",'0','0','0'", "T", "RTP(R,T,P)", "EPS", "3"),
-                ("NCAP_DLAGC", "R", "P,CUR", ",'0','0','0'", "T", "RTP(R,T,P)", "EPS", "3"),
-                ("NCAP_FOM", "R", "P,CUR", ",'0','0','0'", "T", "RTP(R,T,P)", "EPS", "3"),
-                ("NCAP_FSUB", "R", "P,CUR", ",'0','0','0'", "T", "RTP(R,T,P)", "EPS", "3"),
-                ("NCAP_FTAX", "R", "P,CUR", ",'0','0','0'", "T", "RTP(R,T,P)", "EPS", "3"),
-                ("NCAP_ISUB", "R", "P,CUR", ",'0','0','0'", "T", "RTP(R,T,P)", "EPS", "3"),
-                ("NCAP_ITAX", "R", "P,CUR", ",'0','0','0'", "T", "RTP(R,T,P)", "EPS", "3"),
-                ("NCAP_VALU", "R", "P,C,CUR", ",'0','0'", "T", "RTP(R,T,P)", "EPS", "3"),
-                ("NCAP_ISPCT", "R", "P", ",'0','0','0','0'", "T", "RTP(R,T,P)", "EPS", "3"),
+            prepparms: list[PrepparmGmsConfig] = [
+                # * COST PARAMETERS: Interpolated over T
+                PrepparmGmsConfig(
+                    arg1="NCAP_COST",
+                    arg2=(r,),
+                    arg3=(p, cur),
+                    arg4=("0", "0", "0"),
+                    arg5=t,
+                    arg6=g.Rtp[r, t, p],
+                    arg7=SpecialValues.EPS,
+                    arg8=3,
+                ),
+                PrepparmGmsConfig(
+                    arg1="NCAP_DCOST",
+                    arg2=(r,),
+                    arg3=(p, cur),
+                    arg4=("0", "0", "0"),
+                    arg5=t,
+                    arg6=g.Rtp[r, t, p],
+                    arg7=SpecialValues.EPS,
+                    arg8=3,
+                ),
+                PrepparmGmsConfig(
+                    arg1="NCAP_DLAGC",
+                    arg2=(r,),
+                    arg3=(p, cur),
+                    arg4=("0", "0", "0"),
+                    arg5=t,
+                    arg6=g.Rtp[r, t, p],
+                    arg7=SpecialValues.EPS,
+                    arg8=3,
+                ),
+                PrepparmGmsConfig(
+                    arg1="NCAP_FOM",
+                    arg2=(r,),
+                    arg3=(p, cur),
+                    arg4=("0", "0", "0"),
+                    arg5=t,
+                    arg6=g.Rtp[r, t, p],
+                    arg7=SpecialValues.EPS,
+                    arg8=3,
+                ),
+                PrepparmGmsConfig(
+                    arg1="NCAP_FSUB",
+                    arg2=(r,),
+                    arg3=(p, cur),
+                    arg4=("0", "0", "0"),
+                    arg5=t,
+                    arg6=g.Rtp[r, t, p],
+                    arg7=SpecialValues.EPS,
+                    arg8=3,
+                ),
+                PrepparmGmsConfig(
+                    arg1="NCAP_FTAX",
+                    arg2=(r,),
+                    arg3=(p, cur),
+                    arg4=("0", "0", "0"),
+                    arg5=t,
+                    arg6=g.Rtp[r, t, p],
+                    arg7=SpecialValues.EPS,
+                    arg8=3,
+                ),
+                PrepparmGmsConfig(
+                    arg1="NCAP_ISUB",
+                    arg2=(r,),
+                    arg3=(p, cur),
+                    arg4=("0", "0", "0"),
+                    arg5=t,
+                    arg6=g.Rtp[r, t, p],
+                    arg7=SpecialValues.EPS,
+                    arg8=3,
+                ),
+                PrepparmGmsConfig(
+                    arg1="NCAP_ITAX",
+                    arg2=(r,),
+                    arg3=(p, cur),
+                    arg4=("0", "0", "0"),
+                    arg5=t,
+                    arg6=g.Rtp[r, t, p],
+                    arg7=SpecialValues.EPS,
+                    arg8=3,
+                ),
+                PrepparmGmsConfig(
+                    arg1="NCAP_VALU",
+                    arg2=(r,),
+                    arg3=(p, c, cur),
+                    arg4=("0", "0"),
+                    arg5=t,
+                    arg6=g.Rtp[r, t, p],
+                    arg7=SpecialValues.EPS,
+                    arg8=3,
+                ),
+                PrepparmGmsConfig(
+                    arg1="NCAP_ISPCT",
+                    arg2=(r,),
+                    arg3=(p,),
+                    arg4=("0", "0", "0", "0"),
+                    arg5=t,
+                    arg6=g.Rtp[r, t, p],
+                    arg7=SpecialValues.EPS,
+                    arg8=3,
+                ),
+                # * Commodity related attributes (6)
+                PrepparmGmsConfig(
+                    arg1="COM_CSTNET",
+                    arg2=(r,),
+                    arg3=(c, s, cur),
+                    arg4=("0", "0"),
+                    arg5=t,
+                    arg6=Number(1),
+                    arg7=SpecialValues.EPS,
+                    arg8=3,
+                ),
+                PrepparmGmsConfig(
+                    arg1="COM_CSTPRD",
+                    arg2=(r,),
+                    arg3=(c, s, cur),
+                    arg4=("0", "0"),
+                    arg5=t,
+                    arg6=Number(1),
+                    arg7=SpecialValues.EPS,
+                    arg8=3,
+                ),
+                PrepparmGmsConfig(
+                    arg1="COM_SUBNET",
+                    arg2=(r,),
+                    arg3=(c, s, cur),
+                    arg4=("0", "0"),
+                    arg5=t,
+                    arg6=Number(1),
+                    arg7=SpecialValues.EPS,
+                    arg8=3,
+                ),
+                PrepparmGmsConfig(
+                    arg1="COM_SUBPRD",
+                    arg2=(r,),
+                    arg3=(c, s, cur),
+                    arg4=("0", "0"),
+                    arg5=t,
+                    arg6=Number(1),
+                    arg7=SpecialValues.EPS,
+                    arg8=3,
+                ),
+                PrepparmGmsConfig(
+                    arg1="COM_TAXNET",
+                    arg2=(r,),
+                    arg3=(c, s, cur),
+                    arg4=("0", "0"),
+                    arg5=t,
+                    arg6=Number(1),
+                    arg7=SpecialValues.EPS,
+                    arg8=3,
+                ),
+                PrepparmGmsConfig(
+                    arg1="COM_TAXPRD",
+                    arg2=(r,),
+                    arg3=(c, s, cur),
+                    arg4=("0", "0"),
+                    arg5=t,
+                    arg6=Number(1),
+                    arg7=SpecialValues.EPS,
+                    arg8=3,
+                ),
+                # * Flow related attributes & inter-regional exchange flows (6)
+                PrepparmGmsConfig(
+                    arg1="ACT_COST",
+                    arg2=(r,),
+                    arg3=(p, cur),
+                    arg4=("0", "0", "0"),
+                    arg5=t,
+                    arg6=g.Rtp[r, t, p],
+                    arg7=SpecialValues.EPS,
+                    arg8=3,
+                ),
+                PrepparmGmsConfig(
+                    arg1="FLO_COST",
+                    arg2=(r,),
+                    arg3=(p, c, s, cur),
+                    arg4=("0",),
+                    arg5=t,
+                    arg6=g.Rtp[r, t, p],
+                    arg7=SpecialValues.EPS,
+                    arg8=3,
+                ),
+                PrepparmGmsConfig(
+                    arg1="FLO_DELIV",
+                    arg2=(r,),
+                    arg3=(p, c, s, cur),
+                    arg4=("0",),
+                    arg5=t,
+                    arg6=g.Rtp[r, t, p],
+                    arg7=SpecialValues.EPS,
+                    arg8=3,
+                ),
+                PrepparmGmsConfig(
+                    arg1="FLO_SUB",
+                    arg2=(r,),
+                    arg3=(p, c, s, cur),
+                    arg4=("0",),
+                    arg5=t,
+                    arg6=g.Rtp[r, t, p],
+                    arg7=SpecialValues.EPS,
+                    arg8=3,
+                ),
+                PrepparmGmsConfig(
+                    arg1="FLO_TAX",
+                    arg2=(r,),
+                    arg3=(p, c, s, cur),
+                    arg4=("0",),
+                    arg5=t,
+                    arg6=g.Rtp[r, t, p],
+                    arg7=SpecialValues.EPS,
+                    arg8=3,
+                ),
             ]
-            # fmt: on
-            for arg in batincludes:
-                self.include(
-                    PrepparmGms(
-                        self.tc,
-                        self.env,
-                        arg1=arg[0],
-                        arg2=arg[1],
-                        arg3=arg[2],
-                        arg4=arg[3],
-                        arg5=arg[4],
-                        arg6=arg[5],
-                        arg7=arg[6],
-                        arg8=arg[7],
-                    )
-                )
 
-            # * Commodity related attributes (6)
-            # fmt: off
-            batincludes = [
-                ("COM_CSTNET", "R", "C,S,CUR", ",'0','0'", "T", "1", "EPS", "3"),
-                ("COM_CSTPRD", "R", "C,S,CUR", ",'0','0'", "T", "1", "EPS", "3"),
-                ("COM_SUBNET", "R", "C,S,CUR", ",'0','0'", "T", "1", "EPS", "3"),
-                ("COM_SUBPRD", "R", "C,S,CUR", ",'0','0'", "T", "1", "EPS", "3"),
-                ("COM_TAXNET", "R", "C,S,CUR", ",'0','0'", "T", "1", "EPS", "3"),
-                ("COM_TAXPRD", "R", "C,S,CUR", ",'0','0'", "T", "1", "EPS", "3"),
-            ]
-            # fmt: on
-            for arg in batincludes:
-                self.include(
-                    PrepparmGms(
-                        self.tc,
-                        self.env,
-                        arg1=arg[0],
-                        arg2=arg[1],
-                        arg3=arg[2],
-                        arg4=arg[3],
-                        arg5=arg[4],
-                        arg6=arg[5],
-                        arg7=arg[6],
-                        arg8=arg[7],
-                    )
-                )
-
-            # * Flow related attributes & inter-regional exchange flows (6)
-            # fmt: off
-            batincludes = [
-                ("ACT_COST", "R", "P,CUR", ",'0','0','0'", "T", "RTP(R,T,P)", "EPS", "3"),
-                ("FLO_COST", "R", "P,C,S,CUR", ",'0'", "T", "RTP(R,T,P)", "EPS", "3"),
-                ("FLO_DELIV", "R", "P,C,S,CUR", ",'0'", "T", "RTP(R,T,P)", "EPS", "3"),
-                ("FLO_SUB", "R", "P,C,S,CUR", ",'0'", "T", "RTP(R,T,P)", "EPS", "3"),
-                ("FLO_TAX", "R", "P,C,S,CUR", ",'0'", "T", "RTP(R,T,P)", "EPS", "3"),
-            ]
-            # fmt: on
-            for arg in batincludes:
-                self.include(
-                    PrepparmGms(
-                        self.tc,
-                        self.env,
-                        arg1=arg[0],
-                        arg2=arg[1],
-                        arg3=arg[2],
-                        arg4=arg[3],
-                        arg5=arg[4],
-                        arg6=arg[5],
-                        arg7=arg[6],
-                        arg8=arg[7],
-                    )
-                )
+            for config in prepparms:
+                self.include(PrepparmGms(self.tc, self.env, config=config))
 
             # fmt: off
             batincludes = [
@@ -179,8 +316,8 @@ class PrepxtraMod(GamsClass):
                     arg6=g.t,
                 ),
             ]
-            for config in filparam_batincludes:
-                self.include(FilparamGms(self.tc, self.env, config=config))
+            for f_config in filparam_batincludes:
+                self.include(FilparamGms(self.tc, self.env, config=f_config))
 
         if self.arg1.upper() in ["XTIE", "POST"]:
             self.tc.enqueue(

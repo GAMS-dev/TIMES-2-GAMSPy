@@ -402,7 +402,6 @@ class TimesModelClass:
     cm_result: Parameter = None  # type: ignore[assignment] # [item,item,allyear] CM_RESULT: Climate module results
     cm_maxc_m: Parameter = None  # type: ignore[assignment] # [item,allyear] CM_MAXC_M: Shadow price of climate constraint
     tm_result: Parameter = None  # type: ignore[assignment] # [item,r,allyear] TM_RESULT: MACRO results
-    miyr1: Set = None  # type: ignore[assignment] # MIYR_1:
     miyr_v1: Parameter = None  # type: ignore[assignment] # MIYR_V1:
     miyr_vl: Parameter = None  # type: ignore[assignment] # MIYR_VL:
     pyr_v1: Parameter = None  # type: ignore[assignment] # PYR_V1:
@@ -1504,14 +1503,14 @@ class TimesModelClass:
     def get_parameter(self, name: str) -> Any:
         return getattr(self, name.lower())
 
+    def set_equation(self, name: str, eq: Equation) -> None:
+        setattr(self, name.lower(), eq)
+
     def get_variable(self, name: str) -> Any:
         return getattr(self, name.upper())
 
     def set_parameter(self, name: str, parameter: Parameter) -> None:
         setattr(self, name.lower(), parameter)
-
-    def set_equation(self, name: str, eq: Equation) -> None:
-        setattr(self, name.lower(), eq)
 
     def set_variable(self, name: str, var: Variable) -> None:
         setattr(self, name.upper(), var)

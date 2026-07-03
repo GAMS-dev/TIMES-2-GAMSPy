@@ -27,7 +27,7 @@ from core.prep_ext_mlf import PrepExtMlf
 from core.prep_ext_stc import PrepExtStc
 from core.prep_ext_tm import PrepExtTm
 from core.prep_ext_vda import PrepExtVda
-from core.prepparm_gms import PrepparmGms
+from core.prepparm_gms import PrepparmGms, PrepparmGmsConfig
 from core.prepret_dsc import PrepretDsc
 from core.prepxtra_mod import PrepxtraMod
 from core.preshape_gms import PreshapeGms
@@ -35,6 +35,8 @@ from core.preshape_gms import PreshapeGms
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
+
+from gamspy import Number, SpecialValues
 
 logger = logging.getLogger(__name__)
 
@@ -61,11 +63,13 @@ class PreppmMod(GamsClass):
         g = self.tc
         m = g.container
 
-        r, v, t, ucn = g.r, g.v, g.t, g.ucn
+        r, v, t, p, c, s = g.r, g.v, g.t, g.p, g.c, g.s
+        ts, allreg, ie, costype, item = g.ts, g.allreg, g.ie, g.costype, g.item
+        lim, allr, ucn, cur, cg, bd = g.lim, g.allr, g.ucn, g.cur, g.cg, g.bd
 
-        self.env.set_scoped("reset", "0")
+        self.env.set_scoped("reset", 0)
         if self.env.intext_only.upper() == "YES":
-            self.env.set_scoped("reset", "15")
+            self.env.set_scoped("reset", 15)
 
         if self.env.datagdx.upper() == "YES":
             self.include(PrepxtraMod(self.tc, self.env, arg1="SAVE"))
@@ -103,7 +107,7 @@ class PreppmMod(GamsClass):
 
         # Starting data pre-preprocessing with temporary control sets for parameters
         if not self.env.is_set("def_iebd"):
-            self.env.set_scoped("def_iebd", "10")
+            self.env.set_scoped("def_iebd", 10)
 
         self.tc.enqueue(self.exec4)
 
@@ -156,86 +160,55 @@ class PreppmMod(GamsClass):
         )
 
         # fmt: off
-        batincludes1 = [
+        batincludes1: list[PrepparmGmsConfig] = [
             # *-----------------------------------------------------------------------------
             # * Capacity related attributes
             # *-----------------------------------------------------------------------------
-            ("prepparm", "NCAP_COST", "R", "P,CUR", ",'0','0','0','0'", "V", "RTP(R,V,P)", "0", "", "", ""),
-            ("prepparm", "NCAP_DCOST", "R", "P,CUR", ",'0','0','0','0'", "V", "RTP(R,V,P)", "0", "", "", ""),
-            ("prepparm", "NCAP_DLAGC", "R", "P,CUR", ",'0','0','0','0'", "V", "RTP(R,V,P)", "0", "", "", ""),
-            ("prepparm", "NCAP_FOM", "R", "P,CUR", ",'0','0','0','0'", "V", "RTP(R,V,P)", "0", "", "", ""),
-            ("prepparm", "NCAP_FSUB", "R", "P,CUR", ",'0','0','0','0'", "V", "RTP(R,V,P)", "0", "", "", ""),
-            ("prepparm", "NCAP_FTAX", "R", "P,CUR", ",'0','0','0','0'", "V", "RTP(R,V,P)", "0", "", "", ""),
-            ("prepparm", "NCAP_ISUB", "R", "P,CUR", ",'0','0','0','0'", "V", "RTP(R,V,P)", "0", "", "", ""),
-            ("prepparm", "NCAP_ITAX", "R", "P,CUR", ",'0','0','0','0'", "V", "RTP(R,V,P)", "0", "", "", ""),
-            ("prepparm", "NCAP_VALU", "R", "P,C,CUR", ",'0','0','0'", "V", "RTP(R,V,P)", "0", "", "", ""),
-            ("prepparm", "NCAP_ISPCT", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "0", "", "", ""),
+            PrepparmGmsConfig(arg1="NCAP_COST", arg2=(r,), arg3=(p,cur), arg4=('0','0','0','0'), arg5=v, arg6=g.Rtp[r,v,p], arg7=0),
+            PrepparmGmsConfig(arg1="NCAP_DCOST", arg2=(r,), arg3=(p,cur), arg4=('0','0','0','0'), arg5=v, arg6=g.Rtp[r,v,p], arg7=0),
+            PrepparmGmsConfig(arg1="NCAP_DLAGC", arg2=(r,), arg3=(p,cur), arg4=('0','0','0','0'), arg5=v, arg6=g.Rtp[r,v,p], arg7=0),
+            PrepparmGmsConfig(arg1="NCAP_FOM", arg2=(r,), arg3=(p,cur), arg4=('0','0','0','0'), arg5=v, arg6=g.Rtp[r,v,p], arg7=0),
+            PrepparmGmsConfig(arg1="NCAP_FSUB", arg2=(r,), arg3=(p,cur), arg4=('0','0','0','0'), arg5=v, arg6=g.Rtp[r,v,p], arg7=0),
+            PrepparmGmsConfig(arg1="NCAP_FTAX", arg2=(r,), arg3=(p,cur), arg4=('0','0','0','0'), arg5=v, arg6=g.Rtp[r,v,p], arg7=0),
+            PrepparmGmsConfig(arg1="NCAP_ISUB", arg2=(r,), arg3=(p,cur), arg4=('0','0','0','0'), arg5=v, arg6=g.Rtp[r,v,p], arg7=0),
+            PrepparmGmsConfig(arg1="NCAP_ITAX", arg2=(r,), arg3=(p,cur), arg4=('0','0','0','0'), arg5=v, arg6=g.Rtp[r,v,p], arg7=0),
+            PrepparmGmsConfig(arg1="NCAP_VALU", arg2=(r,), arg3=(p,g.c,cur), arg4=('0','0','0'), arg5=v, arg6=g.Rtp[r,v,p], arg7=0),
+            PrepparmGmsConfig(arg1="NCAP_ISPCT", arg2=(r,), arg3=(p,), arg4=('0','0','0','0','0'), arg5=v, arg6=g.Rtp[r,v,p], arg7=0),
             # *-----------------------------------------------------------------------------
             # * Commodity related attributes
             # *-----------------------------------------------------------------------------
-            ("prepparm", "OBJ_COMNT", "R", "C,TS,COSTYPE,CUR", ",'0','0'", "T", "1", "0", "", "", ""),
-            ("prepparm", "OBJ_COMPD", "R", "C,TS,COSTYPE,CUR", ",'0','0'", "T", "1", "0", "", "", ""),
+            PrepparmGmsConfig(arg1="OBJ_COMNT", arg2=(r,), arg3=(c,ts,costype,cur), arg4=('0','0'), arg5=t, arg6=Number(1), arg7=0),
+            PrepparmGmsConfig(arg1="OBJ_COMPD", arg2=(r,), arg3=(c,ts,costype,cur), arg4=('0','0'), arg5=t, arg6=Number(1), arg7=0),
             # *-----------------------------------------------------------------------------
             # * Flow related attributes & inter-regional exchange flows (6)
             # *-----------------------------------------------------------------------------
-            ("prepparm", "ACT_COST", "R", "P,CUR", ",'0','0','0','0'", "V", "RTP(R,V,P)", "0", "", "", ""),
-            ("prepparm", "FLO_COST", "R", "P,C,TS,CUR", ",'0','0'", "V", "RTP(R,V,P)", "0", "", "", ""),
-            ("prepparm", "FLO_DELIV", "R", "P,C,TS,CUR", ",'0','0'", "V", "RTP(R,V,P)", "0", "", "", ""),
-            ("prepparm", "FLO_SUB", "R", "P,C,TS,CUR", ",'0','0'", "V", "RTP(R,V,P)", "0", "", "", ""),
-            ("prepparm", "FLO_TAX", "R", "P,C,TS,CUR", ",'0','0'", "V", "RTP(R,V,P)", "0", "", "", ""),
-            ("prepparm", "IRE_PRICE", "R", "P,C,TS,ALL_REG,IE,CUR", "", "V", "RTP(R,V,P)", "0", "", "", ""),
+            PrepparmGmsConfig(arg1="ACT_COST", arg2=(r,), arg3=(p,cur), arg4=('0','0','0','0'), arg5=v, arg6=g.Rtp[r,v,p], arg7=0),
+            PrepparmGmsConfig(arg1="FLO_COST", arg2=(r,), arg3=(p,c,ts,cur), arg4=('0','0'), arg5=v, arg6=g.Rtp[r,v,p], arg7=0),
+            PrepparmGmsConfig(arg1="FLO_DELIV", arg2=(r,), arg3=(p,c,ts,cur), arg4=('0','0'), arg5=v, arg6=g.Rtp[r,v,p], arg7=0),
+            PrepparmGmsConfig(arg1="FLO_SUB", arg2=(r,), arg3=(p,c,ts,cur), arg4=('0','0'), arg5=v, arg6=g.Rtp[r,v,p], arg7=0),
+            PrepparmGmsConfig(arg1="FLO_TAX", arg2=(r,), arg3=(p,c,ts,cur), arg4=('0','0'), arg5=v, arg6=g.Rtp[r,v,p], arg7=0),
+            PrepparmGmsConfig(arg1="IRE_PRICE", arg2=(r,), arg3=(p,c,ts,allreg,ie,cur), arg4=(), arg5=v, arg6=g.Rtp[r,v,p], arg7=0),
         ]
         # fmt: on
 
-        for arg in batincludes1:
-            if arg[0] == "prepparm":
-                self.include(
-                    PrepparmGms(
-                        self.tc,
-                        self.env,
-                        arg1=arg[1],
-                        arg2=arg[2],
-                        arg3=arg[3],
-                        arg4=arg[4],
-                        arg5=arg[5],
-                        arg6=arg[6],
-                        arg7=arg[7],
-                        arg8=arg[8],
-                        arg9=arg[9],
-                        arg10=arg[10],
-                    )
-                )
-            elif arg[0] == "fillparm":
-                self.include(
-                    FillparmGms(
-                        self.tc,
-                        self.env,
-                        arg1=arg[1],
-                        arg2=arg[2],
-                        arg3=arg[3],
-                        arg4=arg[4],
-                        arg5=arg[5],
-                        arg6=arg[6],
-                        arg7=arg[7],
-                        arg8=arg[8],
-                        arg9=arg[9],
-                        arg10=arg[10],
-                    )
-                )
+        for config in batincludes1:
+            self.include(PrepparmGms(self.tc, self.env, config=config))
 
         if self.tc.defined("DAM_COST"):
             self.include(
                 PrepparmGms(
                     self.tc,
                     self.env,
-                    arg1="DAM_COST",
-                    arg2="R",
-                    arg3="C,CUR",
-                    arg4=",'0','0','0'",
-                    arg5="T",
-                    arg6="1",
-                    arg7="EPS",
-                    arg8="3",
+                    config=PrepparmGmsConfig(
+                        arg1="DAM_COST",
+                        arg2=(r,),
+                        arg3=(c, cur),
+                        arg4=("0", "0", "0"),
+                        arg5=t,
+                        arg6=Number(1),
+                        arg7=SpecialValues.EPS,
+                        arg8=3,
+                    ),
                 )
             )
 
@@ -310,30 +283,33 @@ class PreppmMod(GamsClass):
                 )
             )
 
-        # fmt: off
         batincludes3 = [
-            ("prepparm", "FLO_MARK", "R", "P,C,BD", ",'0','0'", "T", "1", "1", "3", "X_RPCL", ""),
-            ("prepparm", "PRC_MARK", "R", "P,ITEM,C,BD", ",'0'", "T", "1", "1", "11", "X_MARK", ""),
+            PrepparmGmsConfig(
+                arg1="FLO_MARK",
+                arg2=(r,),
+                arg3=(p, c, bd),
+                arg4=("0", "0"),
+                arg5=t,
+                arg6=Number(1),
+                arg7=1,
+                arg8=3,
+                arg9="X_RPCL",
+            ),
+            PrepparmGmsConfig(
+                arg1="PRC_MARK",
+                arg2=(r,),
+                arg3=(p, item, c, bd),
+                arg4=("0",),
+                arg5=t,
+                arg6=Number(1),
+                arg7=1,
+                arg8=11,
+                arg9="X_MARK",
+            ),
         ]
-        # fmt: on
 
-        for _, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10 in batincludes3:
-            self.include(
-                PrepparmGms(
-                    self.tc,
-                    self.env,
-                    arg1=a1,
-                    arg2=a2,
-                    arg3=a3,
-                    arg4=a4,
-                    arg5=a5,
-                    arg6=a6,
-                    arg7=a7,
-                    arg8=a8,
-                    arg9=a9,
-                    arg10=a10,
-                )
-            )
+        for config in batincludes3:
+            self.include(PrepparmGms(self.tc, self.env, config=config))
 
         # fmt: off
         batincludes4 = [
@@ -391,291 +367,213 @@ class PreppmMod(GamsClass):
                     ),
                 )
             )
-        batincludes5 = [
+        batincludes5: list[PrepparmGmsConfig] = [
             # *=============================================================================
             # ******* NON-REGULAR NON-COST PARAMETERS: NOT interpolated by default *********
             # *-----------------------------------------------------------------------------
             # * Capacity and commodity related attributes
             # *-----------------------------------------------------------------------------
-            (
-                "prepparm",
-                "CAP_BND",
-                "R",
-                "P,BD",
-                ",'0','0','0'",
-                "T",
-                "RTP(R,T,P)",
-                "1",
-                "",
-                "X_RPB",
-                "",
+            PrepparmGmsConfig(
+                arg1="CAP_BND",
+                arg2=(r,),
+                arg3=(p, bd),
+                arg4=("0", "0", "0"),
+                arg5=t,
+                arg6=g.Rtp[r, t, p],
+                arg7=1,
+                arg9="X_RPB",
             ),
-            (
-                "prepparm",
-                "NCAP_BND",
-                "R",
-                "P,BD",
-                ",'0','0','0'",
-                "T",
-                "RTP(R,T,P)",
-                "1",
-                "",
-                "X_RPB",
-                "",
+            PrepparmGmsConfig(
+                arg1="NCAP_BND",
+                arg2=(r,),
+                arg3=(p, bd),
+                arg4=("0", "0", "0"),
+                arg5=t,
+                arg6=g.Rtp[r, t, p],
+                arg7=1,
+                arg9="X_RPB",
             ),
-            (
-                "prepparm",
-                "COM_BNDNET",
-                "R",
-                "C,TS,BD",
-                ",'0','0'",
-                "T",
-                "1",
-                "1",
-                "",
-                "",
-                "",
+            PrepparmGmsConfig(
+                arg1="COM_BNDNET",
+                arg2=(r,),
+                arg3=(c, ts, bd),
+                arg4=("0", "0"),
+                arg5=t,
+                arg6=Number(1),
+                arg7=1,
             ),
-            (
-                "prepparm",
-                "COM_BNDPRD",
-                "R",
-                "C,TS,BD",
-                ",'0','0'",
-                "T",
-                "1",
-                "1",
-                "",
-                "",
-                "",
+            PrepparmGmsConfig(
+                arg1="COM_BNDPRD",
+                arg2=(r,),
+                arg3=(c, ts, bd),
+                arg4=("0", "0"),
+                arg5=t,
+                arg6=Number(1),
+                arg7=1,
             ),
             # *-----------------------------------------------------------------------------
             # * Flow related attributes & inter-regional exchange
             # *-----------------------------------------------------------------------------
-            (
-                "prepparm",
-                "ACT_BND",
-                "R",
-                "P,TS,BD",
-                ",'0','0'",
-                "T",
-                "RTP(R,T,P)",
-                "1",
-                "",
-                "X_RPSB",
-                "",
+            PrepparmGmsConfig(
+                arg1="ACT_BND",
+                arg2=(r,),
+                arg3=(p, ts, bd),
+                arg4=("0", "0"),
+                arg5=t,
+                arg6=g.Rtp[r, t, p],
+                arg7=1,
+                arg9="X_RPSB",
             ),
-            (
-                "prepparm",
-                "FLO_BND",
-                "R",
-                "P,CG,TS,BD",
-                ",'0'",
-                "T",
-                "RTP(R,T,P)",
-                "1",
-                "",
-                "X_RPGSB",
-                "",
+            PrepparmGmsConfig(
+                arg1="FLO_BND",
+                arg2=(r,),
+                arg3=(p, cg, ts, bd),
+                arg4=("0",),
+                arg5=t,
+                arg6=g.Rtp[r, t, p],
+                arg7=1,
+                arg9="X_RPGSB",
             ),
-            (
-                "prepparm",
-                "FLO_BDLVL",
-                "R",
-                "P,CG,S,BD",
-                ",'0'",
-                "T",
-                "RTP(R,T,P)",
-                "1",
-                "",
-                "X_RPGSB",
-                "",
+            PrepparmGmsConfig(
+                arg1="FLO_BDLVL",
+                arg2=(r,),
+                arg3=(p, cg, s, bd),
+                arg4=("0",),
+                arg5=t,
+                arg6=g.Rtp[r, t, p],
+                arg7=1,
+                arg9="X_RPGSB",
             ),
-            (
-                "prepparm",
-                "FLO_FR",
-                "R",
-                "P,C,TS,LIM",
-                ",'0'",
-                "T",
-                "RTP(R,T,P)",
-                "1",
-                "",
-                "X_RPCSL",
-                "",
+            PrepparmGmsConfig(
+                arg1="FLO_FR",
+                arg2=(r,),
+                arg3=(p, c, ts, lim),
+                arg4=("0",),
+                arg5=t,
+                arg6=g.Rtp[r, t, p],
+                arg7=1,
+                arg9="X_RPCSL",
             ),
-            (
-                "prepparm",
-                "FLO_SHAR",
-                "R",
-                "P,C,CG,TS,BD",
-                "",
-                "V",
-                "RVP(R,V,P)",
-                "1",
-                "",
-                "X_RPCGSB",
-                "+",
+            PrepparmGmsConfig(
+                arg1="FLO_SHAR",
+                arg2=(r,),
+                arg3=(p, c, cg, ts, bd),
+                arg4=(),
+                arg5=v,
+                arg6=g.Rvp[r, v, p],
+                arg7=1,
+                arg9="X_RPCGSB",
+                arg10="+",
             ),
-            (
-                "prepparm",
-                "IRE_BND",
-                "R",
-                "C,TS,ALL_REG,IE,BD",
-                "",
-                "T",
-                "1",
-                "1",
-                "",
-                "",
-                "",
+            PrepparmGmsConfig(
+                arg1="IRE_BND",
+                arg2=(r,),
+                arg3=(c, ts, allreg, ie, bd),
+                arg4=(),
+                arg5=t,
+                arg6=Number(1),
+                arg7=1,
             ),
-            (
-                "prepparm",
-                "IRE_XBND",
-                "ALL_REG",
-                "C,TS,IE,BD",
-                ",'0'",
-                "T",
-                "1",
-                "1",
-                "",
-                "",
-                "",
+            PrepparmGmsConfig(
+                arg1="IRE_XBND",
+                arg2=(allreg,),
+                arg3=(c, ts, ie, bd),
+                arg4=("0",),
+                arg5=t,
+                arg6=Number(1),
+                arg7=1,
             ),
             # *-----------------------------------------------------------------------------
             # * Storage attributes
             # *-----------------------------------------------------------------------------
-            (
-                "prepparm",
-                "STGIN_BND",
-                "R",
-                "P,C,S,BD",
-                ",'0'",
-                "T",
-                "RTP(R,T,P)",
-                "1",
-                "",
-                "",
-                "",
+            PrepparmGmsConfig(
+                arg1="STGIN_BND",
+                arg2=(r,),
+                arg3=(p, c, s, bd),
+                arg4=("0",),
+                arg5=t,
+                arg6=g.Rtp[r, t, p],
+                arg7=1,
             ),
-            (
-                "prepparm",
-                "STGOUT_BND",
-                "R",
-                "P,C,S,BD",
-                ",'0'",
-                "T",
-                "RTP(R,T,P)",
-                "1",
-                "",
-                "",
-                "",
+            PrepparmGmsConfig(
+                arg1="STGOUT_BND",
+                arg2=(r,),
+                arg3=(p, c, s, bd),
+                arg4=("0",),
+                arg5=t,
+                arg6=g.Rtp[r, t, p],
+                arg7=1,
             ),
             # *-----------------------------------------------------------------------------
             # * User constraints
             # *-----------------------------------------------------------------------------
-            (
-                "prepparm",
-                "UC_RHSRT",
-                "ALL_R,UC_N",
-                "LIM",
-                ",'0','0','0'",
-                "T",
-                "1",
-                "1",
-                "",
-                "X_RUL",
-                "",
+            PrepparmGmsConfig(
+                arg1="UC_RHSRT",
+                arg2=(allr, ucn),
+                arg3=(lim,),
+                arg4=("0", "0", "0"),
+                arg5=t,
+                arg6=Number(1),
+                arg7=1,
+                arg9="X_RUL",
             ),
-            (
-                "prepparm",
-                "UC_RHSRTS",
-                "ALL_R,UC_N",
-                "TS,L",
-                ",'0','0'",
-                "T",
-                "1",
-                "1",
-                "",
-                "X_RUSL",
-                "",
+            PrepparmGmsConfig(
+                arg1="UC_RHSRTS",
+                arg2=(allr, ucn),
+                arg3=(ts, g.lA),
+                arg4=("0", "0"),
+                arg5=t,
+                arg6=Number(1),
+                arg7=1,
+                arg9="X_RUSL",
             ),
-            (
-                "prepparm",
-                "UC_RHST",
-                "UC_N",
-                "LIM",
-                ",'0','0','0','0'",
-                "T",
-                "1",
-                "1",
-                "",
-                "",
-                "",
+            PrepparmGmsConfig(
+                arg1="UC_RHST",
+                arg2=(ucn,),
+                arg3=(lim,),
+                arg4=("0", "0", "0", "0"),
+                arg5=t,
+                arg6=Number(1),
+                arg7=1,
             ),
-            (
-                "prepparm",
-                "UC_RHSTS",
-                "UC_N",
-                "TS,LIM",
-                ",'0','0','0'",
-                "T",
-                "1",
-                "1",
-                "",
-                "",
-                "",
+            PrepparmGmsConfig(
+                arg1="UC_RHSTS",
+                arg2=(ucn,),
+                arg3=(ts, lim),
+                arg4=("0", "0", "0"),
+                arg5=t,
+                arg6=Number(1),
+                arg7=1,
             ),
-            (
-                "prepparm",
-                "REG_BNDCST",
-                "R",
-                "COSTAGG,CUR,BD",
-                ",'0','0'",
-                "T",
-                "1",
-                "1",
-                "",
-                "",
-                "",
+            PrepparmGmsConfig(
+                arg1="REG_BNDCST",
+                arg2=(r,),
+                arg3=(g.costagg, cur, bd),
+                arg4=("0", "0"),
+                arg5=t,
+                arg6=Number(1),
+                arg7=1,
             ),
             # *-----------------------------------------------------------------------------
             # * Parameters that are by default inter/extrapolated over PASTYEARS
             # *----------------------------------------------------------------------------
-            (
-                "prepparm",
-                "FLO_SHAR",
-                "R",
-                "P,C,CG,TS,BD",
-                "",
-                "PASTMILE",
-                "RVP(R,PASTMILE,P)",
-                "1",
-                "3",
-                "X_RPCGSB",
-                "-ABS",
+            PrepparmGmsConfig(
+                arg1="FLO_SHAR",
+                arg2=(r,),
+                arg3=(p, c, cg, ts, bd),
+                arg4=(),
+                arg5=g.Pastmile,
+                arg6=g.Rvp[r, g.Pastmile, p],
+                arg7=1,
+                arg8=3,
+                arg9="X_RPCGSB",
+                arg10="-ABS",
             ),
         ]
         # fmt: on
 
-        for _, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10 in batincludes5:
-            self.include(
-                PrepparmGms(
-                    self.tc,
-                    self.env,
-                    arg1=a1,
-                    arg2=a2,
-                    arg3=a3,
-                    arg4=a4,
-                    arg5=a5,
-                    arg6=a6,
-                    arg7=a7,
-                    arg8=a8,
-                    arg9=a9,
-                    arg10=a10,
-                )
-            )
+        for config in batincludes5:
+            self.include(PrepparmGms(self.tc, self.env, config=config))
 
         if self.env.stages.upper() == "YES":
             self.include(PrepExtStc(self.tc, self.env))

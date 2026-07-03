@@ -13,11 +13,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.fillparm_gms import FillparmGms
-from core.prepparm_gms import PrepparmGms
-from core.recurrin_stc import RecurrinStc
+from gamspy import Number, SpecialValues
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
+from core.fillparm_gms import FillparmGms
+from core.prepparm_gms import PrepparmGms, PrepparmGmsConfig
+from core.recurrin_stc import RecurrinStc
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -46,67 +47,128 @@ class PrepExtStc(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+
+        r, p, bd, j, ww, allr, ucn = g.r, g.p, g.bd, g.j, g.ww, g.allr, g.ucn
+        c, cur, lA, ts, Milestonyr = g.c, g.cur, g.lA, g.ts, g.Milestonyr
+
+        exclude_list = ["S_DAM_COST", "S_FLO_FUNC", "S_NCAP_AFS", "S_COM_FR"]
         # fmt: off
         batincludes = [
             ("fp", "S_COM_PROJ",  "R",          "C,J,WW",               ",'0','0','0'", "MILESTONYR", "1",                   "GE 0", ""),
             ("fp", "S_COM_TAX",   "R",          "C,S,COM_VAR,CUR,J,WW", "",             "MILESTONYR", "1",                   "GE 0", ""),
             ("fp", "S_NCAP_COST", "R",          "P,J,WW",               ",'0','0','0'", "MILESTONYR", "1",                   "GE 0", ""),
-            ("pp", "S_CAP_BND",   "R",          "P,BD,J,WW",            ",'0'",         "MILESTONYR", "RTP(R,MILESTONYR,P)", "1",    ""),
-            ("pp", "S_UC_RHSRT",  "ALL_R,UC_N", "L,J,WW",               ",'0'",         "MILESTONYR", "1",                   "1",    ""),
-            ("pp", "S_UC_RHSRTS", "ALL_R,UC_N", "TS,L,J,WW",            "",             "MILESTONYR", "1",                   "1",    ""),
-            ("pp", "S_UC_RHST",   "UC_N",       "L,J,WW",               ",'0','0'",     "MILESTONYR", "1",                   "1",    ""),
-            ("pp", "S_UC_RHSTS",  "UC_N",       "TS,L,J,WW",            ",'0'",         "MILESTONYR", "1",                   "1",    ""),
-            ("pp", "S_DAM_COST",  "R",          "C,CUR,J,WW",           ",'0'",         "MILESTONYR", "1",                   "EPS",  "3"),
+        ]
+        # fmt: on
+
+        for arg in batincludes:
+            if arg[1] in exclude_list and not self.tc.defined(arg[1]):
+                continue
+            self.include(
+                FillparmGms(
+                    self.tc,
+                    self.env,
+                    arg1=arg[1],
+                    arg2=arg[2],
+                    arg3=arg[3],
+                    arg4=arg[4],
+                    arg5=arg[5],
+                    arg6=arg[6],
+                    arg7=arg[7],
+                    arg8=arg[8],
+                )
+            )
+
+        prepparms: list[PrepparmGmsConfig] = [
+            PrepparmGmsConfig(
+                arg1="S_CAP_BND",
+                arg2=(r,),
+                arg3=(p, bd, j, ww),
+                arg4=("0",),
+                arg5=Milestonyr,
+                arg6=g.Rtp[r, Milestonyr, p],
+                arg7=1,
+            ),
+            PrepparmGmsConfig(
+                arg1="S_UC_RHSRT",
+                arg2=(allr, ucn),
+                arg3=(lA, j, ww),
+                arg4=("0",),
+                arg5=Milestonyr,
+                arg6=Number(1),
+                arg7=1,
+            ),
+            PrepparmGmsConfig(
+                arg1="S_UC_RHSRTS",
+                arg2=(allr, ucn),
+                arg3=(ts, lA, j, ww),
+                arg4=(),
+                arg5=Milestonyr,
+                arg6=Number(1),
+                arg7=1,
+            ),
+            PrepparmGmsConfig(
+                arg1="S_UC_RHST",
+                arg2=(ucn,),
+                arg3=(lA, j, ww),
+                arg4=("0", "0"),
+                arg5=Milestonyr,
+                arg6=Number(1),
+                arg7=1,
+            ),
+            PrepparmGmsConfig(
+                arg1="S_UC_RHSTS",
+                arg2=(ucn,),
+                arg3=(ts, lA, j, ww),
+                arg4=("0",),
+                arg5=Milestonyr,
+                arg6=Number(1),
+                arg7=1,
+            ),
+            PrepparmGmsConfig(
+                arg1="S_DAM_COST",
+                arg2=(r,),
+                arg3=(c, cur, j, ww),
+                arg4=("0",),
+                arg5=Milestonyr,
+                arg6=Number(1),
+                arg7=SpecialValues.EPS,
+                arg8=3,
+            ),
+        ]
+
+        for config in prepparms:
+            if config.arg1 in exclude_list and not self.tc.defined(config.arg1):
+                continue
+            self.include(PrepparmGms(self.tc, self.env, config=config))
+
+        # fmt: off
+        batincludes = [
             ("fp", "S_FLO_FUNC",  "R",          "P,CG,CG2,J,WW",        ",'0'",         "MILESTONYR", "1",                   "GE 0", ""),
             ("fp", "S_NCAP_AFS",  "R",          "P,TS,J,WW",            ",'0','0'",     "MILESTONYR", "1",                   "GE 0", ""),
             ("fp", "S_COM_FR",    "R",          "C,TS,J,WW",            ",'0','0'",     "MILESTONYR", "1",                   "GE 0", ""),
         ]
         # fmt: on
         for arg in batincludes:
-            if arg[1] in [
-                "S_DAM_COST",
-                "S_FLO_FUNC",
-                "S_NCAP_AFS",
-                "S_COM_FR",
-            ] and not self.tc.defined(arg[1]):
+            if arg[1] in exclude_list and not self.tc.defined(arg[1]):
                 continue
-            if arg[0] == "fp":
-                self.include(
-                    FillparmGms(
-                        self.tc,
-                        self.env,
-                        arg1=arg[1],
-                        arg2=arg[2],
-                        arg3=arg[3],
-                        arg4=arg[4],
-                        arg5=arg[5],
-                        arg6=arg[6],
-                        arg7=arg[7],
-                        arg8=arg[8],
-                    )
+            self.include(
+                FillparmGms(
+                    self.tc,
+                    self.env,
+                    arg1=arg[1],
+                    arg2=arg[2],
+                    arg3=arg[3],
+                    arg4=arg[4],
+                    arg5=arg[5],
+                    arg6=arg[6],
+                    arg7=arg[7],
+                    arg8=arg[8],
                 )
-            elif arg[0] == "pp":
-                self.include(
-                    PrepparmGms(
-                        self.tc,
-                        self.env,
-                        arg1=arg[1],
-                        arg2=arg[2],
-                        arg3=arg[3],
-                        arg4=arg[4],
-                        arg5=arg[5],
-                        arg6=arg[6],
-                        arg7=arg[7],
-                        arg8=arg[8],
-                    )
-                )
-        self.include(
-            RecurrinStc(
-                self.tc,
-                self.env,
-                arg1="MXPAR",
             )
-        )
+
+        self.include(RecurrinStc(self.tc, self.env, arg1="MXPAR"))
+
         code = ""
         if self.tc.defined("S_DAM_COST"):
             code += "PARAMETER DAM_COST //;\n"
