@@ -84,6 +84,7 @@ class EqusercoMod(GamsClass):
                 self.env.set_scoped("sow", self.env.swd)
                 self.env.set_scoped("sow_GP", self.env.swd_GP)
                 self.env.set_scoped("swt", self.env.sow)
+                self.env.set_scoped("swt_GP", self.env.sow_GP)
             elif self.arg8 == "S":
                 self.env.set_local("hs", "SIDE")
             lhs = self._static_lhs(

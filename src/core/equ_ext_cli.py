@@ -48,6 +48,7 @@ class EquExtCli(GamsClass):
         # CLIMATE MODULE EQUATIONS
         if self.env.stages.upper() == "YES":
             self.env.set_local("swtd", "SUM(SOW,")
+            self.env.set_local("swtd_GP", "SUM(SOW,")  # How to handle sum here?
             self.env.set_local("swo", ",SOW")
             self.env.set_local("send", ")")
             self.env.set_local("swts", ",SW_TSW(SOW,T,W)")
@@ -58,10 +59,16 @@ class EquExtCli(GamsClass):
 
         if self.env.stages == "YES":
             self.env.set_local("swtd", "SUM(SW_TSW(SOW,T-1,W),")
+            self.env.set_local(
+                "swtd_GP", "SUM(SW_TSW(SOW,T-1,W),"
+            )  # how to handle sum here?
             self.env.set_local("swd", ",W")
             self.env.set_local("swd_GP", (g.w,))
             self.env.set_local("send", "")
             self.env.set_local("swt", "$SW_T(T,SOW)")
+            self.env.set_local(
+                "swt_GP", (g.SwT[g.t, g.Sow],)
+            )  # todo: move $ to main code
         else:
             self.env.set_local("cpar", "CM_MAXC(LL,CG)")
 

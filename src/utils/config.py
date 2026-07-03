@@ -266,10 +266,16 @@ class EnvironmentVariableSchema(BaseModel):
     swt: str = Field(
         description="Dynamic switch template tracker managing temporary loop attributes."
     )
+    swt_GP: tuple[Set | Alias, ...] | tuple[()] = Field(
+        description="Dynamic switch template tracker managing temporary loop attributes."
+    )
     swsw: str = Field(
         description="Nested operational matrix state control flag identifier."
     )
     swtd: str = Field(
+        description="Time-step differentiation switch expression string mapped to parameters."
+    )
+    swtd_GP: tuple[Set | Alias, ...] | tuple[()] = Field(
         description="Time-step differentiation switch expression string mapped to parameters."
     )
     x1: str = Field(
@@ -440,6 +446,9 @@ class EnvironmentVariableSchema(BaseModel):
         description="Deactivated tags configuration switch mapping parameter values."
     )
     r_v_t: str = Field(
+        description="Region, Vintage, Time tracking parameter tracking block."
+    )
+    r_v_t_GP: tuple[Set | Alias | ImplicitSet, ...] = Field(
         description="Region, Vintage, Time tracking parameter tracking block."
     )
     pgprim: str = Field(

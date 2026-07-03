@@ -147,6 +147,7 @@ class MainDrvMod(GamsClass):
         self.env.set_scoped("r_t_GP", (g.r, g.t))
         self.env.set_scoped("tx", "T")
         self.env.set_scoped("r_v_t", "R,V,T")
+        self.env.set_scoped("r_v_t_GP", (g.r, g.v, g.t))
         self.env.set_scoped("rtpx", "")
 
         if self.env.is_set("stepped"):
@@ -154,6 +155,7 @@ class MainDrvMod(GamsClass):
             self.env.set_scoped("r_t_GP", (g.r, g.Subt[g.t]))
             self.env.set_scoped("tx", "SUBT(T)")
             self.env.set_scoped("r_v_t", "R,V,SUBT(T)")
+            self.env.set_scoped("r_v_t_GP", (g.r, g.v, g.Subt[g.t]))
 
         if self.tc.defined("REG_FIXT"):
             r_t = self.env.r_t
@@ -161,6 +163,7 @@ class MainDrvMod(GamsClass):
             self.env.set_scoped("r_t", f"RT_PP({r_t})")
             self.env.set_scoped("r_t_GP", g.RtPp[*self.env.r_t_GP])
             self.env.set_scoped("r_v_t", f"RVT({r_v_t})")
+            self.env.set_scoped("r_v_t_GP", (g.Rvt[*self.env.r_v_t_GP],))
             self.env.set_scoped("rtpx", "X")
 
         arg1 = "$IF NOT ERRORFREE"
