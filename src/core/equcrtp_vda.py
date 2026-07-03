@@ -17,9 +17,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Literal
 
-from core.prepparm_gms import prepparm
+from gamspy import Number
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
+from core.prepparm_gms import PrepparmGmsConfig, prepparm
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -96,7 +97,7 @@ class EqucrtpVda(GamsClass):
         )
 
     def label_prep_ext(self: EqucrtpVda) -> None:
-        self.env.set_scoped("reset", "1")
+        self.env.set_scoped("reset", 1)
         self.add_records_to_universe_item(records=["PRC_DYNUC"])
         self.tc.enqueue(
             self.manipulate_lhs_and_rhs,
@@ -106,8 +107,11 @@ class EqucrtpVda(GamsClass):
         )
 
     def manipulate_lhs_and_rhs(
-        self: EqucrtpVda, dflbl: str, def_iebd: str, reset: str
+        self: EqucrtpVda, dflbl: str, def_iebd: str, reset: int
     ) -> None:
+        g = self.tc
+        ucn, side, r, p = g.ucn, g.side, g.r, g.p
+        t, ucgrptype, bd = g.t, g.ucgrptype, g.bd
         prc_dynuc = self.tc.container["PRC_DYNUC"]
         if prc_dynuc.number_records:
             self.tc.add_gams_code(
@@ -130,18 +134,17 @@ class EqucrtpVda(GamsClass):
 
             prepparm(
                 module=self,
-                arg1="PRC_DYNUC",
-                arg2="UC_N,SIDE,R",
-                arg3="P,UC_GRPTYPE,BD",
-                arg4="",
-                arg5="T",
-                arg6="1",
-                arg7="1",
-                arg8="",
-                arg9="",
-                arg10="",
+                cc=PrepparmGmsConfig(
+                    arg1="PRC_DYNUC",
+                    arg2=(ucn, side, r),
+                    arg3=(p, ucgrptype, bd),
+                    arg4=(),
+                    arg5=t,
+                    arg6=Number(1),
+                    arg7=1,
+                ),
                 dflbl=dflbl,
-                def_iebd=def_iebd,
+                def_iebd=int(def_iebd),
                 reset=reset,
             )
 

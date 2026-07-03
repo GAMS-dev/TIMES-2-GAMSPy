@@ -52,7 +52,7 @@ class PpmExtEcb(GamsClass):
 
         self.env.set_global("ecb", "YES")
         self.comp2()
-        self.env.set_scoped("reset", "0")
+        self.env.set_scoped("reset", 0)
 
         # fmt: off
         batincludes = [

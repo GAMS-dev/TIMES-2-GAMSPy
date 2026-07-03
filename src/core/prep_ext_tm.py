@@ -96,7 +96,7 @@ $IF NOT DEFINED TM_EC0 OPTION CLEAR=TM_EC0;
         )
 
         # ALIAS (MIYR_1,T_1);
-        Alias(m, "T_1", alias_with=g.miyr1)
+        Alias(m, "T_1", alias_with=g.Miyr1)
 
         self.tc.add_gams_code(
             module=self,

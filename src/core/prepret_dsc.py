@@ -14,10 +14,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Literal, get_args
 
+from core.base_class import GamsClass
 from core.fillparm_gms import FillparmGms
-from core.prepparm_gms import PrepparmGms
-
-from .base_class import GamsClass
+from core.prepparm_gms import PrepparmGms, PrepparmGmsConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -75,6 +74,10 @@ class PrepretDsc(GamsClass):
             )
 
     def comp_prep(self: PrepretDsc) -> None:
+        g = self.tc
+
+        r, p, lA, v = g.r, g.p, g.lA, g.v
+
         self.env.set_scoped("tst", self.arg2)
         if self.tc.defined("PRC_REFIT"):
             self.tc.add_gams_code(
@@ -123,13 +126,15 @@ class PrepretDsc(GamsClass):
                 PrepparmGms(
                     self.tc,
                     self.env,
-                    arg1="RCAP_BND",
-                    arg2="R",
-                    arg3="P,L",
-                    arg4=",'','',''",
-                    arg5="V",
-                    arg6="RTP(R,V,P)",
-                    arg7="1",
+                    config=PrepparmGmsConfig(
+                        arg1="RCAP_BND",
+                        arg2=(r,),
+                        arg3=(p, lA),
+                        arg4=("", "", ""),
+                        arg5=v,
+                        arg6=g.Rtp[r, v, p],
+                        arg7=1,
+                    ),
                 )
             )
             if self.tc.defined("NCAP_OLIFE"):

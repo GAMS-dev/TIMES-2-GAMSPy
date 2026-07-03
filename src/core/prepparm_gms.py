@@ -24,15 +24,45 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, NamedTuple
 
-from .base_class import GamsClass
+from gamspy import (
+    Alias,
+    Else,
+    ElseIf,
+    Expression,
+    If,
+    Loop,
+    Number,
+    Ord,
+    Parameter,
+    Set,
+    SpecialValues,
+)
+from gamspy.math import Max, Min, Round, abs, floor, power
+
+from core.base_class import GamsClass
 
 if TYPE_CHECKING:
+    from gamspy._symbols.implicits import ImplicitSet
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+class PrepparmGmsConfig(NamedTuple):
+    arg1: str
+    arg2: tuple[Alias | Set, ...]
+    arg3: tuple[Alias | Set, ...]
+    arg4: tuple[str, ...] | tuple[()]
+    arg5: Alias | Set
+    arg6: ImplicitSet | Number
+    arg7: float
+    arg8: int = 0
+    arg9: str | None = None
+    arg10: Literal["+", "-ABS"] | None = None
 
 
 class PrepparmGms(GamsClass):
@@ -46,206 +76,225 @@ class PrepparmGms(GamsClass):
         self: PrepparmGms,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
-        arg4: str = "",
-        arg5: str = "",
-        arg6: str = "",
-        arg7: str = "",
-        arg8: str = "",
-        arg9: str = "",
-        arg10: str = "",
+        config: PrepparmGmsConfig,
     ):
+        super().__init__(tc, env)
         self.env = env.fork()
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
-        self.arg4 = arg4
-        self.arg5 = arg5
-        self.arg6 = arg6
-        self.arg7 = arg7
-        self.arg8 = arg8
-        self.arg9 = arg9
-        self.arg10 = arg10
+        self.config = config
         self._sub_modules = {}
         self.compile()
 
     def compile(self: PrepparmGms) -> None:
-        self.env.set_local("data", f"MY_FIL2({self.arg5})")
-        self.env.set_local("opt", "*")
-        self.env.set_local("ll", "")
-        if self.arg7 != "0":
-            self.env.set_local("ll", f",'{self.env.dflbl}'")
-            self.env.set_local("opt", "")
-        if len(self.arg8):
-            self.env.set_local("def_iebd", self.arg8)
-        if len(self.arg9):
-            self.tc.add_gams_code(
-                module=self,
-                phase="init",
-                code=f"PARAMETER {self.arg9}({self.arg2},{self.arg3},ALLYEAR);",
+        g = self.tc
+        cc = self.config
+
+        if (cc.arg9 is not None) and (g.get_parameter(cc.arg9) is None):
+            param = Parameter(
+                g.container, name=cc.arg9, domain=[*cc.arg2, *cc.arg3, g.allyear]
             )
+            g.set_parameter(name=cc.arg9, parameter=param)
 
-        # Universe set workaround
-        self.add_records_to_universe_item(records=[self.arg1])
-
-        if self.tc.test_run:
-            self.tc.save_test_state(env=self.env, checkpoint="prepparm_gms")
+        self.add_records_to_universe_item(records=[cc.arg1])
 
         self.tc.enqueue(
-            self.interpolation_extrapolation,
-            arg1=self.arg1,
-            arg2=self.arg2,
-            arg3=self.arg3,
-            arg4=self.arg4,
-            arg5=self.arg5,
-            arg6=self.arg6,
-            arg7=self.arg7,
-            arg8=self.arg8,
-            arg9=self.arg9,
-            arg10=self.arg10,
+            prepparm,
+            self,
+            cc=self.config,
             dflbl=self.env.dflbl,
             def_iebd=self.env.def_iebd,
             reset=self.env.reset,
         )
 
-    def interpolation_extrapolation(
-        self: PrepparmGms,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-        arg4: str,
-        arg5: str,
-        arg6: str,
-        arg7: str,
-        arg8: str,
-        arg9: str,
-        arg10: str,
-        dflbl: str,
-        def_iebd: str,
-        reset: str,
-    ) -> None:
-        prepparm(
-            module=self,
-            arg1=arg1,
-            arg2=arg2,
-            arg3=arg3,
-            arg4=arg4,
-            arg5=arg5,
-            arg6=arg6,
-            arg7=arg7,
-            arg8=arg8,
-            arg9=arg9,
-            arg10=arg10,
-            dflbl=dflbl,
-            def_iebd=def_iebd,
-            reset=reset,
-        )
-
 
 def prepparm(
-    module: GamsClass,
-    arg1: str,
-    arg2: str,
-    arg3: str,
-    arg4: str,
-    arg5: str,
-    arg6: str,
-    arg7: str,
-    arg8: str,
-    arg9: str,
-    arg10: str,
-    dflbl: str,
-    def_iebd: str,
-    reset: str,
+    module: GamsClass, cc: PrepparmGmsConfig, dflbl: str, def_iebd: int, reset: int
 ) -> None:
-    # TODO: put into function that depends on the environment given
-    data = f"MY_FIL2({arg5})"
-    opt = False
-    ll = ""
-    if arg7 != "0":
-        ll = f",'{dflbl}'"
-        opt = True
+    g = module.tc
+    ll = g.ll
 
-    if len(arg8):
-        def_iebd = arg8
+    arg1_param = g.get_parameter(cc.arg1)
+    arg9_param = g.get_parameter(cc.arg9) if cc.arg9 is not None else None
 
-    code = f"""
-* conditional interpolation flag
-IF(G_NOINTERP, INT_DEFAULT('{arg1}')=NO;
-ELSE OPTION CLEAR=UNCD7; CNT = ({def_iebd}+(3-{def_iebd})$IE_DEFAULT('{arg1}'))${arg7};
-IF(CNT=0, UNCD7({arg2}{ll},{arg3}{arg4})$({arg1}({arg2},'{dflbl}',{arg3})>0) = YES;
-"""
+    data = g.my_fil2[cc.arg5]
+    opt = cc.arg7 != 0
+    c_ll = (dflbl,) if cc.arg7 != 0 else ()
 
-    if opt:
-        code += f"""
-ELSE UNCD7({arg2},{arg5},{arg3}{arg4})$({arg1}({arg2},'{dflbl}',{arg3})=-13) $= {arg1}({arg2},{arg5},{arg3});
-    IF(CARD(UNCD7),{arg1}({arg2},{arg5},{arg3})$UNCD7({arg2},{arg5},{arg3}{arg4})=0; OPTION CLEAR=UNCD7);
-    UNCD7({arg2},LL--ORD(LL),{arg3}{arg4})$(({arg10}({arg1}({arg2},'{dflbl}',{arg3}))>-.5)${arg1}({arg2},LL,{arg3}))=YES;
-"""
+    if cc.arg8:
+        def_iebd = cc.arg8
 
-    code += "   );\n"
+    # conditional interpolation flag
+    if g.g_nointerp.toValue():
+        g.intdefault[cc.arg1] = False
 
-    code += f"""
-LOOP(UNCD7({arg2}{ll},{arg3}{arg4}), DFUNC = CNT; DFUNC $= ROUND({arg1}({arg2},'{dflbl}',{arg3}));
-    MY_ARRAY(DM_YEAR) = {arg1}({arg2},DM_YEAR,{arg3}); OPTION CLEAR=MY_FIL2;
-* do interpolate
-    IF(DFUNC NE 10, LAST_VAL=0; F = 0; Z = 0;
-    LOOP(DM_YEAR$MY_ARRAY(DM_YEAR),          {"! check for nonzero (including EPS)" if False else ""}
-        MY_F = MY_ARRAY(DM_YEAR); Z = YEARVAL(DM_YEAR);
-        IF(LAST_VAL,
-            IF((Z GT DFUNC)$(DFUNC GT 999),     {"! exponential function" if False else ""}
-            {data}$((Z>YEARVAL({arg5}))$(YEARVAL({arg5})>MY_FYEAR))
-        = LAST_VAL*POWER(1+MY_F,YEARVAL({arg5})-MY_FYEAR)+EPS;
-            MY_F = LAST_VAL*POWER(1+MY_F,Z-MY_FYEAR)+EPS;
-            MY_FIL2(DM_YEAR) = MY_F;         {"! overwrite old data" if False else ""}
-            ELSE                                {"! linear interpolation" if False else ""}
-            {data}$((Z>YEARVAL({arg5}))$(YEARVAL({arg5})>MY_FYEAR))
-        = LAST_VAL + (MY_F-LAST_VAL)/(Z-MY_FYEAR)*(YEARVAL({arg5})-MY_FYEAR);
-            );
-        ELSE F = Z; FIRST_VAL = MY_F);
-        LAST_VAL = MY_F; MY_FYEAR=Z;);        {"! remember the value and year" if False else ""}
-"""
-    if opt:
-        code += f"""
-    ELSE FIRST_VAL = 0; MY_FYEAR = 0;          {"! intra-period I/E" if False else ""}
-    LOOP(MY_FIL(LL)$MY_ARRAY(MY_FIL),        {"! check for data values" if False else ""}
-        MY_F = MY_ARRAY(LL); Z = YEARVAL(LL); F = FIL2(LL);
-        IF(MY_FYEAR < F, IF(F > MIN(FIRST_VAL,Z), LAST_VAL = MY_F; FIRST_VAL = F);
-        MY_FIL2({arg5}(LL+(F-YEARVAL(LL))))$(NOT MY_ARRAY({arg5})) = LAST_VAL+(MY_F-LAST_VAL)/(Z-MY_FYEAR)*(F-MY_FYEAR));
-        LAST_VAL = MY_F; MY_FYEAR=Z;);       {"! remember the value and year" if False else ""}
-    DFUNC = {arg7};
-"""
-    code += ");\n"
-    if opt:
-        code += f"""
-    IF(FLOOR(DFUNC/10)=1,
-    LOOP(MIYR_1(LL), MY_FYEAR=YEARVAL(LL);
-        MY_F = FIL2(LL+(F-MY_FYEAR)); IF(MY_F<F$MY_F,MY_FIL2({arg5}(LL+(MY_F-MY_FYEAR))) = FIRST_VAL);
-        MY_F = FIL2(LL+(Z-MY_FYEAR)); IF(MY_F>Z,MY_FIL2({arg5}(LL+(MY_F-MY_FYEAR))) = LAST_VAL));
-    DFUNC=DFUNC-10);
-"""
-    code += f"""
-    IF(DFUNC NE {arg7},
-* Do back/forward extrapolate, or fill in with EPS
-    IF(DFUNC LE 2, {data}$({arg6}$(NOT {data}+MY_ARRAY({arg5}))) = EPS; ELSE
-        IF(DFUNC EQ 4, Z = INF; ELSEIF DFUNC EQ 5, F = 0);
-        {data}$({arg6}) $= FIRST_VAL$(YEARVAL({arg5})<F) + LAST_VAL$(YEARVAL({arg5})>Z);
-        IF((NOT {arg7})$LAST_VAL, {data}$({arg6}$(NOT {data}+MY_ARRAY({arg5})))=EPS);
-    ));
-"""
-    if len(arg9) == 0:
-        code += f"{arg1}({arg2},{arg5},{arg3})   $= {data};"
     else:
-        code += f"{arg9}({arg2},{arg3},{arg5})$({arg6}) $= {data};"
-    code += ");\n"
+        g.Uncd7.setRecords(None)
+        g.cnt[...] = (
+            def_iebd + Number(3 - def_iebd).where[g.ie_default[cc.arg1]]
+        ).where[Number(cc.arg7)]
+        if g.cnt.toValue() == 0:
+            g.Uncd7[*cc.arg2, *c_ll, *cc.arg3, *cc.arg4].where[
+                arg1_param[*cc.arg2, dflbl, *cc.arg3] > 0
+            ] = True
+        else:
+            if opt:
+                sparse_expression = arg1_param[*cc.arg2, cc.arg5, *cc.arg3]
+                g.Uncd7[*cc.arg2, cc.arg5, *cc.arg3, *cc.arg4].where[
+                    (arg1_param[*cc.arg2, dflbl, *cc.arg3] == -13).where[
+                        sparse_expression
+                    ]
+                ] = sparse_expression
+                if g.Uncd7.number_records:
+                    arg1_param[*cc.arg2, cc.arg5, *cc.arg3].where[
+                        g.Uncd7[*cc.arg2, cc.arg5, *cc.arg3, *cc.arg4]
+                    ] = 0
+                    g.Uncd7.setRecords(None)
 
-    if arg10 != "+":
-        code += f"{arg1}({arg2},'0',{arg3})$(MAX(0,{arg1}({arg2},'0',{arg3})-MAX({arg7},{reset}))${arg1}({arg2},'0',{arg3})) = {reset};"
-    if len(arg9):
-        code += f"{arg1}({arg2},{arg5},{arg3}) $= {arg9}({arg2},{arg3},{arg5}); OPTION KILL={arg9};"
-    code += f"  ); {arg1}({arg2},'EMPTY',{arg3})=0;"
+                if (cc.arg10 is None) or (cc.arg10 == "+"):
+                    condition: Expression = arg1_param[*cc.arg2, dflbl, *cc.arg3] > -0.5
+                elif cc.arg10 == "-ABS":
+                    condition = (-abs(arg1_param[*cc.arg2, dflbl, *cc.arg3])) > -0.5
+                else:
+                    raise ValueError(f"Unexpected value {cc.arg10} for arg10.")
 
-    module.tc.add_gams_code(module=module, phase="run", code=code)
+                g.Uncd7[
+                    *cc.arg2, ll.lag(Ord(ll), "circular"), *cc.arg3, *cc.arg4
+                ].where[condition.where[arg1_param[*cc.arg2, ll, *cc.arg3]]] = True
+
+        if g.Uncd7.number_records:
+            with Loop(g.Uncd7[*cc.arg2, *c_ll, *cc.arg3, *cc.arg4]):
+                g.dfunc[...] = g.cnt
+                sparse_expression = Round(arg1_param[*cc.arg2, dflbl, *cc.arg3])
+                g.dfunc[...].where[sparse_expression] = sparse_expression
+                g.my_array[g.DmYear] = arg1_param[*cc.arg2, g.DmYear, *cc.arg3]
+                g.my_fil2.setRecords(None)
+                # do interpolate
+                with If(g.dfunc != 10):
+                    g.last_val[...] = 0
+                    g.f[...] = 0
+                    g.z[...] = 0
+                    with Loop(
+                        g.DmYear.where[g.my_array[g.DmYear]]
+                    ):  # check for nonzero (including EPS)
+                        g.my_f[...] = g.my_array[g.DmYear]
+                        g.z[...] = g.yearval[g.DmYear]
+                        with If(g.last_val):
+                            with If(
+                                (g.z > g.dfunc).where[g.dfunc > 999]
+                            ):  # exponential function
+                                data.where[
+                                    (g.z > g.yearval[cc.arg5]).where[
+                                        (g.yearval[cc.arg5] > g.my_fyear)
+                                    ]
+                                ] = (
+                                    g.last_val
+                                    * power(1 + g.my_f, g.yearval[cc.arg5] - g.my_fyear)
+                                    + SpecialValues.EPS
+                                )
+                                g.my_f[...] = (
+                                    g.last_val * power(1 + g.my_f, g.z - g.my_fyear)
+                                    + SpecialValues.EPS
+                                )
+                                g.my_fil2[g.DmYear] = g.my_f  # overwrite old data
+                            with Else():  # linear interpolation
+                                data.where[
+                                    (g.z > g.yearval[cc.arg5]).where[
+                                        (g.yearval[cc.arg5] > g.my_fyear)
+                                    ]
+                                ] = g.last_val + (g.my_f - g.last_val) / (
+                                    g.z - g.my_fyear
+                                ) * (g.yearval[cc.arg5] - g.my_fyear)
+                        with Else():
+                            g.f[...] = g.z
+                            g.first_val[...] = g.my_f
+
+                        g.last_val[...] = g.my_f
+                        g.my_fyear[...] = g.z  # remember the value and year
+                with Else():
+                    if opt:
+                        # intra-period I/E
+                        g.first_val[...] = 0
+                        g.my_fyear[...] = 0
+                        with Loop(
+                            g.MyFil[ll].where[g.my_array[g.MyFil]]
+                        ):  # check for data values
+                            g.my_f[...] = g.my_array[ll]
+                            g.z[...] = g.yearval[ll]
+                            g.f[...] = g.fil2[ll]
+                            with If(g.my_fyear < g.f):
+                                with If(g.f > Min(g.first_val, g.z)):
+                                    g.last_val[...] = g.my_f
+                                    g.first_val[...] = g.f
+                                g.my_fil2[cc.arg5[ll.lead(g.f - g.yearval[ll])]].where[
+                                    (~g.my_array[cc.arg5])
+                                ] = g.last_val + (g.my_f - g.last_val) / (
+                                    g.z - g.my_fyear
+                                ) * (g.f - g.my_fyear)
+                            g.last_val[...] = g.my_f
+                            g.my_fyear[...] = g.z  # remember the value and year
+
+                        g.dfunc[...] = cc.arg7
+
+                if opt:
+                    with If(floor(g.dfunc / 10) == 1):
+                        with Loop(g.Miyr1[ll]):
+                            g.my_fyear[...] = g.yearval[ll]
+                            g.my_f[...] = g.fil2[ll.lead(g.f - g.my_fyear)]
+                            with If(g.my_f < g.f.where[g.my_f]):
+                                g.my_fil2[cc.arg5[ll.lead(g.my_f - g.my_fyear)]] = (
+                                    g.first_val
+                                )
+                            g.my_f[...] = g.fil2[ll.lead(g.z - g.my_fyear)]
+                            with If(g.my_f > g.z):
+                                g.my_fil2[cc.arg5[ll.lead(g.my_f - g.my_fyear)]] = (
+                                    g.last_val
+                                )
+                        g.dfunc[...] = g.dfunc - 10
+
+                with If(g.dfunc != cc.arg7):
+                    # Do back/forward extrapolate, or fill in with EPS
+                    with If(g.dfunc <= 2):
+                        data.where[cc.arg6.where[~(data + g.my_array[cc.arg5])]] = (
+                            SpecialValues.EPS
+                        )
+                    with Else():
+                        with If(g.dfunc == 4):
+                            g.z[...] = SpecialValues.POSINF
+                        with ElseIf(g.dfunc == 5):
+                            g.f[...] = 0
+
+                        sparse_expression = (
+                            g.first_val.where[g.yearval[cc.arg5] < g.f]
+                            + g.last_val.where[g.yearval[cc.arg5] > g.z]
+                        )
+                        data.where[cc.arg6 & sparse_expression] = sparse_expression
+                        with If((~Number(cc.arg7)).where[g.last_val]):
+                            data.where[cc.arg6.where[~(data + g.my_array[cc.arg5])]] = (
+                                SpecialValues.EPS
+                            )
+
+                if cc.arg9 is None:
+                    arg1_param[*cc.arg2, cc.arg5, *cc.arg3].where[data] = data
+                else:
+                    assert arg9_param is not None
+                    arg9_param[*cc.arg2, *cc.arg3, cc.arg5].where[
+                        cc.arg6.where[data]
+                    ] = data
+
+        if cc.arg10 != "+":
+            arg1_param[*cc.arg2, "0", *cc.arg3].where[
+                (
+                    Max(0, arg1_param[*cc.arg2, "0", *cc.arg3]) - Max(cc.arg7, reset)
+                ).where[arg1_param[*cc.arg2, "0", *cc.arg3]]
+            ] = reset
+        if cc.arg9 is not None:
+            assert arg9_param is not None
+            sparse_expression = arg9_param[*cc.arg2, *cc.arg3, cc.arg5]
+            arg1_param[*cc.arg2, cc.arg5, *cc.arg3].where[sparse_expression] = (
+                sparse_expression
+            )
+            module.tc.add_gams_code(
+                module=module, phase="run", code=f"OPTION KILL={cc.arg9};"
+            )
+
+    arg1_param[*cc.arg2, "EMPTY", *cc.arg3] = 0

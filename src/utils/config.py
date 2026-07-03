@@ -391,7 +391,7 @@ class EnvironmentVariableSchema(BaseModel):
     ll: str = Field(
         description="Loop tracking calendar year index array reference code."
     )
-    def_iebd: str = Field(
+    def_iebd: int = Field(
         description="Boundary conditions definition tracker managing baseline imports and exports."
     )
     extend: str = Field(
@@ -415,7 +415,7 @@ class EnvironmentVariableSchema(BaseModel):
     semicont: str = Field(
         description="Semi-continuous limits tracking property mapped to variables."
     )
-    reset: str = Field(
+    reset: int = Field(
         description="System state cleanup parameter tracking uninitialized sets."
     )
     mip: str = Field(

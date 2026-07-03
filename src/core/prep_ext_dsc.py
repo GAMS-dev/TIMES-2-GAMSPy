@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 from gamspy import Sum
 
 from core.base_class import GamsClass
-from core.prepparm_gms import PrepparmGms
+from core.prepparm_gms import PrepparmGms, PrepparmGmsConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -50,19 +50,24 @@ class PrepExtDsc(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        r, p, unit, Milestonyr = g.r, g.p, g.unit, g.Milestonyr
+
         if self.env.dsc.upper() == "YES":
             self.tc.enqueue(self.prepextdsc_exec)
             self.include(
                 PrepparmGms(
                     self.tc,
                     self.env,
-                    arg1="NCAP_DISC",
-                    arg2="R",
-                    arg3="P,UNIT",
-                    arg4=",'0','0','0'",
-                    arg5="MILESTONYR",
-                    arg6="RTP(R,MILESTONYR,P)",
-                    arg7="1",
+                    config=PrepparmGmsConfig(
+                        arg1="NCAP_DISC",
+                        arg2=(r,),
+                        arg3=(p, unit),
+                        arg4=("0", "0", "0"),
+                        arg5=Milestonyr,
+                        arg6=g.Rtp[r, Milestonyr, p],
+                        arg7=1,
+                    ),
                 )
             )
             self.tc.enqueue(self.process_semicontinuous_requests)

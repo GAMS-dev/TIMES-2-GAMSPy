@@ -48,7 +48,7 @@ class PpmExtCli(GamsClass):
         self.tc.enqueue(self.user_defined_emissions)
 
         # * Interpolation/extrapolation
-        self.env.set_scoped("reset", "0")
+        self.env.set_scoped("reset", 0)
         self.include(
             FillparmGms(
                 self.tc,
