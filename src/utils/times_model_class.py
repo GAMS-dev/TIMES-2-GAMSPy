@@ -1388,6 +1388,8 @@ class TimesModelClass:
     gg_ppm: Parameter = None  # type: ignore[assignment] # GG_PPM
     gg_ppw: Parameter = None  # type: ignore[assignment] # GG_PPW
 
+    SwTsw: Set = None  # type: ignore[assignment] # [ALLSOW,ALLYEAR,ALLSOW] SW_TSW Mapping from finest SOWs to unique SOW at each period
+    sw_tprob: Parameter = None  # type: ignore[assignment] # [T,ALLSOW] SW_TPROB
     # endregion
 
     def __post_init__(self) -> None:
@@ -1498,6 +1500,9 @@ class TimesModelClass:
     def register_assignment(self, symbol: Set | Parameter | Variable) -> None:
         self.assigned_symbols.add(symbol)
 
+    def set_equation(self, name: str, eq: Equation) -> None:
+        setattr(self, name.lower(), eq)
+
     def get_equation(self, name: str) -> Any:
         return getattr(self, name.lower())
 
@@ -1509,9 +1514,6 @@ class TimesModelClass:
 
     def set_parameter(self, name: str, parameter: Parameter) -> None:
         setattr(self, name.lower(), parameter)
-
-    def set_equation(self, name: str, eq: Equation) -> None:
-        setattr(self, name.lower(), eq)
 
     def set_variable(self, name: str, var: Variable) -> None:
         setattr(self, name.upper(), var)

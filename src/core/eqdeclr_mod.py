@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Equation
+from gamspy import Alias, Equation, Set
 
 from core.base_class import GamsClass
 from core.eqdeclr_tm import EqdeclrTm
@@ -46,6 +46,9 @@ class EqdeclrMod(GamsClass):
         g = self.tc
         m = g.container
 
+        eq: str = self.env.eq
+        swtd: tuple[Alias | Set, ...] | tuple[()] = self.env.swtd_GP
+
         r, year, spe, allsow = g.r, g.year, g.spe, g.allsow
         ble = g.Ble
 
@@ -65,14 +68,30 @@ class EqdeclrMod(GamsClass):
     EQ_OBJ 				'Overall Objective Function'
 
 * OBJ cost components
-   {self.env.eq}_OBJELS(R,BD,CUR {self.env.swd})    'Costs of elastic demands'
-   {self.env.eq}_OBJFIX(R,CUR {self.env.swd})       'Fixed Costs'
-   {self.env.eq}_OBJINV(R,CUR {self.env.swd}) 		'Investment component'
-   {self.env.eq}_OBJSALV(R,CUR {self.env.swd}) 		'Salvage'
-   {self.env.eq}_OBJVAR(R,CUR {self.env.swd}) 		'Variable operating costs'
-   {self.env.eq}_OBJDAM(R,CUR {self.env.swd}) 		'Damage costs'
+   {eq}_OBJELS(R,BD,CUR {self.env.swd})    'Costs of elastic demands'
+   {eq}_OBJFIX(R,CUR {self.env.swd})       'Fixed Costs'
+   {eq}_OBJINV(R,CUR {self.env.swd}) 		'Investment component'
+   {eq}_OBJSALV(R,CUR {self.env.swd}) 		'Salvage'
+   {eq}_OBJVAR(R,CUR {self.env.swd}) 		'Variable operating costs'
+   {eq}_OBJDAM(R,CUR {self.env.swd}) 		'Damage costs'
 """,
             )
+
+        # *-----------------------------------------------------------------------------
+        # * Core Equations
+        # *-----------------------------------------------------------------------------
+
+        # Relationship between process activity & individual primary commodity flows
+        g.set_equation(
+            f"{eq}_ACTFLO",
+            Equation(
+                m,
+                name=f"{eq}_ACTFLO",
+                domain=[g.r, g.allyear, g.allyear, g.p, g.s, *swtd],
+                description="Process Activity/Primary Commodity Flows",
+            ),
+        )
+
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -81,125 +100,121 @@ class EqdeclrMod(GamsClass):
 * Core Equations
   EQUATIONS
 *-----------------------------------------------------------------------------
-
-* Relationship between process activity & individual primary commodity flows
-   {self.env.eq}_ACTFLO(R,ALLYEAR,ALLYEAR,P,S {self.env.swtd}) 		'Process Activity/Primary Commodity Flows'
-
 * Bound on activity
-   {self.env.eq}G_ACTBND(R,ALLYEAR,P,S {self.env.swtd}) 			'Process activity Bound in a Period (=G=)' //
-   {self.env.eq}E_ACTBND(R,ALLYEAR,P,S {self.env.swtd}) 			'Process activity Bound in a Period (=E=)' //
-   {self.env.eq}L_ACTBND(R,ALLYEAR,P,S {self.env.swtd}) 			'Process activity Bound in a Period (=L=)' //
+   {eq}G_ACTBND(R,ALLYEAR,P,S {self.env.swtd}) 			'Process activity Bound in a Period (=G=)' //
+   {eq}E_ACTBND(R,ALLYEAR,P,S {self.env.swtd}) 			'Process activity Bound in a Period (=E=)' //
+   {eq}L_ACTBND(R,ALLYEAR,P,S {self.env.swtd}) 			'Process activity Bound in a Period (=L=)' //
 
 * Bound on commodities
-   {self.env.eq}G_BNDNET(R,ALLYEAR,C,S {self.env.swtd}) 			'Net bound on a commodity (=G=)'
-   {self.env.eq}E_BNDNET(R,ALLYEAR,C,S {self.env.swtd}) 			'Net bound on a commodity (=E=)'
-   {self.env.eq}L_BNDNET(R,ALLYEAR,C,S {self.env.swtd}) 			'Net bound on a commodity (=L=)'
-   {self.env.eq}G_BNDPRD(R,ALLYEAR,C,S {self.env.swtd}) 			'Production bound on a commodity (=G=)'
-   {self.env.eq}E_BNDPRD(R,ALLYEAR,C,S {self.env.swtd}) 			'Production bound on a commodity (=E=)'
-   {self.env.eq}L_BNDPRD(R,ALLYEAR,C,S {self.env.swtd}) 			'Production bound on a commodity (=L=)'
+   {eq}G_BNDNET(R,ALLYEAR,C,S {self.env.swtd}) 			'Net bound on a commodity (=G=)'
+   {eq}E_BNDNET(R,ALLYEAR,C,S {self.env.swtd}) 			'Net bound on a commodity (=E=)'
+   {eq}L_BNDNET(R,ALLYEAR,C,S {self.env.swtd}) 			'Net bound on a commodity (=L=)'
+   {eq}G_BNDPRD(R,ALLYEAR,C,S {self.env.swtd}) 			'Production bound on a commodity (=G=)'
+   {eq}E_BNDPRD(R,ALLYEAR,C,S {self.env.swtd}) 			'Production bound on a commodity (=E=)'
+   {eq}L_BNDPRD(R,ALLYEAR,C,S {self.env.swtd}) 			'Production bound on a commodity (=L=)'
 
 * Utilization of capacity, or the relationship between process capacity and activity
-   {self.env.eq}L_CAPACT(R,ALLYEAR,ALLYEAR,P,S {self.env.swtd}) 		'Capacity Utilzation (=L=)'
-   {self.env.eq}E_CAPACT(R,ALLYEAR,ALLYEAR,P,S {self.env.swtd}) 		'Capacity Utilzation (=E=)'
-   {self.env.eq}G_CAPACT(R,ALLYEAR,ALLYEAR,P,S {self.env.swtd}) 		'Capacity Utilzation (=G=)'
+   {eq}L_CAPACT(R,ALLYEAR,ALLYEAR,P,S {self.env.swtd}) 		'Capacity Utilzation (=L=)'
+   {eq}E_CAPACT(R,ALLYEAR,ALLYEAR,P,S {self.env.swtd}) 		'Capacity Utilzation (=E=)'
+   {eq}G_CAPACT(R,ALLYEAR,ALLYEAR,P,S {self.env.swtd}) 		'Capacity Utilzation (=G=)'
 
 * Basic commodity balance equations (by type) ensuring that production >=/= consumption
-    {self.env.eq}G_COMBAL(R,ALLYEAR,C,S {self.env.swtd}) 			'Commodity Balance (=G=)' //
-    {self.env.eq}E_COMBAL(R,ALLYEAR,C,S {self.env.swtd}) 			'Commodity Balance (=E=)' //
-    {self.env.eq}E_COMPRD(R,ALLYEAR,C,S {self.env.swtd}) 			'Commodity Production (=E=)'
-    {self.env.eq}L_COMCES(R,ALLYEAR,C,C,S{self.env.swtd})     		'CES substitution steps (=L=)'
+    {eq}G_COMBAL(R,ALLYEAR,C,S {self.env.swtd}) 			'Commodity Balance (=G=)' //
+    {eq}E_COMBAL(R,ALLYEAR,C,S {self.env.swtd}) 			'Commodity Balance (=E=)' //
+    {eq}E_COMPRD(R,ALLYEAR,C,S {self.env.swtd}) 			'Commodity Production (=E=)'
+    {eq}L_COMCES(R,ALLYEAR,C,C,S{self.env.swtd})     		'CES substitution steps (=L=)'
 
 * Transfer of installed capacity between periods
-    {self.env.eq}G_CPT(R,ALLYEAR,P {self.env.swtd})                   	'Capacity Transfer (=G=)'
-    {self.env.eq}E_CPT(R,ALLYEAR,P {self.env.swtd})                   	'Capacity Transfer (=E=)'
-    {self.env.eq}L_CPT(R,ALLYEAR,P {self.env.swtd})                   	'Capacity Transfer (=L=)'
+    {eq}G_CPT(R,ALLYEAR,P {self.env.swtd})                   	'Capacity Transfer (=G=)'
+    {eq}E_CPT(R,ALLYEAR,P {self.env.swtd})                   	'Capacity Transfer (=E=)'
+    {eq}L_CPT(R,ALLYEAR,P {self.env.swtd})                   	'Capacity Transfer (=L=)'
 
 * Cumulative constraints
-    {self.env.eq}_CUMNET(R,C,ALLYEAR,ALLYEAR {self.env.swd}) 		'Cummulative Net Commodity Limit (=E=)'
-    {self.env.eq}_CUMPRD(R,C,ALLYEAR,ALLYEAR {self.env.swd}) 		'Cummulative Commodity Production Limit (=E=)'
-    {self.env.eq}_CUMFLO(R,P,C,ALLYEAR,LL {self.env.swd})    		'Cummulative Commodity Flow Limit (=E=)'
+    {eq}_CUMNET(R,C,ALLYEAR,ALLYEAR {self.env.swd}) 		'Cummulative Net Commodity Limit (=E=)'
+    {eq}_CUMPRD(R,C,ALLYEAR,ALLYEAR {self.env.swd}) 		'Cummulative Commodity Production Limit (=E=)'
+    {eq}_CUMFLO(R,P,C,ALLYEAR,LL {self.env.swd})    		'Cummulative Commodity Flow Limit (=E=)'
 
 * Bound on the fraction of a flow within a time slice
-    {self.env.eq}G_FLOFR(R,T,P,C,S,L {self.env.swtd})			'Flow fraction (=G=)'
-    {self.env.eq}E_FLOFR(R,T,P,C,S,L {self.env.swtd})			'Flow fraction (=E=)'
-    {self.env.eq}L_FLOFR(R,T,P,C,S,L {self.env.swtd})			'Flow fraction (=L=)'
+    {eq}G_FLOFR(R,T,P,C,S,L {self.env.swtd})			'Flow fraction (=G=)'
+    {eq}E_FLOFR(R,T,P,C,S,L {self.env.swtd})			'Flow fraction (=E=)'
+    {eq}L_FLOFR(R,T,P,C,S,L {self.env.swtd})			'Flow fraction (=L=)'
 
 * Bound on the total flow
-    {self.env.eq}G_FLOBND(R,T,P,CG,S {self.env.swtd}) 			'Flow bound (=G=)'
-    {self.env.eq}E_FLOBND(R,T,P,CG,S {self.env.swtd}) 			'Flow bound (=E=)'
-    {self.env.eq}L_FLOBND(R,T,P,CG,S {self.env.swtd}) 			'Flow bound (=L=)'
+    {eq}G_FLOBND(R,T,P,CG,S {self.env.swtd}) 			'Flow bound (=G=)'
+    {eq}E_FLOBND(R,T,P,CG,S {self.env.swtd}) 			'Flow bound (=E=)'
+    {eq}L_FLOBND(R,T,P,CG,S {self.env.swtd}) 			'Flow bound (=L=)'
 
 * Market share equation allocating commodity percentages of a group
-    {self.env.eq}G_INSHR(R,ALLYEAR,ALLYEAR,P,C,CG,S {self.env.swtd}) 	'Commodity Input Group Share (=G=)'
-    {self.env.eq}E_INSHR(R,ALLYEAR,ALLYEAR,P,C,CG,S {self.env.swtd}) 	'Commodity Input Group Share (=E=)'
-    {self.env.eq}L_INSHR(R,ALLYEAR,ALLYEAR,P,C,CG,S {self.env.swtd}) 	'Commodity Input Group Share (=L=)'
+    {eq}G_INSHR(R,ALLYEAR,ALLYEAR,P,C,CG,S {self.env.swtd}) 	'Commodity Input Group Share (=G=)'
+    {eq}E_INSHR(R,ALLYEAR,ALLYEAR,P,C,CG,S {self.env.swtd}) 	'Commodity Input Group Share (=E=)'
+    {eq}L_INSHR(R,ALLYEAR,ALLYEAR,P,C,CG,S {self.env.swtd}) 	'Commodity Input Group Share (=L=)'
 
 * Inter-period storage equation
-    {self.env.eq}_STGIPS(R,ALLYEAR,ALLYEAR,P,ITEM {self.env.swtd}) 	'Inter-period storage equation'
-    {self.env.eq}_STGAUX(R,ALLYEAR,ALLYEAR,P,C,S {self.env.swtd}) 	'Storage auxiliary flows'
+    {eq}_STGIPS(R,ALLYEAR,ALLYEAR,P,ITEM {self.env.swtd}) 	'Inter-period storage equation'
+    {eq}_STGAUX(R,ALLYEAR,ALLYEAR,P,C,S {self.env.swtd}) 	'Storage auxiliary flows'
 
 * Inter-regional exchange balance
-    {self.env.eq}_IRE(R,ALLYEAR,P,C,IE,S {self.env.swtd}) 		'Inter-regional Exchange Process Balance (=E=)'
+    {eq}_IRE(R,ALLYEAR,P,C,IE,S {self.env.swtd}) 		'Inter-regional Exchange Process Balance (=E=)'
 
 * Bound on inter-regional exchange of a commodity
-    {self.env.eq}G_IREBND(R,ALLYEAR,C,S,ALL_REG,IE {self.env.swtd}) 	'Limit on Inter-regional Exchange (=G=)'
-    {self.env.eq}E_IREBND(R,ALLYEAR,C,S,ALL_REG,IE {self.env.swtd}) 	'Limit on Inter-regional Exchange (=E=)'
-    {self.env.eq}L_IREBND(R,ALLYEAR,C,S,ALL_REG,IE {self.env.swtd}) 	'Limit on Inter-regional Exchange (=L=)'
+    {eq}G_IREBND(R,ALLYEAR,C,S,ALL_REG,IE {self.env.swtd}) 	'Limit on Inter-regional Exchange (=G=)'
+    {eq}E_IREBND(R,ALLYEAR,C,S,ALL_REG,IE {self.env.swtd}) 	'Limit on Inter-regional Exchange (=E=)'
+    {eq}L_IREBND(R,ALLYEAR,C,S,ALL_REG,IE {self.env.swtd}) 	'Limit on Inter-regional Exchange (=L=)'
 
 * Bound on total exchange of a commodity to/from all regions
-    {self.env.eq}G_XBND(ALL_REG,ALLYEAR,C,S,IE {self.env.swtd}) 		'Limit on Total Exchange (=G=)'
-    {self.env.eq}E_XBND(ALL_REG,ALLYEAR,C,S,IE {self.env.swtd}) 		'Limit on Total Exchange (=E=)'
-    {self.env.eq}L_XBND(ALL_REG,ALLYEAR,C,S,IE {self.env.swtd}) 		'Limit on Total Exchange (=L=)'
+    {eq}G_XBND(ALL_REG,ALLYEAR,C,S,IE {self.env.swtd}) 		'Limit on Total Exchange (=G=)'
+    {eq}E_XBND(ALL_REG,ALLYEAR,C,S,IE {self.env.swtd}) 		'Limit on Total Exchange (=E=)'
+    {eq}L_XBND(ALL_REG,ALLYEAR,C,S,IE {self.env.swtd}) 		'Limit on Total Exchange (=L=)'
 
 * Product share equation allocating commodity percentages of a group
-    {self.env.eq}G_OUTSHR(R,ALLYEAR,ALLYEAR,P,C,CG,S {self.env.swtd}) 	'Commodity Output Group Share (=G=)'
-    {self.env.eq}E_OUTSHR(R,ALLYEAR,ALLYEAR,P,C,CG,S {self.env.swtd}) 	'Commodity Output Group Share (=E=)'
-    {self.env.eq}L_OUTSHR(R,ALLYEAR,ALLYEAR,P,C,CG,S {self.env.swtd}) 	'Commodity Output Group Share (=L=)'
+    {eq}G_OUTSHR(R,ALLYEAR,ALLYEAR,P,C,CG,S {self.env.swtd}) 	'Commodity Output Group Share (=G=)'
+    {eq}E_OUTSHR(R,ALLYEAR,ALLYEAR,P,C,CG,S {self.env.swtd}) 	'Commodity Output Group Share (=E=)'
+    {eq}L_OUTSHR(R,ALLYEAR,ALLYEAR,P,C,CG,S {self.env.swtd}) 	'Commodity Output Group Share (=L=)'
 
 * Process market-share equation of total commodity production
-    {self.env.eq}G_FLOMRK(R,ALLYEAR,ITEM,C,S {self.env.swtd}) 		'Process market-share (=G=)' //
-    {self.env.eq}E_FLOMRK(R,ALLYEAR,ITEM,C,S {self.env.swtd}) 		'Process market-share (=E=)' //
-    {self.env.eq}L_FLOMRK(R,ALLYEAR,ITEM,C,S {self.env.swtd}) 		'Process market-share (=L=)' //
+    {eq}G_FLOMRK(R,ALLYEAR,ITEM,C,S {self.env.swtd}) 		'Process market-share (=G=)' //
+    {eq}E_FLOMRK(R,ALLYEAR,ITEM,C,S {self.env.swtd}) 		'Process market-share (=E=)' //
+    {eq}L_FLOMRK(R,ALLYEAR,ITEM,C,S {self.env.swtd}) 		'Process market-share (=L=)' //
 
 * Peaking Equation
-    {self.env.eq}_PEAK(R,ALLYEAR,COM_GRP,S {self.env.swtd}) 		'Commodity Peaking constraint (=G=)'
+    {eq}_PEAK(R,ALLYEAR,COM_GRP,S {self.env.swtd}) 		'Commodity Peaking constraint (=G=)'
 
 * Commodity-to-commodity transformation
-    {self.env.eq}_PTRANS(R,ALLYEAR,ALLYEAR,P,CG,CG,S {self.env.swtd}) 	'Commodity-to-Commodity Transform (=E=)'
+    {eq}_PTRANS(R,ALLYEAR,ALLYEAR,P,CG,CG,S {self.env.swtd}) 	'Commodity-to-Commodity Transform (=E=)'
 
 * Time-slice storage equation
-    {self.env.eq}_STGTSS(R,ALLYEAR,ALLYEAR,P,S {self.env.swtd})		'Time-slice storage equation'
-    {self.env.eq}_STSBAL(R,ALLYEAR,ALLYEAR,P,TSL,S,L{self.env.swtd})   	'Time-slice storage balancer'
+    {eq}_STGTSS(R,ALLYEAR,ALLYEAR,P,S {self.env.swtd})		'Time-slice storage equation'
+    {eq}_STSBAL(R,ALLYEAR,ALLYEAR,P,TSL,S,L{self.env.swtd})   	'Time-slice storage balancer'
     EQ_STSLEV(R,ALLYEAR,ALLYEAR,P,TSLVL,S,ALLSOW)    	'Time-slice storage levelizer'
 
 * Bound on storage flow
-    {self.env.eq}G_STGIN(R,ALLYEAR,P,C,S {self.env.swtd}) 		'Bound on input flow of storage (=G=)'
-    {self.env.eq}E_STGIN(R,ALLYEAR,P,C,S {self.env.swtd}) 		'Bound on input flow of storage (=E=)'
-    {self.env.eq}L_STGIN(R,ALLYEAR,P,C,S {self.env.swtd}) 		'Bound on input flow of storage (=L=)'
-    {self.env.eq}G_STGOUT(R,ALLYEAR,P,C,S {self.env.swtd}) 		'Bound on output flow of storage (=G=)'
-    {self.env.eq}E_STGOUT(R,ALLYEAR,P,C,S {self.env.swtd}) 		'Bound on output flow of storage (=E=)'
-    {self.env.eq}L_STGOUT(R,ALLYEAR,P,C,S {self.env.swtd}) 		'Bound on output flow of storage (=L=)'
+    {eq}G_STGIN(R,ALLYEAR,P,C,S {self.env.swtd}) 		'Bound on input flow of storage (=G=)'
+    {eq}E_STGIN(R,ALLYEAR,P,C,S {self.env.swtd}) 		'Bound on input flow of storage (=E=)'
+    {eq}L_STGIN(R,ALLYEAR,P,C,S {self.env.swtd}) 		'Bound on input flow of storage (=L=)'
+    {eq}G_STGOUT(R,ALLYEAR,P,C,S {self.env.swtd}) 		'Bound on output flow of storage (=G=)'
+    {eq}E_STGOUT(R,ALLYEAR,P,C,S {self.env.swtd}) 		'Bound on output flow of storage (=E=)'
+    {eq}L_STGOUT(R,ALLYEAR,P,C,S {self.env.swtd}) 		'Bound on output flow of storage (=L=)'
 
 * Retirements
-    {self.env.eq}_CUMRET(R,ALLYEAR,ALLYEAR,P{self.env.swtd}) 		'Cumulative retirements'
-    {self.env.eq}L_REFIT(R,ALLYEAR,ALLYEAR,P,L{self.env.swtd})	 	'Retrofit/life-extension (=L=)'
-    {self.env.eq}L_SCAP(R,ALLYEAR,P,IPS{self.env.swd})    		'Salvage capacity (=L=)'
+    {eq}_CUMRET(R,ALLYEAR,ALLYEAR,P{self.env.swtd}) 		'Cumulative retirements'
+    {eq}L_REFIT(R,ALLYEAR,ALLYEAR,P,L{self.env.swtd})	 	'Retrofit/life-extension (=L=)'
+    {eq}L_SCAP(R,ALLYEAR,P,IPS{self.env.swd})    		'Salvage capacity (=L=)'
 
 * Cost bounds
-    {self.env.eq}_BNDCST(REG,ALLYEAR,T,ALLYEAR,COSTCAT,CUR {self.env.swd}) 'Bound on cumulative costs'
+    {eq}_BNDCST(REG,ALLYEAR,T,ALLYEAR,COSTCAT,CUR {self.env.swd}) 'Bound on cumulative costs'
 
 * User-constraints
-    {self.env.eq}E_UC(UC_N {self.env.swd}) 		'User-constraints (=E=)'
-    {self.env.eq}E_UCR(R,UC_N {self.env.swd}) 		'User-constraints (=E=)'
-    {self.env.eq}E_UCT(UC_N,T {self.env.swtd}) 		'User-constraints (=E=)'
-    {self.env.eq}E_UCRT(R,T,UC_N {self.env.swtd}) 	'User-constraints (=E=)'
-    {self.env.eq}E_UCTS(UC_N,T,S {self.env.swtd}) 	'User-constraints (=E=)'
-    {self.env.eq}E_UCRS(R,T,UC_N,TSL,S {self.env.swtd})	'User-constraints (=E=)'
-    {self.env.eq}E_UCRTS(R,T,UC_N,S {self.env.swtd}) 	'User-constraints (=E=)'
-    {self.env.eq}E_UCSU(UC_N,T {self.env.swd}) 		'User-constraints (=E=)'
-    {self.env.eq}E_UCSUS(UC_N,T,S {self.env.swd}) 	'User-constraints (=E=)'
-    {self.env.eq}E_UCRSUS(R,T,UC_N,S {self.env.swd}) 	'User-constraints (=E=)'
-    {self.env.eq}E_UCRSU(R,T,UC_N {self.env.swd}) 	'User-constraints (=E=)'
+    {eq}E_UC(UC_N {self.env.swd}) 		'User-constraints (=E=)'
+    {eq}E_UCR(R,UC_N {self.env.swd}) 		'User-constraints (=E=)'
+    {eq}E_UCT(UC_N,T {self.env.swtd}) 		'User-constraints (=E=)'
+    {eq}E_UCRT(R,T,UC_N {self.env.swtd}) 	'User-constraints (=E=)'
+    {eq}E_UCTS(UC_N,T,S {self.env.swtd}) 	'User-constraints (=E=)'
+    {eq}E_UCRS(R,T,UC_N,TSL,S {self.env.swtd})	'User-constraints (=E=)'
+    {eq}E_UCRTS(R,T,UC_N,S {self.env.swtd}) 	'User-constraints (=E=)'
+    {eq}E_UCSU(UC_N,T {self.env.swd}) 		'User-constraints (=E=)'
+    {eq}E_UCSUS(UC_N,T,S {self.env.swd}) 	'User-constraints (=E=)'
+    {eq}E_UCRSUS(R,T,UC_N,S {self.env.swd}) 	'User-constraints (=E=)'
+    {eq}E_UCRSU(R,T,UC_N {self.env.swd}) 	'User-constraints (=E=)'
 """,
         )
         if self.env.var_uc != "YES":
@@ -269,11 +284,11 @@ class EqdeclrMod(GamsClass):
 *-----------------------------------------------------------------------------
 
 * Damage Extension
-    {self.env.eq}_DAMAGE(R,T,C {self.env.swd}) 	'Damages'
+    {eq}_DAMAGE(R,T,C {self.env.swd}) 	'Damages'
 
 * Stochastic extension
-    {self.env.eq}_ROBJ(R{self.env.swd})   	'Deterministic objective by region and SOW'
-    {self.env.eq}_SOBJ(LIM{self.env.swd}) 	'Deterministic objective by SOW'
+    {eq}_ROBJ(R{self.env.swd})   	'Deterministic objective by region and SOW'
+    {eq}_SOBJ(LIM{self.env.swd}) 	'Deterministic objective by SOW'
     EQ_EXPOBJ(ALLSOW) 		'Expected value of total system cost'
     EQ_UPDEV(ALLSOW) 		'Upper absolute deviation'
 ;

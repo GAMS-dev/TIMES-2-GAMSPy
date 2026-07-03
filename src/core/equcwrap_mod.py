@@ -59,6 +59,8 @@ class EqucwrapMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+
         # $IF %6 %VAR_UC%==YES $EXIT
         var_uc_is_yes = self.env.var_uc.strip().upper() == "YES"
 
@@ -83,6 +85,7 @@ class EqucwrapMod(GamsClass):
             self.env.set_local("tst", self.env.tsum)
             self.env.set_local("tsum", f"({self.env.tsum}WW)${self.env.swsw}")
             self.env.set_local("swtd", "SW_TSW(SOW,TT,WW),")
+            self.env.set_local("swtd_GP", (g.SwTsw[g.Sow, g.tt, g.ww],))
 
         if self.env.scum == "1":
             self.env.set_scoped("sw1", ",'1'")
@@ -91,6 +94,9 @@ class EqucwrapMod(GamsClass):
                 "tsum", f"({self.env.tst}SOW(WW))$SW_T(T,WW),SW_TPROB(T,WW)*"
             )
             self.env.set_local("swtd", "SW_TSW(SOW(WW),TT,WW),SW_TPROB(TT,WW)*")
+            self.env.set_local(
+                "swtd_GP", (g.SwTsw[g.Sow[g.ww], g.tt, g.ww], g.sw_tprob[g.tt, g.ww])
+            )  # Todo: Move "*" to main code
 
         self.include(
             EqusercoMod(

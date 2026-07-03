@@ -17,7 +17,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .base_class import GamsClass
+from gamspy import Sum
+
+from core.base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -33,40 +35,45 @@ class EqactfloMod(GamsClass):
     module_name: str = "eqactflo_mod"
     gams_source: str = "eqactflo.mod"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
         self.env = env.fork()
         self.tc = tc
         self._sub_modules = {}
         self.compile()
 
     def compile(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-*$ONLISTING
-* adjust so VAR_FLO only when not IRE (or STG)
-* EQ_ACTFLO(RTP_VINTYR(R,V,T,P),S)$((RP_FLO(R,P) + RP_IRE(R,P)) * PRC_TS(R,P,S)
-    {self.env.eq}_ACTFLO(RTP_VINTYR({self.env.r_v_t},P),S {self.env.swt})$(PRC_TS(R,P,S) *
-{"(NOT RTPS_OFF(R,T,P,S)) *" if self.env.reduce == "YES" else ""}
-                                                    PRC_ACT(R,P)) ..
+        g = self.tc
 
-      {self.env.var}_ACT(R,V,T,P,S {self.env.sow})$RTP_VARA(R,T,P)
+        # Sets
+        r, v, t, p, s, c, ie = g.r, g.v, g.t, g.p, g.s, g.c, g.ie
+        r_v_t = self.env.r_v_t_GP
+        swt = self.env.swt_GP
+        sow = self.env.sow_GP
 
-  =E=
+        # Variables
+        VAR_ACT = g.get_variable(f"{self.env.var}_ACT")
+        VAR_FLO = g.get_variable(f"{self.env.var}_FLO")
+        VAR_IRE = g.get_variable(f"{self.env.var}_IRE")
 
-* handle both regular and IRE processes
-* need to ensure that said commodity handled in current timeslice
-        SUM(RPC_PG(R,P,C)$RTPCS_VARF(R,T,P,C,S),
-                           ({self.env.var}_FLO(R,V,T,P,C,S {self.env.sow})$RP_FLO(R,P) +
-                           SUM(RPC_IRE(R,P,C,IE)$RP_AIRE(R,P,IE),
-                             {self.env.var}_IRE(R,V,T,P,C,S,IE {self.env.sow}))$RP_IRE(R,P)
-                           ) / PRC_ACTFLO(R,V,P,C)
-        );
-*$OFFLISTING
-""",
+        reduce_con = (~g.RtpsOff[r, t, p, s]) if self.env.reduce == "YES" else 1
+
+        eq = g.get_equation(f"{self.env.eq}_ACTFLO")
+
+        # adjust so VAR_FLO only when not IRE (or STG)
+        eq[g.RtpVintyr[*r_v_t, p], s, *swt].where[
+            g.PrcTs[r, p, s] * (reduce_con) * g.PrcAct[r, p]
+        ] = VAR_ACT[r, v, t, p, s, *sow].where[g.RtpVara[r, t, p]] == (
+            # handle both regular and IRE processes
+            # need to ensure that said commodity handled in current timeslice
+            Sum(
+                c.where[g.RpcPg[r, p, c].where[g.RtpcsVarf[r, t, p, c, s]]],
+                (
+                    VAR_FLO[r, v, t, p, c, s, *sow].where[g.RpFlo[r, p]]
+                    + Sum(
+                        g.RpcIre[r, p, c, ie].where[g.RpAire[r, p, ie]],
+                        VAR_IRE[r, v, t, p, c, s, ie, *sow],
+                    ).where[g.RpIre[r, p]]
+                )
+                / g.prc_actflo[r, v, p, c],
+            )
         )

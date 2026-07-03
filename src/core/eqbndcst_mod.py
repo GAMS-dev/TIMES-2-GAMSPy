@@ -45,6 +45,8 @@ class EqbndcstMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -87,9 +89,13 @@ class EqbndcstMod(GamsClass):
         self.tc.enqueue(self.exec1, declif=self.env.declif)
         if self.env.stages == "YES":
             self.env.set_scoped("swt", f"SW_T(TT{self.env.sow})$")
+            self.env.set_scoped(
+                "swt_GP", g.SwT[g.tt, *self.env.sow_GP]
+            )  # ToDo: Move $ to main code
 
         if self.env.scum == "1":
             self.env.set_scoped("swt", "")
+            self.env.set_scoped("swt_GP", tuple())
 
         self.env.set_scoped("sowstart", self.env.sow)
 
@@ -99,6 +105,7 @@ class EqbndcstMod(GamsClass):
             self.env.set_scoped("sow", self.env.swd)
             self.env.set_scoped("sow_GP", self.env.swd_GP)
             self.env.set_scoped("swtd", "SUM")
+            self.env.set_scoped("swtd_GP", "SUM")  # ToDo: How to handle SUM here?
 
         if self.env.obj.upper() != "LIN":
             self.env.set_scoped(

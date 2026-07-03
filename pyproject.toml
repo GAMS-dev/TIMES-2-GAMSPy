@@ -9,7 +9,7 @@ readme = "README.md"
 description = "Migration of TIMES to GAMSPy"
 requires-python = ">=3.10"
 dependencies = [
-  "gamspy>=1.24.0",
+  "gamspy>=1.25.0",
   "pandas",
   "dotenv"
 ]
@@ -20,6 +20,7 @@ where = ["src"]
 [project.optional-dependencies]
 test = [
   "pytest",
+  "pytest-cov",
   "coverage>=6.0",
 ]
 

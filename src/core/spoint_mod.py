@@ -191,11 +191,7 @@ $CLEAR EQL_UC EQL_UCR EQL_UCT EQL_UCRT EQL_UCTS EQL_UCRTS EQL_UCRS EQL_UCSU EQL_
 """,
         )
 
-    def exec2(
-        self: SpointMod,
-        eq_clitot_defined: bool,
-        timesed_yes: bool,
-    ) -> None:
+    def exec2(self: SpointMod, eq_clitot_defined: bool, timesed_yes: bool) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -206,10 +202,7 @@ $CLEAR EQL_UC EQL_UCR EQL_UCT EQL_UCRT EQL_UCTS EQL_UCRTS EQL_UCRS EQL_UCSU EQL_
 """,
         )
 
-    def exec3(
-        self: SpointMod,
-        file: str,
-    ) -> None:
+    def exec3(self: SpointMod, file: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -237,12 +230,7 @@ $CLEAR EQL_UC EQL_UCR EQL_UCT EQL_UCRT EQL_UCTS EQL_UCRTS EQL_UCRS EQL_UCSU EQL_
 """,
         )
 
-    def exec_finish2(
-        self: SpointMod,
-        var: str,
-        sow: str,
-        swt: str,
-    ) -> None:
+    def exec_finish2(self: SpointMod, var: str, sow: str, swt: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -256,6 +244,8 @@ $CLEAR EQL_UC EQL_UCR EQL_UCT EQL_UCRT EQL_UCTS EQL_UCRTS EQL_UCRS EQL_UCSU EQL_
         )
 
     def _label_finish(self) -> None:
+        g = self.tc
+
         if not self.tc.defined("REG_BDNCAP"):
             self.env.set_scoped("load", "0")
         if self.env.load != "2":
@@ -276,10 +266,10 @@ $CLEAR EQL_UC EQL_UCR EQL_UCT EQL_UCRT EQL_UCTS EQL_UCRTS EQL_UCRS EQL_UCSU EQL_
         self.tc.enqueue(self.exec_finish1)
         if self.env.stages == "YES":
             self.env.set_local("swt", f"$SW_T(T{self.env.sow})")
+            self.env.set_local(
+                "swt_GP", (g.SwT[g.t, *self.env.sow_GP])
+            )  # Todo: move $ to main code
 
         self.tc.enqueue(
-            self.exec_finish2,
-            var=self.env.var,
-            sow=self.env.sow,
-            swt=self.env.swt,
+            self.exec_finish2, var=self.env.var, sow=self.env.sow, swt=self.env.swt
         )

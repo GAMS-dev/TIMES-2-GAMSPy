@@ -5,10 +5,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.fillparm_gms import fillparm
 from core.pp_qaput_mod import pp_qaput
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -37,27 +36,20 @@ class DynsliteVda(GamsClass):
         self.compile()
 
     def compile(self: DynsliteVda) -> None:
+        g = self.tc
+
         if self.env.rts == "S":
             return
         self.env.set_scoped("tmp", "$NORTS(R,T,S)")
         if self.arg1.upper() == "PRELEV":
             self.tc.enqueue(
-                self.prelev_exec,
-                ducyes=self.env.duc.upper() == "YES",
-                tmp=self.env.tmp,
+                self.prelev_exec, ducyes=self.env.duc.upper() == "YES", tmp=self.env.tmp
             )
         if self.arg1.upper() in ["PRELEV", "CLEAR"]:
             self.env.set_local("rts", "$(NORTS(R,V,S)+NORTS(R,T,S)$PASTMILE(V))")
-            self.tc.enqueue(
-                self.clear_exec,
-                tmp=self.env.tmp,
-                rts=self.env.rts,
-            )
+            self.tc.enqueue(self.clear_exec, tmp=self.env.tmp, rts=self.env.rts)
         elif self.arg1.upper() == "REDUCE":
-            self.tc.enqueue(
-                self.reduce_exec,
-                tmp=self.env.tmp,
-            )
+            self.tc.enqueue(self.reduce_exec, tmp=self.env.tmp)
         elif self.arg1.upper() == "POSTLEV":
             self.env.set_scoped("reset", "0")
             self.tc.enqueue(
@@ -69,17 +61,19 @@ class DynsliteVda(GamsClass):
                 reset=self.env.reset,
             )
             self.env.set_local("rts", "$(NORTS(R,V,S)+NORTS(R,T,S)$PASTMILE(V))")
-            self.tc.enqueue(
-                self.clear_exec,
-                tmp=self.env.tmp,
-                rts=self.env.rts,
-            )
+            self.tc.enqueue(self.clear_exec, tmp=self.env.tmp, rts=self.env.rts)
         elif self.arg1.upper() == "BOUNDS":
             if self.env.stages == "YES":
                 self.env.set_local("swt", f"SW_T(T{self.env.swd})$")
+                self.env.set_local(
+                    "swt_GP", (g.SwT[g.t, *self.env.swd_GP],)
+                )  # Todo: move $ to main code
             self.env.set_local(
                 "swt", f"{self.env.swd})$({self.env.swt}RT_PP(R,T){self.env.tmp}"
             )
+            self.env.set_local(
+                "swt_GP", f"{self.env.swd})$({self.env.swt}RT_PP(R,T){self.env.tmp}"
+            )  # ToDo: How to handle?
             self.tc.enqueue(
                 self.bounds_exec,
                 swd=self.env.swd,

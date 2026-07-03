@@ -71,6 +71,9 @@ class EqobjvarMod(GamsClass):
         self.env.set_scoped("sowtmp", self.env.sow)
         if self.env.stages == "YES":
             self.env.set_local("swtd", "SUM(SW_TSW(SOW,T,WW),")
+            self.env.set_local(
+                "swtd_GP", "SUM(SW_TSW(SOW,T,WW),"
+            )  # How to handle Sum here?
             self.env.set_scoped("sow", ",WW")
             self.env.set_scoped("sow_GP", (g.ww,))
         if self.tc.defined("RTP_FFCS"):

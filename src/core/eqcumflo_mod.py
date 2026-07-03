@@ -51,6 +51,7 @@ class EqcumfloMod(GamsClass):
             self.env.set_scoped("sow", "',WW'")
             self.env.set_scoped("sow_GP", (g.ww,))
             self.env.set_scoped("swt", "',SOW'")
+            self.env.set_scoped("swt_GP", (g.Sow,))
             self.env.set_scoped("sw1", "'S_'")
             self.env.set_scoped("sw2", ",'1',SOW")
 
