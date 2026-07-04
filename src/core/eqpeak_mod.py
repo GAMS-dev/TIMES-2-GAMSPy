@@ -54,10 +54,9 @@ class EqpeakMod(GamsClass):
     def compile(self) -> None:
         self.env.set_scoped("swstmp", self.env.sws)
         if self.env.stages.upper() == "YES":
-            self.env.set_local(
-                "sws",
-                "PROD(SW_MAP(T,SOW,J,WW)$S_COM_PROJ(R,T,C,J,WW),S_COM_PROJ(R,T,C,J,WW))*",
-            )
+            sws_local = "PROD(SW_MAP(T,SOW,J,WW)$S_COM_PROJ(R,T,C,J,WW),S_COM_PROJ(R,T,C,J,WW))*"
+        else:
+            sws_local = self.env.sws
 
         self.comp1(
             eq=self.env.eq,
@@ -67,7 +66,7 @@ class EqpeakMod(GamsClass):
             swstmp=self.env.swstmp,
             rcapsub=self.env.rcapsub,
             peakchp=self.env.peakchp,
-            sws=self.env.sws,
+            sws_local=sws_local,
             var=self.env.var,
             sow=self.env.sow,
             mx=self.env.mx,
@@ -87,7 +86,7 @@ class EqpeakMod(GamsClass):
         swstmp: str,
         rcapsub: str,
         peakchp: str,
-        sws: str,
+        sws_local: str,
         var: str,
         sow: str,
         mx: str,
@@ -147,7 +146,7 @@ class EqpeakMod(GamsClass):
         if peakchp == "eqpk_ect.ier":
             include_eqpk_ect = eqpk_ect_ier(
                 varv=varv,
-                sws=sws,
+                sws=self.env.sws,
                 reduce=reduce,
                 sow=sow,
                 var=var,
@@ -178,7 +177,7 @@ class EqpeakMod(GamsClass):
         )
         include_cal_cap = cal_cap_mod(
             varv=varv,
-            sws=sws,
+            sws=self.env.sws,
             rcapsub=rcapsub,
             arg1="IN",
             arg2="I",
@@ -264,7 +263,7 @@ class EqpeakMod(GamsClass):
            SUM(BLE_OPR(R,BLE,OPR)$(BLE_INP(R,BLE,C)*BLE_TP(R,T,BLE)),G_YRFR(R,S)*(1+RTCS_FR(R,T,C,S,'ANNUAL'))*BL_INP(R,BLE,C)*PEAKDA_BL(R,BLE,T)*{var}_BLND(R,T,BLE,OPR {sow})) +
 
 *   demand projection
-      (({sws} COM_PROJ(R,T,C)$(NOT RD_NLP(R,C)) +{var}_DEM(R,T,C{sow})$RD_NLP(R,C) +SUM(RD_AGG(R,COM),RD_SHAR(R,T,COM,C)*{var}_COMPRD(R,T,COM,'ANNUAL'{sow}))) * COM_FR{mx}(R,T,C,S))$DEM(R,C) +
+      (({sws_local} COM_PROJ(R,T,C)$(NOT RD_NLP(R,C)) +{var}_DEM(R,T,C{sow})$RD_NLP(R,C) +SUM(RD_AGG(R,COM),RD_SHAR(R,T,COM,C)*{var}_COMPRD(R,T,COM,'ANNUAL'{sow}))) * COM_FR{mx}(R,T,C,S))$DEM(R,C) +
 
 *   include the elasticity variables
 {f"SUM(RCJ(R,C,J,BDNEQ(BD))$COM_ELAST(R,T,C,S,BD),-BDSIG(BD)*{var}_ELAST(R,T,C,S,J,BD {sow})) +" if condition else ""}

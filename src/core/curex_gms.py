@@ -13,17 +13,29 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
-from gamspy import Alias
+from gamspy import Alias, Number, Parameter, Set, Sum
+from gamspy.math import power
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class CurexGmsConfig:
+    arg1: str = ""
+    arg2: str = ""
+    arg3: tuple[Set | Alias, ...] | tuple[()] = ()
+    arg4: tuple[str] | tuple[()] = ()
+    arg5: tuple[str | Set, ...] | tuple[()] = ()
+    arg6: Number | None = None
 
 
 class CurexGms(GamsClass):
@@ -34,115 +46,101 @@ class CurexGms(GamsClass):
     gams_source: str = "curex.gms"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
-        arg4: str = "",
-        arg5: str = "",
-        arg6: str = "",
+        self, tc: TimesModelClass, env: CompileEnvironment, config: CurexGmsConfig
     ):
+        super().__init__(tc, env)
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
-        self.arg4 = arg4
-        self.arg5 = arg5
-        self.arg6 = arg6
+        self.config = config
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
+        cc = self.config
+
+        r, ll, p, c, s, allr = g.r, g.ll, g.p, g.c, g.s, g.allr
+        costagg, year, bd, ie, Com = g.costagg, g.year, g.bd, g.ie, g.Com
+        tsl, upt = g.tsl, g.upt
+
         if self.env.intext_only == "YES":
             return  # $EXIT
         else:
-            if self.arg1 != "":  # SUBR
-                if self.arg6 == "":
+            if cc.arg1 != "":  # SUBR
+                if cc.arg6 is None:
                     self.env.set_scoped("mx", "1$YEARVAL(LL)")
+                    self.env.set_scoped("mx_GP", Number(1).where[g.yearval[ll]])
 
-                if self.arg2 not in self.tc.container.listSymbols():
-                    self.tc.add_gams_code(
-                        module=self,
-                        phase="init",
-                        code=rf"""
-PARAMETER {self.arg2}({self.arg3},CUR);
-""",
+                if not self.tc.declared(cc.arg2):
+                    g.set_parameter(
+                        name=cc.arg2,
+                        parameter=Parameter(m, name=cc.arg2, domain=[*cc.arg3, g.cur]),
                     )
 
                 self.tc.enqueue(
                     self.exec1,
-                    condition=(self.arg1.upper() == self.arg2.upper()),
-                    arg1=self.arg1,
-                    arg2=self.arg2,
-                    arg3=self.arg3,
-                    arg4=self.arg4,
-                    arg5=self.arg5,
-                    arg6=self.arg6,
-                    mx=self.env.mx,
+                    condition=(cc.arg1.upper() == cc.arg2.upper()),
+                    mx=self.env.mx_GP,
                 )
 
             else:
                 self.comp1()
+                self.tc.register_assignment(g.r_curex)
                 self.tc.enqueue(self.initialization)
-                # fmt: off
-                batincludes = [
-                    ("NCAP_COST", "RYPM", "R,LL,P", "", "", ""),
-                    ("NCAP_ITAX", "RYPM ", "R,LL,P", "", "", ""),
-                    ("NCAP_ISUB", "RYPM ", "R,LL,P", "", "", ""),
-                    ("NCAP_DCOST", "RYPM ", "R,LL,P", "", "", ""),
-                    ("NCAP_DLAGC", "RYPM ", "R,LL,P", "", "", ""),
-                    ("NCAP_FOM", "RYPM ", "R,LL,P", "", "", ""),
-                    ("NCAP_FSUB", "RYPM ", "R,LL,P", "", "", ""),
-                    ("NCAP_FTAX", "RYPM ", "R,LL,P", "", "", ""),
-                    ("ACT_COST", "RYPM ", "R,LL,P", "", "", ""),
-                    ("FLO_COST", "RYPCSM ", "R,LL,P,C,S", "", "", ""),
-                    ("FLO_DELIV", "RYPCSM ", "R,LL,P,C,S", "", "", ""),
-                    ("FLO_TAX", "RYPCSM ", "R,LL,P,C,S", "", "", ""),
-                    ("FLO_SUB", "RYPCSM ", "R,LL,P,C,S", "", "", ""),
-                    ("NCAP_VALU", "RYPCSM ", "R,LL,P,C", ",'ANNUAL'", "", ""),
-                    ("IRE_PRICE", "RYPCSRXM ", "R,LL,P,C,S,ALL_R,IE", "", "", ""),
-                    ("COM_BPRICE", "RYCSM ", "R,LL,C,S", "", "", ""),
-                    ("COM_CSTNET", "RYCSM ", "R,LL,C,S", "", "", ""),
-                    ("COM_TAXNET", "RYCSM ", "R,LL,C,S", "", "", ""),
-                    ("COM_SUBNET", "RYCSM ", "R,LL,C,S", "", "", ""),
-                    ("COM_CSTPRD", "RYCSM ", "R,LL,C,S", "", "", ""),
-                    ("COM_TAXPRD", "RYCSM ", "R,LL,C,S", "", "", ""),
-                    ("COM_SUBPRD", "RYCSM ", "R,LL,C,S", "", "", ""),
-                    ("REG_BNDCST", "REG_BNDCST ", "R,LL,COSTAGG", "", ",BD", ""),
-                    ("REG_CUMCST", "REG_CUMCST ", "R,LL,YEAR,COSTAGG", "", ",BD", ""),
-                    ("BL_VAROMC", "BL_VAROMC ", "R,COM", "", "", "1"),
-                    ("BL_DELIVC", "BL_DELIVC ", "R,C,COM", "", "", "1"),
-                    ("ACT_CSTUP", "ACT_CSTUP ", "R,LL,P,TSL", "", "", ""),
-                    ("ACT_CSTSD", "ACT_CSTSD ", "R,LL,P,UPT,BD", "", "", ""),
-                    ("ACT_CSTRMP", "ACT_CSTRMP ", "R,LL,P,BD", "", "", ""),
-                    ("ACT_CSTPL", "RYPM ", "R,LL,P", "", "", ""),
+                batincludes: list[CurexGmsConfig] = [
+                    CurexGmsConfig("NCAP_COST", "RYPM", (r, ll, p)),
+                    CurexGmsConfig("NCAP_ITAX", "RYPM", (r, ll, p)),
+                    CurexGmsConfig("NCAP_ISUB", "RYPM", (r, ll, p)),
+                    CurexGmsConfig("NCAP_DCOST", "RYPM", (r, ll, p)),
+                    CurexGmsConfig("NCAP_DLAGC", "RYPM", (r, ll, p)),
+                    CurexGmsConfig("NCAP_FOM", "RYPM", (r, ll, p)),
+                    CurexGmsConfig("NCAP_FSUB", "RYPM", (r, ll, p)),
+                    CurexGmsConfig("NCAP_FTAX", "RYPM", (r, ll, p)),
+                    CurexGmsConfig("ACT_COST", "RYPM", (r, ll, p)),
+                    CurexGmsConfig("FLO_COST", "RYPCSM", (r, ll, p, c, s)),
+                    CurexGmsConfig("FLO_DELIV", "RYPCSM", (r, ll, p, c, s)),
+                    CurexGmsConfig("FLO_TAX", "RYPCSM", (r, ll, p, c, s)),
+                    CurexGmsConfig("FLO_SUB", "RYPCSM", (r, ll, p, c, s)),
+                    CurexGmsConfig("NCAP_VALU", "RYPCSM", (r, ll, p, c), ("ANNUAL",)),
+                    CurexGmsConfig("IRE_PRICE", "RYPCSRXM", (r, ll, p, c, s, allr, ie)),
+                    CurexGmsConfig("COM_BPRICE", "RYCSM", (r, ll, c, s)),
+                    CurexGmsConfig("COM_CSTNET", "RYCSM", (r, ll, c, s)),
+                    CurexGmsConfig("COM_TAXNET", "RYCSM", (r, ll, c, s)),
+                    CurexGmsConfig("COM_SUBNET", "RYCSM", (r, ll, c, s)),
+                    CurexGmsConfig("COM_CSTPRD", "RYCSM", (r, ll, c, s)),
+                    CurexGmsConfig("COM_TAXPRD", "RYCSM", (r, ll, c, s)),
+                    CurexGmsConfig("COM_SUBPRD", "RYCSM", (r, ll, c, s)),
+                    CurexGmsConfig(
+                        "REG_BNDCST", "REG_BNDCST", (r, ll, costagg), (), (bd,)
+                    ),
+                    CurexGmsConfig(
+                        "REG_CUMCST", "REG_CUMCST", (r, ll, year, costagg), (), (bd,)
+                    ),
+                    CurexGmsConfig(
+                        "BL_VAROMC", "BL_VAROMC", (r, Com), (), (), Number(1)
+                    ),
+                    CurexGmsConfig(
+                        "BL_DELIVC", "BL_DELIVC", (r, c, Com), (), (), Number(1)
+                    ),
+                    CurexGmsConfig("ACT_CSTUP", "ACT_CSTUP", (r, ll, p, tsl)),
+                    CurexGmsConfig("ACT_CSTSD", "ACT_CSTSD", (r, ll, p, upt, bd)),
+                    CurexGmsConfig("ACT_CSTRMP", "ACT_CSTRMP", (r, ll, p, bd)),
+                    CurexGmsConfig("ACT_CSTPL", "RYPM", (r, ll, p)),
                 ]
-                # fmt: on
-                for arg in batincludes:
-                    self.include(
-                        CurexGms(
-                            self.tc,
-                            self.env,
-                            arg1=arg[0],
-                            arg2=arg[1],
-                            arg3=arg[2],
-                            arg4=arg[3],
-                            arg5=arg[4],
-                            arg6=arg[5],
-                        )
-                    )
+                for config in batincludes:
+                    self.include(CurexGms(self.tc, self.env, config))
 
                 if self.tc.defined("TL_CT_COST"):
                     self.include(
                         CurexGms(
                             self.tc,
                             self.env,
-                            arg1="TL_CT_COST",
-                            arg2="RYPM",
-                            arg3="R,LL,P",
+                            CurexGmsConfig(
+                                arg1="TL_CT_COST",
+                                arg2="RYPM",
+                                arg3=(r, ll, p),
+                            ),
                         )
                     )
 
@@ -151,10 +149,12 @@ PARAMETER {self.arg2}({self.arg3},CUR);
                         CurexGms(
                             self.tc,
                             self.env,
-                            arg1="DAM_COST",
-                            arg2="RYCSM",
-                            arg3="R,LL,C",
-                            arg4=",'ANNUAL'",
+                            CurexGmsConfig(
+                                arg1="DAM_COST",
+                                arg2="RYCSM",
+                                arg3=(r, ll, c),
+                                arg4=("ANNUAL",),
+                            ),
                         )
                     )
 
@@ -163,11 +163,12 @@ PARAMETER {self.arg2}({self.arg3},CUR);
                         CurexGms(
                             self.tc,
                             self.env,
-                            arg1="S_DAM_COST",
-                            arg2="S_DAM_COST",
-                            arg3="R,LL,C",
-                            arg4="",
-                            arg5=",J,ALLSOW",
+                            CurexGmsConfig(
+                                arg1="S_DAM_COST",
+                                arg2="S_DAM_COST",
+                                arg3=(r, ll, c),
+                                arg5=(g.j, g.allsow),
+                            ),
                         )
                     )
 
@@ -176,11 +177,12 @@ PARAMETER {self.arg2}({self.arg3},CUR);
                         CurexGms(
                             self.tc,
                             self.env,
-                            arg1="S_COM_TAX",
-                            arg2="S_COM_TAX",
-                            arg3="R,LL,C,S,COM_VAR",
-                            arg4="",
-                            arg5=",J,ALLSOW",
+                            CurexGmsConfig(
+                                arg1="S_COM_TAX",
+                                arg2="S_COM_TAX",
+                                arg3=(r, ll, c, s, g.comvar),
+                                arg5=(g.j, g.allsow),
+                            ),
                         )
                     )
 
@@ -210,26 +212,39 @@ LOOP(RXX(R,CURR,CRU),CURMAP(R,CURR,CRU)=NO; CURMAP(R,CUR,CRU)$CURMAP(R,CUR,CURR)
 """,
         )
 
-    def exec1(
-        self: CurexGms,
-        condition: bool,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-        arg4: str,
-        arg5: str,
-        arg6: str,
-        mx: str,
-    ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-{f"OPTION CLEAR={arg2}; {arg2}({arg3}{arg4},CUR) $= {arg1}({arg3},CUR); OPTION CLEAR={arg1};" if not condition else ""}
-{arg1}({arg3},CUR{arg5}) $= SUM(CURMAP(R,CUR,CURR)${arg2}({arg3}{arg4},CURR{arg5}),{arg2}({arg3}{arg4},CURR{arg5})*POWER(R_CUREX(R,CURR,CUR),{arg6}{mx}));
-{f"{arg1}({arg3},CUR{arg5})$(NOT RDCUR(R,CUR)) = 0;" if condition else ""}
-""",
+    def exec1(self: CurexGms, condition: bool, mx: Any) -> None:
+        g = self.tc
+        cc = self.config
+
+        r, cur, curr = g.r, g.cur, g.curr
+        param_1 = g.get_parameter(name=cc.arg1)
+        param_2 = g.get_parameter(name=cc.arg2)
+
+        if cc.arg6 and mx == ():
+            exponent = cc.arg6
+        elif cc.arg6 is None and not isinstance(mx, tuple):
+            exponent = mx  # type: ignore
+        else:
+            raise NotImplementedError(
+                f"arg6 = {cc.arg6} and mx = {mx}. Cannot generate exponent."
+            )
+
+        if not condition:
+            param_2.setRecords(None)
+            param_2[*cc.arg3, *cc.arg4, cur].where[param_1[*cc.arg3, cur]] = param_1[
+                *cc.arg3, cur
+            ]
+            param_1.setRecords(None)
+
+        sparse_expression = Sum(
+            g.CurMap[r, cur, curr].where[param_2[*cc.arg3, *cc.arg4, curr, *cc.arg5]],
+            param_2[*cc.arg3, *cc.arg4, curr, *cc.arg5]
+            * power(g.r_curex[r, curr, cur], exponent),
         )
+        param_1[*cc.arg3, cur, *cc.arg5].where[sparse_expression] = sparse_expression
+
+        if condition:
+            param_1[*cc.arg3, cur, *cc.arg5].where[~g.Rdcur[r, cur]] = 0
 
     def exec2(self: CurexGms, prf: str) -> None:
         self.tc.add_gams_code(
@@ -243,11 +258,6 @@ OPTION PRO{prf},CLEAR=RYPM,CLEAR=RYPCSM,CLEAR=RYPCSRXM,CLEAR=RYCSM;
     def comp1(self: CurexGms) -> None:
         g = self.tc
         m = g.container
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-SET CURMAP(REG,CUR,CUR);
-""",
-        )
-        Alias(m, "CRU", alias_with=g.cur)
+
+        g.CurMap = Set(m, name="CURMAP", domain=[g.Reg, g.cur, g.cur])
+        g.cru = Alias(m, "CRU", alias_with=g.cur)

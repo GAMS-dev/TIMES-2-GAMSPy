@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -36,6 +36,8 @@ class EquExtCli(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
+        arg1: str = "",
+        arg2: str = "",
     ):
         self.env = env.fork()
         self._sub_modules = {}
@@ -110,6 +112,7 @@ class EquExtCli(GamsClass):
             obj=obj,
             eq=eq,
             var=var,
+            vart=vart,
             vartt=vartt,
             sow=sow,
             cpar=cpar,
@@ -246,6 +249,7 @@ class EquExtCli(GamsClass):
         obj: str,
         eq: str,
         var: str,
+        vart: str,
         vartt: str,
         sow: str,
         sws: str,
@@ -266,7 +270,7 @@ class EquExtCli(GamsClass):
 * Bound on temperature
    SUM(CM_BOXMAP('FORCING',CM_VAR,'ATM')$CM_ATMAP('FORCING',CM_HISTS),
 {"VAR_CLIBOX(CM_VAR,'ATM',T)+(VAR_CLIBOX(CM_VAR,'ATM',TT)-VAR_CLIBOX(CM_VAR,'ATM',T)) * (YEARVAL(T)-YEARVAL(LL))" if stages != "YES" else ""}
-{"(SUM(SW_TSW(W,T,SOW),SW_PROB(W)*{var}_CLIBOX(CM_VAR,'ATM',T,W))/SW_TPROB(T,SOW) * (LEAD(T)+YEARVAL(LL)-YEARVAL(T)) +" if stages == "YES" else ""}
+{f"(SUM(SW_TSW(W,T,SOW),SW_PROB(W)*{var}_CLIBOX(CM_VAR,'ATM',T,W))/SW_TPROB(T,SOW) * (LEAD(T)+YEARVAL(LL)-YEARVAL(T)) +" if stages == "YES" else ""}
 {"SUM(SW_TSW(WW,TT,W)$SW_TSW(SOW,TT,W),SW_PROB(WW)*{var}_CLIBOX(CM_VAR,'ATM',TT,WW)/SW_TPROB(TT,W)) * (YEARVAL(T)-YEARVAL(LL)))" if stages == "YES" else ""}
        / LEAD(T)) +
 * Bound on radiative forcing
@@ -275,7 +279,7 @@ class EquExtCli(GamsClass):
                            (YEARVAL(T)-YEARVAL(LL)) / LEAD(T))) +
 * Bound on global emissions
 
-{"SUM((CM_EMIS(CM_HISTS),TPULSEYR(T,LL)),TPULSE(T,LL)*{vart}_CLITOT(CM_EMIS,T {sws}))" if obj == "LIN" else "SUM((CM_EMIS(CM_HISTS),PERIODYR(T,EOHYEARS(LL))), {vart}_CLITOT(CM_HISTS,T {sws}))"}
+{f"SUM((CM_EMIS(CM_HISTS),TPULSEYR(T,LL)),TPULSE(T,LL)*{vart}_CLITOT(CM_EMIS,T {sws}))" if obj == "LIN" else f"SUM((CM_EMIS(CM_HISTS),PERIODYR(T,EOHYEARS(LL))), {vart}_CLITOT(CM_HISTS,T {sws}))"}
 
 * Bound beyond last Milestone
 + SUM(SUPERYR(T,LL)$(NOT YK(T,LL)),

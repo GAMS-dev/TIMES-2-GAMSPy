@@ -60,12 +60,14 @@ class TimsliceMod(GamsClass):
         self.tc.enqueue(self.exec1)
 
         self.env.set_scoped("mx", "(MIYR_1)")
+        self.env.set_scoped("mx_GP", (g.Miyr1,))
         self.env.set_global("rts", "S")
 
         if (self.env.obmac + self.env.dynts).upper() == "YESYES" and self.tc.defined(
             "TS_OFF"
         ):
             self.env.set_scoped("mx", "")
+            self.env.set_scoped("mx_GP", ())
             self.env.set_global("rts", "S+NORTS(R,T,S)")
 
         self.tc.add_gams_code(module=self, phase="init", code="SET TS_OFF //;")

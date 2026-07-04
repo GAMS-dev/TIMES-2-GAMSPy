@@ -90,8 +90,8 @@ class CoefObjMod(GamsClass):
             self.env.set_scoped("tmp", "2")
             tmp = 2
 
-        if self.tc.defined("R_CUREX"):
-            self.env.set_scoped("take", 1)
+        if self.tc.defined_assigned("R_CUREX"):
+            self.env.set_scoped("take", "1")
             take = 1
 
         self.tc.enqueue(
@@ -189,6 +189,7 @@ class CoefObjMod(GamsClass):
                 self.tc.enqueue(self.exec6)
 
     def declaration1(self: CoefObjMod) -> None:
+        g = self.tc
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -200,6 +201,7 @@ class CoefObjMod(GamsClass):
   SET TS_ANN(S,S);
 """,
         )
+        g.k = self.tc.container["K"]
 
     def declaration2(self: CoefObjMod) -> None:
         self.tc.add_gams_code(

@@ -14,6 +14,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Literal, get_args
 
+from gamspy import Parameter, Set, Sum
+
 from core.base_class import GamsClass
 from core.fillparm_gms import FillparmGms
 from core.prepparm_gms import PrepparmGms, PrepparmGmsConfig
@@ -75,6 +77,7 @@ class PrepretDsc(GamsClass):
 
     def comp_prep(self: PrepretDsc) -> None:
         g = self.tc
+        m = g.container
 
         r, p, lA, v = g.r, g.p, g.lA, g.v
 
@@ -98,14 +101,10 @@ class PrepretDsc(GamsClass):
             self.arg3 = ""
         self.tc.enqueue(self.exec_prep2)
         if self.tc.defined(self.arg2.upper()):
-            self.tc.add_gams_code(
-                module=self,
-                phase="init",
-                code=r"""
-* Declarations
-  SET VNRET(YEAR,LL); PARAMETER RP_RTF(R,P);
-""",
-            )
+            # Declarations
+            g.Vnret = Set(m, name="VNRET", domain=[g.year, g.ll])
+            g.rp_rtf = Parameter(m, name="RP_RTF", domain=[g.r, g.p])
+
             # Interpolate RCAP_BND
             if self.env.tst == self.arg1:
                 self.tc.enqueue(self.exec_prep3, tst=self.env.tst, arg2=self.arg2)
@@ -256,6 +255,12 @@ class PrepretDsc(GamsClass):
         )
 
     def comp_eqobj(self: PrepretDsc) -> None:
+        g = self.tc
+        r, t, p, Modlyear = g.r, g.t, g.p, g.Modlyear
+
+        sws = self.env.sws_GP
+        vart_scap = g.get_variable(name=f"{self.env.vart}_SCAP")
+
         self.env.set_global(
             "rcapsub",
             rf"-SUM(VNRET(V,T),{self.env.vart}_SCAP(R,V,T,P{self.env.sws}))$PRC_RCAP(R,P)",
@@ -264,6 +269,13 @@ class PrepretDsc(GamsClass):
             "rcapsbm",
             rf"-SUM(VNRET(MODLYEAR,T),{self.env.vart}_SCAP(R,MODLYEAR,T,P{self.env.sws}))$PRC_RCAP(R,P)",
         )
+        self.env.set_global(
+            "rcapsbm_GP",
+            -Sum(g.Vnret[Modlyear, t], vart_scap[r, Modlyear, t, p, *sws]).where[
+                g.PrcRcap[r, p]
+            ],
+        )
+
         self.tc.add_gams_code(
             module=self,
             phase="init",

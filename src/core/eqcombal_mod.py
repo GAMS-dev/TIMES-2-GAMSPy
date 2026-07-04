@@ -63,10 +63,9 @@ class EqcombalMod(GamsClass):
 
     def compile(self) -> None:
         if self.arg4 == "BAL" and self.env.stages.upper() == "YES":
-            self.env.set_local(
-                "sws",
-                "PROD(SW_MAP(T,SOW,J,WW)$S_COM_PROJ(R,T,C,J,WW),S_COM_PROJ(R,T,C,J,WW))*",
-            )
+            sws_local = "PROD(SW_MAP(T,SOW,J,WW)$S_COM_PROJ(R,T,C,J,WW),S_COM_PROJ(R,T,C,J,WW))*"
+        else:
+            sws_local = self.env.sws
 
         self.define_equation(
             arg2=self.arg2,
@@ -78,7 +77,7 @@ class EqcombalMod(GamsClass):
             swt=self.env.swt,
             var=self.env.var,
             sow=self.env.sow,
-            sws=self.env.sws,
+            sws_local=sws_local,
             mx=self.env.mx,
             condition1=self.arg4 == "BAL",
             condition2=self.arg4 == "PRD",
@@ -97,7 +96,7 @@ class EqcombalMod(GamsClass):
         swt: str,
         var: str,
         sow: str,
-        sws: str,
+        sws_local: str,
         mx: str,
         condition1: bool,
         condition2: bool,
@@ -296,7 +295,7 @@ class EqcombalMod(GamsClass):
 {f"{var}_COMNET(R,T,C,S {sow})$RHS_COMBAL(R,T,C,S) +" if condition4 else ""}
 
 *    demand projection
-      (({sws} COM_PROJ(R,T,C)$(NOT RD_NLP(R,C)) +{var}_DEM(R,T,C{sow})$RD_NLP(R,C) +SUM(MI_DMAS(RD_AGG(R,COM),C),RD_SHAR(R,T,COM,C)*{var}_COMPRD(R,T,COM,'ANNUAL'{sow}))) * COM_FR{mx}(R,T,C,S))$DEM(R,C)
+      (({sws_local} COM_PROJ(R,T,C)$(NOT RD_NLP(R,C)) +{var}_DEM(R,T,C{sow})$RD_NLP(R,C) +SUM(MI_DMAS(RD_AGG(R,COM),C),RD_SHAR(R,T,COM,C)*{var}_COMPRD(R,T,COM,'ANNUAL'{sow}))) * COM_FR{mx}(R,T,C,S))$DEM(R,C)
 
 '''
                 )

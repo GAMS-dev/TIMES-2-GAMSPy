@@ -13,9 +13,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.pp_lvlfc_mod import pp_lvlfc_mod
+from gamspy import Sum
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
+from core.pp_lvlfc_mod import pp_lvlfc_mod
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -44,7 +45,12 @@ class EqactupsVda(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        r, v, p, k, t = g.r, g.v, g.p, g.k, g.t
         self.tc.enqueue(self.set_indicators, pgprim=self.env.pgprim)
+
+        varm_ncap = g.get_variable(name=f"{self.env.varm}_NCAP")
+        sws = self.env.sws_GP
 
         self.env.set_scoped(
             "capon",
@@ -53,6 +59,19 @@ class EqactupsVda(GamsClass):
         self.env.set_scoped(
             "mx",
             f"SUM(RVP_KMAP(R,V,P,MODLYEAR(K)),COEF_VNT(R,T,P,K)*({self.env.varm}_NCAP(R,K,P{self.env.sws})$T(K)+NCAP_PASTI(R,K,P){self.env.rcapsbm}))",
+        )
+        rcapsbm = 0 if self.env.rcapsbm_GP == "" else self.env.rcapsbm_GP
+        self.env.set_scoped(
+            "mx_GP",
+            Sum(
+                g.RvpKmap[r, v, p, g.Modlyear[k]],
+                g.coef_vnt[r, t, p, k]
+                * (
+                    varm_ncap[r, k, p, *sws].where[t[k]]
+                    + g.ncap_pasti[r, k, p]
+                    + rcapsbm
+                ),
+            ),
         )
         self.env.set_scoped(
             "tmp",

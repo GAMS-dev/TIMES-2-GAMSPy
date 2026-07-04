@@ -72,6 +72,7 @@ class PpmExtVda(GamsClass):
 
         self.tc.add_gams_code(module=self, phase="init", code="SET RPG_AFCX(R,P,C,IE);")
 
+        self.tc.register_assignment(self.tc.RpsCaflac)
         self.tc.enqueue(self.prep_commodity_factors, pgprim=self.env.pgprim)
 
         self.include(EqucrtpVda(self.tc, self.env, arg1="PPM_EXT"))

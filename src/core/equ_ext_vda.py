@@ -113,14 +113,7 @@ class EquExtVda(GamsClass):
         ]
         # fmt: on
         for arg1, arg2 in eqashar_batinclude:
-            self.include(
-                EqasharVda(
-                    self.tc,
-                    self.env,
-                    arg1=arg1,
-                    arg2=arg2,
-                )
-            )
+            self.include(EqasharVda(self.tc, self.env, arg1=arg1, arg2=arg2))
 
         # * UCBET equations
         if self.tc.defined("UC_FLOBET"):

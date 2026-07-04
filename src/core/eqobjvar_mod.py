@@ -17,11 +17,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Number
+
+from core.base_class import GamsClass
 from core.cal_caps_mod import cal_caps_mod
 from core.cal_nored_red import cal_nored_red
 from core.cal_red_red import cal_red_red
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -54,6 +55,8 @@ class EqobjvarMod(GamsClass):
     def compile(self) -> None:
         g = self.tc
 
+        r, v, p, c = g.r, g.v, g.p, g.c
+
         self.env.set_scoped("tpulse", "PERIODYR(T,Y_EOH),OBJ_DISC(R,Y_EOH,CUR)")
         if self.env.obj.upper() == "ALT":
             self.env.set_scoped(
@@ -78,6 +81,8 @@ class EqobjvarMod(GamsClass):
             self.env.set_scoped("sow_GP", (g.ww,))
         if self.tc.defined("RTP_FFCS"):
             self.env.set_scoped("mx", f"*(1+RTP_FFCS(R,V,P,C,C{self.env.sow}))")
+            sow = self.env.sow_GP
+            self.env.set_scoped("mx_GP", Number(1) + g.rtp_ffcs[r, v, p, c, c, *sow])
         if self.env.stages == "YES":
             self.env.set_scoped("sowtmpend", ",SOW")
         else:

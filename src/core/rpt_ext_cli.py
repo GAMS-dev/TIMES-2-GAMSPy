@@ -40,6 +40,8 @@ class RptExtCli(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
+        arg1: str = "",
+        arg2: str = "",
     ):
         self.env = env.fork()
         self._sub_modules = {}
@@ -77,6 +79,9 @@ POSITIVE VARIABLES
             self.env.set_scoped("swsw", "SW_T(T,WW),")
             self.env.set_scoped("scum", "*SW_TPROB(T,WW)")
 
+        self.add_records_to_universe_item(
+            ["FORC+CO2", "FORC+TOT", "DELTA+ATM", "DELTA+LO"]
+        )
         self.tc.enqueue(
             self.exec_loop,
             self.env.stages,

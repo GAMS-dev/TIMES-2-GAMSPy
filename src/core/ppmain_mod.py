@@ -1324,7 +1324,7 @@ OPTION CLEAR=TRACKP;
 
 *-----------------------------------------------------------------------------
 * Add leading milestones into RTP if/when simulated vintages
-{"PRC_SIMV LOOP(T,NO_RVP(R,TT-1,P)$(RTP_CPTYR(R,TT,T,P)$PRC_SIMV(R,P))=YES); NO_RVP(RTP(R,T,P))=NO; RTP(NO_RVP)=YES;" if prc_simv_defined else ""}
+{"LOOP(T,NO_RVP(R,TT-1,P)$(RTP_CPTYR(R,TT,T,P)$PRC_SIMV(R,P))=YES); NO_RVP(RTP(R,T,P))=NO; RTP(NO_RVP)=YES;" if prc_simv_defined else ""}
 *-----------------------------------------------------------------------------
 * Remove commodity from PG if PRC_ACTFLO flagged non-interpolated, as bad
    RPC_PG(R,P,C)$((NOT RP_PG(R,P,C))$(ROUND(PRC_ACTFLO(R,'0',P,C)<0))) = NO;

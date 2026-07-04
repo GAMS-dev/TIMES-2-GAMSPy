@@ -81,8 +81,10 @@ $LOAD sol_bprice
         # $IFI %MACRO%==MLF $SET MX SET MACRO 'Yes'
         if self.env.macro.upper() == "MLF":
             self.env.set_scoped("mx", "SET MACRO 'Yes'")
+            raise NotImplementedError("mx_GP not implemented")
 
         self.env.set_global("mx", f"{self.env.mx} SET TIMESED 'YES'")
+        raise NotImplementedError("mx_GP not implemented")
 
         if self.tc.defined("DAM_ELAST"):
             self.tc.add_gams_code(

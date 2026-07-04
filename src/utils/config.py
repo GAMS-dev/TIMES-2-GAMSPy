@@ -2,7 +2,8 @@
 from pathlib import Path
 from typing import Literal
 
-from gamspy import Alias, Number, Set
+from gamspy import Alias, Expression, Number, Set, Sum
+from gamspy._algebra.condition import Condition
 from gamspy._symbols.implicits import ImplicitSet
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -208,6 +209,16 @@ class EnvironmentVariableSchema(BaseModel):
     mx: str = Field(
         description="Macro tracking name string identifier mapping specialized model equations."
     )
+    mx_GP: (
+        Sum
+        | Expression
+        | Condition
+        | tuple[Set | Alias | str | None, ...]
+        | tuple[()]
+        | str
+    ) = Field(
+        description="Macro tracking name string identifier mapping specialized model equations."
+    )
     path: str = Field(
         description="Absolute system directory path targeting core operational include subroutines."
     )
@@ -352,6 +363,9 @@ class EnvironmentVariableSchema(BaseModel):
     sws: str = Field(
         description="Scenario switch tracking token handling multi-stage matrix settings."
     )
+    sws_GP: tuple[Set | Alias, ...] | tuple[()] = Field(
+        description="Scenario switch tracking token handling multi-stage matrix settings."
+    )
     swstmp: str = Field(
         description="Temporary matrix scenario tracker state parameter."
     )
@@ -479,6 +493,9 @@ class EnvironmentVariableSchema(BaseModel):
     rcapsbm: str = Field(
         description="Capacity allocation sub-region optimization model variables."
     )
+    rcapsbm_GP: Condition | Literal["", "1"] = Field(
+        description="Capacity allocation sub-region optimization model variables."
+    )
     swx: str = Field(
         description="Primary structural execution switch template mapping parameters."
     )
@@ -539,11 +556,16 @@ class EnvironmentVariableSchema(BaseModel):
         description="GAMS control variable used to pass the scenario reference path for loadpoint features."
     )
 
+    swo: str
+    send: str
+    swts: str
+    cpar: str
     powerflo: str
     pdtol: str
     bigm: str
     gg_wn: str
     ireauxbal: str
+    trivint: str
 
 
 class UserConfig(BaseModel):
