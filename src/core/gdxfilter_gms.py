@@ -53,6 +53,7 @@ class GdxfilterGms(GamsClass):
     def main(self) -> None:
         self.env.set_scoped("tmp", "'")
         self.env.set_scoped("mx", "")
+        self.env.set_scoped("mx_GP", ())
         if platform.system().upper().startswith("WIN"):
             self.env.set_scoped("tmp", '"')
 

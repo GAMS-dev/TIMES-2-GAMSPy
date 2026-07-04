@@ -1345,6 +1345,7 @@ class SetglobsGms(GamsClass):
         shff = self.x1
         self.env.set_global("rcapsub", self.x1)
         self.env.set_global("rcapsbm", self.x1)
+        self.env.set_global("rcapsbm_GP", self.x1)
         rcapsub = self.env.rcapsub
         rcapsbm = self.env.rcapsbm
         if f"{shff}{rcapsub}{rcapsbm}" != f"{self.x1}{self.x1}{self.x1}":
@@ -1352,6 +1353,8 @@ class SetglobsGms(GamsClass):
 
         # Additional tags for stochastic
         self.env.set_global("mx", self.x1)
+        mx = () if self.x1 == "" else ("1",)
+        self.env.set_global("mx_GP", mx)
         self.env.set_global("scum", self.x1)
         self.env.set_global("sw_stvars", self.x1)
         mx = self.env.mx

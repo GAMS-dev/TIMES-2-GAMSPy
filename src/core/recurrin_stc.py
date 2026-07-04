@@ -69,6 +69,7 @@ class RecurrinStc(GamsClass):  # FilenameExt
                     self.env.set_scoped("sw1", "SUM")
                     self.env.set_scoped("sw2", "SOW,")
                 self.env.set_global("mx", "MX")
+                self.env.set_global("mx_GP", "MX")
                 self.tc.add_gams_code(module=self, phase="init", code=r"$macro MX")
                 if not self.tc.defined("S_NCAP_AFS"):
                     self.tc.add_gams_code(

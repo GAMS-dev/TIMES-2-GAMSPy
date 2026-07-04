@@ -122,8 +122,9 @@ class MainDrvMod(GamsClass):
         if self.env.timesed.upper() != "NO" and self.env.timesed != "0":
             self.include(ReadbpriceMod(tc=self.tc, env=self.env))
 
-        # TODO: $   %MX% SETGLOBAL MX --> How to handle %MX% here?
+        # TODO: $   %MX% SETGLOBAL MX --> How to handle %MX% here? Double check
         self.env.set_global("mx", "")
+        self.env.set_global("mx_GP", ())
 
         if self.env.macro.upper() == "YES":
             self.env.set_scoped("model_name", "TIMES_MACRO")

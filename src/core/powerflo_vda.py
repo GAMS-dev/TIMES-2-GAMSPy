@@ -59,6 +59,10 @@ class PowerfloVda(GamsClass):
         g = self.tc
 
         self.env.set_scoped("mx", f"{self.arg3}")
+        if self.arg3 == "":
+            self.env.set_scoped("mx_GP", ())
+        else:
+            raise ValueError("Double check MX variable. Not implemented")
         self.env.set_scoped("pdtol", "1E-5")
         self.env.set_scoped("bigm", "10")
 

@@ -39,6 +39,7 @@ class CoefExtCli(GamsClass):
         tc: TimesModelClass,
         env: CompileEnvironment,
         arg1: str = "",
+        arg2: str = "",
     ):
         self.env = env.fork()
         self._sub_modules = {}
@@ -102,13 +103,9 @@ class CoefExtCli(GamsClass):
         if self.tc.defined("DAM_COST"):
             self.tc.enqueue(self.exec7)
 
-        self.tc.enqueue(self.exec8)
+        self.tc.enqueue(self.exec8, stages=self.env.stages.upper() == "YES")
 
-        if self.env.stages.upper() == "YES":
-            self.tc.enqueue(self.exec9)
-
-        self.tc.enqueue(self.exec10)
-
+        # * Interpolate BEMI and BEOH over FIL (mucks-up F, Z, MY_F, MY_FYEAR, FIRST_VAL, LAST_VAL)
         self.include(
             FilparamGms(
                 self.tc,
@@ -129,8 +126,8 @@ class CoefExtCli(GamsClass):
                 self.tc,
                 self.env,
                 config=FilparamGmsConfig(
-                    src=g.cm_bemi,
-                    arg2=(g.cm_evar,),
+                    src=g.cm_evar,
+                    arg2=(g.CmEmis,),
                     tail1=(),
                     arg4=("", "", "", "", ""),
                     arg5=g.ll,
@@ -139,8 +136,7 @@ class CoefExtCli(GamsClass):
             )
         )
 
-        forcing_in_cm_kind = "FORCING" in g.CmKind.toList()
-        self.tc.enqueue(self.exec11, forcing=forcing_in_cm_kind, stages=self.env.stages)
+        self.tc.enqueue(self.exec11, stages=self.env.stages)
 
         self.tc.enqueue(self.exec12)
 
@@ -160,7 +156,7 @@ class CoefExtCli(GamsClass):
                 src=g.cm_maxco2c,
                 arg2=(),
                 tail1=(),
-                arg4=("", "", "", "", ""),
+                arg4=("", "", "", "", "", ""),
                 arg5=g.ll,
                 arg6=g.t,
                 arg9=-1,
@@ -169,7 +165,7 @@ class CoefExtCli(GamsClass):
                 src=g.cm_maxc,
                 arg2=(),
                 tail1=(g.cg,),
-                arg4=("", "", "", "", ""),
+                arg4=("", "", "", "", "", ""),
                 arg5=g.ll,
                 arg6=g.Fil,
                 arg9=-1,
@@ -178,7 +174,7 @@ class CoefExtCli(GamsClass):
                 src=g.cm_exoforc,
                 arg2=(),
                 tail1=(),
-                arg4=("", "", "", "", ""),
+                arg4=("", "", "", "", "", ""),
                 arg5=g.ll,
                 arg6=g.MyFil,
             ),
@@ -380,11 +376,11 @@ DAM_COST CM_KIND('FORCING')$SUM(R$(DAM_BQTY(R,'FORCING')+DAM_BQTY(R,'DELTA-ATM')
 """,
         )
 
-    def exec8(self: CoefExtCli) -> None:
+    def exec8(self: CoefExtCli, stages: bool) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
+            code=rf"""
 *-----------------------------------------------------------------------------
 * Establish set of years beyond EOH
 * Set extended EOH (EXT-EOH) year into FIL; -1 deactivates EOH extension
@@ -393,23 +389,7 @@ DAM_COST CM_KIND('FORCING')$SUM(R$(DAM_BQTY(R,'FORCING')+DAM_BQTY(R,'DELTA-ATM')
     LOOP(MIYR_1(LL), F = FIRST_VAL-YEARVAL(LL); FIL(LL+F) = YES);
     CM_BEMI(CM_EMIS,FIL) = EPS; CM_EVAR(CM_EMIS,FIL) = 1;
 * Set all MAXC year beyond EOH into FIL
-""",
-        )
-
-    def exec9(self: CoefExtCli) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-OPTION CM_MAXC_M < S_CM_MAXC;
-""",
-        )
-
-    def exec10(self: CoefExtCli) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
+{"OPTION CM_MAXC_M < S_CM_MAXC;" if stages else ""}
     F = SMAX(T(LL),ORD(LL)); CM_MAXC_M(CM_VAR,LL)$CM_MAXC(LL,CM_VAR)=EPS;
     LOOP((LL,CM_VAR(CG))$((ORD(LL) GT F)$CM_MAXC_M(CG,LL)),
       IF((YEARVAL(LL) GT FIRST_VAL OR NOT(CM_EMIS(CM_VAR)))$YEARVAL(LL), YR_VL = ORD(LL); FIL(LL) = YES));
@@ -428,13 +408,17 @@ OPTION CM_MAXC_M < S_CM_MAXC;
   LOOP(FIL(LL), Z = ORD(LL); CM_LED(LL) = Z-F; F = Z);
   CM_LED(T) = LEAD(T); CM_LED(MIYR_1) = CM_CALIB;
   PRET(T,T-1)=YES;
-* Interpolate BEMI and BEOH over FIL (mucks-up F, Z, MY_F, MY_FYEAR, FIRST_VAL, LAST_VAL)
-
 """,
         )
 
-    def exec11(self: CoefExtCli, forcing: bool, stages: str) -> None:
-        if forcing:
+    def exec11(self: CoefExtCli, stages: str) -> None:
+        g = self.tc
+
+        g.cm_evar[g.CmEmis, g.t] = 1
+
+        # -----------------------------------------------------------------------------
+
+        if "FORCING" in g.CmKind.toList():
             self.tc.add_gams_code(
                 module=self,
                 phase="run",
@@ -467,25 +451,25 @@ OPTION CM_MAXC_M < S_CM_MAXC;
                 module=self,
                 phase="run",
                 code=rf"""
-    {"CM_SIG1(SOW)=S_CM_CONST('SIGMA1','1',SOW);" if stages.upper() == "YES" else ""}
-    {"CM_SIG(SOW,'ATM','ATM') = 1-CM_SIG1(SOW)*(CM_CONST('GAMMA')/S_CM_CONST('CS','1',SOW)+CM_CONST('SIGMA2'));" if stages.upper() == "YES" else ""}
-    {"CM_SIG('1','ATM','ATM') = 1-CM_SIG1('1')*(CM_CONST('LAMBDA')+CM_CONST('SIGMA2'));" if stages.upper() != "YES" else ""}
-    CM_SIG(SOW,'ATM','LO') = CM_SIG1(SOW)*CM_CONST('SIGMA2');
-    CM_SIG(SOW,'LO','ATM') = CM_CONST('SIGMA3');
-    CM_SIG(SOW,'LO','LO') = 1-CM_CONST('SIGMA3');
-    CM_PHI('FORCING','ATM','FORCING') = 1;
-    * Intialize CM_AA to the identity matrix, CM_BB to zero
-    CM_AA('FORCING',LL,SOW,CM_BUCK,CM_BOX)$CM_LED(LL) = DIAG(CM_BUCK,CM_BOX);
-    CM_BB('FORCING',LL,SOW,CM_BUCK)$CM_LED(LL) = 0; CNT=0;
-    * Assume linear evolution of forcing between milestone years
-    LOOP((CM_VAR('FORCING'),LL)$CM_LED(LL),
-    IF(CNT, CNT=1; Z = CM_LED(LL); ELSE CNT=EPS; Z=CM_CALIB);
-        FOR(F = 0 TO Z-1, MY_F = F/Z*CNT;
-        CM_BB(CM_VAR,LL,SOW,CM_BOX) = CM_BB(CM_VAR,LL,SOW,CM_BOX) + CM_SIG1(SOW)*(1-MY_F)*CM_AA(CM_VAR,LL,SOW,CM_BOX,'ATM');
-        CM_CC(CM_VAR,LL,SOW,CM_BOX) = CM_CC(CM_VAR,LL,SOW,CM_BOX) + CM_SIG1(SOW)*   MY_F *CM_AA(CM_VAR,LL,SOW,CM_BOX,'ATM');
-        CM_AA(CM_VAR,LL,SOW,CM_BUCK,CM_BOX) = SUM(CM_Q$CM_BOX(CM_Q),CM_AA(CM_VAR,LL,SOW,CM_BUCK,CM_Q)*CM_SIG(SOW,CM_Q,CM_BOX));
-    ));
-    """,
+{"CM_SIG1(SOW)=S_CM_CONST('SIGMA1','1',SOW);" if stages.upper() == "YES" else ""}
+{"CM_SIG(SOW,'ATM','ATM') = 1-CM_SIG1(SOW)*(CM_CONST('GAMMA')/S_CM_CONST('CS','1',SOW)+CM_CONST('SIGMA2'));" if stages.upper() == "YES" else ""}
+{"CM_SIG('1','ATM','ATM') = 1-CM_SIG1('1')*(CM_CONST('LAMBDA')+CM_CONST('SIGMA2'));" if stages.upper() != "YES" else ""}
+CM_SIG(SOW,'ATM','LO') = CM_SIG1(SOW)*CM_CONST('SIGMA2');
+CM_SIG(SOW,'LO','ATM') = CM_CONST('SIGMA3');
+CM_SIG(SOW,'LO','LO') = 1-CM_CONST('SIGMA3');
+CM_PHI('FORCING','ATM','FORCING') = 1;
+* Intialize CM_AA to the identity matrix, CM_BB to zero
+CM_AA('FORCING',LL,SOW,CM_BUCK,CM_BOX)$CM_LED(LL) = DIAG(CM_BUCK,CM_BOX);
+CM_BB('FORCING',LL,SOW,CM_BUCK)$CM_LED(LL) = 0; CNT=0;
+* Assume linear evolution of forcing between milestone years
+LOOP((CM_VAR('FORCING'),LL)$CM_LED(LL),
+IF(CNT, CNT=1; Z = CM_LED(LL); ELSE CNT=EPS; Z=CM_CALIB);
+    FOR(F = 0 TO Z-1, MY_F = F/Z*CNT;
+    CM_BB(CM_VAR,LL,SOW,CM_BOX) = CM_BB(CM_VAR,LL,SOW,CM_BOX) + CM_SIG1(SOW)*(1-MY_F)*CM_AA(CM_VAR,LL,SOW,CM_BOX,'ATM');
+    CM_CC(CM_VAR,LL,SOW,CM_BOX) = CM_CC(CM_VAR,LL,SOW,CM_BOX) + CM_SIG1(SOW)*   MY_F *CM_AA(CM_VAR,LL,SOW,CM_BOX,'ATM');
+    CM_AA(CM_VAR,LL,SOW,CM_BUCK,CM_BOX) = SUM(CM_Q$CM_BOX(CM_Q),CM_AA(CM_VAR,LL,SOW,CM_BUCK,CM_Q)*CM_SIG(SOW,CM_Q,CM_BOX));
+));
+""",
             )
 
     def exec12(self: CoefExtCli) -> None:

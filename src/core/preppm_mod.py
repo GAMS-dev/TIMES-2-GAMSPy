@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 from gamspy import Set
 
 from core.base_class import GamsClass
-from core.curex_gms import CurexGms
+from core.curex_gms import CurexGms, CurexGmsConfig
 from core.fillparm_gms import FillparmGms
 from core.fillvint_gms import FillvintGms
 from core.filparam_gms import FilparamGms, FilparamGmsConfig
@@ -83,10 +83,11 @@ class PreppmMod(GamsClass):
         self.tc.enqueue(self.exec1, dflbl=self.env.dflbl)
 
         if self.tc.defined("G_CUREX"):
+            self.tc.register_assignment(g.r_curex)
             self.tc.enqueue(self.exec2)
 
-        if self.tc.defined("R_CUREX"):
-            self.include(CurexGms(self.tc, self.env))
+        if self.tc.defined_assigned("R_CUREX"):
+            self.include(CurexGms(self.tc, self.env, CurexGmsConfig()))
 
         self.tc.enqueue(self.exec3)
 

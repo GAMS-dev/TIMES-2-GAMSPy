@@ -86,6 +86,7 @@ class InitmtyVda(GamsClass):
 
         # Commodity-dependent availabilities:
         self.env.set_scoped("mx", ",SEASON, WEEKLY, DAYNITE")
+        self.env.set_scoped("mx_GP", ("SEASON", "WEEKLY", "DAYNITE"))
         mx = ["SEASON", "WEEKLY", "DAYNITE"]
 
         stl_records = g.s.toList() + mx

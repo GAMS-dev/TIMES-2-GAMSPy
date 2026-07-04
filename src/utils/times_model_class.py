@@ -882,6 +882,7 @@ class TimesModelClass:
     obj_wd: Parameter = None  # type: ignore[assignment] # [Reg,cur,allyear,age,allyear] OBJ_WD:
     obj_jd: Parameter = None  # type: ignore[assignment] # [Reg,cur,allyear,age] OBJ_JD:
     rtp_ffcx: Parameter = None  # type: ignore[assignment] # [Reg,allyear,allyear,prc,cg,cg] RTP_FFCX:
+    rtp_ffcs: Parameter = None  # type: ignore[assignment] # [R,ALLYEAR,P,CG,CG %SWD%] RTP_FFCS:
     Agej: Set = None  # type: ignore[assignment] # [j,age] AGEJ:
     vda_disc: Parameter = None  # type: ignore[assignment] # [r,allyear] VDA_DISC:
     dp_non: Parameter = None  # type: ignore[assignment] # [r,ll,p,upt,tsl,bd] DP_NON: Bounds on non-operational time between shut-down and next start-up
@@ -1387,9 +1388,15 @@ class TimesModelClass:
     gg_mm: Parameter = None  # type: ignore[assignment] # GG_MM
     gg_ppm: Parameter = None  # type: ignore[assignment] # GG_PPM
     gg_ppw: Parameter = None  # type: ignore[assignment] # GG_PPW
-
+    cru: Alias = None  # type: ignore[assignment] #
     SwTsw: Set = None  # type: ignore[assignment] # [ALLSOW,ALLYEAR,ALLSOW] SW_TSW Mapping from finest SOWs to unique SOW at each period
     sw_tprob: Parameter = None  # type: ignore[assignment] # [T,ALLSOW] SW_TPROB
+    rypm: Parameter = None  # type: ignore[assignment] #
+    rycsm: Parameter = None  # type: ignore[assignment] #
+    rypcsm: Parameter = None  # type: ignore[assignment] #
+    rypcsrxm: Parameter = None  # type: ignore[assignment] #
+    Vnret: Set = None  # type: ignore[assignment] # VNRET
+    rp_rtf: Parameter = None  # type: ignore[assignment] # RP_RTF
     # endregion
 
     def __post_init__(self) -> None:

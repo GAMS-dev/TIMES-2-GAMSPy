@@ -54,7 +54,7 @@ class EqcapactMod(GamsClass):
 
     def compile(self) -> None:
         self.env.set_local("pass", "")
-        if self.tc.defined("RPS_CAFLAC"):
+        if self.tc.defined_assigned("RPS_CAFLAC"):
             self.env.set_local(
                 "pass",
                 f"{self.env.__getattr__('pass')}*(NOT RPS_CAFLAC(R,P,S,'{self.arg2}'))",
