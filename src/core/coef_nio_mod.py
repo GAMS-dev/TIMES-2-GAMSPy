@@ -17,8 +17,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Else, For, If, Loop, Number  # noqa: F401
-from gamspy.math import Max, Min, abs, ceil  # noqa: F401
+from gamspy import Else, For, If, Loop, Number
+from gamspy.math import Max, Min, abs, ceil
 
 from core.base_class import GamsClass
 
@@ -50,62 +50,38 @@ class CoefNioMod(GamsClass):
 
     def commodity_flows_tied_to_new_capacity(self: CoefNioMod) -> None:
         g = self.tc
-        r, v, p, c, t = g.r, g.v, g.p, g.c, g.t  # noqa: F841
+        r, v, p, c, t = g.r, g.v, g.p, g.c, g.t
 
         # V0.5b 980828 re-adjust v,t handling to capture enclosed periods & condition to handle period of length 1
         g.RpcCapflo[r, v, p, c].where[~g.Rtp[r, v, p]] = 0
         g.Fil[v] = g.yearval[v] >= g.miyr_v1
 
-        code = r"""
-*V05c 980923 - use the capacity flow control set
-     LOOP(RPC_CAPFLO(R,FIL(V),P,C)$NCAP_ICOM(R,V,P,C),
-       DFUNC = COEF_RPTI(R,V,P);
-       MY_F = NCAP_ILED(R,V,P);
-       F = COEF_ILED(R,V,P);
-       CNT = ABS(NCAP_CLED(R,V,P,C));
-       Z = B(V)+MAX(1$(CNT$MY_F=0),MY_F);
-       F = Z-MAX(1,MIN(CNT,F));
-       IF(DFUNC GT 1,
-** repeated investment
-          COEF_ICOM(R,T(V),T,P,C) = (DFUNC * NCAP_ICOM(R,V,P,C) / FPD(T))
-       ELSE
-         LOOP(T$((E(T) >= F) * (B(T) < Z)),
-          COEF_ICOM(R,V,T,P,C) =
-** some part of consumption in T
-**V0.5 980718 - beginning of commodity flow is NCAP_ILED - NCAP_CLED!
-            MAX(0,((MIN(Z-1,E(T))-MAX(F,B(T)) + 1) / FPD(T))) * NCAP_ICOM(R,V,P,C) / (Z-F)
-       );
-      );
-     );
-"""
-        g.add_gams_code(module=self, phase="run", code=code)
-
         # V05c 980923 - use the capacity flow control set
-        # with Loop(g.RpcCapflo[r, g.Fil[v], p, c].where[g.ncap_icom[r, v, p, c]]):
-        #     g.dfunc[...] = g.coef_rpti[r, v, p]
-        #     g.my_f[...] = g.ncap_iled[r, v, p]
-        #     g.f[...] = g.coef_iled[r, v, p]
-        #     g.cnt[...] = abs(g.ncap_cled[r, v, p, c])
-        #     g.z[...] = g.b[v] + Max(Number(1).where[g.cnt.where[g.my_f == 0]], g.my_f)
-        #     g.f[...] = g.z - Max(1, Min(g.cnt, g.f))
+        with Loop(g.RpcCapflo[r, g.Fil[v], p, c].where[g.ncap_icom[r, v, p, c]]):
+            g.dfunc[...] = g.coef_rpti[r, v, p]
+            g.my_f[...] = g.ncap_iled[r, v, p]
+            g.f[...] = g.coef_iled[r, v, p]
+            g.cnt[...] = abs(g.ncap_cled[r, v, p, c])
+            g.z[...] = g.b[v] + Max(Number(1).where[g.cnt.where[g.my_f] == 0], g.my_f)
+            g.f[...] = g.z - Max(1, Min(g.cnt, g.f))
 
-        #     with If(g.dfunc > 1):
-        #         # repeated investment
-        #         g.coef_icom[r, t[v], t, p, c] = (
-        #             g.dfunc * g.ncap_icom[r, v, p, c] / g.fpd[t]
-        #         )
-        #     with Else():
-        #         with Loop(t.where[(g.e[t] >= g.f) * (g.b[t] < g.z)]):
-        #             g.coef_icom[r, v, t, p, c] = (
-        #                 # some part of consumption in T
-        #                 # V0.5 980718 - beginning of commodity flow is NCAP_ILED - NCAP_CLED!
-        #                 Max(
-        #                     0,
-        #                     ((Min(g.z - 1, g.e[t]) - Max(g.f, g.b[t]) + 1) / g.fpd[t]),
-        #                 )
-        #                 * g.ncap_icom[r, v, p, c]
-        #                 / (g.z - g.f)
-        #             )
+            with If(g.dfunc > 1):
+                # repeated investment
+                g.coef_icom[r, t[v], t, p, c] = (
+                    g.dfunc * g.ncap_icom[r, v, p, c] / g.fpd[t]
+                )
+            with Else():  # noqa: SIM117
+                with Loop(t.where[(g.e[t] >= g.f) * (g.b[t] < g.z)]):
+                    g.coef_icom[r, v, t, p, c] = (
+                        # some part of consumption in T
+                        # V0.5 980718 - beginning of commodity flow is NCAP_ILED - NCAP_CLED!
+                        Max(
+                            0,
+                            ((Min(g.z - 1, g.e[t]) - Max(g.f, g.b[t]) + 1) / g.fpd[t]),
+                        )
+                        * g.ncap_icom[r, v, p, c]
+                        / (g.z - g.f)
+                    )
 
     def commodity_flows_tied_to_decommissioning_of_capacity(self: CoefNioMod) -> None:
         g = self.tc
