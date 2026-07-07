@@ -169,7 +169,29 @@ class EquExtVda(GamsClass):
         g = self.tc
         m = g.container
 
-        r, ll, t, p, tsl, s, la, allsow, upt, bd = (
+        (
+            r,
+            ll,
+            t,
+            p,
+            tsl,
+            s,
+            la,
+            allsow,
+            upt,
+            bd,
+            allyear,
+            cg,
+            io,
+            comgrp,
+            ucn,
+            ucgrptype,
+            comvar,
+            c,
+            ts,
+            allr,
+            item,
+        ) = (
             g.r,
             g.ll,
             g.t,
@@ -180,9 +202,10 @@ class EquExtVda(GamsClass):
             g.allsow,
             g.upt,
             g.bd,
-        )
-        allyear, cg, io, comgrp = g.allyear, g.cg, g.io, g.comgrp
-        ucn, ucgrptype, comvar, c, ts, allr, item = (
+            g.allyear,
+            g.cg,
+            g.io,
+            g.comgrp,
             g.ucn,
             g.ucgrptype,
             g.comvar,
