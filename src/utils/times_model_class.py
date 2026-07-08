@@ -953,6 +953,8 @@ class TimesModelClass:
     VAS_DNCAP: Variable = None  # type: ignore[assignment]  # [r,allyear,p,unit] VAS_DNCAP:
     VAR_SNCAP: Variable = None  # type: ignore[assignment]  # [r,allyear,p] VAR_SNCAP:
     VAS_SNCAP: Variable = None  # type: ignore[assignment]  # [r,allyear,p] VAS_SNCAP:
+    eq_dscncap: Equation = None  # type: ignore[assignment]  # [r,allyear,p] EQ_DSCNCAP
+    eq_dscone: Equation = None  # type: ignore[assignment]  # [r,allyear,p] EQ_DSCONE
     eq_obj: Equation = None  # type: ignore[assignment]  #  EQ_OBJ: Overall Objective Function
     eq_objels: Equation = None  # type: ignore[assignment]  # [r,bd,cur] EQ_OBJELS: Costs of elastic demands
     eq_objfix: Equation = None  # type: ignore[assignment]  # [r,cur] EQ_OBJFIX: Fixed Costs

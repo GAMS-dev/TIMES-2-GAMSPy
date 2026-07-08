@@ -18,21 +18,10 @@ dependencies = [
 where = ["src"]
 
 [project.optional-dependencies]
-test = [
-  "pytest",
-  "pytest-cov",
-  "coverage>=6.0",
-]
-
 docs = [
     "jupyter"
 ]
 
-dev = [
-    "pre-commit",
-    "detect-secrets",
-    "mypy>=1.19.1",
-]
 
 [tool.pytest.ini_options]
 addopts = "--junitxml=junit-report.xml"
@@ -70,3 +59,12 @@ strict = true
 warn_unused_configs = true
 warn_unused_ignores = false
 disable_error_code = ["misc", "import-untyped"]
+
+[dependency-groups]
+dev = [
+    "detect-secrets>=1.5.0",
+    "mypy>=2.2.0",
+    "pre-commit>=4.6.0",
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+]
