@@ -12,6 +12,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter
+
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -42,12 +44,21 @@ class InitmtyTm(GamsClass):
 
     def compile(self) -> None:
         phase: GamsPhase = "init"
+        g = self.tc
+        m = g.container
         print(self.module_name, phase)
         self.env.set_global("spoint", "3")
 
         # * As in original IER implementation, disable warm start in MACRO
         # * This may be overridden in the RUN file after the INITMTY call
         self.tc.add_gams_code(module=self, phase=phase, code="OPTION BRATIO=1;")
+
+        g.tm_qfac = Parameter(
+            m,
+            name="TM_QFAC",
+            domain=[g.r],
+            description="Switch for market penetration penalty function",
+        )
 
         def input_parameters() -> None:
             self.tc.add_gams_code(
@@ -66,7 +77,7 @@ PARAMETER TM_GR(R,ALLYEAR)             'MACRO Projected Annual GDP Growth'      
 PARAMETER TM_IVETOL(R)                 'Investment and enery tolerance'                             //;
 PARAMETER TM_KGDP(R)                   'Initial capital to GDP ratio'                               //;
 PARAMETER TM_KPVS(R)                   'Capital value share'                                        //;
-PARAMETER TM_QFAC(R)                   'Switch for market penetration penalty function'             //;
+* PARAMETER TM_QFAC(R)                   'Switch for market penetration penalty function'             //;
 PARAMETER TM_EXPBND(R,ALLYEAR,P)       'Market Penetration Cutoff for Applying Cost Penalty'        //;
 PARAMETER TM_EXPF(R,ALLYEAR)           'Annual percent expansion factor'                            //;
 """,
@@ -85,6 +96,13 @@ PARAMETER TM_DDF(R,ALLYEAR,C)          'Demand decoupling factor'               
             )
 
         def internal_parameters() -> None:
+            g.tm_captb = Parameter(
+                m,
+                name="TM_CAPTB",
+                domain=[g.r, g.p],
+                description="Cumulative quadratic capacity penalty level",
+            )
+
             self.tc.add_gams_code(
                 module=self,
                 phase=phase,
@@ -109,7 +127,7 @@ PARAMETER TM_DFACT(R,YEAR)             'Utility discount factor'                
 PARAMETER TM_DFACTCURR(R,YEAR)         'Intermediate parameter for the utility discount factor'     //;
 PARAMETER TM_UDF(R,ALLYEAR)            'Utility discount factor'                                    //;
 PARAMETER TM_CAP(R,P)                  'Base year capacity values for expanding technologies'       //;
-PARAMETER TM_CAPTB(R,P)                'Cumulative quadratic capacity penalty level'                //;
+* PARAMETER TM_CAPTB(R,P)                'Cumulative quadratic capacity penalty level'                //;
 PARAMETER TM_CSTINV(R,ALLYEAR,P)       'Annualized investment costs'                                //;
 PARAMETER TM_YCHECK(R)                 'Check'                                                      //;
                               """,

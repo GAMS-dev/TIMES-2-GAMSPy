@@ -417,9 +417,6 @@ class EnvironmentVariableSchema(BaseModel):
     extend: str = Field(
         description="Horizons extension directive switch tracked as string primitives."
     )
-    ucbd: str = Field(
-        description="User constraint bounds description tracking index identifier."
-    )
     istep: str = Field(
         description="Iteration step count tracking identifier tracking multi-foresight steps."
     )
