@@ -83,13 +83,10 @@ class EquExtVda(GamsClass):
         r, ll, t, p, tsl, ips, lA = g.r, g.ll, g.t, g.p, g.tsl, g.ips, g.lA
 
         m = g.container
-        g.set_parameter(
+        g.dp_uns = Parameter(
+            m,
             name="DP_UNS",
-            parameter=Parameter(
-                m,
-                name="DP_UNS",
-                domain=[r, ll, t, p, tsl, ips, lA],
-            ),
+            domain=[r, ll, t, p, tsl, ips, lA],
         )
 
         self.tc.enqueue(self.define_param_dp_uns)
