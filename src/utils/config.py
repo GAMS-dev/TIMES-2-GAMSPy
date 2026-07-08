@@ -447,6 +447,9 @@ class EnvironmentVariableSchema(BaseModel):
     tx: str = Field(
         description="Temporal calculation index identifier utilized in subset configurations."
     )
+    tx_GP: tuple[Set | Alias | ImplicitSet, ...] = Field(
+        description="Temporal calculation index identifier utilized in subset configurations."
+    )
     rtpx: str = Field(
         description="Regional time process indexing axis identifier mapping configurations."
     )

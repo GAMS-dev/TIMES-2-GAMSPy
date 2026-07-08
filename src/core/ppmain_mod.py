@@ -295,8 +295,8 @@ class PpmainMod(GamsClass):
 
         # Split of timeslice based upon level and commodity profile
         if "RTCS_FRMX" not in m.listParameters():
-            self.tc.add_gams_code(
-                module=self, phase=phase, code="PARAMETER RTCS_FR(R,T,C,S,S) //;"
+            g.rtcs_fr = Parameter(
+                self.tc.container, name="RTCS_FR", domain=[g.r, g.t, g.c, g.s, g.s]
             )
 
         rts = callable_rts(self.env)

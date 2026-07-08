@@ -49,7 +49,17 @@ class EqdeclrMod(GamsClass):
         eq: str = self.env.eq
         swtd: tuple[Alias | Set, ...] | tuple[()] = self.env.swtd_GP
 
-        r, p, s, c, year, spe, allsow = g.r, g.p, g.s, g.c, g.year, g.spe, g.allsow
+        r, p, s, c, year, spe, allsow, ie, allreg = (
+            g.r,
+            g.p,
+            g.s,
+            g.c,
+            g.year,
+            g.spe,
+            g.allsow,
+            g.ie,
+            g.allreg,
+        )
         ble, allyear = g.Ble, g.allyear
 
         if self.env.macro.upper() == "YES":
@@ -213,10 +223,40 @@ class EqdeclrMod(GamsClass):
     {eq}_IRE(R,ALLYEAR,P,C,IE,S {self.env.swtd}) 		'Inter-regional Exchange Process Balance (=E=)'
 
 * Bound on inter-regional exchange of a commodity
-    {eq}G_IREBND(R,ALLYEAR,C,S,ALL_REG,IE {self.env.swtd}) 	'Limit on Inter-regional Exchange (=G=)'
-    {eq}E_IREBND(R,ALLYEAR,C,S,ALL_REG,IE {self.env.swtd}) 	'Limit on Inter-regional Exchange (=E=)'
-    {eq}L_IREBND(R,ALLYEAR,C,S,ALL_REG,IE {self.env.swtd}) 	'Limit on Inter-regional Exchange (=L=)'
-
+""",
+        )
+        g.set_equation(
+            name=f"{eq}G_IREBND",
+            eq=Equation(
+                m,
+                name=f"{eq}G_IREBND",
+                domain=[r, allyear, c, s, allreg, ie, *swtd],
+                description="Limit on Inter-regional Exchange (=G=)",
+            ),
+        )
+        g.set_equation(
+            name=f"{eq}E_IREBND",
+            eq=Equation(
+                m,
+                name=f"{eq}E_IREBND",
+                domain=[r, allyear, c, s, allreg, ie, *swtd],
+                description="Limit on Inter-regional Exchange (=E=)",
+            ),
+        )
+        g.set_equation(
+            name=f"{eq}L_IREBND",
+            eq=Equation(
+                m,
+                name=f"{eq}L_IREBND",
+                domain=[r, allyear, c, s, allreg, ie, *swtd],
+                description="Limit on Inter-regional Exchange (=L=)",
+            ),
+        )
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=rf"""
+  EQUATIONS
 * Bound on total exchange of a commodity to/from all regions
     {eq}G_XBND(ALL_REG,ALLYEAR,C,S,IE {self.env.swtd}) 		'Limit on Total Exchange (=G=)'
     {eq}E_XBND(ALL_REG,ALLYEAR,C,S,IE {self.env.swtd}) 		'Limit on Total Exchange (=E=)'
