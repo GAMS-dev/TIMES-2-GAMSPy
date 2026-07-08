@@ -13,7 +13,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .base_class import GamsClass
+from gamspy import ElseIf, If, Loop, Number, Ord, Parameter, Set
+
+from core.base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -29,12 +31,7 @@ class FilshapeGms(GamsClass):
     module_name: str = "filshape_gms"
     gams_source: str = "filshape.gms"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str = "",
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment, arg1: Parameter):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
@@ -42,31 +39,37 @@ class FilshapeGms(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.add_gams_code(module=self, phase="init", code=r"SET AGEFIL(AGE);")
-        self.tc.enqueue(
-            self.filshape_exec,
-            maxlife=self.arg1,
-        )
+        g = self.tc
+        g.Agefil = Set(self.tc.container, name="AGEFIL", domain=[g.age])
 
-    def filshape_exec(self: FilshapeGms, maxlife: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-$ EOLCOM !
- LOOP(J, Z = 0; MY_FYEAR = 9999;
-* do interpolate
-     AGEFIL(AGE) = YES$SHAPE(J,AGE);
-     LOOP(AGE$AGEFIL(AGE),                ! check for nonzero (including EPS)
-	  MY_F = SHAPE(J,AGE); Z = ORD(AGE);
-          IF(Z > MY_FYEAR+1,                      ! linear interpolation
-               SHAPE(J,LIFE)$((ORD(LIFE) GT MY_FYEAR)$(Z GT ORD(LIFE)))
-			= LAST_VAL + (MY_F-LAST_VAL)/(Z-MY_FYEAR)*(ORD(LIFE)-MY_FYEAR);
-	  ELSEIF Z LT MY_FYEAR, F = Z;);
-	  LAST_VAL = MY_F; MY_FYEAR=Z;);   ! remember the value and year
-* Do back/forward extrapolate
-     IF(Z, SHAPE(J,LIFE)$(ORD(LIFE) LT F) = 1;
-           SHAPE(J,LIFE)$((ORD(LIFE) GT Z)$(ORD(LIFE) LE {maxlife})) = LAST_VAL;);
- );
-""",
-        )
+        self.tc.enqueue(self.filshape_exec, maxlife=self.arg1)
+
+    def filshape_exec(self: FilshapeGms, maxlife: Parameter) -> None:
+        g = self.tc
+        j, age, life = g.j, g.age, g.life
+
+        with Loop(j):
+            g.z[...] = 0
+            g.my_fyear[...] = 9999
+            # do interpolate
+            g.Agefil[age] = Number(1).where[g.shape[j, age]]
+
+            with Loop(age.where[g.Agefil[age]]):  # check for nonzero (including EPS)
+                g.my_f[...] = g.shape[j, age]
+                g.z[...] = Ord(age)
+                with If(g.z > (g.my_fyear + 1)):
+                    g.shape[j, life].where[
+                        ((Ord(life) > g.my_fyear).where[(g.z > Ord(life))])
+                    ] = g.last_val + (g.my_f - g.last_val) / (g.z - g.my_fyear) * (
+                        Ord(life) - g.my_fyear
+                    )
+                with ElseIf(g.z < g.my_fyear):
+                    g.f[...] = g.z
+                g.last_val[...] = g.my_f
+                g.my_fyear[...] = g.z  # remember the value and year
+            # Do back/forward extrapolate
+            with If(g.z):
+                g.shape[j, life].where[Ord(life) < g.f] = 1
+                g.shape[j, life].where[
+                    ((Ord(life) > g.z).where[(Ord(life) <= maxlife)])
+                ] = g.last_val
