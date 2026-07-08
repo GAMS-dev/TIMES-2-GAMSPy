@@ -24,6 +24,11 @@ from gamspy import Number, SpecialValues
 if TYPE_CHECKING:
     from core.equcwrap_mod import EqucwrapArg6Type
 
+from gamspy import Alias, Loop, Number, Parameter, Set, Sum, set_options
+from gamspy._symbols.implicits import ImplicitSet
+from gamspy.math import project
+
+from core.base_class import GamsClass
 from core.coef_csv_mod import CoefCsvMod
 from core.eqactbnd_mod import EqactbndMod
 from core.eqactflo_mod import EqactfloMod
@@ -60,8 +65,6 @@ from core.equcwrap_mod import EqucwrapMod
 from core.eqxbnd_mod import EqxbndMod
 from core.recurrin_stc import RecurrinStc
 
-from .base_class import GamsClass
-
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
@@ -84,6 +87,9 @@ class EqmainMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
+
         if not self.env.is_set("cufscal"):
             self.env.set_global("cufscal", "10")
         if not self.env.is_set("cucscal"):
@@ -102,10 +108,11 @@ class EqmainMod(GamsClass):
 
         # Objective Function
         ## Main OBJ
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="PARAMETER SUM_OBJ(ITEM,ITEM) 'Objective component summation';",
+        g.sum_obj = Parameter(
+            m,
+            name="SUM_OBJ",
+            domain=[g.item, g.item],
+            description="Objective component summation",
         )
 
         if self.env.spines.upper() == "YES":
@@ -359,24 +366,22 @@ class EqmainMod(GamsClass):
             self.env.set_global("var_uc", "YES")
 
         # Commissioning periods for UCs
-        self.tc.add_gams_code(
-            module=self, phase="init", code="SET RVPT(R,ALLYEAR,P,T);"
-        )
+        g.Rvpt = Set(m, name="RVPT", domain=[g.r, g.allyear, g.p, g.t])
         self.tc.enqueue(self.exec1)
 
         # Define a map for region and milestone year specific user constraints to be generated
-        self.env.set_local("ucbd", "")
+        ucbd: tuple[()] | tuple[Set | Alias] = ()
+        tmp: tuple[()] | tuple[Set | Alias] = ()
+        take = Number(1)
         self.env.set_local("uclim", ",LIM")
-        self.env.set_local("tmp", "")
-        self.env.set_local("take", "")
         if self.env.var_uc != "YES":
-            self.env.set_local("ucbd", ",BD")
+            ucbd = (g.bd,)
+            tmp = (g.lim,)
+            take = g.uc_rhsrt(g.r, g.ucn, g.ts_bd)
             self.env.set_local("uclim", ",BD")
-            self.env.set_local("tmp", ",LIM")
-            self.env.set_local("take", "UC_RHSRT(R,UC_N,T,BD)$")
 
-        self.add_sets(ucbd=self.env.ucbd, tmp=self.env.tmp)
-        self.tc.enqueue(self.exec2, ucbd=self.env.ucbd, take=self.env.take)
+        self.add_sets(ucbd=ucbd, tmp=tmp)
+        self.tc.enqueue(self.exec2, ucbd=ucbd, take=take)
 
         equcwrap_batincludes: list[tuple[str, str, str, str, str, EqucwrapArg6Type]] = [
             ("E", "BD", "", "SUM(BD$", ",1)", "NOT"),
@@ -481,61 +486,109 @@ class EqmainMod(GamsClass):
             )
 
     def assign_rtp_varp(self: EqmainMod, etl: str, macro: str) -> None:
+        g = self.tc
+
         if etl.upper() == "YES":
-            self.tc.add_gams_code(
-                module=self, phase="run", code="RTP_VARP(RTP(R,T,P))$TEG(P) = YES;"
-            )
+            g.RtpVarp[g.Rtp[g.r, g.t, g.p]].where[g.Teg[g.p]] = True
         if macro.upper() == "YES":
-            self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code="RTP_VARP(RTP(R,T,P))$((TM_QFAC(R) NE 0)$TM_CAPTB(R,P)) = YES;",
-            )
+            g.RtpVarp[g.Rtp[g.r, g.t, g.p]].where[
+                (g.tm_qfac[g.r] != 0) & g.tm_captb[g.r, g.p]
+            ] = True
 
     def exec1(self: EqmainMod) -> None:
+        g = self.tc
+
+        with Loop(g.Obj2a[g.r, g.t, g.p].where[~g.RtpOff[g.r, g.t, g.p]]):
+            g.f[...] = g.b[g.t] + g.ncap_iled[g.r, g.t, g.p]
+            g.z[...] = Sum(g.Vnt[g.t, g.tt].where[g.f > g.e[g.tt] + 0.5], 1)
+            g.Rvpt[g.r, g.t, g.p, g.t + g.z] = True
+        g.RtpOff[g.Obj2a[g.r, g.t, g.p]].where[~Sum(g.Rvpt[g.r, g.t, g.p, g.tt], 1)] = (
+            True
+        )
+
+    def add_sets(
+        self: EqmainMod,
+        ucbd: tuple[()] | tuple[Set | Alias],
+        tmp: tuple[()] | tuple[Set | Alias],
+    ) -> None:
+        g = self.tc
+        m = g.container
+
+        g.UcRhstmp = Set(
+            m, name="UC_RHSTMP", domain=[g.Reg, g.ucn, g.t, g.s, *ucbd, g.ucnumber]
+        )
+        g.UcRhsmap = Set(
+            m, name="UC_RHSMAP", domain=[g.Reg, g.t, g.ucn, g.ucnumber, g.s, *ucbd]
+        )
+        g.Ructs = Set(m, name="RUCTS", domain=[g.allreg, g.ucn, g.allyear, g.ts, *tmp])
+        g.UcUt = Set(m, name="UC_UT", domain=[g.ucn, g.allyear, *tmp])
+        g.UcUts = Set(m, name="UC_UTS", domain=[g.ucn, g.allyear, g.ts, *tmp])
+        g.UcTmap = Set(
+            m, name="UC_TMAP", domain=[g.year, g.year, g.t, g.side, g.UcDynt]
+        )
+
+    def exec2(
+        self: EqmainMod,
+        ucbd: tuple[()] | tuple[Set | Alias],
+        take: Number | ImplicitSet,
+    ) -> None:
+        g = self.tc
+
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
-  LOOP(OBJ_2A(R,T,P)$(NOT RTP_OFF(R,T,P)),F=B(T)+NCAP_ILED(R,T,P); Z=SUM(VNT(T,TT)$(F>E(TT)+0.5),1);
-    RVPT(R,T,P,T+Z) = YES);
-  RTP_OFF(OBJ_2A(R,T,P))$(NOT SUM(RVPT(R,T,P,TT),1)) = YES;
-""",
-        )
-
-    def add_sets(self: EqmainMod, ucbd: str, tmp: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
- SET UC_RHSTMP(REG,UC_N,T,S{ucbd},UC_NUMBER);
- SET UC_RHSMAP(REG,T,UC_N,UC_NUMBER,S{ucbd});
- SET RUCTS(ALL_REG,UC_N,ALLYEAR,TS{tmp});
- SET UC_UT(UC_N,ALLYEAR{tmp}), UC_UTS(UC_N,ALLYEAR,TS{tmp});
- SET UC_TMAP(YEAR,YEAR,T,SIDE,UC_DYNT);
-""",
-        )
-
-    def exec2(self: EqmainMod, ucbd: str, take: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-UC_TMAP(T,TT(T-DIAG(SIDE,'RHS')),TT,SIDE,'N') = YES;
+ UC_TMAP(T,TT(T-DIAG(SIDE,'RHS')),TT,SIDE,'N') = YES;
  UC_TMAP(T,TT(T-DIAG(SIDE,'RHS')),MILESTONYR,SIDE,'CUMSUM')$(ORD(T) > ORD(MILESTONYR)+DIAG(SIDE,'RHS')) = YES;
- UC_TMAP(T,T,T,'RHS','SYNC') = YES;
- UC_TMAP(T,T,TT,'RHS','CUM+')$UC_TMAP(T,T,TT,'LHS','CUMSUM') = YES;
- IF(CARD(UC_RHSRT), OPTION R_UCT < UC_RHSRT, R_UC < UC_TS_SUM;
-   UC_RHSTMP(R_UCT(R_UC(R,UC_N),T),ANNUAL{ucbd},'SEVERAL')$({take}UC_T_EACH(R,UC_N,T)) = YES;
-   UC_RHSTMP(R_UCT(R_UC(R,UC_N),T),ANNUAL{ucbd},'DYNAMIC')$({take}UC_T_SUCC(R,UC_N,T)) = YES;
-   OPTION CLEAR=R_UC,CLEAR=R_UCT;
- );
- IF(CARD(UC_RHSRTS), OPTION RUCTS < UC_RHSRTS;
-   UC_RHSTMP(RUCTS(UC_T_EACH(UC_R_EACH(R,UC_N),T),S{ucbd}),'EACH')$UC_TS_EACH(R,UC_N,S) = YES;
-   UC_RHSTMP(RUCTS(UC_T_SUCC(UC_R_EACH(R,UC_N),T),S{ucbd}),'SUCC')$UC_TS_EACH(R,UC_N,S) = YES;
-   UC_RHSTMP(RUCTS(UC_T_EACH(UC_R_EACH(R,UC_N),T),S{ucbd}),UC_NUMBER(TSL))$(TS_GROUP(R,TSL,S)$UC_DS(R,UC_N,TSL)) = YES;
- );
- OPTION UC_RTSUC < UC_T_SUCC, UC_RHSMAP < UC_RHSTMP, UC_UT < UC_RHST, UC_UTS < UC_RHSTS, CLEAR=UC_RHSTMP, CLEAR=RUCTS;
 
 """,
         )
+
+        # TODO: diag not supported yet, see devel/gamspy#858
+        # g.UcTmap[g.t, g.tt[g.t - g.side.diag("RHS")], g.tt, g.side, "N"] = True
+        # g.UcTmap[g.t, g.tt[g.t - g.side.diag("RHS")], g.Milestonyr, g.side, "CUMSUM"].where[Ord(T) > Ord(g.Milestonyr) + g.side.diag("RHS")] = True
+
+        g.UcTmap[g.t, g.t, g.t, "RHS", "SYNC"] = True
+        g.UcTmap[g.t, g.t, g.tt, "RHS", "CUM+"].where[
+            g.UcTmap[g.t, g.t, g.tt, "LHS", "CUMSUM"]
+        ] = True
+
+        if g.uc_rhsrt.number_records:
+            project(g.uc_rhsrt, g.RUct)
+            project(g.UcTsSum, g.RUc)
+            # TODO: This should not be needed - to be fixed in GAMSPy
+            set_options({"VALIDATION": 0})
+
+            g.UcRhstmp[
+                g.RUct[g.RUc[g.r, g.ucn], g.t], g.Annual, *ucbd, "SEVERAL"
+            ].where[take & g.UcTEach[g.r, g.ucn, g.t]] = True
+            g.UcRhstmp[
+                g.RUct[g.RUc[g.r, g.ucn], g.t], g.Annual, *ucbd, "DYNAMIC"
+            ].where[take & g.UcTSucc[g.r, g.ucn, g.t]] = True
+
+            set_options({"VALIDATION": 1})
+            g.RUc.setRecords(None)
+            g.RUct.setRecords(None)
+
+        if g.uc_rhsrts.number_records:
+            project(g.uc_rhsrts, g.Ructs)
+            # TODO: This should not be needed - to be fixed in GAMSPy
+            set_options({"VALIDATION": 0})
+            g.UcRhstmp[
+                g.Ructs[g.UcTEach[g.UcREach[g.r, g.ucn], g.t], g.s, *ucbd], "EACH"
+            ].where[g.UcTsEach[g.r, g.ucn, g.s]] = True
+            g.UcRhstmp[
+                g.Ructs[g.UcTSucc[g.UcREach[g.r, g.ucn], g.t], g.s, *ucbd], "SUCC"
+            ].where[g.UcTsEach[g.r, g.ucn, g.s]] = True
+            g.UcRhstmp[
+                g.Ructs[g.UcTEach[g.UcREach[g.r, g.ucn], g.t], g.s, *ucbd],
+                g.ucnumber[g.tsl],
+            ].where[g.TsGroup[g.r, g.tsl, g.s] & g.UcDs[g.r, g.ucn, g.tsl]] = True
+            set_options({"VALIDATION": 1})
+
+        project(g.UcTSucc, g.UcRtsuc)
+        project(g.UcRhstmp, g.UcRhsmap)
+        project(g.uc_rhst, g.UcUt)
+        project(g.uc_rhsts, g.UcUts)
+        g.UcRhstmp.setRecords(None)
+        g.Ructs.setRecords(None)

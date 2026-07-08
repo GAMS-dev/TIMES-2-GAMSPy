@@ -1304,6 +1304,45 @@ class TimesModelClass:
     tm_tsrv: Parameter = None  # type: ignore[assignment] # [R,T] TM_TSRV(R,T) yearly capital survival factor
     tm_akl: Parameter = None  # type: ignore[assignment] # [REG] TM_AKL(REG) prod function constant for k-l index
 
+    # From src/core/initmty_etl.py
+    Teg: Set = None  # type: ignore[assignment] # [PRC] TEG(PRC)
+    tl_sc0: Parameter = None  # type: ignore[assignment] # [R,PRC] TL_SC0(R,PRC)
+    tl_prat: Parameter = None  # type: ignore[assignment] # [R,PRC] TL_PRAT(R,PRC)
+    tl_seg: Parameter = None  # type: ignore[assignment] # [R,PRC] TL_SEG(R,PRC)
+    tl_ccap0: Parameter = None  # type: ignore[assignment] # [R,PRC] TL_CCAP0(R,PRC)
+    tl_ccapm: Parameter = None  # type: ignore[assignment] # [R,PRC] TL_CCAPM(R,PRC)
+    tl_cluster: Parameter = None  # type: ignore[assignment] # [R,P,P] TL_CLUSTER(R,P,P)
+    tl_mrclust: Parameter = None  # type: ignore[assignment] # [R,P,R,P] TL_MRCLUST(R,P,R,P)
+    sc0: Parameter = None  # type: ignore[assignment] # [R,PRC] SC0(R,PRC)
+    prat: Parameter = None  # type: ignore[assignment] # [R,PRC] PRAT(R,PRC)
+    seg: Parameter = None  # type: ignore[assignment] # [R,PRC] SEG(R,PRC)
+    ccap0: Parameter = None  # type: ignore[assignment] # [R,PRC] CCAP0(R,PRC)
+    ccapm: Parameter = None  # type: ignore[assignment] # [R,PRC] CCAPM(R,PRC)
+    cluster: Parameter = None  # type: ignore[assignment] # [R,P,P] CLUSTER(R,P,P)
+    pat: Parameter = None  # type: ignore[assignment] # [R,PRC] PAT(R,PRC)
+    pbt: Parameter = None  # type: ignore[assignment] # [R,PRC] PBT(R,PRC)
+    ccost0: Parameter = None  # type: ignore[assignment] # [R,PRC] CCOST0(R,PRC)
+    ccostm: Parameter = None  # type: ignore[assignment] # [R,PRC] CCOSTM(R,PRC)
+    weig: Parameter = None  # type: ignore[assignment] # [R,KP,PRC] WEIG(R,KP,PRC)
+    ccostk: Parameter = None  # type: ignore[assignment] # [R,KP,PRC] CCOSTK(R,KP,PRC)
+    ccapk: Parameter = None  # type: ignore[assignment] # [R,KP,PRC] CCAPK(R,KP,PRC)
+    beta: Parameter = None  # type: ignore[assignment] # [R,KP,PRC] BETA(R,KP,PRC)
+    alph: Parameter = None  # type: ignore[assignment] # [R,KP,PRC] ALPH(R,KP,PRC)
+    ntchteg: Parameter = None  # type: ignore[assignment] # [R,PRC] NTCHTEG(R,PRC) Number of technologies in cluster
+    invc_unit: Parameter = None  # type: ignore[assignment] # [R,T,P] INVC_UNIT(R,T,P)
+    prev: Parameter = None  # type: ignore[assignment] # [R,PRC] PREV(R,PRC)
+    tl_start: Set = None  # type: ignore[assignment] # [R,T,P] TL_START(R,T,P)
+    tl_rp_ct: Set = None  # type: ignore[assignment] # [REG,PRC] TL_RP_CT(REG,PRC)
+    tl_rp_kc: Set = None  # type: ignore[assignment] # [REG,PRC] TL_RP_KC(REG,PRC)
+    tl_ct_cost: Parameter = None  # type: ignore[assignment] # [R,ALLYEAR,PRC,CUR] TL_CT_COST(R,ALLYEAR,PRC,CUR)
+    mliter: Set = None  # type: ignore[assignment] # MLITER
+    mliterm: Parameter = None  # type: ignore[assignment] # MLITERM
+    ccdifcrit: Parameter = None  # type: ignore[assignment] # CCDIFCRIT
+
+    # From src/core/initmty_tm.py
+    tm_qfac: Parameter = None  # type: ignore[assignment] # [R] TM_QFAC(R) Switch for market penetration penalty function
+    tm_captb: Parameter = None  # type: ignore[assignment] # [R,P] TM_CAPTB(R,P) Cumulative quadratic capacity penalty level
+
     # --- Intermediate Parameters for MACRO--2 ---
     tm_aeeiv: Parameter = None  # type: ignore[assignment] # [R,YEAR,C] TM_AEEIV Annual AEEI and demand decoupling factor
     tm_aeeifac: Parameter = None  # type: ignore[assignment] # [R,LL,C] TM_AEEIFAC Periodwise AEEI and demand decoupling factor
