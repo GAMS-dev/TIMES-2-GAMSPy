@@ -46,16 +46,15 @@ class EqptransMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.env.set_scoped("shp1", "")
         self.env.set_scoped("shg", ",P,COM_GRP,CG")
+        base_shp1 = f"(1+RTP_FFCX(R,V,T{self.env.shg})$PRC_VINT(R,P))"
         if self.tc.defined("RTP_FFCS"):
             self.env.set_scoped(
-                "shp1", f"*(1+RTP_FFCS(R,V{self.env.shg}{self.env.sow}))"
+                "shp1",
+                f"{base_shp1}*(1+RTP_FFCS(R,V{self.env.shg}{self.env.sow}))",
             )
-        self.env.set_scoped(
-            "shp1",
-            f"*(1+RTP_FFCX(R,V,T{self.env.shg})$PRC_VINT(R,P)){self.env.shp1}",
-        )
+        else:
+            self.env.set_scoped("shp1", base_shp1)
 
         self.comp1(
             cal_red=self.env.cal_red,
@@ -133,7 +132,7 @@ class EqptransMod(GamsClass):
            RS_FR(R,S,TS)*(1+RTCS_FR(R,T,C,S,TS)) *
 * [UR] model reduction REDUCE is set in *.run
 {include_cal_red}
-          ) {shp1} * (1+(ACT_FLO(R,V,P,CG,S)-1$ACT_FLO(R,V,P,CG,S))$PRC_CG(R,P,COM_GRP))
+          ) * {shp1} * (1+(ACT_FLO(R,V,P,CG,S)-1$ACT_FLO(R,V,P,CG,S))$PRC_CG(R,P,COM_GRP))
     ;
 """,
         )

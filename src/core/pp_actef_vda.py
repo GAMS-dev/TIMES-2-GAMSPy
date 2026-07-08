@@ -52,16 +52,14 @@ SCALAR MICRO / 1E-6 /;
             )
             self.tc.enqueue(self.exec1)
         else:  # EQUA
-            self.env.set_scoped("shp1", "")
             self.env.set_scoped("shg", f",P,CG,'{self.env.pgprim}'")
+            base_shp1 = f"(1+RTP_FFCX(R,V,T{self.env.shg})$PRC_VINT(R,P))"
             if self.tc.defined("RTP_FFCS"):
                 self.env.set_scoped(
-                    "shp1", f"*(1+RTP_FFCS(R,V{self.env.shg}{self.env.sow}))"
+                    "shp1", f"{base_shp1}*(1+RTP_FFCS(R,V{self.env.shg}{self.env.sow}))"
                 )
-            self.env.set_scoped(
-                "shp1",
-                f"*(1+RTP_FFCX(R,V,T{self.env.shg})$PRC_VINT(R,P)){self.env.shp1}",
-            )
+            else:
+                self.env.set_scoped("shp1", base_shp1)
 
             self.define_equation(
                 eq=self.env.eq,
@@ -85,7 +83,7 @@ SCALAR MICRO / 1E-6 /;
   SUM((RPC_ACE(R,P,C),COM_GMAP(R,CG,C),TS_MAP(R,S,TS))$RTPCS_VARF(R,T,P,C,TS),
     (1+(ACT_EFF(R,V,P,C,TS)-1)$ACT_EFF(R,V,P,C,TS)) * {var}_FLO(R,V,T,P,C,TS {sow})) *
 * Multiply with group efficiency
-  SUM(TS_ANN(S,TS),ACT_EFF(R,V,P,CG,TS)){shp1}
+  SUM(TS_ANN(S,TS),ACT_EFF(R,V,P,CG,TS))*{shp1}
 
    =E=
 
