@@ -18,15 +18,32 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal
 
-from .base_class import GamsClass
+from gamspy import Sum
+
+from core.base_class import GamsClass
 
 if TYPE_CHECKING:
+    from gamspy import Expression, Number
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
+from core.utils import generate_equation
+
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class EqbndcomModConfig:
+    """Strongly typed data contract replacing legacy positional batch-include loops."""
+
+    arg1: Literal["E", "N", "L", "G"]
+    arg2: str
+    arg3: Expression | Number
+    arg4: str
 
 
 class EqbndcomMod(GamsClass):
@@ -37,37 +54,38 @@ class EqbndcomMod(GamsClass):
     gams_source: str = "eqbndcom.mod"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
-        arg4: str = "",
+        self, tc: TimesModelClass, env: CompileEnvironment, config: EqbndcomModConfig
     ):
+        super().__init__(tc, env)
         self.env = env.fork()
         self._sub_modules: dict[str, GamsClass] = {}
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
-        self.arg4 = arg4
+        self.config = config
         self.compile()
 
     def compile(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-*$ONLISTING
-  {self.env.eq}{self.arg1}_BND{self.arg4}(RTC({self.env.r_t},C),S {self.env.swt})$((RCS_COMTS(R,C,S)$(NOT COM_TS(R,C,S))${self.arg3})$COM_BND{self.arg4}(R,T,C,S,'{self.arg2}'))..
-* sum over all possible commodity flow at/below TS-level
-       SUM(RTCS_VARC(R,T,C,TS)$TS_MAP(R,S,TS), {self.env.var}_COM{self.arg4}(R,T,C,TS {self.env.sow}))
+        g = self.tc
+        cc = self.config
+        r, t, c, s, ts = g.r, g.t, g.c, g.s, g.ts
 
-  ={self.arg1}=
+        eq = self.tc.get_equation(name=f"{self.env.eq}{cc.arg1}_BND{cc.arg4}")
+        com_bnd_param = g.get_parameter(name=f"COM_BND{cc.arg4}")
+        VAR_COM = g.get_variable(name=f"{self.env.var}_COM{cc.arg4}")
 
-       COM_BND{self.arg4}(R,T,C,S,'{self.arg2}')
-  ;
-*$OFFLISTING
-  """,
+        r_t = self.env.r_t_GP
+        swt = self.env.swt_GP
+        sow = self.env.sow_GP
+
+        eq[g.Rtc[*r_t, c], s, *swt].where[
+            g.RcsComts[r, c, s].where[
+                ~g.ComTs[r, c, s] & cc.arg3 & com_bnd_param[r, t, c, s, cc.arg2]
+            ]
+        ] = generate_equation(
+            # sum over all possible commodity flow at/below TS-level
+            Sum(
+                g.RtcsVarc[r, t, c, ts].where[g.TsMap[r, s, ts]],
+                VAR_COM[r, t, c, ts, *sow],
+            ),
+            cc.arg1,
+            com_bnd_param[r, t, c, s, cc.arg2],
         )
