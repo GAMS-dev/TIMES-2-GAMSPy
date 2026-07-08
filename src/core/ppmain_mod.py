@@ -69,30 +69,35 @@ class PpmainMod(GamsClass):
         g = self.tc
         m = g.container
 
+        r, t, p, s, c = g.r, g.t, g.p, g.s, g.c
+
         self.tc.add_gams_code(
             module=self,
             phase=phase,
             code=r"""
 * establish the QC error message log file
   FILE QLOG / QA_CHECK.LOG /; QLOG.LW=0;
-  SCALARS PUTOUT / 0 /, PUTGRP / 0 /, ERRLEV / 0 /;
-
-* Additional Declarations in PPMAIN
-  SCALAR STARTOFF / 0 /, ENDOFF / 0 /;
-  SET MATPRC(PRC_GRP) / PRV, PRW /;
-  SET NO_RVP(R,T,P);
-  SET IRE_DIST(R,P) //;
-  SET RP_SGS(R,P) //;
-  SET RP_STS(R,P) //;
-  SET RP_STL(R,P,TSL,L);
-  SET RPS_STG(R,P,S);
-  SET RPC_STG(R,P,C) //;
-  SET RPC_STGN(R,P,C,IO);
-  SET UC_DT(ALL_R,UC_N) //;
-  SET RCS(REG,COM,TS);
-  SET RC_RC(ALL_REG,COM,ALL_REG,COM);
 """,
         )
+
+        g.putout = Parameter(m, name="PUTOUT", records=0)
+        g.putgrp = Parameter(m, name="PUTGRP", records=0)
+        g.errlev = Parameter(m, name="ERRLEV", records=0)
+        # * Additional Declarations in PPMAIN
+        g.startoff = Parameter(m, name="STARTOFF", records=0)
+        g.endoff = Parameter(m, name="ENDOFF", records=0)
+        g.Matprc = Set(m, name="MATPRC", domain=[g.prcgrp], records=["PRV", "PRW"])
+        g.NoRvp = Set(m, name="NO_RVP", domain=[r, t, p])
+        g.IreDist = Set(m, name="IRE_DIST", domain=[r, p])
+        g.RpSgs = Set(m, name="RP_SGS", domain=[r, p])
+        g.RpSts = Set(m, name="RP_STS", domain=[r, p])
+        g.RpStl = Set(m, name="RP_STL", domain=[r, p, g.tsl, g.lA])
+        g.RpsStg = Set(m, name="RPS_STG", domain=[r, p, s])
+        g.RpcStg = Set(m, name="RPC_STG", domain=[r, p, c])
+        g.RpcStgn = Set(m, name="RPC_STGN", domain=[r, p, c, g.io])
+        g.UcDt = Set(m, name="UC_DT", domain=[g.allr, g.ucn])
+        g.Rcs = Set(m, name="RCS", domain=[g.Reg, g.Com, g.ts])
+        g.RcRc = Set(m, name="RC_RC", domain=[g.allreg, g.Com, g.allreg, g.Com])
 
         self.env.set_scoped("tmp", ".")
         if self.env.datagdx == "YES" and self.env.g2x6 == "YES":
@@ -210,7 +215,8 @@ class PpmainMod(GamsClass):
         self.tc.enqueue(self.phase_nine)
 
         # Call the SHAPE inter-/extrapolation routine
-        self.include(FilshapeGms(tc=self.tc, env=self.env, arg1="STARTOFF"))
+
+        self.include(FilshapeGms(tc=self.tc, env=self.env, arg1=g.startoff))
 
         self.tc.enqueue(self.adjust_shape)
 
