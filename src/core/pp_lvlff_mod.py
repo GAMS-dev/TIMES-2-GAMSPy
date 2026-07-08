@@ -16,6 +16,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+import gamspy.math as gmath
+from gamspy import Domain, Loop, Set, Sum
+
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -45,42 +48,95 @@ class PpLvlffMod(GamsClass):  # FilenameExt
         self.compile()
 
     def compile(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"SET FFCKS(REG,PRC,CG,CG,TS)  //;",
-        )
+        g = self.tc
+        m = g.container
+        g.Ffcks = Set(m, name="FFCKS", domain=[g.Reg, g.prc, g.cg, g.cg, g.ts])
+
         self.tc.enqueue(self.pp_lvlff_exec)
 
     def pp_lvlff_exec(self: PpLvlffMod) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* check all commodities in the groups of a process at other than PRC_TS level
-  OPTION FFCKS <= FLO_FUNC; FFCKS(R,P,CG,CG2,S)$(PRC_TS(R,P,S)+ACTCG(CG))=NO;
-  LOOP(FFCKS(R,P,CG,COM_GRP,S)$STOA(S),CG_GRP(R,P,CG,COM_GRP) = YES);
-*-----------------------------------------------------------------------------
-* Leveling by simultaneous aggregation/inheritance
-*-----------------------------------------------------------------------------
-  LOOP((CG_GRP(R,P,CG,COM_GRP),RTP(R,V,P)),
-    TS_ARRAY(ALL_TS) = FLO_FUNC(R,V,P,CG,COM_GRP,ALL_TS);
-    FLO_FUNC(R,V,P,CG,COM_GRP,TS)$((NOT TS_ARRAY(TS))$PRC_TS(R,P,TS)) =
-      SUM(RS_TREE(FINEST(R,S),TS), G_YRFR(R,S) * (TS_ARRAY(S) +
-           SUM(RS_BELOW(R,ALL_TS,S)$((NOT SUM(TS_MAP(R,SL,S)$RS_BELOW(R,ALL_TS,SL),TS_ARRAY(SL)))$TS_ARRAY(ALL_TS)),
-               TS_ARRAY(ALL_TS))))/G_YRFR(R,TS));
-*-----------------------------------------------------------------------------
-* Leveling by direct inheritance
-*-----------------------------------------------------------------------------
-  FLO_FUNC(R,V,P,CG,COM_GRP,TS)$(NOT FLO_FUNC(R,V,P,CG,COM_GRP,TS)) $=
-      SUM(FFCKS(R,P,CG,COM_GRP,ANNUAL)$PRC_TS(R,P,TS),FLO_FUNC(R,V,P,CG,COM_GRP,ANNUAL));
-*-----------------------------------------------------------------------------
-
-*UR* after inheritance aggregation delete all data that are not specified for elements of PRC_TS
-* ? not a good idea since at least partially deleting the input of the user ?
-*
-*  FLO_FUNC(R,T,P,CG,COM_GRP,S)$(FFCKS(R,P,CG,COM_GRP,S)*(NOT PRC_TS(R,P,S))) = 0;
-
-  OPTION CLEAR = FFCKS, CLEAR = CG_GRP;
-""",
+        g = self.tc
+        r, p, cg, cg2, s, comgrp, stoa, v, allts, ts, sl = (
+            g.r,
+            g.p,
+            g.cg,
+            g.cg2,
+            g.s,
+            g.comgrp,
+            g.stoa,
+            g.v,
+            g.allts,
+            g.ts,
+            g.sl,
         )
+        Ffcks, CgGrp, PrcTs, Actcg, Annual = (
+            g.Ffcks,
+            g.CgGrp,
+            g.PrcTs,
+            g.Actcg,
+            g.Annual,
+        )
+        flo_func, ts_array = g.flo_func, g.ts_array
+
+        # * check all commodities in the groups of a process at other than PRC_TS level
+        gmath.project(source=flo_func, target=Ffcks, direction="left")
+        Ffcks[r, p, cg, cg2, s].where[(PrcTs[r, p, s] + Actcg[cg])] = False
+        with Loop(
+            Domain(r, p, cg, comgrp, s).where[Ffcks[r, p, cg, comgrp, s] & stoa[s] != 0]
+        ):
+            CgGrp[r, p, cg, comgrp] = True
+
+        # *-----------------------------------------------------------------------------
+        # * Leveling by simultaneous aggregation/inheritance
+        # *-----------------------------------------------------------------------------
+        with Loop(
+            Domain(r, p, cg, comgrp, v).where[CgGrp[r, p, cg, comgrp] & g.Rtp[r, v, p]]
+        ):
+            ts_array[allts] = flo_func[r, v, p, cg, comgrp, allts]
+            flo_func[r, v, p, cg, comgrp, ts].where[
+                (~(ts_array[ts])).where[PrcTs[r, p, ts]]
+            ] = (
+                Sum(
+                    s.where[g.RsTree[r, s, ts] & g.Finest[r, s]],
+                    g.g_yrfr[r, s]
+                    * (
+                        ts_array[s]
+                        + Sum(
+                            g.RsBelow[r, allts, s].where[
+                                (
+                                    ~(
+                                        Sum(
+                                            g.TsMap[r, sl, s].where[
+                                                g.RsBelow[r, allts, sl]
+                                            ],
+                                            ts_array[sl],
+                                        )
+                                    ).where[ts_array[allts]]
+                                )
+                            ],
+                            ts_array[allts],
+                        )
+                    ),
+                )
+                / g.g_yrfr[r, ts]
+            )
+
+        # *-----------------------------------------------------------------------------
+        # * Leveling by direct inheritance
+        # *-----------------------------------------------------------------------------
+        sparseExpression = Sum(
+            Ffcks[r, p, cg, comgrp, Annual].where[PrcTs[r, p, ts]],
+            flo_func[r, v, p, cg, comgrp, Annual],
+        )
+        flo_func[r, v, p, cg, comgrp, ts].where[
+            ~(flo_func[r, v, p, cg, comgrp, ts]) & sparseExpression
+        ] = sparseExpression
+
+        # *-----------------------------------------------------------------------------
+        # *UR* after inheritance aggregation delete all data that are not specified for elements of PRC_TS
+        # * ? not a good idea since at least partially deleting the input of the user ?
+        # *
+        # *  FLO_FUNC(R,T,P,CG,COM_GRP,S)$(Ffcks(R,P,CG,COM_GRP,S)*(NOT PRC_TS(R,P,S))) = 0;
+
+        Ffcks.setRecords(None)
+        CgGrp.setRecords(None)
