@@ -14,7 +14,9 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
+
+from gamspy import Equation, Sum
 
 from .base_class import GamsClass
 
@@ -36,8 +38,8 @@ class EquExtDsc(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
+        arg1: Literal["DSC", "VDA"],
+        arg2: Literal["maindrv"],
     ):
         self.env = env.fork()
         self._sub_modules = {}
@@ -50,16 +52,23 @@ class EquExtDsc(GamsClass):
         if self.env.dsc.upper() != "YES":
             return
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-  EQUATIONS
-    {self.env.eq}_DSCNCAP(R,ALLYEAR,P{self.env.swtd})  'Discrete capacity extension (=E=)'
-    {self.env.eq}_DSCONE(R,ALLYEAR,P{self.env.swtd})   'Discrete capacity extension unity condition (=E=)'
-  ;
-""",
+        g = self.tc
+
+        domain = [g.r, g.allyear, g.p, *self.env.swtd_GP]
+        eq_dscncap = Equation(
+            self.tc.container,
+            f"{self.env.eq}_DSCNCAP",
+            domain=domain,
+            description="Discrete capacity extension (=E=)",
         )
+        eq_dscone = Equation(
+            self.tc.container,
+            f"{self.env.eq}_DSCONE",
+            domain=domain,
+            description="Discrete capacity extension unity condition (=E=)",
+        )
+        g.set_equation(f"{self.env.eq}_DSCNCAP", eq_dscncap)
+        g.set_equation(f"{self.env.eq}_DSCONE", eq_dscone)
 
         if self.env.stages == "YES":
             # TODO: Resolve
@@ -69,20 +78,39 @@ class EquExtDsc(GamsClass):
                 code=f"${self.env.witspine} {self.env.sw_stvars}",
             )
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-  {self.env.eq}_DSCNCAP(RTP({self.env.r_t},P){self.env.swt})$PRC_DSCNCAP(R,P)..
+        r, t, p, Rtp = g.r, g.t, g.p, g.Rtp
+        PrcDscncap, ncap_disc, unit, ncap_semi = (
+            g.PrcDscncap,
+            g.ncap_disc,
+            g.unit,
+            g.ncap_semi,
+        )
 
-    {self.env.var}_NCAP(R,T,P{self.env.sow}) =E=
+        VAR_NCAP, VAR_SNCAP, VAR_DNCAP = (
+            g.get_variable(f"{self.env.var}_NCAP"),
+            g.get_variable(f"{self.env.var}_SNCAP"),
+            g.get_variable(f"{self.env.var}_DNCAP"),
+        )
 
-    SUM(UNIT$NCAP_DISC(R,T,P,UNIT), {self.env.var}_DNCAP(R,T,P{self.env.sow},UNIT)*NCAP_DISC(R,T,P,UNIT)) +
-    {self.env.var}_SNCAP(R,T,P{self.env.sow})$NCAP_SEMI(R,T,P);
+        r_t = self.env.r_t_GP
+        swt = self.env.swt_GP
+        sow = self.env.sow_GP
 
-  {self.env.eq}_DSCONE(RTP({self.env.r_t},P){self.env.swt})$(NCAP_DISC(R,T,P,'0')$PRC_DSCNCAP(R,P))..
-
-    SUM(UNIT$NCAP_DISC(R,T,P,UNIT), {self.env.var}_DNCAP(R,T,P{self.env.sow},UNIT))  =E=  1;
-
-""",
+        eq_dscncap[Rtp[*r_t, p, *swt]].where[PrcDscncap[r, p]] = VAR_NCAP[
+            r, t, p, *sow
+        ] == (
+            Sum(
+                unit.where[ncap_disc[r, t, p, unit]],
+                VAR_DNCAP[r, t, p, *sow, unit] * ncap_disc[r, t, p, unit],
+            )
+            + VAR_SNCAP[r, t, p, *sow].where[ncap_semi[r, t, p]]
+        )
+        eq_dscone[Rtp[*r_t, p, *swt]].where[
+            ncap_disc[r, t, p, "0"].where[PrcDscncap[r, p]]
+        ] = (
+            Sum(
+                unit.where[ncap_disc[r, t, p, unit]],
+                VAR_DNCAP[r, t, p, *sow, unit],
+            )
+            == 1
         )
