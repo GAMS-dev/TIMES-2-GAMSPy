@@ -19,6 +19,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Literal
 
+from gamspy import Number, SpecialValues
+
 if TYPE_CHECKING:
     from core.equcwrap_mod import EqucwrapArg6Type
 
@@ -26,7 +28,7 @@ from core.coef_csv_mod import CoefCsvMod
 from core.eqactbnd_mod import EqactbndMod
 from core.eqactflo_mod import EqactfloMod
 from core.eqblnd_mod import EqblndMod
-from core.eqbndcom_mod import EqbndcomMod
+from core.eqbndcom_mod import EqbndcomMod, EqbndcomModConfig
 from core.eqbndcst_mod import EqbndcstMod
 from core.eqcapact_mod import EqcapactMod
 from core.eqcombal_mod import EqcombalMod
@@ -146,26 +148,18 @@ class EqmainMod(GamsClass):
 
         # Bound on commodity Net/Production activity above COM_TS
         # fmt: off
-        eqbndcom_batincludes: list[tuple[str, str, str, str]] = [
-            ("G", "LO", "(COM_BNDNET(R,T,C,S,'LO') NE 0)", "NET"),
-            ("E", "FX", "YES", "NET"),
-            ("L", "UP", "(COM_BNDNET(R,T,C,S,'UP') NE INF)", "NET"),
-            ("G", "LO", "(COM_BNDPRD(R,T,C,S,'LO') NE 0)", "PRD"),
-            ("E", "FX", "YES", "PRD"),
-            ("L", "UP", "(COM_BNDPRD(R,T,C,S,'UP') NE INF)", "PRD"),
+        g=self.tc
+        eqbndcom_batincludes: list[EqbndcomModConfig]= [
+            EqbndcomModConfig("G", "LO", (g.com_bndnet[g.r,g.t,g.c,g.s, 'LO'] != 0), "NET"),
+            EqbndcomModConfig("E", "FX", Number(1), "NET"),
+            EqbndcomModConfig("L", "UP", (g.com_bndnet[g.r,g.t,g.c,g.s,'UP'] != SpecialValues.POSINF), "NET"),
+            EqbndcomModConfig("G", "LO", (g.com_bndprd[g.r,g.t,g.c,g.s, 'LO'] != 0), "PRD"),
+            EqbndcomModConfig("E", "FX", Number(1), "PRD"),
+            EqbndcomModConfig("L", "UP", (g.com_bndprd[g.r,g.t,g.c,g.s,'UP'] != SpecialValues.POSINF), "PRD"),
         ]
         # fmt: on
-        for arg1, arg2, arg3, arg4 in eqbndcom_batincludes:
-            self.include(
-                EqbndcomMod(
-                    tc=self.tc,
-                    env=self.env,
-                    arg1=arg1,
-                    arg2=arg2,
-                    arg3=arg3,
-                    arg4=arg4,
-                )
-            )
+        for config in eqbndcom_batincludes:
+            self.include(EqbndcomMod(tc=self.tc, env=self.env, config=config))
 
         # Utilization equation ensure activity <= or = capacity
         eqcapact_batincludes: list[tuple[str, str, str]] = [

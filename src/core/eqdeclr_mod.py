@@ -49,8 +49,8 @@ class EqdeclrMod(GamsClass):
         eq: str = self.env.eq
         swtd: tuple[Alias | Set, ...] | tuple[()] = self.env.swtd_GP
 
-        r, year, spe, allsow = g.r, g.year, g.spe, g.allsow
-        ble = g.Ble
+        r, p, s, c, year, spe, allsow = g.r, g.p, g.s, g.c, g.year, g.spe, g.allsow
+        ble, allyear = g.Ble, g.allyear
 
         if self.env.macro.upper() == "YES":
             self.include(EqdeclrTm(self.tc, self.env))
@@ -87,7 +87,7 @@ class EqdeclrMod(GamsClass):
             Equation(
                 m,
                 name=f"{eq}_ACTFLO",
-                domain=[g.r, g.allyear, g.allyear, g.p, g.s, *swtd],
+                domain=[r, allyear, allyear, p, s, *swtd],
                 description="Process Activity/Primary Commodity Flows",
             ),
         )
@@ -104,15 +104,71 @@ class EqdeclrMod(GamsClass):
    {eq}G_ACTBND(R,ALLYEAR,P,S {self.env.swtd}) 			'Process activity Bound in a Period (=G=)' //
    {eq}E_ACTBND(R,ALLYEAR,P,S {self.env.swtd}) 			'Process activity Bound in a Period (=E=)' //
    {eq}L_ACTBND(R,ALLYEAR,P,S {self.env.swtd}) 			'Process activity Bound in a Period (=L=)' //
+""",
+        )
 
-* Bound on commodities
-   {eq}G_BNDNET(R,ALLYEAR,C,S {self.env.swtd}) 			'Net bound on a commodity (=G=)'
-   {eq}E_BNDNET(R,ALLYEAR,C,S {self.env.swtd}) 			'Net bound on a commodity (=E=)'
-   {eq}L_BNDNET(R,ALLYEAR,C,S {self.env.swtd}) 			'Net bound on a commodity (=L=)'
-   {eq}G_BNDPRD(R,ALLYEAR,C,S {self.env.swtd}) 			'Production bound on a commodity (=G=)'
-   {eq}E_BNDPRD(R,ALLYEAR,C,S {self.env.swtd}) 			'Production bound on a commodity (=E=)'
-   {eq}L_BNDPRD(R,ALLYEAR,C,S {self.env.swtd}) 			'Production bound on a commodity (=L=)'
+        # Bound on commodities
+        g.set_equation(
+            name=f"{eq}G_BNDNET",
+            eq=Equation(
+                m,
+                name=f"{eq}G_BNDNET",
+                domain=[r, allyear, c, s, *swtd],
+                description="Net bound on a commodity (=G=)",
+            ),
+        )
+        g.set_equation(
+            name=f"{eq}E_BNDNET",
+            eq=Equation(
+                m,
+                name=f"{eq}E_BNDNET",
+                domain=[r, allyear, c, s, *swtd],
+                description="Net bound on a commodity (=E=)",
+            ),
+        )
+        g.set_equation(
+            name=f"{eq}L_BNDNET",
+            eq=Equation(
+                m,
+                name=f"{eq}L_BNDNET",
+                domain=[r, allyear, c, s, *swtd],
+                description="Net bound on a commodity (=L=)",
+            ),
+        )
 
+        g.set_equation(
+            name=f"{eq}G_BNDPRD",
+            eq=Equation(
+                m,
+                name=f"{eq}G_BNDPRD",
+                domain=[r, allyear, c, s, *swtd],
+                description="Production bound on a commodity (=G=)",
+            ),
+        )
+        g.set_equation(
+            name=f"{eq}E_BNDPRD",
+            eq=Equation(
+                m,
+                name=f"{eq}E_BNDPRD",
+                domain=[r, allyear, c, s, *swtd],
+                description="Production bound on a commodity (=E=)",
+            ),
+        )
+        g.set_equation(
+            name=f"{eq}L_BNDPRD",
+            eq=Equation(
+                m,
+                name=f"{eq}L_BNDPRD",
+                domain=[r, allyear, c, s, *swtd],
+                description="Production bound on a commodity (=L=)",
+            ),
+        )
+
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=rf"""
+  EQUATIONS
 * Utilization of capacity, or the relationship between process capacity and activity
    {eq}L_CAPACT(R,ALLYEAR,ALLYEAR,P,S {self.env.swtd}) 		'Capacity Utilzation (=L=)'
    {eq}E_CAPACT(R,ALLYEAR,ALLYEAR,P,S {self.env.swtd}) 		'Capacity Utilzation (=E=)'
@@ -217,6 +273,7 @@ class EqdeclrMod(GamsClass):
     {eq}E_UCRSU(R,T,UC_N {self.env.swd}) 	'User-constraints (=E=)'
 """,
         )
+
         if self.env.var_uc != "YES":
             self.tc.add_gams_code(
                 module=self,
