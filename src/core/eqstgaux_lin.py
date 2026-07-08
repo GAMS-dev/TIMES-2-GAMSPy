@@ -15,6 +15,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.utils import callable_rts
+
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -42,6 +44,7 @@ class EqstgauxLin(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        rts = callable_rts(self.env)
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -49,7 +52,7 @@ class EqstgauxLin(GamsClass):
 *$ONLISTING
 
 
-  {self.env.eq}_STGAUX(RTP_VINTYR({self.env.r_v_t},P),C,RTS(S){self.env.swt})$((RPCS_VAR(R,P,C,S)*(NOT RPC_STG(R,P,C)+RPC_EMIS(R,P,C)))$RP_STG(R,P))..
+  {self.env.eq}_STGAUX(RTP_VINTYR({self.env.r_v_t},P),C,{rts}{self.env.swt})$((RPCS_VAR(R,P,C,S)*(NOT RPC_STG(R,P,C)+RPC_EMIS(R,P,C)))$RP_STG(R,P))..
 
 * Auxiliary flow variable
     {self.env.var}_FLO(R,V,T,P,C,S {self.env.sow})

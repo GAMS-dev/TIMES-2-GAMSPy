@@ -487,6 +487,9 @@ class EnvironmentVariableSchema(BaseModel):
     rts: str = Field(
         description="Regional sub-annual tracking parameter handling seasonal loads."
     )
+    rts_GP: Expression | Alias | Set = Field(
+        description="Regional sub-annual tracking parameter handling seasonal loads."
+    )
     rcapsub: str = Field(
         description="Capacity allocation sub-region configuration tracking parameters."
     )

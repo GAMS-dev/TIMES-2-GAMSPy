@@ -17,6 +17,8 @@ import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+from core.utils import callable_rts
+
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -81,6 +83,7 @@ class EquExtAbs(GamsClass):
             swtx=self.env.swtx,
             var=self.env.var,
             sow=self.env.sow,
+            rts=callable_rts(self.env),
         )
         self.abs_eq_1p(
             r_t=self.env.r_t,
@@ -88,6 +91,7 @@ class EquExtAbs(GamsClass):
             sow=self.env.sow,
             swx=self.env.swx,
             swtx=self.env.swtx,
+            rts=callable_rts(self.env),
         )
         self.abs_eq_2(
             r_t=self.env.r_t,
@@ -95,6 +99,7 @@ class EquExtAbs(GamsClass):
             swtx=self.env.swtx,
             var=self.env.var,
             sow=self.env.sow,
+            rts=callable_rts(self.env),
         )
         self.abs_eq_3(
             r_t=self.env.r_t,
@@ -102,6 +107,7 @@ class EquExtAbs(GamsClass):
             swx=self.env.swx,
             var=self.env.var,
             sow=self.env.sow,
+            rts=callable_rts(self.env),
         )
         self.abs_eq_4(
             r_t=self.env.r_t,
@@ -109,14 +115,21 @@ class EquExtAbs(GamsClass):
             swtx=self.env.swtx,
             tmp=self.env.tmp,
             mx=self.env.mx,
+            rts=callable_rts(self.env),
         )
-        self.abs_eq_5_to_6(r_v_t=self.env.r_v_t, swx=self.env.swx, swtx=self.env.swtx)
+        self.abs_eq_5_to_6(
+            r_v_t=self.env.r_v_t,
+            swx=self.env.swx,
+            swtx=self.env.swtx,
+            rts=callable_rts(self.env),
+        )
         self.abs_eq_7_to_8(
             r_v_t=self.env.r_v_t,
             swx=self.env.swx,
             swtx=self.env.swtx,
             var=self.env.var,
             sow=self.env.sow,
+            rts=callable_rts(self.env),
         )
         self.abs_eq_9(
             r_v_t=self.env.r_v_t,
@@ -125,6 +138,7 @@ class EquExtAbs(GamsClass):
             mx=self.env.mx,
             sow=self.env.sow,
             var=self.env.var,
+            rts=callable_rts(self.env),
         )
         self.abs_eq_10(
             r_v_t=self.env.r_v_t,
@@ -132,16 +146,33 @@ class EquExtAbs(GamsClass):
             swtx=self.env.swtx,
             sow=self.env.sow,
             var=self.env.var,
+            rts=callable_rts(self.env),
         )
-        self.abs_eq_11_to_17(r_w_t=self.env.r_w_t, swx=self.env.swx, swtx=self.env.swtx)
-        self.abs_eq_18_20(r_w_t=self.env.r_w_t, swx=self.env.swx, swtx=self.env.swtx)
-        self.abs_eq_19_21(r_w_t=self.env.r_w_t, swx=self.env.swx, swtx=self.env.swtx)
+        self.abs_eq_11_to_17(
+            r_w_t=self.env.r_w_t,
+            swx=self.env.swx,
+            swtx=self.env.swtx,
+            rts=callable_rts(self.env),
+        )
+        self.abs_eq_18_20(
+            r_w_t=self.env.r_w_t,
+            swx=self.env.swx,
+            swtx=self.env.swtx,
+            rts=callable_rts(self.env),
+        )
+        self.abs_eq_19_21(
+            r_w_t=self.env.r_w_t,
+            swx=self.env.swx,
+            swtx=self.env.swtx,
+            rts=callable_rts(self.env),
+        )
         self.abs_eq_22(
             r_w_t=self.env.r_w_t,
             swx=self.env.swx,
             swtx=self.env.swtx,
             var=self.env.var,
             sow=self.env.sow,
+            rts=callable_rts(self.env),
         )
         self.abs_eq_23(
             r_v_t=self.env.r_v_t,
@@ -150,6 +181,7 @@ class EquExtAbs(GamsClass):
             sow=self.env.sow,
             var=self.env.var,
             tmp=self.env.tmp,
+            rts=callable_rts(self.env),
         )
         self.abs_eq_24(
             r_w_t=self.env.r_w_t,
@@ -158,13 +190,20 @@ class EquExtAbs(GamsClass):
             var=self.env.var,
             mx=self.env.mx,
             sow=self.env.sow,
+            rts=callable_rts(self.env),
         )
         self.abs_eq_25(
             r_w_t=self.env.r_w_t,
             swx=self.env.swx,
             swtx=self.env.swtx,
+            rts=callable_rts(self.env),
         )
-        self.abs_eq_26(r_t=self.env.r_t, swx=self.env.swx, swtx=self.env.swtx)
+        self.abs_eq_26(
+            r_t=self.env.r_t,
+            swx=self.env.swx,
+            swtx=self.env.swtx,
+            rts=callable_rts(self.env),
+        )
         self.abs_eq_27(
             r_v_t=self.env.r_v_t,
             swx=self.env.swx,
@@ -173,6 +212,7 @@ class EquExtAbs(GamsClass):
             sws=self.env.sws,
             mx=self.env.mx,
             rcapsbm=self.env.rcapsbm,
+            rts=callable_rts(self.env),
         )
         self.abs_eq_28(
             r_v_t=self.env.r_v_t,
@@ -181,6 +221,7 @@ class EquExtAbs(GamsClass):
             tmp=self.env.tmp,
             mx=self.env.mx,
             upscaps=self.env.upscaps,
+            rts=callable_rts(self.env),
         )
 
     def exec1(self: EquExtAbs, pgprim: str) -> None:
@@ -231,14 +272,14 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
         )
 
     def abs_eq_1(
-        self: EquExtAbs, r_t: str, swx: str, swtx: str, var: str, sow: str
+        self: EquExtAbs, r_t: str, swx: str, swtx: str, var: str, sow: str, rts: str
     ) -> None:
         """Demands for reserves"""
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=rf"""
-  EQ_BS00(RTC({r_t},C),RTS(S){swx})$({swtx}BS_OMEGA(R,'0',C,S)$BS_LAMBDA(RTC))..
+  EQ_BS00(RTC({r_t},C),{rts}{swx})$({swtx}BS_OMEGA(R,'0',C,S)$BS_LAMBDA(RTC))..
   SUM(RHS_COMBAL(RTC,TS)$TS_MAP(R,TS,S),{var}_COMPRD(RTC,TS{sow})/G_YRFR(R,TS))
   =L=
 * Supply (converted to common flow units, as also demand)
@@ -250,15 +291,14 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
         )
 
     def abs_eq_1p(
-        self: EquExtAbs, r_t: str, var: str, sow: str, swx: str, swtx: str
+        self: EquExtAbs, r_t: str, var: str, sow: str, swx: str, swtx: str, rts: str
     ) -> None:
         """Max and ABS(diff) and Share equations"""
-
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=rf"""
-          EQ_BS01(RHS_COMBAL(RTC({r_t},C),RTS(S)),BS_K,L{swx})$({swtx}(BS_OMEGA(RTC,S)<>2$IPS(L))$BS_SHARE(RTC,BS_K,L)$BS_OMEGA(RTC,S))..
+          EQ_BS01(RHS_COMBAL(RTC({r_t},C),{rts}),BS_K,L{swx})$({swtx}(BS_OMEGA(RTC,S)<>2$IPS(L))$BS_SHARE(RTC,BS_K,L)$BS_OMEGA(RTC,S))..
   SUM(BD(LIM(BS_K)),{var}_COMNET(RTC,S{sow})/G_YRFR(R,S) - BS_LAMBDA(RTC) *
     (VAR_BSD('PRB',RTC,S)$BDUPX(BD)-VAR_BSD('DET',RTC,S)$BDLOX(BD))$(BS_OMEGA(RTC,S)<2) -
     ((VAR_BSD('PRB',RTC,S)-VAR_BSD('DET',RTC,S))*BDSIG(BD))$(BS_OMEGA(RTC,S)>2))$IPS(L) +
@@ -273,7 +313,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
         )
 
     def abs_eq_2(
-        self: EquExtAbs, r_t: str, swx: str, swtx: str, var: str, sow: str
+        self: EquExtAbs, r_t: str, swx: str, swtx: str, var: str, sow: str, rts: str
     ) -> None:
         """Loads by source of imbalance for each user category k"""
 
@@ -283,7 +323,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
             module=self,
             phase="init",
             code=rf"""
-  EQ_BS02({r_t},RTS(S),BS_K{swx})$({swtx}SUM(BS_SBD(FINEST(R,S),BD),1)$BS_RTK(R,T,BS_K))..
+  EQ_BS02({r_t},{rts},BS_K{swx})$({swtx}SUM(BS_SBD(FINEST(R,S),BD),1)$BS_RTK(R,T,BS_K))..
   SUM(BS_TOP(RP_STD(R,P),C,IO)$GR_GENMAP(R,P,BS_K),
     SUM((RTP_VINTYR(R,V,T,P),RTPCS_VARF(R,T,P,C,TS))$RS_FR(R,S,TS),
 {cal_red}
@@ -300,7 +340,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
         )
 
     def abs_eq_3(
-        self: EquExtAbs, r_t: str, swtx: str, swx: str, var: str, sow: str
+        self: EquExtAbs, r_t: str, swtx: str, swx: str, var: str, sow: str, rts: str
     ) -> None:
         """Stochastic or combined demand with variances"""
 
@@ -308,7 +348,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
             module=self,
             phase="init",
             code=rf"""
-  EQ_BS03(RTC({r_t},C),RTS(S){swx})$({swtx}FINEST(R,S)$BS_LAMBDA(RTC))..
+  EQ_BS03(RTC({r_t},C),{rts}{swx})$({swtx}FINEST(R,S)$BS_LAMBDA(RTC))..
   SUM((RTCS_VARC(RTC,TS),TS_MAP(R,TS,S))$BS_OMEGA(RTC,TS),
     (BS_LAMBDA(RTC)*VAR_BSD('PRB',RTC,TS))$(BS_OMEGA(RTC,TS)<>2) +
     ({var}_COMNET(RTC,TS{sow})/G_YRFR(R,TS)-BS_LAMBDA(RTC)*VAR_BSD('DET',RTC,TS)*BS_DETWT(RTC))$(BS_OMEGA(RTC,TS)=2) -
@@ -318,7 +358,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
         )
 
     def abs_eq_4(
-        self: EquExtAbs, r_t: str, swx: str, swtx: str, tmp: str, mx: str
+        self: EquExtAbs, r_t: str, swx: str, swtx: str, tmp: str, mx: str, rts: str
     ) -> None:
         """Deterministic demand"""
 
@@ -326,7 +366,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
             module=self,
             phase="init",
             code=rf"""
- EQ_BS04(RHS_COMBAL(RTC({r_t},C),RTS(S)),P{swx})$({swtx}RTP(R,T,P)$GR_GENMAP(R,P,'SI')$BS_OMEGA(RTC,S))..
+ EQ_BS04(RHS_COMBAL(RTC({r_t},C),{rts}),P{swx})$({swtx}RTP(R,T,P)$GR_GENMAP(R,P,'SI')$BS_OMEGA(RTC,S))..
   VAR_BSD('DET',RTC,S)
   =G=
   BS_RTCS('EXOGEN',RTC,S)*BS_CAPACT(R) + PRC_CAPACT(R,P) *
@@ -335,14 +375,16 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
 """,
         )
 
-    def abs_eq_5_to_6(self: EquExtAbs, r_v_t: str, swx: str, swtx: str) -> None:
+    def abs_eq_5_to_6(
+        self: EquExtAbs, r_v_t: str, swx: str, swtx: str, rts: str
+    ) -> None:
         """Minimum online and offline times (adjusted)"""
 
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=rf"""
- EQ_BS05(RTP_VINTYR({r_v_t},P),TSL,BD(L),RTS(S){swx})$({swtx}TS_GROUP(R,TSL,S)$BS_UPC(R,P,TSL,L))..
+ EQ_BS05(RTP_VINTYR({r_v_t},P),TSL,BD(L),{rts}{swx})$({swtx}TS_GROUP(R,TSL,S)$BS_UPC(R,P,TSL,L))..
   SUM((RS_UP(R,S,JS),RJ_SL(R,JS,SL)),
     V_U(UPS,R,V,T,P,SL,L)$(RS_MODUS(R,S,JS,SL)<ACT_TIME(R,T,P,L)/8760)) +
   SUM(LIM(BDNEQ)$(BDSIG(LIM)*BDSIG(L)<0),VAR_BSUPSR(R,V,T,P,S,LIM)$BS_SBD(R,S,LIM) -
@@ -352,7 +394,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
         )
 
     def abs_eq_7_to_8(
-        self: EquExtAbs, r_v_t: str, swx: str, swtx: str, var: str, sow: str
+        self: EquExtAbs, r_v_t: str, swx: str, swtx: str, var: str, sow: str, rts: str
     ) -> None:
         """Ramping rates (adjusted)"""
 
@@ -360,7 +402,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
             module=self,
             phase="init",
             code=rf"""
-  EQ_BS07(RTP_VINTYR({r_v_t},P),RTS(S),BDNEQ(BD){swx})$({swtx}SUM(TS_ANN(S,TS)$ACT_UPS(R,V,P,TS,BD),1)$PRC_TS(R,P,S)$BS_UPL(R,P,BD))..
+  EQ_BS07(RTP_VINTYR({r_v_t},P),{rts},BDNEQ(BD){swx})$({swtx}SUM(TS_ANN(S,TS)$ACT_UPS(R,V,P,TS,BD),1)$PRC_TS(R,P,S)$BS_UPL(R,P,BD))..
 * max fraction of capacity
    SUM(PRC_TS(R,P,TS(S--RS_STG(R,S))),PRC_CAPACT(R,P)*SUM(TS_ANN(S,SL),ACT_UPS(R,V,P,SL,BD)) *
      (VAR_BSON(R,V,T,P,S) + ((VAR_OFF(R,V,T,P,S)-VAR_OFF(R,V,T,P,TS) - (VAR_BSUPSR(R,V,T,P,S,BD)$SUM(BS_COMTS(BS_ANEG(R,C),S),1)))$BDLOX(BD))$RPS_UPS(R,P,S)) +
@@ -373,7 +415,14 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
         )
 
     def abs_eq_9(
-        self: EquExtAbs, r_v_t: str, swx: str, swtx: str, mx: str, sow: str, var: str
+        self: EquExtAbs,
+        r_v_t: str,
+        swx: str,
+        swtx: str,
+        mx: str,
+        sow: str,
+        var: str,
+        rts: str,
     ) -> None:
         """Capacity margin constraints - positive"""
 
@@ -381,7 +430,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
             module=self,
             phase="init",
             code=rf"""
-  EQ_BS09(RTP_VINTYR({r_v_t},P),RTS(S),L('UP'){swx})$({swtx}BS_PRS(R,P,S)$(NOT RP_DP(R,P))$BS_SUPP(R,P))..
+  EQ_BS09(RTP_VINTYR({r_v_t},P),{rts},L('UP'){swx})$({swtx}BS_PRS(R,P,S)$(NOT RP_DP(R,P))$BS_SUPP(R,P))..
   SUM(BS_COMTS(BS_APOS(R,C),S)$BS_BSC(R,P,C),VAR_BSFSP(R,V,T,P,C,S))*PRC_CAPACT(R,P) +
   (PRC_CAPACT(R,P)*(COEF_AF{mx}(R,V,T,P,S,L)-ACT_MINLD(R,V,P))*V_U(UPS,R,V,T,P,S,L)*MIN(1,ACT_SDTIME(R,V,P,'HOT',L)/8760/(G_YRFR(R,S)/RS_STGPRD(R,S))))$RPS_UPS(R,P,S)
   =L=
@@ -392,7 +441,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
         )
 
     def abs_eq_10(
-        self: EquExtAbs, r_v_t: str, swx: str, swtx: str, sow: str, var: str
+        self: EquExtAbs, r_v_t: str, swx: str, swtx: str, sow: str, var: str, rts: str
     ) -> None:
         """Capacity margin constraints - negative"""
 
@@ -400,7 +449,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
             module=self,
             phase="init",
             code=rf"""
-  EQ_BS10(RTP_VINTYR({r_v_t},P),RTS(S){swx})$({swtx}BS_PRS(R,P,S)$BS_NEGP(R,P)$BS_SUPP(R,P))..
+  EQ_BS10(RTP_VINTYR({r_v_t},P),{rts}{swx})$({swtx}BS_PRS(R,P,S)$BS_NEGP(R,P)$BS_SUPP(R,P))..
   SUM(BS_COMTS(BS_ANEG(R,C),S)$BS_BSC(R,P,C),VAR_BSFSP(R,V,T,P,C,S)+VAR_BSFNSP(R,V,T,P,C,S)$RP_STD(R,P))*PRC_CAPACT(R,P)
   =L=
   ({var}_ACT(R,V,T,P,S{sow})$RP_STD(R,P)+SUM(TOP(RPC_STG(R,P,C),'OUT'),V_U(SOUT,R,V,T,P,C,S)*STG_EFF(R,V,P))$RP_STG(R,P))/G_YRFR(R,S) -
@@ -409,48 +458,55 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
 """,
         )
 
-    def abs_eq_11_to_17(self: EquExtAbs, r_w_t: str, swx: str, swtx: str) -> None:
+    def abs_eq_11_to_17(
+        self: EquExtAbs, r_w_t: str, swx: str, swtx: str, rts: str
+    ) -> None:
         """Limit reserve by type and sign according to BS_RMAX"""
 
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=rf"""
-  EQ_BS11(RTP_VINTYR({r_w_t},P),C,RTS(S),BD{swx})$({swtx}BS_PRS(R,P,S)$BS_COMTS(R,C,S)$RPC_CONLY(R,V,P,C)$BS_ABD(R,C,BD))..
+  EQ_BS11(RTP_VINTYR({r_w_t},P),C,{rts},BD{swx})$({swtx}BS_PRS(R,P,S)$BS_COMTS(R,C,S)$RPC_CONLY(R,V,P,C)$BS_ABD(R,C,BD))..
   SUM(BS_ABD(R,COM,BD)$(ABS(BS_RTYPE(R,COM))<=ABS(BS_RTYPE(R,C))),VAR_BSFSP(R,V,T,P,COM,S)$BS_BSC(R,P,COM)$BS_COMTS(R,COM,S))
   =L=  (VAR_BSON(R,V,T,P,S)-SUM(RPS_UPS(R,P,S)$BDLOX(BD),VAR_BSUPSR(R,V,T,P,S,BD))) * SUM(TS_ANN(S,TS),BS_RMAX(R,V,P,C,TS));
 
 """,
         )
 
-    def abs_eq_18_20(self: EquExtAbs, r_w_t: str, swx: str, swtx: str) -> None:
+    def abs_eq_18_20(
+        self: EquExtAbs, r_w_t: str, swx: str, swtx: str, rts: str
+    ) -> None:
         """Limit the provision of TRT & RRR reserves according to quick start-up / shut-down capacity"""
+
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=rf"""
-  EQ_BS18(RTP_VINTYR({r_w_t},P),RTS(S),BDNEQ(BD){swx})$({swtx}BS_PRS(R,P,S)$RPS_UPS(R,P,S)$ACT_MINLD(R,V,P)$BS_SUPP(R,P))..
+  EQ_BS18(RTP_VINTYR({r_w_t},P),{rts},BDNEQ(BD){swx})$({swtx}BS_PRS(R,P,S)$RPS_UPS(R,P,S)$ACT_MINLD(R,V,P)$BS_SUPP(R,P))..
   VAR_BSUPSR(R,V,T,P,S,BD)*ACT_MINLD(R,V,P)$BS_SBD(R,S,BD)
   =L=  SUM(BS_ABD(R,C,BD)$(ABS(BS_RTYPE(R,C))>2),VAR_BSFNSP(R,V,T,P,C,S)$BS_BSC(R,P,C)$BS_COMTS(R,C,S));
 
 """,
         )
 
-    def abs_eq_19_21(self: EquExtAbs, r_w_t: str, swx: str, swtx: str) -> None:
+    def abs_eq_19_21(
+        self: EquExtAbs, r_w_t: str, swx: str, swtx: str, rts: str
+    ) -> None:
         """Limit the provision of TRT & RRR reserves according to quick start-up / shut-down capacity"""
 
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=rf"""
-  EQ_BS19(RTP_VINTYR({r_w_t},P),C,RTS(S),BD{swx})$({swtx}(ABS(BS_RTYPE(R,C))>2)$BS_PRS(R,P,S)$BS_SUPP(R,P)$BS_BSC(R,P,C)$BS_ABD(R,C,BD))..
+  EQ_BS19(RTP_VINTYR({r_w_t},P),C,{rts},BD{swx})$({swtx}(ABS(BS_RTYPE(R,C))>2)$BS_PRS(R,P,S)$BS_SUPP(R,P)$BS_BSC(R,P,C)$BS_ABD(R,C,BD))..
   SUM(BS_ABD(R,COM,BD)$(MOD(ABS(BS_RTYPE(R,COM))-1,BS_RTYPE(R,C))>1),VAR_BSFNSP(R,V,T,P,COM,S)$BS_BSC(R,P,COM)$BS_COMTS(R,COM,S))
   =L=  VAR_BSUPSR(R,V,T,P,S,BD)$RPS_UPS(R,P,S) * SUM(TS_ANN(S,TS),BS_RMAX(R,V,P,C,TS))$BS_COMTS(R,C,S);
 """,
         )
 
     def abs_eq_22(
-        self: EquExtAbs, r_w_t: str, swx: str, swtx: str, var: str, sow: str
+        self: EquExtAbs, r_w_t: str, swx: str, swtx: str, var: str, sow: str, rts: str
     ) -> None:
         """Ensure sufficient storage level when contracted to reserve"""
 
@@ -458,7 +514,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
             module=self,
             phase="init",
             code=rf"""
-  EQ_BS22(RTP_VINTYR({r_w_t},P),RTS(S){swx})$({swtx}BS_STGP(R,P)$COEF_AFUPS(R,V,P,S)$RPS_STG(R,P,S))..
+  EQ_BS22(RTP_VINTYR({r_w_t},P),{rts}{swx})$({swtx}BS_STGP(R,P)$COEF_AFUPS(R,V,P,S)$RPS_STG(R,P,S))..
 * storage: for single-day (true) activity divide by cycles under parent
   SUM(PRC_TS(R,P,TS)$RS_FR(R,TS,S),{var}_ACT(R,V,T,P,TS{sow})*RS_FR(R,TS,S)/RS_STGPRD(R,TS))$BS_SBD(R,S,'UP')
   =G=
@@ -468,7 +524,14 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
         )
 
     def abs_eq_23(
-        self: EquExtAbs, r_v_t: str, swx: str, swtx: str, sow: str, var: str, tmp: str
+        self: EquExtAbs,
+        r_v_t: str,
+        swx: str,
+        swtx: str,
+        sow: str,
+        var: str,
+        tmp: str,
+        rts: str,
     ) -> None:
         """Limit storage level by capacity and contracted reserve"""
 
@@ -476,7 +539,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
             module=self,
             phase="init",
             code=rf"""
-  EQ_BS23(RTP_VINTYR({r_v_t},P),RTS(S){swx})$({swtx}BS_STGP(R,P)$COEF_AFUPS(R,V,P,S)$RPS_STG(R,P,S))..
+  EQ_BS23(RTP_VINTYR({r_v_t},P),{rts}{swx})$({swtx}BS_STGP(R,P)$COEF_AFUPS(R,V,P,S)$RPS_STG(R,P,S))..
 * storage: for single-day (true) activity divide by cycles under parent
   SUM(PRC_TS(R,P,TS)$RS_FR(R,TS,S),{var}_ACT(R,V,T,P,TS{sow})*RS_FR(R,TS,S)/RS_STGPRD(R,TS))
   =L=
@@ -488,7 +551,14 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
         )
 
     def abs_eq_24(
-        self: EquExtAbs, r_w_t: str, swx: str, swtx: str, var: str, mx: str, sow: str
+        self: EquExtAbs,
+        r_w_t: str,
+        swx: str,
+        swtx: str,
+        var: str,
+        mx: str,
+        sow: str,
+        rts: str,
     ) -> None:
         """End-use - negative"""
 
@@ -496,7 +566,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
             module=self,
             phase="init",
             code=rf"""
-  EQ_BS24(RTP_VINTYR({r_w_t},P),RTS(S){swx})$({swtx}BS_PRS(R,P,S)$AFS(R,T,P,S,'UP')$BS_SBD(R,S,'LO')$BS_NEGP(R,P)$BS_ENDP(R,P))..
+  EQ_BS24(RTP_VINTYR({r_w_t},P),{rts}{swx})$({swtx}BS_PRS(R,P,S)$AFS(R,T,P,S,'UP')$BS_SBD(R,S,'LO')$BS_NEGP(R,P)$BS_ENDP(R,P))..
   SUM(BS_COMTS(BS_ANEG(R,C),S)$BS_BSC(R,P,C),VAR_BSFSP(R,V,T,P,C,S))
   =L=
 * available process capacity - activity level
@@ -510,7 +580,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
 """,
         )
 
-    def abs_eq_25(self: EquExtAbs, r_w_t: str, swx: str, swtx: str) -> None:
+    def abs_eq_25(self: EquExtAbs, r_w_t: str, swx: str, swtx: str, rts: str) -> None:
         """End-use - positive"""
 
         cal_red = self.cal_red_func(arg1="C", arg2="COM", arg3="TS", arg4="P", arg5="T")
@@ -518,7 +588,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
             module=self,
             phase="init",
             code=rf"""
-  EQ_BS25(RTP_VINTYR({r_w_t},P),RTS(S){swx})$({swtx}BS_PRS(R,P,S)$BS_SBD(R,S,'UP')$BS_ENDP(R,P))..
+  EQ_BS25(RTP_VINTYR({r_w_t},P),{rts}{swx})$({swtx}BS_PRS(R,P,S)$BS_SBD(R,S,'UP')$BS_ENDP(R,P))..
   SUM(BS_COMTS(BS_APOS(R,C),S)$BS_BSC(R,P,C),VAR_BSFSP(R,V,T,P,C,S))*PRC_CAPACT(R,P)*G_YRFR(R,S)
   =L=
   SUM(TOP(R,P,C,'IN')$NRG_TMAP(R,'ELC',C),
@@ -529,14 +599,14 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
 """,
         )
 
-    def abs_eq_26(self: EquExtAbs, r_t: str, swx: str, swtx: str) -> None:
+    def abs_eq_26(self: EquExtAbs, r_t: str, swx: str, swtx: str, rts: str) -> None:
         """Bound on process reserve provision"""
 
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=rf"""
-  EQ_BS26(RTP({r_t},P),C,RTS(S){swx})$({swtx}BS_COMTS(R,C,S)$(BS_BSC(R,P,C)+YES$BS_STIME(R,P,C,'UP'))$BS_BNDPRS(RTP,C,S,'N'))..
+  EQ_BS26(RTP({r_t},P),C,{rts}{swx})$({swtx}BS_COMTS(R,C,S)$(BS_BSC(R,P,C)+YES$BS_STIME(R,P,C,'UP'))$BS_BNDPRS(RTP,C,S,'N'))..
   SUM((RTP_VINTYR(R,V,T,P),BS_PRS(R,P,TS))$RS_FR(R,TS,S),
     (VAR_BSFSP(R,V,T,P,C,TS)+VAR_BSFNSP(R,V,T,P,C,TS)$(ABS(BS_RTYPE(R,C))>2)$BS_SUPP(R,P))*RS_FR(R,TS,S))
   =E=  VAR_BSLACK(R,T,P,C,S);
@@ -552,6 +622,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
         sws: str,
         rcapsbm: str,
         mx: str,
+        rts: str,
     ) -> None:
         """Maintenence 1 - entrance to maintenance"""
 
@@ -559,7 +630,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
             module=self,
             phase="init",
             code=rf"""
-  EQ_BS27(RTP_VINTYR({r_v_t},P),RTS(S){swx})$({swtx}(BS_MAINT(R,V,P,S)>=0)$BS_MAINT(R,V,P,S))..
+  EQ_BS27(RTP_VINTYR({r_v_t},P),{rts}{swx})$({swtx}(BS_MAINT(R,V,P,S)>=0)$BS_MAINT(R,V,P,S))..
   SUM(TS_MAP(R,S,TS)$RPS_UPS(R,P,TS),
     (VAR_BSMUP(R,V,T,P,TS)*MIN(1,ROUND(BS_MAINT(R,V,P,S),1)/8760*RS_STGPRD(R,TS)/G_YRFR(R,S)))$PRC_TS(R,P,TS) +
     (VAR_OFF(R,V,T,P,TS)*RS_FR(R,TS,S)$(BS_MAINT(R,V,P,S)=0))$TS_CYCLE(R,TS))
@@ -577,6 +648,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
         tmp: str,
         mx: str,
         upscaps: str,
+        rts: str,
     ) -> None:
         """Maintenence 2 - continuous duration"""
 
@@ -584,7 +656,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
             module=self,
             phase="init",
             code=rf"""
- EQ_BS28(RTP_VINTYR({r_v_t},P),RTS(S){swx})$({swtx}PRC_TS(R,P,S)$BS_MAINT(R,V,P,S))..
+ EQ_BS28(RTP_VINTYR({r_v_t},P),{rts}{swx})$({swtx}PRC_TS(R,P,S)$BS_MAINT(R,V,P,S))..
   SUM((RS_UP(R,S,JS),RJ_SL(R,JS,SL)),VAR_BSMUP(R,V,T,P,SL)$(RS_MODUS(R,S,JS,SL)<ABS(BS_MAINT(R,V,P,S))/8760))
   =L=  {tmp}*(1-COEF_AF{mx}(R,V,T,P,S,'UP'))-({upscaps}*COEF_AF{mx}(R,V,T,P,S,'UP'));
 """,

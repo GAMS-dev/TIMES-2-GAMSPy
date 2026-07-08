@@ -127,3 +127,7 @@ def generate_equation(lhs: Any, type: Literal["E", "N", "L", "G"], rhs: Any) -> 
             raise ValueError(
                 f"CRITICAL: Unrecognized compilation operator type flag: '{type}'"
             )
+
+
+def callable_rts(env: CompileEnvironment, gp: bool = False) -> Any:
+    return env.rts_GP if gp else env.rts

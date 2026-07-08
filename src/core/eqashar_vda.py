@@ -19,6 +19,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from core import cal_nored_red, cal_red_red, pp_lvlfc_mod
+from core.utils import callable_rts
 
 from .base_class import GamsClass
 
@@ -138,11 +139,12 @@ class EqasharVda(GamsClass):
                 sow=self.env.sow,
                 var=self.env.var,
             )
+        rts = callable_rts(self.env)
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=rf"""
-{eq}{self.arg1}_ASHAR(RTP_VINTYR({r_v_t},P),CG,CG2,RTS(S){swt})$(SUM(RS_TREE(R,S,TS)$FLO_ASHAR(R,V,P,CG,CG2,TS,'{self.arg2}'),1)$RPCG_ASHAR(R,P,CG,CG2,S))..
+{eq}{self.arg1}_ASHAR(RTP_VINTYR({r_v_t},P),CG,CG2,{rts}{swt})$(SUM(RS_TREE(R,S,TS)$FLO_ASHAR(R,V,P,CG,CG2,TS,'{self.arg2}'),1)$RPCG_ASHAR(R,P,CG,CG2,S))..
 
 * sum over RPS_S2 timeslices
      SUM(RPS_S2(RP_FLO(R,P),SL)$TS_MAP(R,S,SL),

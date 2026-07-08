@@ -18,6 +18,7 @@ from core.fillparm_gms import FillparmGms
 from core.filparam_gms import FilparamGms, FilparamGmsConfig
 from core.gasgrids_vda import GasgridsVda
 from core.pp_lvlfc_mod import PpLvlfcMod
+from core.utils import callable_rts
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -600,12 +601,13 @@ $ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,'{pgprim}',s,ie{sow}
             pgprim=pgprim,
             def_rtp_ffcs=def_rtp_ffcs,
         )
+        rts = callable_rts(self.env)
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=rf"""
 * Standard DC power flow equations - Omega
-  {eq}_GR_POWFLO(RTCS_VARC(RC_GRID({r_t},C),RTS(S)),REG,COM{swt})$GR_ADMIT(R,T,C,REG,COM)..
+  {eq}_GR_POWFLO(RTCS_VARC(RC_GRID({r_t},C),{rts}),REG,COM{swt})$GR_ADMIT(R,T,C,REG,COM)..
 
   SUM((GR_TOP(R,C,REG,COM,P),RTP_VINTYR(REG,V,T,P))$RTPCS_VARF(REG,T,P,COM,S),
     SUM(RPC_IRE(REG,P,COM,IE)$PRC_REACT(R,T,P),{var}_IRE(REG,V,T,P,COM,S,IE{sow})*(1-2*XPT(IE))))
@@ -615,7 +617,7 @@ $ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,'{pgprim}',s,ie{sow}
 *------------------------------------------------------------------------
 
 * Standard DC power flow equations - PTDF
-  {eq}_GR_PTDFLO({r_t},P,C,RTS(S){swt})$(RPS_S1(R,P,S)$(GR_FLOW(R,P,C)>0)$RP_GRID(R,P))..
+  {eq}_GR_PTDFLO({r_t},P,C,{rts}{swt})$(RPS_S1(R,P,S)$(GR_FLOW(R,P,C)>0)$RP_GRID(R,P))..
 *...Real flow over the line
     SUM((RTP_VINTYR(R,V,T,P),RTPCS_VARF(R,T,P,C,TS))$RS_FR(R,S,TS),RS_FR(R,S,TS)*SUM(RPC_IRE(R,P,C,IE),{var}_IRE(R,V,T,P,C,S,IE{sow})*(2*XPT(IE)-1))) +
 *...Virtual powerflow over the line (if candidate)
@@ -629,7 +631,7 @@ $ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,'{pgprim}',s,ie{sow}
   ;
 *------------------------------------------------------------------------
 * Implied capacity of virtual powerflow
-  {eq}_GR_VIRTCAP(GR_CANDID({r_t},P),C,RTS(S),BDNEQ(BD){swt})$((GR_FLOW(R,P,C)>0)$RPS_S1(R,P,S))..
+  {eq}_GR_VIRTCAP(GR_CANDID({r_t},P),C,{rts},BDNEQ(BD){swt})$((GR_FLOW(R,P,C)>0)$RPS_S1(R,P,S))..
     SUM(GR_TOP(R,C,RC,P),VAR_GRVIRT(R,T,P,C,S))*BDSIG(BD)  =L=  {var}_XCAP(R,T,P{sow})*PRC_CAPACT(R,P)*G_YRFR(R,S)
   ;
 *------------------------------------------------------------------------
@@ -642,7 +644,7 @@ $ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,'{pgprim}',s,ie{sow}
   ;
 *------------------------------------------------------------------------
 * Generation fractions for all grid nodes C
-  {eq}_GR_GENALL(RTCS_VARC(GR_GNALL({r_t},C),RTS(S)),CG {swt})$GR_ALGMAP(R,CG,CG)..
+  {eq}_GR_GENALL(RTCS_VARC(GR_GNALL({r_t},C),{rts}),CG {swt})$GR_ALGMAP(R,CG,CG)..
 
 * Normal processes
   SUM((GR_PRCMAP(RP_STD(R,P),COM,ITEM),GR_ALGMAP(R,CG,COM)), GR_GENMAP(R,P,ITEM)*GR_GENFR(R,T,C,ITEM) *
@@ -667,7 +669,7 @@ $ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,'{pgprim}',s,ie{sow}
   SUM((GR_ALGMAP(R,CG,COM),GR_ALLMAP(R,C,COM))$RTC(R,T,COM),{var}_GRIDIO(R,T,COM,C,S,'OUT'{sow}) + {var}_GRIDIO(R,T,COM,C,S,'IN'{sow})$GR_ALGMAP(R,COM,COM));
 *------------------------------------------------------------------------
 * Demand fractions for all but the largest fraction
-  {eq}_GR_DEMALL(RTCS_VARC(RC_GRID({r_t},C),RTS(S)) {swt})$GR_DEMFR(R,T,C,S)..
+  {eq}_GR_DEMALL(RTCS_VARC(RC_GRID({r_t},C),{rts}) {swt})$GR_DEMFR(R,T,C,S)..
 
 * Net injection
   SUM(GR_ENDC(R,COM),
@@ -691,7 +693,7 @@ $ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,'{pgprim}',s,ie{sow}
   =E= 0;
 *------------------------------------------------------------------------
 * Bound on net imports/exports from grid J
-  {eq}_GR_XBND({r_t},J,IE,RTS(S){swt})$(FINEST(R,S)$GR_GRID(J,R,'ACT')$GR_XBND(R,T))..
+  {eq}_GR_XBND({r_t},J,IE,{rts}{swt})$(FINEST(R,S)$GR_GRID(J,R,'ACT')$GR_XBND(R,T))..
 
   SUM((GR_GRID(J,R,C),GR_DEMMAP(R,C,COM))$(RTC(R,T,COM)$RC_GRID(R,T,C)), PROD(XPT(IE),-1) *
     ({var}_GRIDIO(R,T,COM,C,S,'IN'{sow})$GR_ALGMAP(R,'NRG',COM) - {var}_GRIDIO(R,T,COM,C,S,'OUT'{sow})))

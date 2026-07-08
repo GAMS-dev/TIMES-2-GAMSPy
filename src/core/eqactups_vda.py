@@ -17,6 +17,7 @@ from gamspy import Sum
 
 from core.base_class import GamsClass
 from core.pp_lvlfc_mod import pp_lvlfc_mod
+from core.utils import callable_rts
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -88,6 +89,7 @@ class EqactupsVda(GamsClass):
             upscaps=self.env.upscaps,
             arg1=self.arg1,
         )
+        rts = callable_rts(self.env)
         self.equation_acttramp(
             eq=self.env.eq,
             r_v_t=self.env.r_v_t,
@@ -96,6 +98,7 @@ class EqactupsVda(GamsClass):
             sow=self.env.sow,
             mx=self.env.mx,
             tmp=self.env.tmp,
+            rts=rts,
         )
         self.equation_actups(
             eq=self.env.eq,
@@ -105,6 +108,7 @@ class EqactupsVda(GamsClass):
             sow=self.env.sow,
             mx=self.env.mx,
             tmp=self.env.tmp,
+            rts=rts,
         )
         self.equation_actupc(
             eq=self.env.eq,
@@ -114,6 +118,7 @@ class EqactupsVda(GamsClass):
             sow=self.env.sow,
             capon=self.env.capon,
             upscaps=self.env.upscaps,
+            rts=rts,
         )
         self.equation_actpl(
             eq=self.env.eq,
@@ -123,6 +128,7 @@ class EqactupsVda(GamsClass):
             sow=self.env.sow,
             mx=self.env.mx,
             tmp=self.env.tmp,
+            rts=rts,
         )
         self.equation_actrmpc(
             eq=self.env.eq,
@@ -155,6 +161,7 @@ class EqactupsVda(GamsClass):
             var=self.env.var,
             sow=self.env.sow,
             pgprim=self.env.pgprim,
+            rts=rts,
         )
 
     def set_indicators(self: EqactupsVda, pgprim: str) -> None:
@@ -260,6 +267,7 @@ class EqactupsVda(GamsClass):
         sow: str,
         mx: str,
         tmp: str,
+        rts: str,
     ) -> None:
         self.tc.add_gams_code(
             module=self,
@@ -267,7 +275,7 @@ class EqactupsVda(GamsClass):
             code=rf"""
 *-----------------------------------------------------------------------
 
-  {eq}_ACTRAMP(RTP_VINTYR({r_v_t},P),RTS(S),BDNEQ(BD){swt})$(SUM(TS_ANN(S,TS)$ACT_UPS(R,V,P,TS,BD),1)$PRC_TS(R,P,S)$RP_UPL(R,P,BD))..
+  {eq}_ACTRAMP(RTP_VINTYR({r_v_t},P),{rts},BDNEQ(BD){swt})$(SUM(TS_ANN(S,TS)$ACT_UPS(R,V,P,TS,BD),1)$PRC_TS(R,P,S)$RP_UPL(R,P,BD))..
 
 * max fraction of capacity
    SUM(RS_PREV(R,S,TS)$PRC_TS(R,P,TS),PRC_CAPACT(R,P)*SUM(TS_ANN(S,SL),ACT_UPS(R,V,P,SL,BD)) *
@@ -291,6 +299,7 @@ class EqactupsVda(GamsClass):
         sow: str,
         mx: str,
         tmp: str,
+        rts: str,
     ) -> None:
         self.tc.add_gams_code(
             module=self,
@@ -298,7 +307,7 @@ class EqactupsVda(GamsClass):
             code=rf"""
 *-----------------------------------------------------------------------
 
-  {eq}E_ACTUPS(RTP_VINTYR({r_v_t},P),TSL,L(BND_TYPE),RTS(S){swt})$(TS_GROUP(R,TSL,S)$RP_UPS(R,P,TSL,L))..
+  {eq}E_ACTUPS(RTP_VINTYR({r_v_t},P),TSL,L(BND_TYPE),{rts}{swt})$(TS_GROUP(R,TSL,S)$RP_UPS(R,P,TSL,L))..
 
 * start-up/shut-down capacity
    (SUM(RS_PREV(R,S,TS),{var}_UPS(R,V,T,P,S,'N'{sow})-{var}_UPS(R,V,T,P,TS,'N'{sow})-SUM(BD,{var}_UPS(R,V,T,P,S,BD{sow})*BDSIG(BD)))$STOA(S) +
@@ -309,7 +318,7 @@ class EqactupsVda(GamsClass):
 
 *-----------------------------------------------------------------------
 
-  {eq}L_ACTUPS(RTP_VINTYR({r_v_t},P),TSL,LNX(L),RTS(S){swt})$(TS_GROUP(R,TSL,S)$RP_UPS(R,P,TSL,L))..
+  {eq}L_ACTUPS(RTP_VINTYR({r_v_t},P),TSL,LNX(L),{rts}{swt})$(TS_GROUP(R,TSL,S)$RP_UPS(R,P,TSL,L))..
 
 * balance at higher level
    ({var}_UPS(R,V,T,P,S,L{sow})-SUM(RS_BELOW1(R,TS,S),{var}_UPS(R,V,T,P,TS,'FX'{sow})))$IPS(L) +
@@ -330,6 +339,7 @@ class EqactupsVda(GamsClass):
         sow: str,
         capon: str,
         upscaps: str,
+        rts: str,
     ) -> None:
         self.tc.add_gams_code(
             module=self,
@@ -337,7 +347,7 @@ class EqactupsVda(GamsClass):
             code=rf"""
 *-----------------------------------------------------------------------
 
-  {eq}L_ACTUPC(RTP_VINTYR({r_v_t},P),TSL,L,RTS(S){swt})$(TS_GROUP(R,TSL,S)$RP_UPC(R,P,TSL,L))..
+  {eq}L_ACTUPC(RTP_VINTYR({r_v_t},P),TSL,L,{rts}{swt})$(TS_GROUP(R,TSL,S)$RP_UPC(R,P,TSL,L))..
 
 * max number of cycles
    (SUM(RS_BELOW1(R,S,SL),{var}_UPS(R,V,T,P,SL,'UP'{sow})) - ({capon}{upscaps})*ACT_TIME(R,T,P,L))$IPS(L) +
@@ -361,6 +371,7 @@ class EqactupsVda(GamsClass):
         sow: str,
         mx: str,
         tmp: str,
+        rts: str,
     ) -> None:
         self.tc.add_gams_code(
             module=self,
@@ -368,7 +379,7 @@ class EqactupsVda(GamsClass):
             code=rf"""
 *-----------------------------------------------------------------------
 
-  {eq}_ACTPL(RTP_VINTYR({r_v_t},P),RTS(S){swt})$(PRC_TS(R,P,S)$RP_PL(R,P,'N'))..
+  {eq}_ACTPL(RTP_VINTYR({r_v_t},P),{rts}{swt})$(PRC_TS(R,P,S)$RP_PL(R,P,'N'))..
 
 * partial loads
    {var}_UPS(R,V,T,P,S,'FX'{sow})  =G=
@@ -438,13 +449,14 @@ class EqactupsVda(GamsClass):
         var: str,
         sow: str,
         pgprim: str,
+        rts: str,
     ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=rf"""
 * Load Shifting
-  {eq}_SLSIFT(RTP({r_t},P),COM,RTS(S),LNX,L{swt})$((PRC_TS(R,P,S)$ACT_TIME(RTP,L)+BD(LNX)$LNX(L))$RPS_PRCTS(R,P,S)$RPC_LS(R,P,COM))..
+  {eq}_SLSIFT(RTP({r_t},P),COM,{rts},LNX,L{swt})$((PRC_TS(R,P,S)$ACT_TIME(RTP,L)+BD(LNX)$LNX(L))$RPS_PRCTS(R,P,S)$RPC_LS(R,P,COM))..
 
   SUM(RTP_VINTYR(R,V,T,P),
 * Limit net and gross sifting flows

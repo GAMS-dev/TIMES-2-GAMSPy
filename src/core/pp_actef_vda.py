@@ -13,6 +13,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.utils import callable_rts
+
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -73,11 +75,12 @@ SCALAR MICRO / 1E-6 /;
     def define_equation(
         self: PpActefVda, eq: str, r_v_t: str, swt: str, var: str, sow: str, shp1: str
     ) -> None:
+        rts = callable_rts(self.env)
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=rf"""
- {eq}E_ACTEFF(RTP_VINTYR({r_v_t},P),CG,IO,RTS(S) {swt})$(RPS_S1(R,P,S)$RPG_ACE(R,P,CG,IO))..
+ {eq}E_ACTEFF(RTP_VINTYR({r_v_t},P),CG,IO,{rts} {swt})$(RPS_S1(R,P,S)$RPG_ACE(R,P,CG,IO))..
 
 * Sum over input flows
   SUM((RPC_ACE(R,P,C),COM_GMAP(R,CG,C),TS_MAP(R,S,TS))$RTPCS_VARF(R,T,P,C,TS),

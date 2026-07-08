@@ -42,6 +42,7 @@ from core.ppmain_tm import PpmainTm
 from core.preppm_mod import PreppmMod
 from core.prepxtra_mod import PrepxtraMod
 from core.timslice_mod import TimsliceMod
+from core.utils import callable_rts
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -298,7 +299,8 @@ class PpmainMod(GamsClass):
                 module=self, phase=phase, code="PARAMETER RTCS_FR(R,T,C,S,S) //;"
             )
 
-        self.tc.enqueue(self.phase_thirteen, mx=self.env.mx)
+        rts = callable_rts(self.env)
+        self.tc.enqueue(self.phase_thirteen, mx=self.env.mx, rts=rts)
 
         # Preprocess TIMES-Micro
         if self.env.timesed == "YES":
@@ -1474,7 +1476,7 @@ IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
 """,
         )
 
-    def phase_thirteen(self: PpmainMod, mx: str) -> None:
+    def phase_thirteen(self: PpmainMod, mx: str, rts: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -1482,7 +1484,7 @@ IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
     RS_FR(RS_TREE(R,S,TS)) = 1$TS_MAP(R,S,TS) + (G_YRFR(R,S)/G_YRFR(R,TS))$RS_BELOW(R,TS,S);
     RTCS_FR{mx}(RTC(R,T,C),S,TS)$(RS_BELOW(R,TS,S)$COM_FR(RTC,TS)) =
                                  ((COM_FR(RTC,S)/COM_FR(RTC,TS))$(COM_FR(RTC,TS)>0))/RS_FR(R,S,TS)-1;
-    COM_FR(RTC(R,T,C),RTS(S))$((NOT COM_FR(RTC,S))$RCS_COMTS(R,C,S)) = G_YRFR(R,S);
+    COM_FR(RTC(R,T,C),{rts})$((NOT COM_FR(RTC,S))$RCS_COMTS(R,C,S)) = G_YRFR(R,S);
 
 *-----------------------------------------------------------------------------
 * Elastic demands
