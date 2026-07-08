@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any, Literal
 
-from gamspy import SpecialValues
+from gamspy import Parameter, SpecialValues
 from gamspy.math import rpower
 
 from utils.compile_environment import CompileEnvironment
@@ -127,6 +127,41 @@ def generate_equation(lhs: Any, type: Literal["E", "N", "L", "G"], rhs: Any) -> 
             raise ValueError(
                 f"CRITICAL: Unrecognized compilation operator type flag: '{type}'"
             )
+
+
+def get_callable_parameter_type(
+    symbol_or_func: Parameter | Callable[..., Any] | None,
+    *indices: Any,
+) -> Any:
+    """
+    Return a GAMSPy expression from either a Parameter or a callable macro replacement.
+
+    This is useful for GAMS symbols that may be either a normal parameter
+    or a compile-time macro depending on model settings.
+
+    Examples:
+        get_callable_parameter_type(g.rtcs_fr, r, t, c, s, ts)
+
+    Behavior:
+        - Callable: call it with the provided indices.
+        - Parameter: index it with the provided indices.
+        - None: raise a clear error.
+    """
+    if symbol_or_func is None:
+        raise RuntimeError(
+            "Expected a GAMSPy Parameter or callable macro replacement, but got None."
+        )
+
+    if callable(symbol_or_func):
+        return symbol_or_func(*indices)
+
+    if isinstance(symbol_or_func, Parameter):
+        return symbol_or_func[*indices]
+
+    raise TypeError(
+        "Expected a GAMSPy Parameter or callable macro replacement, "
+        f"but got {type(symbol_or_func).__name__}."
+    )
 
 
 def callable_rts(env: CompileEnvironment, gp: bool = False) -> Any:

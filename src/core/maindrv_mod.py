@@ -147,6 +147,7 @@ class MainDrvMod(GamsClass):
         self.env.set_scoped("r_t", "R,T")
         self.env.set_scoped("r_t_GP", (g.r, g.t))
         self.env.set_scoped("tx", "T")
+        self.env.set_scoped("tx_GP", (g.t,))
         self.env.set_scoped("r_v_t", "R,V,T")
         self.env.set_scoped("r_v_t_GP", (g.r, g.v, g.t))
         self.env.set_scoped("rtpx", "")
@@ -155,6 +156,7 @@ class MainDrvMod(GamsClass):
             self.env.set_scoped("r_t", "R,SUBT(T)")
             self.env.set_scoped("r_t_GP", (g.r, g.Subt[g.t]))
             self.env.set_scoped("tx", "SUBT(T)")
+            self.env.set_scoped("tx_GP", (g.Subt[g.t],))
             self.env.set_scoped("r_v_t", "R,V,SUBT(T)")
             self.env.set_scoped("r_v_t_GP", (g.r, g.v, g.Subt[g.t]))
 

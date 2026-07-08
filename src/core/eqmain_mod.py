@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from core.equcwrap_mod import EqucwrapArg6Type
 
 from gamspy import Alias, Loop, Number, Parameter, Set, SpecialValues, Sum, set_options
-from gamspy._symbols.implicits import ImplicitSet
+from gamspy._symbols.implicits import ImplicitParameter
 from gamspy.math import project
 
 from core.base_class import GamsClass
@@ -46,7 +46,7 @@ from core.eqflofr_mod import EqflofrMod
 from core.eqflomrk_mod import EqflomrkMod
 from core.eqfloshr_mod import EqfloshrMod
 from core.eqire_mod import EqireMod
-from core.eqirebnd_mod import EqirebndMod
+from core.eqirebnd_mod import EqirebndMod, EqirebndModConfig
 from core.eqmacro_tm import EqmacroTm
 from core.eqobj_mod import EqobjMod
 from core.eqobj_tm import EqobjTm
@@ -296,15 +296,22 @@ class EqmainMod(GamsClass):
 
         # Bound on exchange between internal regions
         # *V0.5b avoid equations if LO=0/UP=INF
-        eqirebnd_batincludes: list[tuple[str, str, str]] = [
-            ("G", "LO", "(IRE_BND(R,T,C,S,ALL_REG,IE,'LO') NE 0)"),
-            ("E", "FX", "YES"),
-            ("L", "UP", "(IRE_BND(R,T,C,S,ALL_REG,IE,'UP') NE INF)"),
+        eqirebndMod_batincludes: list[EqirebndModConfig] = [
+            EqirebndModConfig(
+                "G", "LO", (g.ire_bnd[g.r, g.t, g.c, g.s, g.allreg, g.ie, "LO"] != 0)
+            ),
+            EqirebndModConfig("E", "FX", Number(1)),
+            EqirebndModConfig(
+                "L",
+                "UP",
+                (
+                    g.ire_bnd[g.r, g.t, g.c, g.s, g.allreg, g.ie, "UP"]
+                    != SpecialValues.POSINF
+                ),
+            ),
         ]
-        for arg1, arg2, arg3 in eqirebnd_batincludes:
-            self.include(
-                EqirebndMod(tc=self.tc, env=self.env, arg1=arg1, arg2=arg2, arg3=arg3)
-            )
+        for eqirebnd_config in eqirebndMod_batincludes:
+            self.include(EqirebndMod(tc=self.tc, env=self.env, config=eqirebnd_config))
 
         # Commodity peaking
         self.include(EqpeakMod(tc=self.tc, env=self.env, arg1=self.arg1))
@@ -370,12 +377,12 @@ class EqmainMod(GamsClass):
         # Define a map for region and milestone year specific user constraints to be generated
         ucbd: tuple[()] | tuple[Set | Alias] = ()
         tmp: tuple[()] | tuple[Set | Alias] = ()
-        take = Number(1)
+        take: Number | ImplicitParameter = Number(1)
         self.env.set_local("uclim", ",LIM")
         if self.env.var_uc != "YES":
             ucbd = (g.bd,)
             tmp = (g.lim,)
-            take = g.uc_rhsrt(g.r, g.ucn, g.ts_bd)
+            take = g.uc_rhsrt[g.r, g.ucn, g.ts_bd]
             self.env.set_local("uclim", ",BD")
 
         self.add_sets(ucbd=ucbd, tmp=tmp)
@@ -528,7 +535,7 @@ class EqmainMod(GamsClass):
     def exec2(
         self: EqmainMod,
         ucbd: tuple[()] | tuple[Set | Alias],
-        take: Number | ImplicitSet,
+        take: Number | ImplicitParameter,
     ) -> None:
         g = self.tc
 
