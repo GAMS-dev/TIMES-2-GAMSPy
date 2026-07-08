@@ -19,12 +19,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Literal
 
-from gamspy import Number, SpecialValues
-
 if TYPE_CHECKING:
     from core.equcwrap_mod import EqucwrapArg6Type
 
-from gamspy import Alias, Loop, Number, Parameter, Set, Sum, set_options
+from gamspy import Alias, Loop, Number, Parameter, Set, SpecialValues, Sum, set_options
 from gamspy._symbols.implicits import ImplicitSet
 from gamspy.math import project
 
