@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from core.equcrtp_vda import EqucrtpPhases
 
+from gamspy import Alias, Equation, Parameter, Set, Sum
+
 from core.bnd_ire_vda import BndIreVda
 from core.eqactups_vda import EqactupsVda
 from core.eqashar_vda import EqasharVda
@@ -63,7 +65,7 @@ class EquExtVda(GamsClass):
         if self.arg1.upper() != "DECLR":  # L11: GOTO VDA
             pass
         else:
-            self.equations(eq=self.env.eq, swtd=self.env.swtd, swd=self.env.swd)
+            self.equations(eq=self.env.eq, swtd=self.env.swtd_GP, swd=self.env.swd_GP)
             if self.tc.defined("PREMILE"):
                 self.include(BndIreVda(self.tc, self.env))
             return
@@ -76,9 +78,17 @@ class EquExtVda(GamsClass):
         self.env.set_scoped(
             "upscap0", f"({self.env.upscaps}$PRC_TS(R,P,S))$RP_UPL(R,P,'FX')"
         )
-        self.tc.add_gams_code(
-            module=self, phase="init", code="PARAMETER DP_UNS(R,LL,T,P,TSL,IPS,L) //;"
+
+        g = self.tc
+        r, ll, t, p, tsl, ips, lA = g.r, g.ll, g.t, g.p, g.tsl, g.ips, g.lA
+
+        m = g.container
+        g.dp_uns = Parameter(
+            m,
+            name="DP_UNS",
+            domain=[r, ll, t, p, tsl, ips, lA],
         )
+
         self.tc.enqueue(self.define_param_dp_uns)
         #         *-----------------------------------------------------------------------------
         # * Call for Implementations
@@ -142,73 +152,361 @@ class EquExtVda(GamsClass):
                 )
             )
 
-    def equations(self: EquExtVda, eq: str, swtd: str, swd: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-*-----------------------------------------------------------------------------
-EQUATIONS
-*-----------------------------------------------------------------------------
+    def equations(
+        self: EquExtVda,
+        eq: str,
+        swtd: tuple[Set | Alias, ...] | tuple[()],
+        swd: tuple[Set | Alias] | tuple[()],
+    ) -> None:
+        """
+        *-----------------------------------------------------------------------------
+        EQUATIONS
+        *-----------------------------------------------------------------------------
+        """
+        g = self.tc
+        m = g.container
 
-* Activity efficiency equation
-  {eq}E_ACTEFF(R,ALLYEAR,ALLYEAR,P,CG,IO,S {swtd}) 'Process Activity Efficiency (=)'
+        (
+            r,
+            ll,
+            t,
+            p,
+            tsl,
+            s,
+            la,
+            allsow,
+            upt,
+            bd,
+            allyear,
+            cg,
+            io,
+            comgrp,
+            ucn,
+            ucgrptype,
+            comvar,
+            c,
+            ts,
+            allr,
+            item,
+        ) = (
+            g.r,
+            g.ll,
+            g.t,
+            g.p,
+            g.tsl,
+            g.s,
+            g.lA,
+            g.allsow,
+            g.upt,
+            g.bd,
+            g.allyear,
+            g.cg,
+            g.io,
+            g.comgrp,
+            g.ucn,
+            g.ucgrptype,
+            g.comvar,
+            g.c,
+            g.ts,
+            g.allr,
+            g.item,
+        )
 
-* CAFLAC equations:
-  {eq}E_CAFLAC(R,ALLYEAR,ALLYEAR,P,S {swtd}) 'Commodity based availability (=E=)'
-  {eq}L_CAFLAC(R,ALLYEAR,ALLYEAR,P,S {swtd}) 'Commodity based availability (=L=)'
-  {eq}L_CAPFLO(R,ALLYEAR,ALLYEAR,P,CG,S{swtd}) 'Flow-specific availability (=L=)'
+        # Activity efficiency equation
+        g.set_equation(
+            f"{eq}E_ACTEFF",
+            Equation(
+                m,
+                name=f"{eq}E_ACTEFF",
+                domain=[r, allyear, allyear, p, cg, io, s, *swtd],
+                description="Process Activity Efficiency (=)",
+            ),
+        )
 
-* Advanced shares
-  {eq}E_ASHAR(R,ALLYEAR,ALLYEAR,P,CG,COM_GRP,S{swtd}) 'Advanced share constraint (=E=)'
-  {eq}L_ASHAR(R,ALLYEAR,ALLYEAR,P,CG,COM_GRP,S{swtd}) 'Advanced share constraint (=L=)'
-  {eq}G_ASHAR(R,ALLYEAR,ALLYEAR,P,CG,COM_GRP,S{swtd}) 'Advanced share constraint (=G=)'
+        # CAFLAC equations:
+        g.set_equation(
+            f"{eq}E_CAFLAC",
+            Equation(
+                m,
+                name=f"{eq}E_CAFLAC",
+                domain=[r, allyear, allyear, p, s, *swtd],
+                description="Commodity based availability (=E=)",
+            ),
+        )
+        g.set_equation(
+            f"{eq}L_CAFLAC",
+            Equation(
+                m,
+                name=f"{eq}L_CAFLAC",
+                domain=[r, allyear, allyear, p, s, *swtd],
+                description="Commodity based availability (=L=)",
+            ),
+        )
+        g.set_equation(
+            f"{eq}L_CAPFLO",
+            Equation(
+                m,
+                name=f"{eq}L_CAPFLO",
+                domain=[r, allyear, allyear, p, cg, s, *swtd],
+                description="Flow-specific availability (=L=)",
+            ),
+        )
 
-* Dynamic bounds
-  {eq}N_UCRTP(UC_N,R,T,P,UC_GRPTYPE,BD{swtd}) 'Dynamic process bound (=L=)'
-  {eq}E_UCRTP(UC_N,R,T,P,UC_GRPTYPE,BD{swtd}) 'Dynamic process bound (=E=)'
-  {eq}N_UCRTC(UC_N,COM_VAR,R,T,C,TS,BD{swtd}) 'Dynamic commodity bound (=NE=)'
-  EQN_UCRTP(UC_N,R,T,P,UC_GRPTYPE,BD) 'Dynamic process bound (=NE=)'
+        # Advanced shares
+        g.set_equation(
+            f"{eq}E_ASHAR",
+            Equation(
+                m,
+                name=f"{eq}E_ASHAR",
+                domain=[r, allyear, allyear, p, cg, comgrp, s, *swtd],
+                description="Advanced share constraint (=E=)",
+            ),
+        )
+        g.set_equation(
+            f"{eq}L_ASHAR",
+            Equation(
+                m,
+                name=f"{eq}L_ASHAR",
+                domain=[r, allyear, allyear, p, cg, comgrp, s, *swtd],
+                description="Advanced share constraint (=L=)",
+            ),
+        )
+        g.set_equation(
+            f"{eq}G_ASHAR",
+            Equation(
+                m,
+                name=f"{eq}G_ASHAR",
+                domain=[r, allyear, allyear, p, cg, comgrp, s, *swtd],
+                description="Advanced share constraint (=G=)",
+            ),
+        )
 
-* Activity constraints
-  {eq}_CAPLOAD(R,ALLYEAR,ALLYEAR,P,S,L {swtd})    'Augmented capacity-activity'
-  {eq}_ACTRAMP(R,ALLYEAR,ALLYEAR,P,S,L {swtd})    'Activity ramping equations'
-  {eq}E_ACTUPS(R,ALLYEAR,ALLYEAR,P,TSL,L,S{swtd}) 'Activity startup equations'
-  {eq}L_ACTUPS(R,ALLYEAR,ALLYEAR,P,TSL,L,S{swtd}) 'Activity offline balance'
-  {eq}L_ACTUPC(R,ALLYEAR,ALLYEAR,P,TSL,L,S{swtd}) 'Activity cycling constraints'
-  {eq}_ACTPL(R,ALLYEAR,ALLYEAR,P,S {swtd})        'Activity partial loads'
-  {eq}_ACTRMPC(R,ALLYEAR,ALLYEAR,P,S{swtd})       'Activity ramping costs'
-  EQL_STGCCL(R,ALLYEAR,ALLYEAR,P,ALLSOW)          'Storage cycling constraints'
-  {eq}_SLSIFT(R,ALLYEAR,P,C,S,L,L{swtd})          'Time-slice load sifting'
+        # Dynamic bounds
+        g.set_equation(
+            f"{eq}N_UCRTP",
+            Equation(
+                m,
+                name=f"{eq}N_UCRTP",
+                domain=[ucn, r, t, p, ucgrptype, bd, *swtd],
+                description="Dynamic process bound (=L=)",
+            ),
+        )
+        g.set_equation(
+            f"{eq}E_UCRTP",
+            Equation(
+                m,
+                name=f"{eq}E_UCRTP",
+                domain=[ucn, r, t, p, ucgrptype, bd, *swtd],
+                description="Dynamic process bound (=E=)",
+            ),
+        )
+        g.set_equation(
+            f"{eq}N_UCRTC",
+            Equation(
+                m,
+                name=f"{eq}N_UCRTC",
+                domain=[ucn, comvar, r, t, c, ts, bd, *swtd],
+                description="Dynamic commodity bound (=NE=)",
+            ),
+        )
+        g.eqn_ucrtp = Equation(
+            m,
+            name="EQN_UCRTP",
+            domain=[ucn, r, t, p, ucgrptype, bd],
+            description="Dynamic process bound (=NE=)",
+        )
 
-* Unit commitment
-  eq_sdlogic(r,ll,t,p,tsl,s,l,allsow)   'Logical relationship between decision variables'
-  eq_sudupt(r,ll,t,p,tsl,s,upt,allsow)  'Selection of start up type a according to non-operational time'
-  eq_sdslant(r,ll,t,p,tsl,s,allsow)     'Slanting equation for start-up and shut-down phase'
-  eq_sdminon(r,ll,t,p,s,allsow)         'Minimum on-line capacity constraints'
-  eq_sudload(r,ll,t,p,s,allsow)         'Load during start-up/shut down phase of the unit (linear growth)'
-  eq_sudtime(r,ll,t,p,tsl,s,bd,allsow)  'Minimum on-line / off-line time constraint'
-  eq_sudpll(r,ll,t,p,tsl,s,allsow)      'Efficiency losses due to start-up/shut-down of the unit'
+        # Activity constraints
+        g.set_equation(
+            f"{eq}_CAPLOAD",
+            Equation(
+                m,
+                name=f"{eq}_CAPLOAD",
+                domain=[r, allyear, allyear, p, s, la, *swtd],
+                description="Augmented capacity-activity",
+            ),
+        )
+        g.set_equation(
+            f"{eq}_ACTRAMP",
+            Equation(
+                m,
+                name=f"{eq}_ACTRAMP",
+                domain=[r, allyear, allyear, p, s, la, *swtd],
+                description="Activity ramping equations",
+            ),
+        )
+        g.set_equation(
+            f"{eq}E_ACTUPS",
+            Equation(
+                m,
+                name=f"{eq}E_ACTUPS",
+                domain=[r, allyear, allyear, p, tsl, la, s, *swtd],
+                description="Activity startup equations",
+            ),
+        )
+        g.set_equation(
+            f"{eq}L_ACTUPS",
+            Equation(
+                m,
+                name=f"{eq}L_ACTUPS",
+                domain=[r, allyear, allyear, p, tsl, la, s, *swtd],
+                description="Activity offline balance",
+            ),
+        )
+        g.set_equation(
+            f"{eq}L_ACTUPC",
+            Equation(
+                m,
+                name=f"{eq}L_ACTUPC",
+                domain=[r, allyear, allyear, p, tsl, la, s, *swtd],
+                description="Activity cycling constraints",
+            ),
+        )
+        g.set_equation(
+            f"{eq}_ACTPL",
+            Equation(
+                m,
+                name=f"{eq}_ACTPL",
+                domain=[r, allyear, allyear, p, s, *swtd],
+                description="Activity partial loads",
+            ),
+        )
+        g.set_equation(
+            f"{eq}_ACTRMPC",
+            Equation(
+                m,
+                name=f"{eq}_ACTRMPC",
+                domain=[r, allyear, allyear, p, s, *swtd],
+                description="Activity ramping costs",
+            ),
+        )
+        g.eql_stgccl = Equation(
+            m,
+            name="EQL_STGCCL",
+            domain=[r, allyear, allyear, p, allsow],
+            description="Storage cycling constraints",
+        )
+        g.set_equation(
+            f"{eq}_SLSIFT",
+            Equation(
+                m,
+                name=f"{eq}_SLSIFT",
+                domain=[r, allyear, p, c, s, la, la, *swtd],
+                description="Time-slice load sifting",
+            ),
+        )
 
-* Risk analysis constraints
-  {eq}G_UCMAX(UC_N,ALL_R,ITEM,C,*{swd}) 'Maximum group-wise flow (G)'
-  {eq}G_UCSUMAX(UC_N{swd})              'Maximum group-wise flow over regions (G)'
+        # Unit commitment
+        g.eq_sdlogic = Equation(
+            m,
+            name="eq_sdlogic",
+            domain=[r, ll, t, p, tsl, s, la, allsow],
+            description="Logical relationship between decision variables",
+        )
+        g.eq_sudupt = Equation(
+            m,
+            name="eq_sudupt",
+            domain=[r, ll, t, p, tsl, s, upt, allsow],
+            description="Selection of start up type a according to non-operational time",
+        )
+        g.eq_sdslant = Equation(
+            m,
+            name="eq_sdslant",
+            domain=[r, ll, t, p, tsl, s, allsow],
+            description="Slanting equation for start-up and shut-down phase",
+        )
+        g.eq_sdminon = Equation(
+            m,
+            name="eq_sdminon",
+            domain=[r, ll, t, p, s, allsow],
+            description="Minimum on-line capacity constraints",
+        )
+        g.eq_sudload = Equation(
+            m,
+            name="eq_sudload",
+            domain=[r, ll, t, p, s, allsow],
+            description="Load during start-up/shut down phase of the unit (linear growth)",
+        )
+        g.eq_sudtime = Equation(
+            m,
+            name="eq_sudtime",
+            domain=[r, ll, t, p, tsl, s, bd, allsow],
+            description="Minimum on-line / off-line time constraint",
+        )
+        g.eq_sudpll = Equation(
+            m,
+            name="eq_sudpll",
+            domain=[r, ll, t, p, tsl, s, allsow],
+            description="Efficiency losses due to start-up/shut-down of the unit",
+        )
 
-* Residual loads
-  {eq}_RL_LOAD(R,T,S{swtd})             'Total dispatchable residual loads'
-  {eq}_RL_NDIS(R,T,S,ITEM{swtd})        'Non-dispatchable loads by group'
-  {eq}_RL_STCAP(R,T,S{swtd})            'Minimum available storage capacity'
-  {eq}_RL_PKCAP(R,T,S{swtd})            'Minimum dispatchable reserve during peak'
-  {eq}_RL_THMIN(R,T,S,BD{swtd})         'Aggregate thermal minimum constraint'
-""",
+        # Risk analysis constraints
+        g.set_equation(
+            f"{eq}G_UCMAX",
+            Equation(
+                m,
+                name=f"{eq}G_UCMAX",
+                domain=[ucn, allr, item, c, "*", *swd],
+                description="Maximum group-wise flow (G)",
+            ),
+        )
+        g.set_equation(
+            f"{eq}G_UCSUMAX",
+            Equation(
+                m,
+                name=f"{eq}G_UCSUMAX",
+                domain=[ucn, *swd],
+                description="Maximum group-wise flow over regions (G)",
+            ),
+        )
+
+        # Residual loads
+        g.set_equation(
+            f"{eq}_RL_LOAD",
+            Equation(
+                m,
+                name=f"{eq}_RL_LOAD",
+                domain=[r, t, s],
+                description="Total dispatchable residual loads",
+            ),
+        )
+        g.set_equation(
+            f"{eq}_RL_NDIS",
+            Equation(
+                m,
+                name=f"{eq}_RL_NDIS",
+                domain=[r, t, s, item],
+                description="Non-dispatchable loads by group",
+            ),
+        )
+        g.set_equation(
+            f"{eq}_RL_STCAP",
+            Equation(
+                m,
+                name=f"{eq}_RL_STCAP",
+                domain=[r, t, s],
+                description="Minimum available storage capacity",
+            ),
+        )
+        g.set_equation(
+            f"{eq}_RL_PKCAP",
+            Equation(
+                m,
+                name=f"{eq}_RL_PKCAP",
+                domain=[r, t, s],
+                description="Minimum dispatchable reserve during peak",
+            ),
+        )
+        g.set_equation(
+            f"{eq}_RL_THMIN",
+            Equation(
+                m,
+                name=f"{eq}_RL_THMIN",
+                domain=[r, t, s, bd],
+                description="Aggregate thermal minimum constraint",
+            ),
         )
 
     def define_param_dp_uns(self: EquExtVda) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-
-  RP_PL(RP,BD)$SUM(RPG_PACE(RP,CG),1)=NO;
-""",
-        )
+        g = self.tc
+        g.RpPl[g.Rp, g.bd].where[Sum(g.RpgPace[g.Rp, g.cg], 1.0)] = False
