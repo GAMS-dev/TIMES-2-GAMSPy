@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Literal
 from gamspy import Parameter
 
 from core.base_class import GamsClass
+from core.utils import callable_rts
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -315,6 +316,7 @@ EQUATIONS
         )
 
     def _model_phase(self: GasgridsVda) -> None:
+        rts = callable_rts(self.env)
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -328,53 +330,53 @@ $ MACRO VAR_GG_WSLAC(r,t,p,c,reg,com,s) sum(com2(actcg)$GG_KGF(r,t,p,c),var_gg_p
 $ MACRO VAR_GG_PDMAX(r,t,p,c,reg,com,ts,z) MAX(POWER(GG_PRBD(R,T,C,'UP')*max(1,GG_GAMMA(r,t,p,c)),Z)-POWER(GG_PRBD(REG,T,COM,'LO'),Z),0))*((VAR_GG_Y(r,t,p,c,ts)$GG_TOP(r,c,reg,com,p) + (1-VAR_GG_Y(reg,t,p,com,ts))$GG_TOP(reg,com,r,c,p))
 
 * Gas grid equation formulations
-    EQ_GG_MFLO(GG_RTPC({self.env.r_t},P,C),RC(REG,COM1),RTS(S))$(PRC_TS(R,P,S)$GG_LINK(R,P,C,RC))..
+    EQ_GG_MFLO(GG_RTPC({self.env.r_t},P,C),RC(REG,COM1),{rts})$(PRC_TS(R,P,S)$GG_LINK(R,P,C,RC))..
       VAR_GG_MF(r,t,p,C,RC,S) * GG_DENS(r,c) * G_YRFR(r,S)*8760  =E=
       SUM(TOP_IRE(R,COM,REG,COM2,P)$(GG_EDGE(R,P,R)->((RPC_PG(R,P,COM2) XOR RPC_PG(R,P,C)) OR COM_GMAP(R,C,COM)$COM_GMAP(RC,COM2))),
         SUM(RTP_VINTYR(R,V,T,P),(VAR_IRE(R,V,T,P,COM,S,'EXP')$(NOT RPC_AIRE(R,P,COM))+VAR_ACT(R,V,T,P,S)*PRC_ACTFLO(R,V,P,COM)$RPC_AIRE(R,P,COM))/2) +
         SUM(RTP_VINTYR(REG,V,T,P),(VAR_IRE(REG,V,T,P,COM2,S,'IMP')$(NOT RPC_AIRE(REG,P,COM2))+VAR_ACT(REG,V,T,P,S)*PRC_ACTFLO(REG,V,P,COM2)$RPC_AIRE(REG,P,COM2))/2))
     ;
-    EQ_GG_GAMA(GG_RTPC({self.env.r_t},P,C),REG,COM,RTS(S))$(PRC_TS(R,P,S)$GG_LINK(R,P,C,REG,COM)$GG_GAMMA(R,T,P,C))..
+    EQ_GG_GAMA(GG_RTPC({self.env.r_t},P,C),REG,COM,{rts})$(PRC_TS(R,P,S)$GG_LINK(R,P,C,REG,COM)$GG_GAMMA(R,T,P,C))..
       VAR_GG_PADD(R,T,P,C,S) =L= (GG_GAMMA(R,T,P,C)-1) * VAR_GG_PR(R,T,C,S)
     ;
-    EQ_GG_MBND(GG_RTPC({self.env.r_t},P,C),RC(REG,COM),LNX(L),RTS(S))$(PRC_TS(R,P,S)$(GG_LINK(REG,P,COM,R,C)$BD(L)+IPS(L)$(GG_M1->GG_WTX(R,P,C)))$GG_LINK(R,P,C,RC))..
+    EQ_GG_MBND(GG_RTPC({self.env.r_t},P,C),RC(REG,COM),LNX(L),{rts})$(PRC_TS(R,P,S)$(GG_LINK(REG,P,COM,R,C)$BD(L)+IPS(L)$(GG_M1->GG_WTX(R,P,C)))$GG_LINK(R,P,C,RC))..
       VAR_GG_MF(R,T,P,C,REG,COM,S) + VAR_GG_WSLAC(R,T,P,C,REG,COM,S)$GG_WINK(REG,P,COM,R,C) =L=
       ((GG_MM(R,T,P,C) * (VAR_GG_PRIO(R,T,P,C,S) - VAR_GG_PRIO(REG,T,P,COM,S) + VAR_GG_PDIF(REG,T,P,COM,R,C,S)$GG_LINK(REG,P,COM,R,C)))$GG_TOP(R,C,RC,P) +
        (GG_MM(R,T,P,C) * VAR_GG_PDIF(R,T,P,C,REG,COM,S))$GG_TOP(RC,R,C,P))$IPS(L) +
       (GG_KGF(r,t,p,c) * SQRT(VAR_GG_PDMAX(R,T,P,C,REG,COM,S,2)))$BD(L)
     ;
-    EQ_GG_WEYMTX(GG_RTPC({self.env.r_t},P,C),REG,COM,RTS(S),OMG)$(GG_PP(R,T,P,C,'UP',OMG)$PRC_TS(R,P,S)$GG_LINK(R,P,C,REG,COM)$GG_WTX(R,P,C))..
+    EQ_GG_WEYMTX(GG_RTPC({self.env.r_t},P,C),REG,COM,{rts},OMG)$(GG_PP(R,T,P,C,'UP',OMG)$PRC_TS(R,P,S)$GG_LINK(R,P,C,REG,COM)$GG_WTX(R,P,C))..
       VAR_GG_MF(r,t,p,c,reg,com,S)
       =L=
       GG_KGF(r,t,p,c) * (GG_PP(r,t,P,c,'UP',omg)    /SQRT(POWER(GG_PP(r,t,P,c,'UP',omg),2)-POWER(GG_PP(reg,t,p,com,'LO',omg),2)) * VAR_GG_PRIO(r,t,p,c,s) -
                          GG_PP(REG,t,P,COM,'LO',omg)/SQRT(POWER(GG_PP(r,t,P,c,'UP',omg),2)-POWER(GG_PP(reg,t,p,com,'LO',omg),2)) * (VAR_GG_PRIO(reg,t,p,com,s) - VAR_GG_PDIF(reg,t,p,com,r,c,s)$GG_LINK(reg,p,com,r,c)))
     ;
-    EQ_GG_HLIP(GG_RTPC({self.env.r_t},P,C),REG,COM,RTS(S))$(PRC_TS(R,P,S)$GG_KLP(r,t,p,c)$GG_LINK(R,P,C,REG,COM)$GG_ARC(R,C,REG,COM))..
+    EQ_GG_HLIP(GG_RTPC({self.env.r_t},P,C),REG,COM,{rts})$(PRC_TS(R,P,S)$GG_KLP(r,t,p,c)$GG_LINK(R,P,C,REG,COM)$GG_ARC(R,C,REG,COM))..
       VAR_GG_HLIP(R,T,P,S)  =E=  VAR_GG_HLIP(R,T,P,S--RS_STG(R,S)) +
       SUM((RTP_VINTYR(R,V,T,P),RPC_IRE(R,P,C,IE)),(VAR_IRE(R,V,T,P,C,S,IE)$(NOT RPC_AIRE(R,P,C))+VAR_ACT(R,V,T,P,S)*PRC_ACTFLO(R,V,P,C)$RPC_AIRE(R,P,C))*(2$XPT(IE)-1)) +
       SUM((RTP_VINTYR(REG,V,T,P),RPC_IRE(REG,P,COM,IE)),(VAR_IRE(REG,V,T,P,COM,S,IE)$(NOT RPC_AIRE(REG,P,COM))+VAR_ACT(REG,V,T,P,S)*PRC_ACTFLO(REG,V,P,COM)$RPC_AIRE(REG,P,COM))*(2$XPT(IE)-1))
     ;
-    EQ_GG_HLEV(GG_RTPC({self.env.r_t},P,C),REG,COM,RTS(S))$(PRC_TS(R,P,S)$GG_LINK(R,P,C,REG,COM)$GG_ARC(R,C,REG,COM))..
+    EQ_GG_HLEV(GG_RTPC({self.env.r_t},P,C),REG,COM,{rts})$(PRC_TS(R,P,S)$GG_LINK(R,P,C,REG,COM)$GG_ARC(R,C,REG,COM))..
       VAR_GG_HLIP(R,T,P,S)  =E= GG_KLP(R,T,P,C) * GG_DENS(R,C) * RS_STGPRD(R,S) * (VAR_GG_PRIO(R,T,P,C,S) + VAR_GG_PRIO(REG,T,P,COM,S))/2
     ;
-    EQ_GG_PDIF1(GG_RTPC({self.env.r_t},P,C),RC(REG,COM),GG_VI(J),RTS(S))$((NOT GG_WTX(R,P,C)$GG_O(J))$GG_LINK(REG,P,COM,R,C)$PRC_TS(R,P,S)$GG_LINK(R,P,C,RC))..
+    EQ_GG_PDIF1(GG_RTPC({self.env.r_t},P,C),RC(REG,COM),GG_VI(J),{rts})$((NOT GG_WTX(R,P,C)$GG_O(J))$GG_LINK(REG,P,COM,R,C)$PRC_TS(R,P,S)$GG_LINK(R,P,C,RC))..
       (VAR_GG_PDIF(R,T,P,C,REG,COM,S) - (VAR_GG_PDMAX(R,T,P,C,REG,COM,S,1)))$(NOT GG_O(J)) +
       SUM(GG_O(J)$(ORD(J)=1),VAR_GG_PRU(R,T,P,C,S) - GG_PRBD(R,T,C,'UP')*VAR_GG_Y2(R,T,P,C,REG,COM,S)) +
       SUM(GG_O(J)$(ORD(J)=2),VAR_GG_PRU(R,T,P,C,S) - (VAR_GG_PRIO(R,T,P,C,S)-GG_PRBD(R,T,C,'LO')*(1-VAR_GG_Y2(R,T,P,C,REG,COM,S))))
       =L= 0
     ;
-    EQ_GG_PDIF2(GG_RTPC({self.env.r_t},P,C),REG,COM,RTS(S))$(GG_LINK(REG,P,COM,R,C)$PRC_TS(R,P,S)$GG_TOP(R,C,REG,COM,P))..
+    EQ_GG_PDIF2(GG_RTPC({self.env.r_t},P,C),REG,COM,{rts})$(GG_LINK(REG,P,COM,R,C)$PRC_TS(R,P,S)$GG_TOP(R,C,REG,COM,P))..
       VAR_GG_PDIF(REG,T,P,COM,R,C,S) =E= VAR_GG_PRIO(REG,T,P,COM,S) - VAR_GG_PRIO(R,T,P,C,S) + VAR_GG_PDIF(R,T,P,C,REG,COM,S)
     ;
-    EQ_GG_STEP(GG_RTPC({self.env.r_t},P,C),RC(REG,COM),RTS(S))$((GG_M1->0)$PRC_TS(R,P,S)$GG_WINK(REG,P,COM,R,C)$GG_WINK(R,P,C,RC)$GG_ARC(R,C,RC))..
+    EQ_GG_STEP(GG_RTPC({self.env.r_t},P,C),RC(REG,COM),{rts})$((GG_M1->0)$PRC_TS(R,P,S)$GG_WINK(REG,P,COM,R,C)$GG_WINK(R,P,C,RC)$GG_ARC(R,C,RC))..
       SUM((J)$GG_PPW(r,t,p,c,RC,j),VAR_GG_STEP(r,t,p,c,s,j)) + SUM((J)$GG_PPW(reg,t,p,com,r,c,j),VAR_GG_STEP(reg,t,p,com,s,j))
       =L= 1
     ;
-    EQ_GG_PRIO(GG_RTPC({self.env.r_t},P,C),RC(REG,COM),LNX(L),RTS(S))$(PRC_TS(R,P,S)$GG_WINK(R,P,C,RC)$GG_ARC(R,C,RC))..
+    EQ_GG_PRIO(GG_RTPC({self.env.r_t},P,C),RC(REG,COM),LNX(L),{rts})$(PRC_TS(R,P,S)$GG_WINK(R,P,C,RC)$GG_ARC(R,C,RC))..
       (VAR_GG_PRU(R,T,P,C,S) + VAR_GG_PRU(REG,T,P,COM,S) - VAR_GG_PDIF(REG,T,P,COM,R,C,S)$IPS(L) - VAR_GG_PDIF(R,T,P,C,REG,COM,S)$BD(L))
       =E= VAR_GG_PRIO(R,T,P,C,S)$IPS(L) + VAR_GG_PRIO(REG,T,P,COM,S)$BD(L) - VAR_GG_PDIF(R,T,P,C,R,C,S)
     ;
-    EQ_GG_WEYMST(GG_RTPC({self.env.r_t},P,C),RC(REG,COM),BD(L),RTS(S))$(PRC_TS(R,P,S)$GG_WINK(R,P,C,RC))..
+    EQ_GG_WEYMST(GG_RTPC({self.env.r_t},P,C),RC(REG,COM),BD(L),{rts})$(PRC_TS(R,P,S)$GG_WINK(R,P,C,RC))..
       (VAR_GG_MF(R,T,P,C,REG,COM,S) + VAR_GG_WSLAC(R,T,P,C,REG,COM,S))$LNX(L) + (VAR_GG_PDIF(R,T,P,C,REG,COM,S)$BDLOX(BD) + VAR_GG_PRU(R,T,P,C,S)$BDUPX(BD))$BDNEQ(BD)
       =E=
       (GG_KGF(R,T,P,C)*SUM((J)$GG_PPW(R,T,P,C,RC,J),VAR_GG_STEP(R,T,P,C,S,J)*GG_PPW(R,T,P,C,RC,J)))$LNX(L) +

@@ -18,6 +18,7 @@ import logging
 from typing import TYPE_CHECKING, Literal, get_args
 
 from core.equserco_mod import EqusercoMod
+from core.utils import callable_rts
 
 from .base_class import GamsClass
 
@@ -183,13 +184,14 @@ class EqucwrapMod(GamsClass):
             )
         )
 
+        rts = callable_rts(self.env)
         self.include(
             EqusercoMod(
                 self.tc,
                 self.env,
                 arg1="mod",
                 arg2=self.arg1,
-                arg3=f"RTS({self.env.r_t},UC_N,RTS(S){self.env.swt})$UC_RHSMAP(R,T,UC_N,'EACH',S{self.arg3})",
+                arg3=f"RTS({self.env.r_t},UC_N,{rts}{self.env.swt})$UC_RHSMAP(R,T,UC_N,'EACH',S{self.arg3})",
                 arg4="(",
                 arg5="(",
                 arg6="(",
@@ -233,14 +235,14 @@ class EqucwrapMod(GamsClass):
                 arg10=f"UC_RHSRT(R,UC_N,T,{self.arg2})",
             )
         )
-
+        rts = callable_rts(self.env)
         self.include(
             EqusercoMod(
                 self.tc,
                 self.env,
                 arg1="mod",
                 arg2=self.arg1,
-                arg3=f"RSUS(UC_RTSUC(R,T,UC_N),RTS(S){self.env.sow})${self.env.sws}UC_RHSMAP(R,T,UC_N,'SUCC',S{self.arg3}){self.env.swd}",
+                arg3=f"RSUS(UC_RTSUC(R,T,UC_N),{rts}{self.env.sow})${self.env.sws}UC_RHSMAP(R,T,UC_N,'SUCC',S{self.arg3}){self.env.swd}",
                 arg4="(",
                 arg5=self.env.swtd,
                 arg6="(",

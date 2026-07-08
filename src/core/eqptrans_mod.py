@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 from core.cal_nored_red import cal_nored_red
 from core.cal_red_red import cal_red_red
+from core.utils import callable_rts
 
 from .base_class import GamsClass
 
@@ -108,12 +109,12 @@ class EqptransMod(GamsClass):
             )
         else:
             raise ValueError(f"Unexpected value for cal_red: {cal_red}")
-
+        rts = callable_rts(self.env)
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=rf"""
-    {eq}_PTRANS(RTP_VINTYR({r_v_t},P),COM_GRP,CG,RTS(S){swt})$((RPS_S1(R,P,S) * RP_STD(R,P) *
+    {eq}_PTRANS(RTP_VINTYR({r_v_t},P),COM_GRP,CG,{rts}{swt})$((RPS_S1(R,P,S) * RP_STD(R,P) *
 * All valid tuples are in RPCC_FFUNC (REDUCE taken into account); all STG excluded
                 SUM((RPC(R,P,C),RS_TREE(R,S,TS))$COEF_PTRAN(R,V,P,COM_GRP,C,CG,TS),1))$RPCC_FFUNC(R,P,COM_GRP,CG))..
 

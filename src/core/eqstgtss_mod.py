@@ -14,6 +14,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.utils import callable_rts
+
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -41,11 +43,12 @@ class EqstgtssMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        rts = callable_rts(self.env)
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=rf"""
-    {self.env.eq}_STGTSS(RTP_VINTYR({self.env.r_v_t},P),RTS(S){self.env.swt})$(RPS_STG(R,P,S)$RP_STG(R,P))..
+    {self.env.eq}_STGTSS(RTP_VINTYR({self.env.r_v_t},P),{rts}{self.env.swt})$(RPS_STG(R,P,S)$RP_STG(R,P))..
 
 * storage level in time-slice s
           {self.env.var}_ACT(R,V,T,P,S {self.env.sow})
@@ -85,7 +88,7 @@ class EqstgtssMod(GamsClass):
 
 *--- Balancer Equation ---
 
-    {self.env.eq}_STSBAL(RTP_VINTYR({self.env.r_v_t},P),TSL,RTS(S),L{self.env.swt})$(TS_GROUP(R,TSL,S)$PRC_TS(R,P,S)$RP_STL(R,P,TSL,L))..
+    {self.env.eq}_STSBAL(RTP_VINTYR({self.env.r_v_t},P),TSL,{rts},L{self.env.swt})$(TS_GROUP(R,TSL,S)$PRC_TS(R,P,S)$RP_STL(R,P,TSL,L))..
 
 * storage level in time-slice s
          SUM(RS_BELOW(R,ANNUAL,S),{self.env.var}_ACT(R,V,T,P,S{self.env.sow})+({self.env.var}_SIN(R,V,T,P,'{self.env.pgprim}',S{self.env.sow})+VAR_STS(R,V,T,P,S,'N'))$RP_STL(R,P,TSL,'UP'))
@@ -120,7 +123,7 @@ class EqstgtssMod(GamsClass):
 
 *--- Levelizer Equation ---
 
-    EQ_STSLEV(RTP_VINTYR({self.env.r_v_t},P),TSL,RTS(S){self.env.swx})$({self.env.swtx}(STOAL(R,S)=PRC_SGL(R,P))$TS_GROUP(R,TSL,S)$RP_STL(R,P,TSL,'UP'))..
+    EQ_STSLEV(RTP_VINTYR({self.env.r_v_t},P),TSL,{rts}{self.env.swx})$({self.env.swtx}(STOAL(R,S)=PRC_SGL(R,P))$TS_GROUP(R,TSL,S)$RP_STL(R,P,TSL,'UP'))..
 
 * Sum of levelizers must be less than average variation over S
         SUM(TS_MAP(R,TS,S)$STOA(TS),({self.env.var}_SIN(R,V,T,P,'{self.env.pgprim}',TS{self.env.sow})+{self.env.var}_UDP(R,V,T,P,TS,'LO'{self.env.sow})+VAR_STS(R,V,T,P,TS,'N'))/RS_STGPRD(R,TS))

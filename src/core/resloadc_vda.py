@@ -13,6 +13,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from core.fillparm_gms import FillparmGms
+from core.utils import callable_rts
 
 from .base_class import GamsClass
 
@@ -137,13 +138,14 @@ class ResloadcVda(GamsClass):
                     sow=self.env.sow,
                     var=self.env.var,
                 )
+            rts = callable_rts(self.env)
             self.tc.add_gams_code(
                 module=self,
                 phase="init",
                 code=rf"""
 *-----------------------------------------------------------------------
 * Define the residual load as the sum of dispatchable production plus net storage output
-  {self.env.eq}_RL_LOAD(GR_RLDC({self.env.r_t}),RTS(S){self.env.swt})$FINEST(R,S)..
+  {self.env.eq}_RL_LOAD(GR_RLDC({self.env.r_t}),{rts}{self.env.swt})$FINEST(R,S)..
 
 * Dispatchable production
   SUM(TOP(R,P,C,'OUT')$(NRG_TMAP(R,'ELC',C)$GR_GENMAP(R,P,'RL-DISP')),
@@ -163,7 +165,7 @@ class ResloadcVda(GamsClass):
 
 *-----------------------------------------------------------------------
 * Total levels of generation by group
-  {self.env.eq}_RL_NDIS(GR_RLDC({self.env.r_t}),RTS(S),RLDC{self.env.swt})$(FINEST(R,S)$GR_VARGEN(R,'ANNUAL',RLDC,'FX'))..
+  {self.env.eq}_RL_NDIS(GR_RLDC({self.env.r_t}),{rts},RLDC{self.env.swt})$(FINEST(R,S)$GR_VARGEN(R,'ANNUAL',RLDC,'FX'))..
 
   SUM(TOP(R,P,C,'OUT')$(NRG_TMAP(R,'ELC',C)$GR_RLGT(R,P,RLDC)),
     SUM((RTP_VINTYR(R,V,T,P),RTPCS_VARF(R,T,P,C,TS))$RS_FR(R,S,TS),
@@ -172,7 +174,7 @@ class ResloadcVda(GamsClass):
   =E=  {self.env.var}_RLD(R,T,S,RLDC {self.env.sow})*G_YRFR(R,S);
 *-----------------------------------------------------------------------
 * Available storage capacity must be at least thermal min minus residual load with lower variation
-  {self.env.eq}_RL_STCAP(GR_RLDC({self.env.r_t}),RTS(S){self.env.swt})$FINEST(R,S)..
+  {self.env.eq}_RL_STCAP(GR_RLDC({self.env.r_t}),{rts}{self.env.swt})$FINEST(R,S)..
 
 * Daynite storage capacity
   SUM(TOP(RPC_STG(PRC_CAP(R,P),C),'OUT')$(PRC_TS(R,P,S)$NRG_TMAP(R,'ELC',C)), PRC_CAPACT(R,P) * RS_STGPRD(R,S) *
@@ -191,7 +193,7 @@ class ResloadcVda(GamsClass):
 
 *-----------------------------------------------------------------------
 * Available dispatchable plus storage output capacity must be at least residual load upper variation
-  {self.env.eq}_RL_PKCAP(GR_RLDC({self.env.r_t}),RTS(S){self.env.swt})$FINEST(R,S)..
+  {self.env.eq}_RL_PKCAP(GR_RLDC({self.env.r_t}),{rts}{self.env.swt})$FINEST(R,S)..
 
 * Dispatchable capacity
   SUM(GR_RLGT(PRC_CAP(R,P),'RL-DISP'), PRC_CAPACT(R,P) *

@@ -14,6 +14,8 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from core.utils import callable_rts
+
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -172,6 +174,7 @@ $ macro SPRSV \
     def define_equation1(
         self: EqlducsVda, capon: str, r_v_t: str, swx: str, swtx: str, upscaps: str
     ) -> None:
+        rts = callable_rts(self.env)
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -179,21 +182,21 @@ $ macro SPRSV \
 $macro CAPUPS ({capon}-SUM(rs_below(r,all_ts,s)$rps_ups(r,p,all_ts),var_off(r,v,t,p,all_ts)))
 *-----------------------------------------------------------------------------
 
-  eq_sdlogic(rtp_vintyr({r_v_t},p),tsl,RTS(s),lnx(l){swx})$({swtx}ts_group(r,tsl,s)$rp_dpl(r,p,tsl))..
+  eq_sdlogic(rtp_vintyr({r_v_t},p),tsl,{rts},lnx(l){swx})$({swtx}ts_group(r,tsl,s)$rp_dpl(r,p,tsl))..
 
      (sum(ts(s--rs_stg(r,s)),var_on(r,v,t,p,ts)-var_on(r,v,t,p,s)) - SUM(bd,v_u(ups,r,v,t,p,s,bd)*BDSIG(bd)))$ips(l) +
      (v_u(ups,r,v,t,p,s,'UP') - SUM(rp_upt(r,p,upt,'UP'),v_u(upt,r,v,t,p,s,upt)))$bd(l) =E= 0;
 
 *-----------------------------------------------------------------------------
 
-  eq_sudupt(rtp_vintyr({r_v_t},p),tsl,RTS(s),upt{swx})$({swtx}DP_NON(r,v,p,upt,tsl,'UP')$ts_group(r,tsl,s)$rp_dpl(r,p,tsl))..
+  eq_sudupt(rtp_vintyr({r_v_t},p),tsl,{rts},upt{swx})$({swtx}DP_NON(r,v,p,upt,tsl,'UP')$ts_group(r,tsl,s)$rp_dpl(r,p,tsl))..
 
      v_u(upt,r,v,t,p,s,upt) =L= sum((rs_up(r,s,js),rj_sl(r,js,sl))$(ORD(s)<>ORD(sl)),
        v_u(ups,r,v,t,p,sl,'LO')$(MOD(RS_HR(r,s)-RS_HR(r,sl)-DP_NON(r,v,p,upt,tsl,'LO')+(G_YRFR(r,sl)/4+G_YRFR(r,s))/RS_STGPRD(r,s)+2/JS_CCL(r,js),1/JS_CCL(r,js))<DP_NON(r,v,p,upt,tsl,'UP')*(1+sdtol)+G_YRFR(r,s)/RS_STGPRD(r,s)/2));
 
 *-----------------------------------------------------------------------------
 
-  eq_sdslant(rtp_vintyr({r_v_t},p),tsl,RTS(s){swx})$({swtx}ts_group(r,tsl,s)$rp_dpl(r,p,tsl))..
+  eq_sdslant(rtp_vintyr({r_v_t},p),tsl,{rts}{swx})$({swtx}ts_group(r,tsl,s)$rp_dpl(r,p,tsl))..
 
      var_on(r,v,t,p,s) =E= sum(rs_below1(r,ts,s),v_u(ups,r,v,t,p,ts,'FX')-CAPUPS)$PRC_TS(R,P,S) + (CAPUPS) - var_off(r,v,t,p,s) -
      sum(rp_upt(r,p,upt,bd),
@@ -206,20 +209,20 @@ $macro CAPUPS ({capon}-SUM(rs_below(r,all_ts,s)$rps_ups(r,p,all_ts),var_off(r,v,
 
 *-----------------------------------------------------------------------------
 
-  eq_sdminon(rtp_vintyr({r_v_t},p),RTS(s){swx})$({swtx}prc_ts(r,p,s)$rp_dp(r,p))..
+  eq_sdminon(rtp_vintyr({r_v_t},p),{rts}{swx})$({swtx}prc_ts(r,p,s)$rp_dp(r,p))..
 
      var_on(r,v,t,p,s)+sum(rs_below1(r,ts,s),var_gap(r,v,t,p,ts)) =G= var_gap(r,v,t,p,s)+v_u(ups,r,v,t,p,s,'UP')+
      (SUM(rp_upt(r,p,upt,'UP')$(G_YRFR(r,s)/RS_STGPRD(r,s)/2<=ACT_SDTIME(R,V,P,upt,'UP')/8760),v_u(upt,r,v,t,p,s,upt))-v_u(ups,r,v,t,p,s,'UP'))$(SMIN(rp_upt(r,p,upt,'UP'),ACT_SDTIME(r,v,p,upt,'UP')/8760)<G_YRFR(r,s)/RS_STGPRD(r,s)/2);
 
 *-----------------------------------------------------------------------------
 
-  eq_sudload(rtp_vintyr({r_v_t},p),RTS(s){swx})$({swtx}prc_ts(r,p,s)$rp_dp(r,p))..
+  eq_sudload(rtp_vintyr({r_v_t},p),{rts}{swx})$({swtx}prc_ts(r,p,s)$rp_dp(r,p))..
 
      var_load(r,v,t,p,s) =E= ({capon}{upscaps})*ACT_MINLD(R,V,P) + var_gap(r,v,t,p,s)*(COEF_AF(r,v,t,p,s,'UP')-ACT_MINLD(r,v,p)) SPRSV;
 
 *-----------------------------------------------------------------------------
 
-  eq_sudtime(rtp_vintyr({r_v_t},p),tsl,RTS(s),bd{swx})$({swtx}prc_tsl(r,p,tsl)$ts_group(r,tsl,s)$act_time(r,v,p,bd)$rp_dp(r,p))..
+  eq_sudtime(rtp_vintyr({r_v_t},p),tsl,{rts},bd{swx})$({swtx}prc_tsl(r,p,tsl)$ts_group(r,tsl,s)$act_time(r,v,p,bd)$rp_dp(r,p))..
 
      sum(bdlox(bd), var_off(r,v,t,p,s) -
        sum((rs_up(r,s,js),rj_sl(r,js,sl)),v_u(ups,r,v,t,p,sl,bd)$(MOD(RS_HR(r,s)-RS_HR(r,sl)-ACT_SDTIME(r,v,p,'HOT','LO')/8760+G_YRFR(r,s)/RS_STGPRD(r,s)/2+2/JS_CCL(r,js),1/JS_CCL(r,js))<ACT_TIME(r,v,p,bd)/8760))) +
@@ -230,7 +233,7 @@ $macro CAPUPS ({capon}-SUM(rs_below(r,all_ts,s)$rps_ups(r,p,all_ts),var_off(r,v,
 
 *-----------------------------------------------------------------------------
 
-  eq_sudpll(rtp_vintyr({r_v_t},p),tsl,RTS(s){swx})$({swtx}ts_group(r,tsl,s)$prc_tsl(r,p,tsl)$DP_LOSD(r,v,p)$rp_dp(r,p))..
+  eq_sudpll(rtp_vintyr({r_v_t},p),tsl,{rts}{swx})$({swtx}ts_group(r,tsl,s)$prc_tsl(r,p,tsl)$DP_LOSD(r,v,p)$rp_dp(r,p))..
 
      v_u(ups,r,v,t,p,s,'FX') =G=
      sum(rp_upt(r,p,upt,bd),
