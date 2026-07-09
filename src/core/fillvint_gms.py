@@ -12,15 +12,27 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from .base_class import GamsClass
+from gamspy import Alias, Loop, Parameter, Set
+from gamspy.math import Max, Min
+
+from core.base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class FillvintGmsConfig:
+    arg1: Parameter | None = None
+    arg2: Set | Alias | None = None
+    arg3: tuple[Set | Alias, ...] | None = None
+    arg4: str | None = None
 
 
 class FillvintGms(GamsClass):
@@ -34,82 +46,121 @@ class FillvintGms(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
-        arg4: str = "",
+        config: FillvintGmsConfig,
+        init: bool = False,
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
-        self.arg4 = arg4
+        self.config = config
+        self.init = init
         self.compile()
 
     def compile(self) -> None:
+        cc = self.config
+        g = self.tc
+        m = g.container
+
         prc_simv_defined = self.tc.defined("PRC_SIMV")
-        if len(self.arg4) == 0:
+        if self.init:
             self.tc.enqueue(
                 self.initialization,
                 vintopteq2=self.env.vintopt == "2",
                 prc_simv_defined=prc_simv_defined,
             )
         else:  # fill
-            self.tc.add_gams_code(
-                module=self,
-                phase="init",
-                code=rf"PARAMETER {self.arg4}({self.arg2},{self.arg3},ALLYEAR);",
-            )
-            self.tc.enqueue(
+            arg1, arg2, arg3, arg4 = cc.arg1, cc.arg2, cc.arg3, cc.arg4
+            if arg1 is None or arg2 is None or arg3 is None or arg4 is None:
+                raise ValueError("arg1 through arg4 must not be None in fill mode.")
+
+            param = Parameter(m, name=arg4, domain=[arg2, *arg3, g.allyear])
+            g.set_parameter(name=arg4, parameter=param)
+            g.enqueue(
                 self.fill,
-                arg1=self.arg1,
-                arg2=self.arg2,
-                arg3=self.arg3,
-                arg4=self.arg4,
+                arg1=arg1,
+                arg2=arg2,
+                arg3=arg3,
+                arg4=param,
                 prc_simv_defined=prc_simv_defined,
             )
 
     def initialization(
         self: FillvintGms, vintopteq2: bool, prc_simv_defined: bool
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-* Initialization
-  OPTION CLEAR=PRC_YMIN,CLEAR=PASTSUM;
-{"PRC_SIMV(PRC_VINT(R,P)) = NOT PRC_MAP(R,'STG',P);" if vintopteq2 else ""}
-{"PRC_SIMV(R,P)$PRC_MAP(R,'STG',P) = NO; PRC_VINT(PRC_SIMV) = YES;" if prc_simv_defined else ""}
-* Make sure that all PRC_VINT have first leading V in RTP:
-  LOOP(T(LL),RVP(R,V(LL-LEAD(T)),P)$((NOT RVP(R,V,P))$RVP(R,T,P)$PRC_VINT(R,P)) = YES);
-{"RTP(RVP(R,V,P)) $=PRC_SIMV(R,P);" if prc_simv_defined else ""}
-""",
-        )
+        # Initialization
+        g = self.tc
+        prc_ymin = g.prc_ymin
+        PrcMap = g.PrcMap
+        pastsum = g.pastsum
+        PrcSimv = g.PrcSimv
+        PrcVint = g.PrcVint
+        r, p, t, ll, v, lead = g.r, g.p, g.t, g.ll, g.v, g.lead
+        Rvp, Rtp = g.Rvp, g.Rtp
+
+        prc_ymin.setRecords(None)
+        pastsum.setRecords(None)
+        if vintopteq2:
+            PrcSimv[PrcVint[r, p]] = ~PrcMap[r, "STG", p]
+
+        if prc_simv_defined:
+            PrcSimv[r, p].where[PrcMap[r, "STG", p]] = False
+            PrcVint[PrcSimv] = True
+
+        # Make sure that all PrcVint have first leading v in Rtp:
+        with Loop(t[ll]):
+            Rvp[r, v[ll - lead[t]], p].where[
+                (~Rvp[r, v, p]).where[Rvp[r, t, p].where[PrcVint[r, p]]]
+            ] = True
+
+        if prc_simv_defined:
+            Rtp[Rvp[r, v, p]].where[PrcSimv[r, p]] = PrcSimv[r, p]
 
     def fill(
         self: FillvintGms,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-        arg4: str,
+        arg1: Parameter,
+        arg2: Set | Alias,
+        arg3: tuple[Set | Alias, ...],
+        arg4: Parameter,
         prc_simv_defined: bool,
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-  IF(CARD(PASTSUM)=0,
-    PASTSUM(RTP(R,T,P))$PRC_VINT(R,P) =
-      MIN(1,(MAX(YEARVAL(T)-(LEAD(T)-1)/2,B(T)+MAX(NCAP_ILED(RTP),(D(T)+NCAP_ILED(RTP)-NCAP_TLIFE(RTP))/2)) -
-             (YEARVAL(T)-LEAD(T))) / LEAD(T)));
-  TRACKP(PRC_VINT) = YES;
-{"TRACKP(PRC_SIMV) = NO;" if prc_simv_defined else ""}
-* Weighted average of vintages T and T-1
-  LOOP((T(LL),V(LL-LEAD(LL))),
-    {arg4}({arg2},{arg3},T)$({arg1}({arg2},T,{arg3})$TRACKP(R,P)) = {arg1}({arg2},T,{arg3})*PASTSUM(R,T,P)+{arg1}({arg2},V,{arg3})*(1-PASTSUM(R,T,P)));
-  {arg1}({arg2},T,{arg3}) $= {arg4}({arg2},{arg3},T);
-  OPTION CLEAR={arg4},CLEAR=TRACKP;
-""",
-        )
+        g = self.tc
+        r, t, p, d, b = g.r, g.t, g.p, g.d, g.b
+        pastsum, Rtp = g.pastsum, g.Rtp
+        PrcVint, PrcSimv = g.PrcVint, g.PrcSimv
+        yearval, lead = g.yearval, g.lead
+        ncap_iled, ncap_tlife = g.ncap_iled, g.ncap_tlife
+        Trackp = g.Trackp
+
+        if len(pastsum) == 0:
+            pastsum[Rtp[r, t, p]].where[PrcVint[r, p]] = Min(
+                1,
+                (
+                    Max(
+                        yearval[t] - (lead[t] - 1) / 2,
+                        b[t]
+                        + Max(
+                            ncap_iled[Rtp],
+                            (d[t] + ncap_iled[Rtp] - ncap_tlife[Rtp]) / 2,
+                        ),
+                    )
+                    - (yearval[t] - lead[t])
+                )
+                / lead[t],
+            )
+
+        Trackp[PrcVint] = True
+        if prc_simv_defined:
+            Trackp[PrcSimv] = False
+
+        # Weighted average of vintages t and t-1
+        ll, v = g.ll, g.v
+
+        with Loop((t[ll], v[ll - lead[ll]])):
+            arg4[arg2, *arg3, t].where[arg1[arg2, t, *arg3].where[Trackp[r, p]]] = arg1[
+                arg2, t, *arg3
+            ] * pastsum[r, t, p] + arg1[arg2, v, *arg3] * (1 - pastsum[r, t, p])
+
+        arg1[arg2, t, *arg3].where[arg4[arg2, *arg3, t]] = arg4[arg2, *arg3, t]
+
+        arg4.setRecords(None)
+        Trackp.setRecords(None)

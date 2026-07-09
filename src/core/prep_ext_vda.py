@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 from core.base_class import GamsClass
 from core.equcrtp_vda import EqucrtpVda
 from core.fillparm_gms import FillparmGms
-from core.fillvint_gms import FillvintGms
+from core.fillvint_gms import FillvintGms, FillvintGmsConfig
 from core.powerflo_vda import PowerfloVda
 from core.resloadc_vda import ResloadcVda
 
@@ -51,6 +51,8 @@ class PrepExtVda(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+
         self.tc.enqueue(self.prepare_availabilities)
 
         # fmt: off
@@ -103,20 +105,24 @@ class PrepExtVda(GamsClass):
                 FillvintGms(
                     self.tc,
                     self.env,
-                    arg1="VDA_FLOP",
-                    arg2="R",
-                    arg3="P,CG,TS",
-                    arg4="X_RPGS",
+                    config=FillvintGmsConfig(
+                        arg1=g.vda_flop,
+                        arg2=g.r,
+                        arg3=(g.p, g.cg, g.ts),
+                        arg4="X_RPGS",
+                    ),
                 )
             )
             self.include(
                 FillvintGms(
                     self.tc,
                     self.env,
-                    arg1="ACT_EFF",
-                    arg2="R",
-                    arg3="P,CG,TS",
-                    arg4="X_RPGS",
+                    config=FillvintGmsConfig(
+                        arg1=g.act_eff,
+                        arg2=g.r,
+                        arg3=(g.p, g.cg, g.ts),
+                        arg4="X_RPGS",
+                    ),
                 )
             )
         self.tc.enqueue(

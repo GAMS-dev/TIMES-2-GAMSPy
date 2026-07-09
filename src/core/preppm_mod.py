@@ -17,7 +17,7 @@ from gamspy import Set
 from core.base_class import GamsClass
 from core.curex_gms import CurexGms, CurexGmsConfig
 from core.fillparm_gms import FillparmGms
-from core.fillvint_gms import FillvintGms
+from core.fillvint_gms import FillvintGms, FillvintGmsConfig
 from core.filparam_gms import FilparamGms, FilparamGmsConfig
 from core.main_ext_mod import include_extension
 from core.prep_ext_abs import PrepExtAbs
@@ -124,7 +124,10 @@ class PreppmMod(GamsClass):
             )
 
         # Use RVP for extrapolating vintaged flow parameters
-        self.include(FillvintGms(self.tc, self.env))
+        # only runs inititialization step
+        self.include(
+            FillvintGms(self.tc, self.env, config=FillvintGmsConfig(), init=True)
+        )
 
         self.tc.enqueue(self.exec5)
 
@@ -638,25 +641,22 @@ class PreppmMod(GamsClass):
 
         # * Optional weighting of vintaged attributes
         if self.env.vintopt == "1":
-            fillvints: list[tuple[str, str, str, str]] = [
-                ("FLO_FUNC", "R", "P,CG1,CG2,TS", "X_RPGGS"),
-                ("FLO_SUM", "R", "P,CG1,C,CG2,TS", "X_RPGCGS"),
-                ("NCAP_CDME", "R", "P", "X_RP"),
-                ("NCAP_CHPR", "R", "P,BD", "X_RPB"),
-                ("FLO_SHAR", "R", "P,C,CG,TS,BD", "X_RPCGSB"),
+            fillvints: list[FillvintGmsConfig] = [
+                FillvintGmsConfig(
+                    g.flo_func, g.r, (g.p, g.cg1, g.cg2, g.ts), "X_RPGGS"
+                ),
+                FillvintGmsConfig(
+                    g.flo_sum, g.r, (g.p, g.cg1, g.c, g.cg2, g.ts), "X_RPGCGS"
+                ),
+                FillvintGmsConfig(g.ncap_cdme, g.r, (g.p,), "X_RP"),
+                FillvintGmsConfig(g.ncap_chpr, g.r, (g.p, g.bd), "X_RPB"),
+                FillvintGmsConfig(
+                    g.flo_shar, g.r, (g.p, g.c, g.cg, g.ts, g.bd), "X_RPCGSB"
+                ),
             ]
 
-            for a1, a2, a3, a4 in fillvints:
-                self.include(
-                    FillvintGms(
-                        self.tc,
-                        self.env,
-                        arg1=a1,
-                        arg2=a2,
-                        arg3=a3,
-                        arg4=a4,
-                    )
-                )
+            for f_config in fillvints:
+                self.include(FillvintGms(self.tc, self.env, config=f_config))
 
             self.tc.enqueue(self.exec7)
 
