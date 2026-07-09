@@ -1,10 +1,10 @@
 # pp_lvlfs_mod.py
 # *++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# * Copyright (C) 2000-2023 Energy Technology Systems Analysis Programme (ETSAP)
+# * Copyright (c) 2000-2023 Energy Technology Systems Analysis Programme (ETSAP)
 # * This file is part of the IEA-ETSAP TIMES model generator, licensed
 # * under the GNU General Public License v3.0 (see file NOTICE-GPLv3.txt).
 # *=============================================================================*
-# * PP_LVLFS set the level of FLO_SUM attribute using aggregation/inheritance
+# * PP_LVLFS set the level of flo_sum attribute using aggregation/inheritance
 # *   arg1 - mod or v# for the source code to be used
 # *=============================================================================*
 # *GaG Questions/Comments:
@@ -16,7 +16,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .base_class import GamsClass
+from gamspy import Card, For, Loop, Set, Sum
+from gamspy.math import project, same_as
+
+from core.base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -25,7 +28,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class PpLvlfsMod(GamsClass):  # FilenameExt
+class PpLvlfsMod(GamsClass):
     """Translation unit for pp_lvlfs.mod."""
 
     # Instance attributes
@@ -45,45 +48,138 @@ class PpLvlfsMod(GamsClass):  # FilenameExt
         self.compile()
 
     def compile(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"SET FSTSL(TSLVL,R,P,CG,CG,CG,S) //;",
-        )
+        g = self.tc
+        m = g.container
+        g.Fstsl = Set(m, "FSTSL", domain=[g.tslvl, g.r, g.p, g.cg, g.cg, g.cg, g.s])
         self.tc.enqueue(self.pp_lvlfs_exec)
 
     def pp_lvlfs_exec(self: PpLvlfsMod) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* check all commodities in the groups of a process at other than PRC_TS level
-  COEF_PTRAN(R,LL,P,CG,C,COM_GRP,S) $= FLO_SUM(R,LL,P,CG,C,COM_GRP,S)$(NOT RPCS_VAR(R,P,C,S));
-  OPTION FSCKS <= COEF_PTRAN;
-  FSCK(R,P,CG,C,COM_GRP) $= SUM(FSCKS(R,P,CG,C,COM_GRP,S)$(NOT RPS_PRCTS(R,P,S)),1);
-  LOOP(ANNUAL(TS(TSLVL)),FSTSL(TSLVL+STOAL(R,S),FSCKS(R,P,CG,C,COM_GRP,S)) = YES);
-*-----------------------------------------------------------------------------
-* Leveling by simultaneous aggregation/inheritance
-*-----------------------------------------------------------------------------
-  LOOP((FSCK(R,P,CG,C,COM_GRP),RTP(R,V,P)),
-    TS_ARRAY(ALL_TS) = FLO_SUM(R,V,P,CG,C,COM_GRP,ALL_TS);
-    FLO_SUM(R,V,P,CG,C,COM_GRP,TS)$RPCS_VAR(R,P,C,TS) =
-      SUM(RS_TREE(FINEST(R,S),TS), G_YRFR(R,S) * (TS_ARRAY(S) +
-           SUM(RS_BELOW(R,ALL_TS,S)$((NOT SUM(TS_MAP(R,SL,S)$RS_BELOW(R,ALL_TS,SL),TS_ARRAY(SL)))$TS_ARRAY(ALL_TS)),
-               TS_ARRAY(ALL_TS))))/G_YRFR(R,TS));
-*-----------------------------------------------------------------------------
-* Leveling by direct inheritance
-*-----------------------------------------------------------------------------
-* after mixed aggregation/inheritance delete all data that are not specified at PRC_TS
-  FLO_SUM(R,LL,P,CG,C,COM_GRP,S)$COEF_PTRAN(R,LL,P,CG,C,COM_GRP,S) = 0;
-  FLO_SUM(R,LL,P,CG,C,COM_GRP,S)$(NOT RTP(R,LL,P)) = 0;
-  FOR(Z=CARD(TSLVL)-2 DOWNTO 0,
-   LOOP(SAMEAS(TSLVL-Z,'ANNUAL'),
-    FLO_SUM(RTP(R,V,P),CG,C,COM_GRP,TS)$((NOT FLO_SUM(R,V,P,CG,C,COM_GRP,TS))$RPCS_VAR(R,P,C,TS)) $=
-       SUM(FSTSL(TSLVL,R,P,CG,C,COM_GRP,S)$RS_BELOW(R,S,TS),COEF_PTRAN(R,V,P,CG,C,COM_GRP,S));
-  ));
-*-----------------------------------------------------------------------------
-  OPTION CLEAR=COEF_PTRAN, CLEAR = FSCK, CLEAR = FSCKS, CLEAR=FSTSL;
-  FLO_SUM(R,LL,P,CG,C,CG,S)$FSCKS(R,P,CG,C,CG,S) = 0;
-""",
+        g = self.tc
+        (
+            coef_ptran,
+            r,
+            v,
+            z,
+            ll,
+            p,
+            cg,
+            c,
+            comgrp,
+            s,
+            RpcsVar,
+            flo_sum,
+            Fscks,
+            Fsck,
+            RpsPrcts,
+            Annual,
+            ts,
+            tslvl,
+            Fstsl,
+            stoal,
+            Rtp,
+            allts,
+            ts_array,
+            Finest,
+            RsTree,
+            RsBelow,
+            TsMap,
+            sl,
+            g_yrfr,
+        ) = (
+            g.coef_ptran,
+            g.r,
+            g.v,
+            g.z,
+            g.ll,
+            g.p,
+            g.cg,
+            g.c,
+            g.comgrp,
+            g.s,
+            g.RpcsVar,
+            g.flo_sum,
+            g.Fscks,
+            g.Fsck,
+            g.RpsPrcts,
+            g.Annual,
+            g.ts,
+            g.tslvl,
+            g.Fstsl,
+            g.stoal,
+            g.Rtp,
+            g.allts,
+            g.ts_array,
+            g.Finest,
+            g.RsTree,
+            g.RsBelow,
+            g.TsMap,
+            g.sl,
+            g.g_yrfr,
         )
+
+        # check all commodities in the groups of a process at other than PRC_TS level
+        sparse_exp = flo_sum[r, ll, p, cg, c, comgrp, s].where[~RpcsVar[r, p, c, s]]
+        coef_ptran[r, ll, p, cg, c, comgrp, s].where[sparse_exp] = sparse_exp
+
+        project(source=coef_ptran, target=Fscks, direction="left")
+
+        sparse_exp2 = Sum(Fscks[r, p, cg, c, comgrp, s].where[~RpsPrcts[r, p, s]], 1)
+        Fsck[r, p, cg, c, comgrp].where[sparse_exp2] = sparse_exp2
+
+        with Loop(Annual[ts[tslvl]]):
+            Fstsl[tslvl + stoal[r, s], Fscks[r, p, cg, c, comgrp, s]] = True
+
+        # *-----------------------------------------------------------------------------
+        # * Leveling by simultaneous aggregation/inheritance
+        # *-----------------------------------------------------------------------------
+        with Loop((Fsck[r, p, cg, c, comgrp], Rtp[r, v, p])):
+            ts_array[allts] = flo_sum[r, v, p, cg, c, comgrp, allts]
+            flo_sum[r, v, p, cg, c, comgrp, ts].where[RpcsVar[r, p, c, ts]] = (
+                Sum(
+                    RsTree[Finest[r, s], ts],
+                    g_yrfr[r, s]
+                    * (
+                        ts_array[s]
+                        + Sum(
+                            RsBelow[r, allts, s].where[
+                                (
+                                    ~Sum(
+                                        TsMap[r, sl, s].where[RsBelow[r, allts, sl]],
+                                        ts_array[sl],
+                                    )
+                                ).where[ts_array[allts]]
+                            ],
+                            ts_array[allts],
+                        )
+                    ),
+                )
+                / g_yrfr[r, ts]
+            )
+
+        # *-----------------------------------------------------------------------------
+        # * Leveling by direct inheritance
+        # *-----------------------------------------------------------------------------
+        flo_sum[r, ll, p, cg, c, comgrp, s].where[
+            coef_ptran[r, ll, p, cg, c, comgrp, s]
+        ] = 0
+        flo_sum[r, ll, p, cg, c, comgrp, s].where[~Rtp[r, ll, p]] = 0
+
+        with For(z, Card(tslvl) - 2, 0, direction="downto"):  # type: ignore # noqa: SIM117
+            with Loop(same_as(tslvl - z, "Annual")):
+                flo_sum[Rtp[r, v, p], cg, c, comgrp, ts].where[
+                    (~flo_sum[r, v, p, cg, c, comgrp, ts])
+                    & g.RpcsVar[r, p, c, ts]
+                    & Sum(
+                        Fstsl[tslvl, r, p, cg, c, comgrp, s].where[RsBelow[r, s, ts]],
+                        coef_ptran[r, v, p, cg, c, comgrp, s],
+                    )
+                ] = Sum(
+                    Fstsl[tslvl, r, p, cg, c, comgrp, s].where[RsBelow[r, s, ts]],
+                    coef_ptran[r, v, p, cg, c, comgrp, s],
+                )
+
+        coef_ptran.setRecords(None)
+        Fsck.setRecords(None)
+        Fscks.setRecords(None)
+        Fstsl.setRecords(None)
+        flo_sum[r, ll, p, cg, c, cg, s].where[Fscks[r, p, cg, c, cg, s]] = 0
