@@ -14,6 +14,8 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from gamspy import Equation, Variable
+
 from core.utils import callable_rts
 
 from .base_class import GamsClass
@@ -264,13 +266,25 @@ $macro CAPUPS ({capon}-SUM(rs_below(r,all_ts,s)$rps_ups(r,p,all_ts),var_off(r,v,
         )
 
     def var_equ_indicators(self: EqlducsVda) -> None:
+        g = self.tc
+        m = g.container
+        r, ll, t, p, s, lA = g.r, g.ll, g.t, g.p, g.s, g.lA
+
+        # *Variables, Equations and Indicators
+        g.VAR_ONIND = Variable(
+            m,
+            name="VAR_ONIND",
+            domain=[r, ll, t, p, s, lA],
+            description="on-line status of unit in timeslice s",
+            type="BINARY",
+        )
+        g.eq_sdind_1 = Equation(m, name="eq_sdind_1")
+        g.eq_sdind_0 = Equation(m, name="eq_sdind_0")
+
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=r"""
-* Variables, Equations and Indicators
-  BINARY VARIABLES var_onind(r,ll,t,p,s,l) 'on-line status of unit in timeslice s';
-  EQUATIONS eq_sdind_1, eq_sdind_0;
   SET INDIC(J) /
   1 "eq_sdind_0(r,v,t,p,tsl,s,ips,l)$var_onind(r,v,t,p,s,l) 0"
   2 "eq_sdind_1(r,v,t,p,tsl,s,ips,l)$var_onind(r,v,t,p,s,l) 1"
