@@ -189,12 +189,44 @@ class EqdeclrMod(GamsClass):
     {eq}E_COMBAL(R,ALLYEAR,C,S {self.env.swtd}) 			'Commodity Balance (=E=)' //
     {eq}E_COMPRD(R,ALLYEAR,C,S {self.env.swtd}) 			'Commodity Production (=E=)'
     {eq}L_COMCES(R,ALLYEAR,C,C,S{self.env.swtd})     		'CES substitution steps (=L=)'
+""",
+        )
 
-* Transfer of installed capacity between periods
-    {eq}G_CPT(R,ALLYEAR,P {self.env.swtd})                   	'Capacity Transfer (=G=)'
-    {eq}E_CPT(R,ALLYEAR,P {self.env.swtd})                   	'Capacity Transfer (=E=)'
-    {eq}L_CPT(R,ALLYEAR,P {self.env.swtd})                   	'Capacity Transfer (=L=)'
-
+        g.set_equation(
+            f"{eq}G_CPT",
+            Equation(
+                m,
+                name=f"{eq}G_CPT",
+                type="regular",
+                domain=[g.r, g.allyear, g.p, *swtd],
+                description="Capacity Transfer (=G=)",
+            ),
+        )
+        g.set_equation(
+            f"{eq}E_CPT",
+            Equation(
+                m,
+                name=f"{eq}E_CPT",
+                type="regular",
+                domain=[g.r, g.allyear, g.p, *swtd],
+                description="Capacity Transfer (=E=)",
+            ),
+        )
+        g.set_equation(
+            f"{eq}L_CPT",
+            Equation(
+                m,
+                name=f"{eq}L_CPT",
+                type="regular",
+                domain=[g.r, g.allyear, g.p, *swtd],
+                description="Capacity Transfer (=L=)",
+            ),
+        )
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=rf"""
+  EQUATIONS
 * Cumulative constraints
     {eq}_CUMNET(R,C,ALLYEAR,ALLYEAR {self.env.swd}) 		'Cummulative Net Commodity Limit (=E=)'
     {eq}_CUMPRD(R,C,ALLYEAR,ALLYEAR {self.env.swd}) 		'Cummulative Commodity Production Limit (=E=)'
