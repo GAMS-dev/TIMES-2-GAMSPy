@@ -65,9 +65,8 @@ class RptExtMlf(GamsClass):
         self.env.set_scoped("timesed", "NO")
         self.tc.enqueue(
             self.exec_loop,
-            self.env.sysprefix,
-            self.env.model_name,
-            self.env.method,
+            model_name=self.env.model_name,
+            method=self.env.method,
             v=self.env.v,
             pgprim=self.env.pgprim,
             sow=self.env.sow,

@@ -58,12 +58,15 @@ indent-style = "space"
 strict = true
 warn_unused_configs = true
 warn_unused_ignores = false
-disable_error_code = ["misc", "import-untyped"]
+plugins = [
+  "pydantic.mypy"
+]
 
 [dependency-groups]
 dev = [
     "detect-secrets>=1.5.0",
     "mypy>=2.2.0",
+    "pandas-stubs>=2.3.3.260113",
     "pre-commit>=4.6.0",
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",

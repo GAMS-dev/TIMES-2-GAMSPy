@@ -237,14 +237,14 @@ class DynsliteVda(GamsClass):
 """,
             )
             # fmt: off
-            tl: list[tuple[str, str, str, str, str, str, str, str, str, str, str, str, str]] = [
-                ( dflbl, item, data, add, reset, "FLO_FUNC", "R", "P,CG,CG2,ANNUAL",     ",'',''",    "V", "RVP(R,V,P)" ">0", "X_RPGGS",   "X_RPGGS"  ),
-                ( dflbl, item, data, add, reset, "ACT_EFF",  "R", "P,CG,ANNUAL",         ",'','',''", "V", "RVP(R,V,P)" ">0", "X_RPGS",    "X_RPGS"   ),
-                ( dflbl, item, data, add, reset, "ACT_FLO",  "R", "P,CG,ANNUAL",         ",'','',''", "V", "RVP(R,V,P)" ">0", "X_RPGS",    "X_RPGS"   ),
-                ( dflbl, item, data, add, reset, "FLO_SUM",  "R", "P,CG1,C,CG2,ANNUAL",  ",''",       "V", "RVP(R,V,P)" ">0", "X_RPGCGS",  "X_RPGCGS" )
+            tl: list[tuple[str, str, str, str, str, str, str, str, str]] = [
+                ("FLO_FUNC", "R", "P,CG,CG2,ANNUAL",     ",'',''",    "V", "RVP(R,V,P)" ">0", "X_RPGGS",   "X_RPGGS"  , ""),
+                ("ACT_EFF",  "R", "P,CG,ANNUAL",         ",'','',''", "V", "RVP(R,V,P)" ">0", "X_RPGS",    "X_RPGS"   , ""),
+                ("ACT_FLO",  "R", "P,CG,ANNUAL",         ",'','',''", "V", "RVP(R,V,P)" ">0", "X_RPGS",    "X_RPGS"   , ""),
+                ("FLO_SUM",  "R", "P,CG1,C,CG2,ANNUAL",  ",''",       "V", "RVP(R,V,P)" ">0", "X_RPGCGS",  "X_RPGCGS" , "")
             ]
             # fmt: on
-            dflbl, item, data, add, reset, a1, a2, a3, a4, a5, a6, a7, a8, a9 = tl[0]
+            a1, a2, a3, a4, a5, a6, a7, a8, a9 = tl[0]
             self.run_fillparm(
                 arg1=a1,
                 arg2=a2,
@@ -272,9 +272,7 @@ class DynsliteVda(GamsClass):
 """,
             )
             for i in range(3):
-                dflbl, item, data, add, reset, a1, a2, a3, a4, a5, a6, a7, a8, a9 = tl[
-                    i + 1
-                ]
+                a1, a2, a3, a4, a5, a6, a7, a8, a9 = tl[i + 1]
                 self.run_fillparm(
                     arg1=a1,
                     arg2=a2,

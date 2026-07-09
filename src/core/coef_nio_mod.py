@@ -70,7 +70,7 @@ class CoefNioMod(GamsClass):
                 g.coef_icom[r, t[v], t, p, c] = (
                     g.dfunc * g.ncap_icom[r, v, p, c] / g.fpd[t]
                 )
-            with Else():  # noqa: SIM117
+            with Else():  # type: ignore[no-untyped-call]  # noqa: SIM117
                 with Loop(t.where[(g.e[t] >= g.f) * (g.b[t] < g.z)]):
                     g.coef_icom[r, v, t, p, c] = (
                         # some part of consumption in T
@@ -109,7 +109,7 @@ class CoefNioMod(GamsClass):
                         * (g.ncap_ocom[r, v, p, c] / g.z)
                     )
 
-            with Else():
+            with Else():  # type: ignore[no-untyped-call]
                 g.coef_ocom[r, v, t, p, c].where[g.yearval[t] >= g.yearval[v]] = (
                     # some part of release in T
                     Max(

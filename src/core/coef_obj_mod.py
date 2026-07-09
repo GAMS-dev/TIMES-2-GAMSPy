@@ -152,7 +152,7 @@ class CoefObjMod(GamsClass):
 
         # * flow cost
         self.env.set_scoped("take", "(RPCS_VAR(R,P,C,S)+ANNUAL(S))")
-        take = RpcsVar[r, p, c, s] + g.Annual[s]
+        take = RpcsVar[r, p, c, s] + g.Annual[s]  # type: ignore[assignment]
         # fmt: off
         fillcost_gms_batincludes = [
             FillcostGmsConfig(arg1=g.obj_fcost, arg2=r, arg3=(p,c,s,cur), arg4=('0',), arg5=Fil, arg6=take, bext=1, fext=1, arg9=g.flo_cost, arg10="OB_FCOS", arg11=tmp),

@@ -196,7 +196,7 @@ def prepparm(
                                     + SpecialValues.EPS
                                 )
                                 g.my_fil2[g.DmYear] = g.my_f  # overwrite old data
-                            with Else():  # linear interpolation
+                            with Else():  # type: ignore[no-untyped-call] # linear interpolation
                                 data.where[
                                     (g.z > g.yearval[cc.arg5]).where[
                                         (g.yearval[cc.arg5] > g.my_fyear)
@@ -204,13 +204,13 @@ def prepparm(
                                 ] = g.last_val + (g.my_f - g.last_val) / (
                                     g.z - g.my_fyear
                                 ) * (g.yearval[cc.arg5] - g.my_fyear)
-                        with Else():
+                        with Else():  # type: ignore[no-untyped-call]
                             g.f[...] = g.z
                             g.first_val[...] = g.my_f
 
                         g.last_val[...] = g.my_f
                         g.my_fyear[...] = g.z  # remember the value and year
-                with Else():
+                with Else():  # type: ignore[no-untyped-call]
                     if opt:
                         # intra-period I/E
                         g.first_val[...] = 0
@@ -257,7 +257,7 @@ def prepparm(
                         data.where[cc.arg6.where[~(data + g.my_array[cc.arg5])]] = (
                             SpecialValues.EPS
                         )
-                    with Else():
+                    with Else():  # type: ignore[no-untyped-call]
                         with If(g.dfunc == 4):
                             g.z[...] = SpecialValues.POSINF
                         with ElseIf(g.dfunc == 5):

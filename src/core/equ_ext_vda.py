@@ -509,4 +509,4 @@ class EquExtVda(GamsClass):
 
     def define_param_dp_uns(self: EquExtVda) -> None:
         g = self.tc
-        g.RpPl[g.Rp, g.bd].where[Sum(g.RpgPace[g.Rp, g.cg], 1.0)] = False
+        g.RpPl[g.Rp, g.bd].where[Sum(g.RpgPace[g.Rp, g.cg], 1)] = False

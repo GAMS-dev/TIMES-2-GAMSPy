@@ -133,7 +133,7 @@ class FillcostGms(GamsClass):
 
         if condition1:
             sparse_expression = cc.arg9[cc.arg2, Datayear, *cc.arg3].where[
-                take_condition
+                take_condition  # type: ignore[index]
             ]
             cc.arg1[cc.arg2, Datayear, *cc.arg3].where[sparse_expression] = (
                 sparse_expression
@@ -159,11 +159,11 @@ class FillcostGms(GamsClass):
                     g.last_val[...] = (g.my_f[...] - g.last_val[...]) / (
                         g.z[...] - g.my_fyear[...]
                     )
-                    with For(g.cnt, start=g.my_fyear[...] - g.z[...] + 1, end=-1):
+                    with For(g.cnt, start=g.my_fyear[...] - g.z[...] + 1, end=-1):  # type: ignore[arg-type]
                         g.my_fil2[cc.arg5[ll.lead(g.cnt)]] = (
                             g.my_f[...] + g.last_val[...] * g.cnt[...]
                         )
-                with Else():
+                with Else():  # type: ignore[no-untyped-call]
                     g.f[...] = g.z[...]
                     g.first_val[...] = g.my_f[...]
 
@@ -178,9 +178,9 @@ class FillcostGms(GamsClass):
             cond2 = cc.fext & (g.yearval[cc.arg5] > g.z[...])
 
             sparse_expression = (
-                g.first_val[...].where[cond1]
-                + g.my_fil2[cc.arg5]
-                + g.last_val[...].where[cond2]
+                g.first_val[...].where[cond1]  # type: ignore[assignment]
+                + g.my_fil2[cc.arg5]  # type: ignore[assignment]
+                + g.last_val[...].where[cond2]  # type: ignore[assignment]
             )
             data.where[sparse_expression] = sparse_expression
 

@@ -82,7 +82,7 @@ class InitmtyMsa(GamsClass):
                 "REFTEMP": 2.5,
                 "REFLOSS": 0.02,
                 "ESC": 1.028,
-            },
+            },  # type: ignore[arg-type] # TODO gamspy #861
         )
 
         # Declare/Initialize User Defined Sets

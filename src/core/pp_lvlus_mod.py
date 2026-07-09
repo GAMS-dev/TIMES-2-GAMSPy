@@ -92,7 +92,7 @@ class PpLvlusMod(GamsClass):
                 out_marker = g.Uncd7[
                     ucn, *cc.arg6, side, r, *cc.arg2, *cc.arg5, "OUT", *cc.arg4
                 ]
-                with If(out_marker):  # noqa: SIM117
+                with If(out_marker):  # type: ignore[arg-type] # noqa: SIM117
                     with If(g.z[...] > g.f[...]):
                         g.f[...] = 9
                         g.Uncd7[
@@ -129,7 +129,7 @@ class PpLvlusMod(GamsClass):
         io, side, ucn, ts, all_ts, sl = g.io, g.side, g.ucn, g.ts, g.allts, g.sl
 
         with Loop(g.Uncd7[ucn, *cc.arg6, side, r, *cc.arg2, *cc.arg5, io, *cc.arg4]):
-            with If(g.ips[io]):
+            with If(g.ips[io]):  # type: ignore[arg-type]
                 g.f[...] = 0
                 # Leveling by simultaneous aggregation/inheritance; but only if target level value is not present
                 with Loop(t):
@@ -176,7 +176,7 @@ class PpLvlusMod(GamsClass):
                         with Loop(g.TsGroup[r, tsl, ts]):
                             sparse_expression = g.ts_array[ts].where[
                                 g.RsBelow[r, ts, s]
-                            ]
+                            ]  # type: ignore[assignment]
                             g.ts_array[s].where[~g.ts_array[s] & sparse_expression] = (
                                 sparse_expression
                             )
@@ -193,7 +193,7 @@ class PpLvlusMod(GamsClass):
 
         sparse_expression = cc.uc_parameter[
             ucn, *cc.arg6, side, r, t, *cc.arg2, "ANNUAL", *cc.arg5
-        ]
+        ]  # type: ignore[assignment]
         cc.uc_parameter[ucn, *cc.arg6, side, r, t, *cc.arg2, s, *cc.arg5].where[
             (
                 cc.arg3[r, cc.arg7, *cc.arg10, s].where[

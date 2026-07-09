@@ -41,3 +41,8 @@ repos:
     hooks:
       - id: mypy
         files: "^src\\/core\\/(.*?)$"
+        args: ["--config-file=pyproject.toml"]
+        additional_dependencies:
+          - gamspy>=1.26.0
+          - pandas-stubs
+          - pydantic
