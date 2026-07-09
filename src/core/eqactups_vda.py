@@ -61,7 +61,6 @@ class EqactupsVda(GamsClass):
             "mx",
             f"SUM(RVP_KMAP(R,V,P,MODLYEAR(K)),COEF_VNT(R,T,P,K)*({self.env.varm}_NCAP(R,K,P{self.env.sws})$T(K)+NCAP_PASTI(R,K,P){self.env.rcapsbm}))",
         )
-        rcapsbm = 0 if self.env.rcapsbm_GP == "" else self.env.rcapsbm_GP
         self.env.set_scoped(
             "mx_GP",
             Sum(
@@ -70,7 +69,7 @@ class EqactupsVda(GamsClass):
                 * (
                     varm_ncap[r, k, p, *sws].where[t[k]]
                     + g.ncap_pasti[r, k, p]
-                    + rcapsbm
+                    + self.env.rcapsbm_GP
                 ),
             ),
         )

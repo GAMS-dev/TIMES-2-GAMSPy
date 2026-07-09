@@ -35,7 +35,7 @@ from core.eqbndcom_mod import EqbndcomMod, EqbndcomModConfig
 from core.eqbndcst_mod import EqbndcstMod
 from core.eqcapact_mod import EqcapactMod
 from core.eqcombal_mod import EqcombalMod
-from core.eqcpt_mod import EqcptMod
+from core.eqcpt_mod import EqcptMod, EqcptModConfig
 from core.eqcumcom_mod import EqcumcomMod
 from core.eqcumflo_mod import EqcumfloMod
 from core.eqdamage_mod import EqdamageMod
@@ -450,45 +450,62 @@ class EqmainMod(GamsClass):
             self.include(EqdamageMod(tc=self.tc, env=self.env))
 
     def _m2t(self: EqmainMod) -> None:
-        # fmt: off
-        batincludes: list[tuple[str, str, str, str]] = [
-            ("E", "E", "NOT PRC_MAP(R,'DMD',P)", f"{self.env.var}_CAP(R,T,P {self.env.sow})"),
-            ("L", "L", "PRC_MAP(R,'DMD',P)", f"{self.env.var}_CAP(R,T,P {self.env.sow})"),
-            ("G", "G", "NO", "0"),
+        g = self.tc
+        VAR_CAP = g.get_variable(f"{self.env.var}_CAP")
+
+        batincludes: list[EqcptModConfig] = [
+            EqcptModConfig(
+                arg1="E",
+                arg2="E",
+                arg3=~g.PrcMap[g.r, "DMD", g.p],
+                arg4=VAR_CAP[g.r, g.t, g.p, *self.env.sow_GP],
+            ),
+            EqcptModConfig(
+                arg1="L",
+                arg2="L",
+                arg3=g.PrcMap[g.r, "DMD", g.p],
+                arg4=VAR_CAP[g.r, g.t, g.p, *self.env.sow_GP],
+            ),
+            EqcptModConfig(
+                arg1="G",
+                arg2="G",
+                arg3=Number(0),
+                arg4=Number(0),
+            ),
         ]
-        # fmt: on
-        for arg1, arg2, arg3, arg4 in batincludes:
-            self.include(
-                EqcptMod(
-                    tc=self.tc,
-                    env=self.env,
-                    arg1=arg1,
-                    arg2=arg2,
-                    arg3=arg3,
-                    arg4=arg4,
-                )
-            )
+
+        for eqcpt_config in batincludes:
+            self.include(EqcptMod(tc=self.tc, env=self.env, config=eqcpt_config))
 
     def _no_m2t(self: EqmainMod) -> None:
+        g = self.tc
+        VAR_CAP = g.get_variable(f"{self.env.var}_CAP")
+
         self.tc.enqueue(self.assign_rtp_varp, etl=self.env.etl, macro=self.env.macro)
-        # fmt: off
-        batincludes: list[tuple[str, str, str, str]] = [
-            ("E", "E", "RTP_VARP(R,T,P) OR YES$CAP_BND(R,T,P,'FX')", f"{self.env.var}_CAP(R,T,P {self.env.sow})"),
-            ("L", "L", "((NOT RTP_VARP(R,T,P))$CAP_BND(R,T,P,'LO'))", "CAP_BND(R,T,P,'LO')"),
-            ("G", "G", "((NOT RTP_VARP(R,T,P))$CAP_BND(R,T,P,'UP'))", "CAP_BND(R,T,P,'UP')"),
+
+        batincludes: list[EqcptModConfig] = [
+            EqcptModConfig(
+                arg1="E",
+                arg2="E",
+                arg3=g.RtpVarp[g.r, g.t, g.p] | g.cap_bnd[g.r, g.t, g.p, "FX"],
+                arg4=VAR_CAP[g.r, g.t, g.p, *self.env.sow_GP],
+            ),
+            EqcptModConfig(
+                arg1="L",
+                arg2="L",
+                arg3=(~g.RtpVarp[g.r, g.t, g.p]).where[g.cap_bnd[g.r, g.t, g.p, "LO"]],
+                arg4=g.cap_bnd[g.r, g.t, g.p, "LO"],
+            ),
+            EqcptModConfig(
+                arg1="G",
+                arg2="G",
+                arg3=(~g.RtpVarp[g.r, g.t, g.p]).where[g.cap_bnd[g.r, g.t, g.p, "UP"]],
+                arg4=g.cap_bnd[g.r, g.t, g.p, "UP"],
+            ),
         ]
-        # fmt: on
-        for arg1, arg2, arg3, arg4 in batincludes:
-            self.include(
-                EqcptMod(
-                    tc=self.tc,
-                    env=self.env,
-                    arg1=arg1,
-                    arg2=arg2,
-                    arg3=arg3,
-                    arg4=arg4,
-                )
-            )
+
+        for eqcpt_config in batincludes:
+            self.include(EqcptMod(tc=self.tc, env=self.env, config=eqcpt_config))
 
     def assign_rtp_varp(self: EqmainMod, etl: str, macro: str) -> None:
         g = self.tc

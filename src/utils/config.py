@@ -493,10 +493,13 @@ class EnvironmentVariableSchema(BaseModel):
     rcapsub: str = Field(
         description="Capacity allocation sub-region configuration tracking parameters."
     )
+    rcapsub_GP: Expression | Number = Field(
+        description="Capacity allocation sub-region configuration tracking parameters."
+    )
     rcapsbm: str = Field(
         description="Capacity allocation sub-region optimization model variables."
     )
-    rcapsbm_GP: Condition | Literal["", "1"] = Field(
+    rcapsbm_GP: Condition | Number = Field(
         description="Capacity allocation sub-region optimization model variables."
     )
     swx: str = Field(

@@ -256,7 +256,7 @@ class PrepretDsc(GamsClass):
 
     def comp_eqobj(self: PrepretDsc) -> None:
         g = self.tc
-        r, t, p, Modlyear = g.r, g.t, g.p, g.Modlyear
+        r, t, p, v, Modlyear = g.r, g.t, g.p, g.v, g.Modlyear
 
         sws = self.env.sws_GP
         vart_scap = g.get_variable(name=f"{self.env.vart}_SCAP")
@@ -264,6 +264,10 @@ class PrepretDsc(GamsClass):
         self.env.set_global(
             "rcapsub",
             rf"-SUM(VNRET(V,T),{self.env.vart}_SCAP(R,V,T,P{self.env.sws}))$PRC_RCAP(R,P)",
+        )
+        self.env.set_global(
+            "rcapsub_GP",
+            -Sum(g.Vnret[v, t], vart_scap[r, v, t, p, *sws]).where[g.PrcRcap[r, p]],
         )
         self.env.set_global(
             "rcapsbm",

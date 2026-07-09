@@ -1345,7 +1345,13 @@ class SetglobsGms(GamsClass):
         shff = self.x1
         self.env.set_global("rcapsub", self.x1)
         self.env.set_global("rcapsbm", self.x1)
-        self.env.set_global("rcapsbm_GP", self.x1)
+        if self.x1 == "1":
+            self.env.set_global("rcapsub_GP", Number(1))
+            self.env.set_global("rcapsbm_GP", Number(1))
+        elif self.x1 == "":
+            self.env.set_global("rcapsub_GP", Number(0))
+            self.env.set_global("rcapsbm_GP", Number(0))
+
         rcapsub = self.env.rcapsub
         rcapsbm = self.env.rcapsbm
         if f"{shff}{rcapsub}{rcapsbm}" != f"{self.x1}{self.x1}{self.x1}":

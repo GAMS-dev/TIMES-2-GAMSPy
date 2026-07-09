@@ -17,15 +17,36 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal
 
-from .base_class import GamsClass
+from gamspy import Expression, Number, Sum
+
+from core.base_class import GamsClass
+from core.utils import generate_equation
 
 if TYPE_CHECKING:
+    from gamspy._algebra.condition import Condition
+    from gamspy._symbols.implicits import (
+        ImplicitParameter,
+        ImplicitSet,
+        ImplicitVariable,
+    )
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class EqcptModConfig:
+    """Strongly typed data contract replacing legacy positional batch-include loops."""
+
+    arg1: Literal["E", "L", "G"]
+    arg2: Literal["E", "L", "G"]
+    arg3: Condition | Expression | Number | ImplicitSet
+    arg4: ImplicitVariable | ImplicitParameter | Number
 
 
 class EqcptMod(GamsClass):
@@ -39,39 +60,39 @@ class EqcptMod(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-        arg4: str,
+        config: EqcptModConfig,
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
-        self.arg4 = arg4
+        self.config = config
         self.compile()
 
     def compile(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-*GG*V0.6a_3+ check whether used in UserConstraint
-*$onlisting
+        g = self.tc
+        cc = self.config
 
-  {self.env.eq}{self.arg2}_CPT(RTP(R,T,P) {self.env.swt})$({self.arg3}) ..
+        r, v, t, p = g.r, g.v, g.t, g.p
 
-*  VAR_CAP(r,t,p {self.env.sow}) or CAP_BND(r,t,p,bd):
-       {self.arg4}
+        swt = self.env.swt_GP
+        sws = self.env.sws_GP
+        rcapsub = self.env.rcapsub_GP
 
-  ={self.arg1}=
+        VARV_NCAP = g.get_variable(f"{self.env.varv}_NCAP")
+        eq = g.get_equation(f"{self.env.eq}{cc.arg2}_CPT")
 
-      SUM(V$COEF_CPT(R,V,T,P), COEF_CPT(R,V,T,P) *
-          ({self.env.varv}_NCAP(R,V,P {self.env.sws})$MILESTONYR(V) + NCAP_PASTI(R,V,P)$PASTYEAR(V){self.env.rcapsub}))
-  ;
-*$offlisting
-
-""",
+        # GG V0.6a_3+ check whether used in UserConstraint
+        eq[g.Rtp[r, t, p], *swt].where[cc.arg3] = generate_equation(
+            # VAR_CAP(r,t,p {self.env.sow}) or CAP_BND(r,t,p,bd):
+            cc.arg4,
+            cc.arg1,
+            Sum(
+                v.where[g.coef_cpt[r, v, t, p]],
+                g.coef_cpt[r, v, t, p]
+                * (
+                    VARV_NCAP[r, v, p, *sws].where[g.Milestonyr[v]]
+                    + g.ncap_pasti[r, v, p].where[g.Pastyear[v]]
+                    + rcapsub
+                ),
+            ),
         )
