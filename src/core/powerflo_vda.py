@@ -12,6 +12,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Equation, Variable
+
 from core.base_class import GamsClass
 from core.cal_red_red import cal_red_red
 from core.fillparm_gms import FillparmGms
@@ -509,24 +511,104 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
         )
 
     def declaration2(self: PowerfloVda, var: str, swd: str, eq: str, swtd: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-* Declare variables and equations
-  POSITIVE VARIABLES
-   {var}_GRIDIO(R,YEAR,C,C,S,IO{swd})
-   {var}_XCAP(R,YEAR,ITEM{swd}) //;
-  VARIABLES {var}_COMAUX(R,T,C,S{swd});
-  EQUATIONS
-   {eq}_GR_POWFLO(R,T,C,S,R,C{swtd})   Phase-angle formulation
-   {eq}_GR_PTDFLO(R,T,P,C,S {swtd})    Generalized PTDF formulation
-   {eq}_GR_GENALL(R,T,C,S,CG {swtd})   Allocation of supply to Add-on nodes
-   {eq}_GR_DEMALL(R,T,C,S {swtd})      Allocation of demand to Add-on nodes
-   {eq}_GR_XBND(R,T,J,IE,S {swtd})     Simplified N-1 security constraint
-   {eq}_GR_VIRTCAP(R,T,P,C,S,BD{swtd}) Candidate line virtual capacity
-   {eq}_GR_VIRTBND(R,T,P{swtd})        Bound on virtual capacity;
-""",
+        g = self.tc
+        m = g.container
+        r, c, t, p, j, io, cg, ie, bd, s, year, item = (
+            g.r,
+            g.c,
+            g.t,
+            g.p,
+            g.j,
+            g.io,
+            g.cg,
+            g.ie,
+            g.bd,
+            g.s,
+            g.year,
+            g.item,
+        )
+        # * Declare variables and equations
+        g.set_variable(
+            f"{var}_GRIDIO",
+            Variable(
+                m,
+                name=f"{var}_GRIDIO",
+                domain=[r, year, c, c, s, io, *swd],
+                type="POSITIVE",
+            ),
+        )
+        g.set_variable(
+            f"{var}_XCAP",
+            Variable(
+                m, name=f"{var}_XCAP", domain=[r, year, item, *swd], type="POSITIVE"
+            ),
+        )
+        g.set_variable(
+            f"{var}_COMAUX",
+            Variable(m, name=f"{var}_COMAUX", domain=[r, t, c, s, *swd]),
+        )
+        g.set_equation(
+            f"{eq}_GR_POWFLO",
+            Equation(
+                m,
+                name=f"{eq}_GR_POWFLO",
+                domain=[r, t, c, s, r, c, *swtd],
+                description="Phase-angle formulation",
+            ),
+        )
+        g.set_equation(
+            f"{eq}_GR_PTDFLO",
+            Equation(
+                m,
+                name=f"{eq}_GR_PTDFLO",
+                domain=[r, t, p, c, s, *swtd],
+                description="Generalized PTDF formulation",
+            ),
+        )
+        g.set_equation(
+            f"{eq}_GR_GENALL",
+            Equation(
+                m,
+                name=f"{eq}_GR_GENALL",
+                domain=[r, t, c, s, cg, *swtd],
+                description="Allocation of supply to Add-on nodes",
+            ),
+        )
+        g.set_equation(
+            f"{eq}_GR_DEMALL",
+            Equation(
+                m,
+                name=f"{eq}_GR_DEMALL",
+                domain=[r, t, c, s, *swtd],
+                description="Allocation of demand to Add-on nodes",
+            ),
+        )
+        g.set_equation(
+            f"{eq}_GR_XBND",
+            Equation(
+                m,
+                name=f"{eq}_GR_XBND",
+                domain=[r, t, j, ie, s, *swtd],
+                description="Simplified N-1 security constraint",
+            ),
+        )
+        g.set_equation(
+            f"{eq}_GR_VIRTCAP",
+            Equation(
+                m,
+                name=f"{eq}_GR_VIRTCAP",
+                domain=[r, t, p, c, s, bd, *swtd],
+                description="Candidate line virtual capacity",
+            ),
+        )
+        g.set_equation(
+            f"{eq}_GR_VIRTBND",
+            Equation(
+                m,
+                name=f"{eq}_GR_VIRTBND",
+                domain=[r, t, p, *swtd],
+                description="Bound on virtual capacity",
+            ),
         )
 
     def exec4(self: PowerfloVda, var: str, sow: str) -> None:
@@ -790,12 +872,24 @@ OPTION CLEAR=RC_GRID,CLEAR=GR_ALLMAP,CLEAR=GR_ALGMAP,CLEAR=GR_DEMMAP,CLEAR=GR_PR
             pgprim=pgprim,
             def_rtp_ffcs=def_rtp_ffcs,
         )
+        g = self.tc
+        m = g.container
+        r, c, io, cur, s, year, allsow = g.r, g.c, g.io, g.cur, g.s, g.year, g.allsow
+        g.set_variable(
+            f"{var}_GRIDIO",
+            Variable(
+                m,
+                name=f"{var}_GRIDIO",
+                domain=[r, year, c, c, s, io, *swd],
+                type="POSITIVE",
+            ),
+        )
+        g.eq_objbal = Equation(m, name="EQ_OBJBAL", domain=[r, cur, allsow])
+
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=rf"""
-  POSITIVE VARIABLES {var}_GRIDIO(R,YEAR,C,C,S,IO{swd});
-  EQUATION EQ_OBJBAL(R,CUR,ALLSOW);
   EQ_OBJBAL(RDCUR(R,CUR){swx})..
 
    {var}_OBJ(R,'OBJBAL',CUR {sowpre}) =E=

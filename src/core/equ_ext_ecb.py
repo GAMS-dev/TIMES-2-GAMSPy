@@ -13,6 +13,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Equation, Variable
+
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -44,18 +46,37 @@ class EquExtEcb(GamsClass):
             return
 
         self.tc.enqueue(self.exec1, self.env.pgprim, self.env.capjd, self.env.capwd)
+        g = self.tc
+        m = g.container
+        r, c, p, year, item = (
+            g.r,
+            g.c,
+            g.p,
+            g.year,
+            g.item,
+        )
 
         # Equations
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-          EQUATIONS
-  {self.env.eq}_MSNCAP(R,YEAR,C{self.env.swd}) //
-  {self.env.eq}_MSNCAPB(R,YEAR,C,P{self.env.swd}) //
-  ;
-  POSITIVE VARIABLES {self.env.var}_XCAP(R,YEAR,ITEM{self.env.swd}) //;
-        """,
+        g.set_equation(
+            f"{self.env.eq}_MSNCAP",
+            Equation(
+                m, name=f"{self.env.eq}_MSNCAP", domain=[r, year, c, *self.env.swd]
+            ),
+        )
+        g.set_equation(
+            f"{self.env.eq}_MSNCAPB",
+            Equation(
+                m, name=f"{self.env.eq}_MSNCAPB", domain=[r, year, c, p, *self.env.swd]
+            ),
+        )
+        g.set_variable(
+            f"{self.env.var}_XCAP",
+            Variable(
+                m,
+                name=f"{self.env.var}_XCAP",
+                domain=[r, year, item, *self.env.swd],
+                type="POSITIVE",
+            ),
         )
 
         self.tc.add_gams_code(

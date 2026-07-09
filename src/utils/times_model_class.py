@@ -1438,6 +1438,47 @@ class TimesModelClass:
     rypcsrxm: Parameter = None  # type: ignore[assignment] #
     Vnret: Set = None  # type: ignore[assignment] # VNRET
     rp_rtf: Parameter = None  # type: ignore[assignment] # RP_RTF
+    eqg_uc: Equation = None  # type: ignore[assignment] # EQG_UC
+    eqg_ucr: Equation = None  # type: ignore[assignment] # EQG_UCR
+    eqg_uct: Equation = None  # type: ignore[assignment] # EQG_UCT
+    eqg_ucrt: Equation = None  # type: ignore[assignment] # EQG_UCRT
+    eqg_ucts: Equation = None  # type: ignore[assignment] # EQG_UCTS
+    eqg_ucrs: Equation = None  # type: ignore[assignment] # EQG_UCRS
+    eqg_ucrts: Equation = None  # type: ignore[assignment] # EQG_UCRTS
+    eqg_ucsu: Equation = None  # type: ignore[assignment] # EQG_UCSU
+    eqg_ucsus: Equation = None  # type: ignore[assignment] # EQG_UCSUS
+    eqg_ucrsus: Equation = None  # type: ignore[assignment] # EQG_UCRSUS
+    eqg_ucrsu: Equation = None  # type: ignore[assignment] # EQG_UCRSU
+    eql_uc: Equation = None  # type: ignore[assignment] # EQL_UC
+    eql_ucr: Equation = None  # type: ignore[assignment] # EQL_UCR
+    eql_uct: Equation = None  # type: ignore[assignment] # EQL_UCT
+    eql_ucrt: Equation = None  # type: ignore[assignment] # EQL_UCRT
+    eql_ucts: Equation = None  # type: ignore[assignment] # EQL_UCTS
+    eql_ucrs: Equation = None  # type: ignore[assignment] # EQL_UCRS
+    eql_ucrts: Equation = None  # type: ignore[assignment] # EQL_UCRTS
+    eql_ucsu: Equation = None  # type: ignore[assignment] # EQL_UCSU
+    eql_ucsus: Equation = None  # type: ignore[assignment] # EQL_UCSUS
+    eql_ucrsus: Equation = None  # type: ignore[assignment] # EQL_UCRSUS
+    eql_ucrsu: Equation = None  # type: ignore[assignment] # EQL_UCRSU
+    eqrobj: Equation = None  # type: ignore[assignment] # EQROBJ
+    eqsobj: Equation = None  # type: ignore[assignment] # EQSOBJ
+    VAR_ONIND: Variable = None  # type: ignore[assignment]  # [r, ll, t, p, s, lA] VAR_ONIND: on-line status of unit in timeslice s
+    eq_sdind_1: Equation = None  # type: ignore[assignment]  # eq_sdind_1
+    eq_sdind_0: Equation = None  # type: ignore[assignment]  # eq_sdind_0
+    eq_objbal: Equation = None  # type: ignore[assignment]  # [r, cur, allsow] eq_objbal
+    VAR_GRIDIO: Variable = None  # type: ignore[assignment]  # [r, year, c, c, s, io, *swd] VAR_GRIDIO
+    VAR_XCAP: Variable = None  # type: ignore[assignment]  # [r, year, item, *swd] VAR_XCAP
+    VAR_COMAUX: Variable = None  # type: ignore[assignment]  # [r, t, c, s, *swd] VAR_COMAUX
+    eq_gr_powflo: Equation = None  # type: ignore[assignment]  # [r, t, c, s, r, c, swtd] eq_gr_powflo
+    eq_gr_ptdflo: Equation = None  # type: ignore[assignment]  # [r, t, p, c, s, swtd] eq_gr_ptdflo
+    eq_gr_genall: Equation = None  # type: ignore[assignment]  # [r, t, c, s, cg, swtd] eq_gr_genall
+    eq_gr_demall: Equation = None  # type: ignore[assignment]  # [r, t, c, s, swtd] eq_gr_demall
+    eq_gr_xbnd: Equation = None  # type: ignore[assignment]  # [r, t, j, ie, s, swtd] eq_gr_xbnd
+    eq_gr_virtcap: Equation = None  # type: ignore[assignment]  # [r, t, p, c, s, bd, swtd] eq_gr_virtcap
+    eq_gr_virtbnd: Equation = None  # type: ignore[assignment]  # [r, t, p, swtd] eq_gr_virtbnd
+    eq_msncap: Equation = None  # type: ignore[assignment]  # [r, year, c, swd] eq_msncap
+    eq_msncapb: Equation = None  # type: ignore[assignment]  # [r, year, c, p, swd] eq_msncapb
+
     # endregion
 
     def __post_init__(self) -> None:
