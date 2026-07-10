@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Literal
 if TYPE_CHECKING:
     from core.equcwrap_mod import EqucwrapArg6Type
 
-from gamspy import Alias, Loop, Number, Parameter, Set, SpecialValues, Sum, set_options
+from gamspy import Alias, Loop, Number, Parameter, Set, SpecialValues, Sum
 from gamspy._symbols.implicits import ImplicitParameter
 from gamspy.math import project
 
@@ -578,8 +578,6 @@ class EqmainMod(GamsClass):
         if g.uc_rhsrt.number_records:
             project(g.uc_rhsrt, g.RUct)
             project(g.UcTsSum, g.RUc)
-            # TODO: This should not be needed - to be fixed in GAMSPy
-            set_options({"VALIDATION": 0})
 
             g.UcRhstmp[
                 g.RUct[g.RUc[g.r, g.ucn], g.t], g.Annual, *ucbd, "SEVERAL"
@@ -588,14 +586,11 @@ class EqmainMod(GamsClass):
                 g.RUct[g.RUc[g.r, g.ucn], g.t], g.Annual, *ucbd, "DYNAMIC"
             ].where[take & g.UcTSucc[g.r, g.ucn, g.t]] = True
 
-            set_options({"VALIDATION": 1})
             g.RUc.setRecords(None)
             g.RUct.setRecords(None)
 
         if g.uc_rhsrts.number_records:
             project(g.uc_rhsrts, g.Ructs)
-            # TODO: This should not be needed - to be fixed in GAMSPy
-            set_options({"VALIDATION": 0})
             g.UcRhstmp[
                 g.Ructs[g.UcTEach[g.UcREach[g.r, g.ucn], g.t], g.s, *ucbd], "EACH"
             ].where[g.UcTsEach[g.r, g.ucn, g.s]] = True
@@ -606,7 +601,6 @@ class EqmainMod(GamsClass):
                 g.Ructs[g.UcTEach[g.UcREach[g.r, g.ucn], g.t], g.s, *ucbd],
                 g.ucnumber[g.tsl],
             ].where[g.TsGroup[g.r, g.tsl, g.s] & g.UcDs[g.r, g.ucn, g.tsl]] = True
-            set_options({"VALIDATION": 1})
 
         project(g.UcTSucc, g.UcRtsuc)
         project(g.UcRhstmp, g.UcRhsmap)
