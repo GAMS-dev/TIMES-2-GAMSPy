@@ -16,6 +16,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Set
+
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -76,17 +78,14 @@ class EqflomrkMod(GamsClass):
             )
 
     def comp1(self: EqflomrkMod) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-SET RTX_MARK(R,T,ITEM,C,BD,S) //;
-SET RX_MARK(R,YEAR,ITEM,C,BD) //;
-SET RTP_MRK(REG,T,P,ITEM,COM,BD);
-SET RTX_MRK(REG,T,ITEM,COM,BD);
-SET RMKC(REG,ITEM,COM) //;
-""",
-        )
+        g = self.tc
+        m = g.container
+        r, t, c, s, p = g.r, g.t, g.c, g.s, g.p
+        g.RtxMark = Set(m, name="RTX_MARK", domain=[r, t, g.item, c, g.bd, s])
+        g.RxMark = Set(m, name="RX_MARK", domain=[r, g.year, g.item, c, g.bd])
+        g.RtpMrk = Set(m, name="RTP_MRK", domain=[g.Reg, t, p, g.item, g.Com, g.bd])
+        g.RtxMrk = Set(m, name="RTX_MRK", domain=[g.Reg, t, g.item, g.Com, g.bd])
+        g.Rmkc = Set(m, name="RMKC", domain=[g.Reg, g.item, g.Com])
 
     def equation_def(
         self: EqflomrkMod,
