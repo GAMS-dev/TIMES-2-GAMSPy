@@ -15,6 +15,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Literal
 
+from gamspy import Alias, Set
+
 from core.base_class import GamsClass
 from core.fillcost_gms import FillcostGms, FillcostGmsConfig
 from core.filparam_gms import FilparamGms, FilparamGmsConfig
@@ -190,18 +192,13 @@ class CoefObjMod(GamsClass):
 
     def declaration1(self: CoefObjMod) -> None:
         g = self.tc
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  ALIAS(K,EACHYEAR);
-  SET Y(ALLYEAR);
-  SET Y_EOH(ALLYEAR);
-  SET YK(ALLYEAR,ALLYEAR);
-  SET TS_ANN(S,S);
-""",
-        )
-        g.k = self.tc.container["K"]
+        m = g.container
+
+        g.k = Alias(m, name="K", alias_with=g.Eachyear)
+        g.Y = Set(m, name="Y", domain=[g.allyear])
+        g.YEoh = Set(m, name="Y_EOH", domain=[g.allyear])
+        g.Yk = Set(m, name="YK", domain=[g.allyear, g.allyear])
+        g.TsAnn = Set(m, name="TS_ANN", domain=[g.s, g.s])
 
     def declaration2(self: CoefObjMod) -> None:
         self.tc.add_gams_code(
