@@ -16,6 +16,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter, Set
+
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -45,14 +47,12 @@ class PpLvlpkMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  SET RPC_PKC(R,P,C);
-  PARAMETER RPC_PKF(R,P,C) //;
-""",
-        )
+        g = self.tc
+        m = g.container
+
+        g.RpcPkc = Set(m, name="RPC_PKC", domain=[g.r, g.p, g.c])
+        g.rpc_pkf = Parameter(m, name="RPC_PKF", domain=[g.r, g.p, g.c])
+
         self.tc.enqueue(self.pp_lvlpk_exec, arg1=self.arg1)
 
     def pp_lvlpk_exec(self: PpLvlpkMod, arg1: str) -> None:
