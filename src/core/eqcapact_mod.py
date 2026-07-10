@@ -20,6 +20,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Set
+
 from .base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -53,14 +55,15 @@ class EqcapactMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
         self.env.set_local("pass", "")
         if self.tc.defined_assigned("RPS_CAFLAC"):
             self.env.set_local(
                 "pass",
                 f"{self.env.__getattr__('pass')}*(NOT RPS_CAFLAC(R,P,S,'{self.arg2}'))",
             )
-
-        self.tc.add_gams_code(module=self, phase="init", code="SET AFS(R,T,P,S,BD) //;")
+        g.Afs = Set(m, name="AFS", domain=[g.r, g.t, g.p, g.s, g.bd])
         self.tc.enqueue(
             self.exec,
             validate=(self.env.validate == "YES"),
