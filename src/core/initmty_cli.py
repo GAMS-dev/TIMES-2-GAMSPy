@@ -14,7 +14,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Alias, Parameter, Set
+from gamspy import Alias, Parameter, Set, Smax
+from gamspy.math import log
 
 from core.base_class import GamsClass
 from core.utils import expand_set
@@ -433,25 +434,21 @@ class InitmtyCli(GamsClass):
         # *-----------------------------------------------------------------------------
 
     def exec1(self: InitmtyCli) -> None:
-        # with If(NOTCM_CONST['GAMMA']):
-        #   cm_const['GAMMA'] = 5.35 *LOG[2]
-        # with If(CM_CONST['LAMBDA'] =0.0):
-        #   cm_const['LAMBDA'] = 1.25
-        # with If(CM_CONST['CS'] =0.0):
-        #   cm_const['CS'] = CM_CONST['GAMMA'] /CM_CONST['LAMBDA']
-        # cm_const['LAMBDA'] = CM_CONST['GAMMA'] /CM_CONST['CS']
-        # e['0'] = 0.0
-        # with If(CM_CONST['EXT-EOH'] =0.0):
-        #   cm_const['EXT-EOH'] = Sum([L,L].where[E[LL]], E[LL])
+        g = self.tc
+        ll = g.ll
+        cm_const = g.cm_const
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-IF(NOT CM_CONST('GAMMA'), CM_CONST('GAMMA') = 5.35*LOG(2));
-IF(CM_CONST('LAMBDA') EQ 0, CM_CONST('LAMBDA') = 1.25);
-IF(CM_CONST('CS') EQ 0, CM_CONST('CS') = CM_CONST('GAMMA')/CM_CONST('LAMBDA'));
-CM_CONST('LAMBDA') = CM_CONST('GAMMA')/CM_CONST('CS');
-E('0')=0; IF(CM_CONST('EXT-EOH') EQ 0, CM_CONST('EXT-EOH')=SMAX(LL$E(LL),E(LL)));
-""",
-        )
+        if cm_const["GAMMA"].toDense() == 0:
+            cm_const["GAMMA"] = 5.35 * log(2)
+
+        if cm_const["LAMBDA"].toDense() == 0:
+            cm_const["LAMBDA"] = 1.25
+
+        if cm_const["CS"].toDense() == 0:
+            cm_const["CS"] = cm_const["GAMMA"] / cm_const["LAMBDA"]
+
+        cm_const["LAMBDA"] = cm_const["GAMMA"] / cm_const["CS"]
+        g.e["0"] = 0.0
+
+        if cm_const["EXT-EOH"].toDense() == 0:
+            cm_const["EXT-EOH"] = Smax(ll.where[g.e[ll]], g.e[ll])
