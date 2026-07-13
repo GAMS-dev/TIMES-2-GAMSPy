@@ -19,6 +19,7 @@ from gamspy import (
 )
 
 from core.base_class import GamsClass
+from utils.config import RunConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -35,10 +36,12 @@ class TimesModelClass:
 
     # REQUIRED ARGUMENTS
     env: CompileEnvironment
+    config: RunConfig
     output_compile: Path
     output_execute: Path
     output_convert: Path
     test_run: bool
+    solve: bool
     solve_options: Options
 
     # AUTO-GENERATED FACTORIES

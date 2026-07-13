@@ -617,6 +617,7 @@ class RunConfig(BaseModel):
     run_name: str = "TEST"
     milestone_years: list[str]
     env_vars: UserConfig
+    data_dir: Path
     data_modules: list[Path]
 
     time_slices: Path
