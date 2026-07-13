@@ -42,7 +42,19 @@ option lp=convert, mip=convert;
 SOLVE %MODEL_NAME% MINIMIZING objZ USING %METHOD%;
 
 option lp=cplex, mip=cplex;
-SOLVE %MODEL_NAME% MINIMIZING objZ USING %METHOD%;
+$ifThenI.solvemode %SOLVEMODE%==SOLVE
+  SOLVE %MODEL_NAME% MINIMIZING objZ USING %METHOD%;
+  file modelstatus / '%MODEL_NAME%_modelstat.inc' / ;
+  put modelstatus '%MODEL_NAME%.modelstat = ' %MODEL_NAME%.modelstat:0:0 ';' ;
+$elseifi.solvemode %SOLVEMODE%==LOADSOLUTION
+* generate model but do not pass it to the solver
+  %MODEL_NAME%.JustScrDir=1;
+  SOLVE %MODEL_NAME% MINIMIZING objZ USING %METHOD%;
+* load solution file and fake modelstatus from "real" solve
+  execute_loadpoint '%SAVEPOINT_DIR%%system.dirSep%times_p2.gdx';
+  $$include %SAVEPOINT_DIR%%system.dirSep%times_modelstat.inc
+$endif.solvemode
+
 $LABEL CHECK
 * do an check on solution errors
 $  BATINCLUDE err_stat.mod SOLVE '*** ERRORS DURING SOLUTION ***'

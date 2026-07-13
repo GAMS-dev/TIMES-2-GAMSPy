@@ -24,7 +24,7 @@ docs = [
 
 
 [tool.pytest.ini_options]
-addopts = "--junitxml=junit-report.xml"
+addopts = "--junitxml=junit-report.xml --capture=tee-sys"
 junit_family = "xunit2"
 pythonpath = ["src"]
 

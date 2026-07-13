@@ -37,6 +37,7 @@ def run_times(
     output_execute: Path = Path("execute_gamspy.gdx"),
     output_convert: Path = Path("convert_gamspy.gdx"),
     test: bool = False,
+    solve: bool = True,
 ) -> TimesModelClass:
     logging.info(f"Starting TIMES Run: {config.run_name}")
 
@@ -61,7 +62,9 @@ def run_times(
         output_execute=output_execute,
         output_convert=output_convert,
         test_run=test,
+        solve=solve,
         solve_options=solve_options,
+        config=config,
     )
 
     # Dynamically apply non default %<key>% Environment Variables
@@ -77,7 +80,7 @@ def run_times(
     env.set_scoped("run_name", config.run_name)
 
     # Dynamically apply Time Slices
-    read_dd_file(tc=model, dd_path=config.time_slices)
+    read_dd_file(tc=model, dd_path=Path(config.data_dir, config.time_slices))
     all_ts = model.container["ALL_TS"]
     assert isinstance(all_ts, Set)
     model.allts = all_ts
@@ -91,7 +94,7 @@ def run_times(
 
         # Central data load (DD files)
         for file in config.data_modules:
-            read_dd_file(tc=model, dd_path=file)
+            read_dd_file(tc=model, dd_path=Path(config.data_dir, file))
 
         # Reduced model to fit with GAMS community license
         milestonyr = model.container["MILESTONYR"]

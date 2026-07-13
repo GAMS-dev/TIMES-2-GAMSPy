@@ -13,10 +13,12 @@
 from __future__ import annotations
 
 import logging
+import re
 import sys
+from pathlib import Path
 from typing import TYPE_CHECKING
 
-from gamspy import Equation, Model, set_options
+from gamspy import Equation, Model, ModelStatus, Options, set_options
 
 from core.base_class import GamsClass
 from core.err_stat_mod import ErrStatMod
@@ -158,7 +160,27 @@ SOLVE {model_name} MAXIMIZING VAR_UTIL USING {method};
         )
 
         # regular solve
-        model.solve(output=sys.stdout, options=self.tc.solve_options)
+        if self.tc.solve:
+            model.solve(output=sys.stdout, options=self.tc.solve_options)
+        else:
+            model.solve(
+                output=sys.stdout,
+                options=Options(
+                    bypass_solver=True,
+                    loadpoint=Path(self.tc.config.data_dir, "times_p2.gdx"),
+                ),
+            )
+            fake_file = Path(self.tc.config.data_dir, "times_modelstat.inc")
+            # fake model status in GAMS
+            self.tc.container.addGamsCode(f"$include {fake_file}")
+
+            # fake model status in GAMSPy
+            with open(fake_file) as f:
+                s = f.read()
+            match = re.search(r"=\s*(\d+);", s)
+            if match:
+                value = int(match.group(1))
+                model._status = ModelStatus(value)
 
 
 def solve_mod(
