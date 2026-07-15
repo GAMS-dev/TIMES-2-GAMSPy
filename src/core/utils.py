@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from gamspy import Parameter, SpecialValues
 from gamspy.math import rpower
 
-from utils.compile_environment import CompileEnvironment
-from utils.times_model_class import TimesModelClass
+if TYPE_CHECKING:
+    from utils.compile_environment import CompileEnvironment
+    from utils.times_model_class import TimesModelClass
 
 
 class EscapeStack(Exception):

@@ -18,7 +18,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -35,11 +36,7 @@ class EqobsalvRpt(GamsClass):
     gams_source: str = "eqobsalv.rpt"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str,
-        arg2: str = "",
+        self, tc: TimesModelClass, env: CompileEnvironment, arg1: str, arg2: str = ""
     ):
         self.env = env.fork()
         self.arg1 = arg1
@@ -76,7 +73,7 @@ PARAMETER COEF_OBJINV(R,YEAR,PRC)    //;
         if etl == "YES":
             rhs += "      SUM(OBJ_SUMS(R,T(V),P)$TEG(P), OBJSIC(R,T,P) * VAR_IC.L(R,T,P)) * OBJ_DCEOH(R,CUR) +"
 
-        rhs += """
+        rhs += f"""
 *------------------------------------------------------------------------------
 * Cases III - Decommissioning
 *------------------------------------------------------------------------------
@@ -90,10 +87,10 @@ PARAMETER COEF_OBJINV(R,YEAR,PRC)    //;
 *------------------------------------------------------------------------------
 * The same proportion SALV_INV is salvaged from investments and surveillance costs
       SUM(OBJ_SUMIVS(R,T(V),P,K,Y)$SALV_INV(R,T,P,K),
-          OBJ_DISC(R,Y,CUR) * OBJ_DLAGC(R,K,P,CUR) * SALV_INV(R,T,P,K) * VAR_NCAP.L(R,T,P)) +
+          OBJ_DISC(R,Y,CUR) * {macro.obj_dlagc("R", "K", "P", "CUR")} * SALV_INV(R,T,P,K) * VAR_NCAP.L(R,T,P)) +
 
       SUM(OBJ_SUMIVS(R,PYR(V),P,K,Y)$SALV_INV(R,V,P,K),
-          OBJ_DISC(R,Y,CUR) * OBJ_DLAGC(R,K,P,CUR) * SALV_INV(R,V,P,K) * NCAP_PASTI(R,V,P))
+          OBJ_DISC(R,Y,CUR) * {macro.obj_dlagc("R", "K", "P", "CUR")} * SALV_INV(R,V,P,K) * NCAP_PASTI(R,V,P))
     ;
 
 *------------------------------------------------------------------------------

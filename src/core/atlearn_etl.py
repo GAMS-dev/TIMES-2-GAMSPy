@@ -28,6 +28,7 @@ from core.atsc_etl import atsc_etl
 from core.base_class import GamsClass
 from core.mod_vars_etl import ModVarsEtl
 from core.utils import apply_sw_notags, apply_sw_tags
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -43,11 +44,7 @@ class AtlearnEtl(GamsClass):
     module_name: str = "atlearn_etl"
     gams_source: str = "atlearn.etl"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
@@ -213,7 +210,7 @@ LOOP(SOW,
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code="""
+            code=f"""
 * Exporting capital cost data for clustered technologies
 
 * Create a set of all key components
@@ -221,12 +218,12 @@ LOOP(SOW,
   LOOP((RP(R,P),PRC)$((CLUSTER(R,P,PRC) > 0.0)$CLUSTER(R,P,PRC)),
      TL_RP_KC(R,P) = YES; TL_RP_CT(R,PRC) = YES);
 
-  TL_CT_COST(REG,MILESTONYR,PRC,CUR)$TL_RP_CT(REG,PRC) = OBJ_ICOST(REG,MILESTONYR,PRC,CUR) +
+  TL_CT_COST(REG,MILESTONYR,PRC,CUR)$TL_RP_CT(REG,PRC) = {macro.obj_icost("REG", "MILESTONYR", "PRC", "CUR")} +
      INVC_UNIT(REG,MILESTONYR,PRC) +
 * Costs of key components in same region
-     SUM(P$CLUSTER(REG,P,PRC), (OBJ_ICOST(REG,MILESTONYR,P,CUR) + INVC_UNIT(REG,MILESTONYR,P)) * CLUSTER(REG,P,PRC)) +
+     SUM(P$CLUSTER(REG,P,PRC), ({macro.obj_icost("REG", "MILESTONYR", "P", "CUR")} + INVC_UNIT(REG,MILESTONYR,P)) * CLUSTER(REG,P,PRC)) +
 * Costs of multi-regional key components
-     SUM(RP(R,P)$TL_MRCLUST(R,P,REG,PRC), (OBJ_ICOST(R,MILESTONYR,P,CUR) + INVC_UNIT(R,MILESTONYR,P)) * TL_MRCLUST(R,P,REG,PRC));
+     SUM(RP(R,P)$TL_MRCLUST(R,P,REG,PRC), ({macro.obj_icost("R", "MILESTONYR", "P", "CUR")} + INVC_UNIT(R,MILESTONYR,P)) * TL_MRCLUST(R,P,REG,PRC));
 *-----------------------------------------------------------------------------
 
 """,

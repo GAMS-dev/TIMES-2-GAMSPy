@@ -23,6 +23,7 @@ from core.base_class import GamsClass
 from core.cal_caps_mod import cal_caps_mod
 from core.cal_nored_red import cal_nored_red
 from core.cal_red_red import cal_red_red
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -148,7 +149,7 @@ def eqobjvar_mod(
     include_cal_caps_ = cal_caps_mod(
         is_vnret_defined=is_vnret_defined,
         arg1="T",
-        arg2=f"SUM(TS_ANN(TS,SL),SUM({tpulse}*(OBJ_FCOST(R,Y_EOH,P,C,SL,CUR)+OBJ_FDELV(R,Y_EOH,P,C,SL,CUR)+OBJ_FTAX(R,Y_EOH,P,C,SL,CUR))))",
+        arg2=f"SUM(TS_ANN(TS,SL),SUM({tpulse}*({macro.obj_fcost('R', 'Y_EOH', 'P', 'C', 'SL', 'CUR')}+{macro.obj_fdelv('R', 'Y_EOH', 'P', 'C', 'SL', 'CUR')}+{macro.obj_ftax('R', 'Y_EOH', 'P', 'C', 'SL', 'CUR')})))",
         arg3="TS",
         arg4="",
         varv=varv,
@@ -189,8 +190,8 @@ def eqobjvar_mod(
 * Costs on Overall activity of a process
 *------------------------------------------------------------------------------
 * multiply storage activity by average residence time
-          SUM(RTP_VARA(R,T,P)$OBJ_ACOST(R,T,P,CUR),
-            SUM({tpulse} * OBJ_ACOST(R,Y_EOH,P,CUR)) *
+          SUM(RTP_VARA(R,T,P)${macro.obj_acost("R", "T", "P", "CUR")},
+            SUM({tpulse} * {macro.obj_acost("R", "Y_EOH", "P", "CUR")}) *
             SUM((RTP_VINTYR(R,V,T,P),PRC_TS(R,P,S)),{var}_ACT(R,V,T,P,S {sow}) *
                 POWER(RS_STGAV(R,S),1$RP_STG(R,P)))
              ) +
@@ -227,7 +228,7 @@ def eqobjvar_mod(
 *    based upon RPC_CAPFLOr,t,p,c
      SUM(RTPCS_VARF(R,T,P,C,S)$SUM(OBJ_VFLO(RP_FLO(R,P),C,CUR,UC_COST),1),
         SUM(TS_ANN(S,TS),
-          SUM({tpulse} * (OBJ_FCOST(R,Y_EOH,P,C,TS,CUR)+OBJ_FDELV(R,Y_EOH,P,C,TS,CUR)+OBJ_FTAX(R,Y_EOH,P,C,TS,CUR)))) *
+          SUM({tpulse} * ({macro.obj_fcost("R", "Y_EOH", "P", "C", "TS", "CUR")}+{macro.obj_fdelv("R", "Y_EOH", "P", "C", "TS", "CUR")}+{macro.obj_ftax("R", "Y_EOH", "P", "C", "TS", "CUR")}))) *
         SUM(RTP_VINTYR(R,V,T,P),
 {include_cal_red}
           )) +
@@ -235,7 +236,7 @@ def eqobjvar_mod(
 * same for IRE processes
      SUM(RTPCS_VARF(R,T,P,C,S)$SUM(OBJ_VFLO(RP_IRE(R,P),C,CUR,UC_COST),1),
         SUM(TS_ANN(S,TS),
-          SUM({tpulse} * (OBJ_FCOST(R,Y_EOH,P,C,TS,CUR)+OBJ_FDELV(R,Y_EOH,P,C,TS,CUR)+OBJ_FTAX(R,Y_EOH,P,C,TS,CUR)))) *
+          SUM({tpulse} * ({macro.obj_fcost("R", "Y_EOH", "P", "C", "TS", "CUR")}+{macro.obj_fdelv("R", "Y_EOH", "P", "C", "TS", "CUR")}+{macro.obj_ftax("R", "Y_EOH", "P", "C", "TS", "CUR")}))) *
         SUM(RTP_VINTYR(R,V,T,P),
             SUM(RPC_IRE(R,P,C,IE),
               {var}_IRE(R,V,T,P,C,S,IE {sow})$(NOT RPC_AIRE(R,P,C))+({var}_ACT(R,V,T,P,S {sow})*PRC_ACTFLO(R,V,P,C))$RPC_AIRE(R,P,C)
@@ -249,7 +250,7 @@ def eqobjvar_mod(
 *V3.3.3 support costs also for storage flows (FCOST for IN, FDELV for OUT)
      SUM(OBJ_VFLO(RPC_STG(R,P,C),CUR,'COST'),
        SUM((RTP_VINTYR(R,V,T,P),RPCS_VAR(R,P,C,S)),
-         SUM(TS_ANN(S,TS),SUM({tpulse} * ({var}_SIN(R,V,T,P,C,S{sow})*OBJ_FCOST(R,Y_EOH,P,C,TS,CUR)+{var}_SOUT(R,V,T,P,C,S{sow})*STG_EFF(R,V,P)*OBJ_FDELV(R,Y_EOH,P,C,TS,CUR))))))
+         SUM(TS_ANN(S,TS),SUM({tpulse} * ({var}_SIN(R,V,T,P,C,S{sow})*{macro.obj_fcost("R", "Y_EOH", "P", "C", "TS", "CUR")}+{var}_SOUT(R,V,T,P,C,S{sow})*STG_EFF(R,V,P)*{macro.obj_fdelv("R", "Y_EOH", "P", "C", "TS", "CUR")})))))
 {")" if condition2 else ""}
        ) +
 

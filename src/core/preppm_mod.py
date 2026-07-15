@@ -86,7 +86,7 @@ class PreppmMod(GamsClass):
             self.tc.register_assignment(g.r_curex)
             self.tc.enqueue(self.exec2)
 
-        if self.tc.defined_assigned("R_CUREX"):
+        if self.tc.defined("R_CUREX"):
             self.include(CurexGms(self.tc, self.env, CurexGmsConfig()))
 
         self.tc.enqueue(self.exec3)

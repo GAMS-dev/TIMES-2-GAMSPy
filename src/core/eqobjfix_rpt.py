@@ -20,7 +20,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -36,12 +37,7 @@ class EqobjfixRpt(GamsClass):
     module_name: str = "eqobjfix_rpt"
     gams_source: str = "eqobjfix.rpt"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str = "",
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment, arg1: str = ""):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
@@ -49,10 +45,7 @@ class EqobjfixRpt(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.enqueue(
-            self.exec1,
-            condition=(self.env.validate == "YES"),
-        )
+        self.tc.enqueue(self.exec1, condition=(self.env.validate == "YES"))
 
     def exec1(self: EqobjfixRpt, condition: bool) -> None:
         self.tc.add_gams_code(
@@ -77,23 +70,23 @@ class EqobjfixRpt(GamsClass):
       OBJ_DISC(R,Y_EOH,CUR) * F * (1+SUM(PERIODYR(T,Y_EOH),RTP_CPX(R,V,P,T))$NCAP_CPX(R,V,P)) *
       SUM(YKAGE(Y_EOH,K,AGE),
              (
-                 OBJ_FOM(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'1',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) +
-                 OBJ_FTX(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'2',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) -
-                 OBJ_FSB(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'3',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1))
+                 {macro.obj_fom("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'1',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) +
+                 {macro.obj_ftx("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'2',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) -
+                 {macro.obj_fsb("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'3',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1))
              )
 {"              $(PERIODYR(V,Y_EOH)*T(V)+OBJ_2A(R,V,P)+OBJ_2B(R,V,P))" if condition else ""}
       );
    ELSE
     PAR_OBJFIX(R,V,Y_EOH,P,CUR) =
        OBJ_DISC(R,Y_EOH,CUR) * F *
-       SUM(YKAGE(Y_EOH,K,AGE), (OBJ_FOM(R,K,P,CUR)+OBJ_FTX(R,K,P,CUR)-OBJ_FSB(R,K,P,CUR)));
+       SUM(YKAGE(Y_EOH,K,AGE), ({macro.obj_fom("R", "K", "P", "CUR")}+{macro.obj_ftx("R", "K", "P", "CUR")}-{macro.obj_fsb("R", "K", "P", "CUR")}));
   ));
 
 * Decommissioning Surveillance
- LOOP(OBJ_FCUR(NCAP_YES(R,V,P),CUR)$OBJ_DLAGC(R,V,P,CUR),
+ LOOP(OBJ_FCUR(NCAP_YES(R,V,P),CUR)${macro.obj_dlagc("R", "V", "P", "CUR")},
    OPTION YK1 < OBJ_SUMIVS;
    PAR_OBJFIX(R,V,Y,P,CUR) = PAR_OBJFIX(R,V,Y,P,CUR) +
-      SUM(YK1(Y,K), OBJ_DISC(R,Y,CUR) * OBJ_DLAGC(R,K,P,CUR) *
+      SUM(YK1(Y,K), OBJ_DISC(R,Y,CUR) * {macro.obj_dlagc("R", "K", "P", "CUR")} *
           (VAR_NCAP.L(R,V,P)$MILESTONYR(V) + NCAP_PASTI(R,V,P)$PASTYEAR(V)));
   );
 

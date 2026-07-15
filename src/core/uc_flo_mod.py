@@ -18,14 +18,11 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
 from core.cal_caps_mod import cal_caps_mod
 from core.cal_nored_red import cal_nored_red
 from core.cal_red_red import cal_red_red
-
-if TYPE_CHECKING:
-    pass
+from utils.macros import macro_config as macro
 
 logger = logging.getLogger(__name__)
 
@@ -125,10 +122,10 @@ def uc_flo_mod(
 
                                PROD(REG(R)$SUM(UC_ATTR(R,UC_N,{arg5},'FLO',UC_COST),1),
                                 SUM((RDCUR(R,CUR),TS_ANN(TS,SL)),
-                                  OBJ_FCOST(R,{arg4},P,C,SL,CUR)$UC_ATTR(R,UC_N,{arg5},'FLO','COST')
-                                 +OBJ_FDELV(R,{arg4},P,C,SL,CUR)$UC_ATTR(R,UC_N,{arg5},'FLO','DELIV')
-                                 +MIN(0,OBJ_FTAX(R,{arg4},P,C,SL,CUR))$UC_ATTR(R,UC_N,{arg5},'FLO','SUB')
-                                 +MAX(0,OBJ_FTAX(R,{arg4},P,C,SL,CUR))$UC_ATTR(R,UC_N,{arg5},'FLO','TAX')))
+                                  {macro.obj_fcost("R", arg4, "P", "C", "SL", "CUR")}$UC_ATTR(R,UC_N,{arg5},'FLO','COST')
+                                 +{macro.obj_fdelv("R", arg4, "P", "C", "SL", "CUR")}$UC_ATTR(R,UC_N,{arg5},'FLO','DELIV')
+                                 +MIN(0,{macro.obj_ftax("R", arg4, "P", "C", "SL", "CUR")})$UC_ATTR(R,UC_N,{arg5},'FLO','SUB')
+                                 +MAX(0,{macro.obj_ftax("R", arg4, "P", "C", "SL", "CUR")})$UC_ATTR(R,UC_N,{arg5},'FLO','TAX')))
                              )
                     ) +
 
@@ -142,10 +139,10 @@ def uc_flo_mod(
                      PROD(REG(R)$SUM(UC_ATTR(R,UC_N,{arg5},'FLO',UC_COST),1),
                       SUM(RPCS_VAR(R,P,C,TS),RS_FR(R,TS,S) *
                        SUM((RDCUR(R,CUR),TS_ANN(TS,SL)),
-                         OBJ_FCOST(R,{arg4},P,C,SL,CUR)$UC_ATTR(R,UC_N,{arg5},'FLO','COST')
-                        +OBJ_FDELV(R,{arg4},P,C,SL,CUR)$UC_ATTR(R,UC_N,{arg5},'FLO','DELIV')
-                        +MIN(0,OBJ_FTAX(R,{arg4},P,C,SL,CUR))$UC_ATTR(R,UC_N,{arg5},'FLO','SUB')
-                        +MAX(0,OBJ_FTAX(R,{arg4},P,C,SL,CUR))$UC_ATTR(R,UC_N,{arg5},'FLO','TAX'))))
+                         {macro.obj_fcost("R", arg4, "P", "C", "SL", "CUR")}$UC_ATTR(R,UC_N,{arg5},'FLO','COST')
+                        +{macro.obj_fdelv("R", arg4, "P", "C", "SL", "CUR")}$UC_ATTR(R,UC_N,{arg5},'FLO','DELIV')
+                        +MIN(0,{macro.obj_ftax("R", arg4, "P", "C", "SL", "CUR")})$UC_ATTR(R,UC_N,{arg5},'FLO','SUB')
+                        +MAX(0,{macro.obj_ftax("R", arg4, "P", "C", "SL", "CUR")})$UC_ATTR(R,UC_N,{arg5},'FLO','TAX'))))
                     )
 
 

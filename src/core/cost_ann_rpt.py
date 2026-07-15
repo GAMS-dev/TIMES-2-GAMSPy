@@ -19,11 +19,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.eqobjels_rpt import eqobjels_rpt
 from core.eqobjvar_rpt import eqobjvar_rpt
 from core.powerflo_vda import powerflo_vda_rptb
-
-from .base_class import GamsClass
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -190,9 +190,15 @@ LOOP(OBJ_ICUR(NCAP_YES(R,V,P),CUR), OPTION CLEAR=YKK; MY_F={sic};
   F = RTP_CAPVL(R,V,P)*OBJ_CRF(R,V,P,CUR)/OBJ_DIVI(R,V,P);
   LOOP(OBJ_SUMII(R,V,P,LIFE,K_EOH,JOT), Z=ORD(LIFE); FIL(T)=VNT(V,T)$(M(T)<YEARVAL(K_EOH)+ORD(JOT)+Z);
     YKK(YK(FIL(YEAR),LL),K)$((ORD(YEAR) < ORD(LL)+Z)$INVSPRED(K_EOH,JOT,LL,K)) = YES);
-  CSTVPJ(R,V,P,'1',SYSINV,T(FIL)) = SUM(YKK(T,LL,K), F * MY_F * OBJ_ICOST(R,K,P,CUR))*SYSPLIT(SYSINV);
-  CSTVPJ(R,V,P,'2',SYSINV,T(FIL))$(OBJ_ITAX(R,V,P,CUR)+OBJ_ISUB(R,V,P,CUR)) =
-       SUM(YKK(T,LL,K), F * (OBJ_ITAX(R,K,P,CUR)-OBJ_ISUB(R,K,P,CUR)))*SYSPLIT(SYSINV);
+  CSTVPJ(R,V,P,'1',SYSINV,T(FIL)) = SUM(YKK(T,LL,K), F * MY_F * {
+        macro.obj_icost("R", "K", "P", "CUR")
+    })*SYSPLIT(SYSINV);
+  CSTVPJ(R,V,P,'2',SYSINV,T(FIL))$({macro.obj_itax("R", "V", "P", "CUR")}+{
+        macro.obj_isub("R", "V", "P", "CUR")
+    }) =
+       SUM(YKK(T,LL,K), F * ({macro.obj_itax("R", "K", "P", "CUR")}-{
+        macro.obj_isub("R", "K", "P", "CUR")
+    }))*SYSPLIT(SYSINV);
 );
 
  IF(NOT CNT, FIL(V)=PYR_S(V); OPTION CSTVNT < CSTVPJ, CLEAR=CSTVPJ);
@@ -204,10 +210,14 @@ LOOP(OBJ_ICUR(R,FIL(V),P,CUR)$PRC_RESID(R,'0',P),
  FIL2(T)=(NCAP_PASTI(R,V,P)*COEF_RVPT(R,V,P,T)-RTFORC(R,V,T,P))*OBJ_CRF(R,V,P,CUR);
  {arg1}CST_INVC({
         arg2
-    }RTP_CPTYR(R,V,T,P),SYSINV) = ABS(SYSONE(SYSINV)-COEF_CRF(R,V,P,CUR)) * FIL2(T) * OBJ_ICOST(R,V,P,CUR);
+    }RTP_CPTYR(R,V,T,P),SYSINV) = ABS(SYSONE(SYSINV)-COEF_CRF(R,V,P,CUR)) * FIL2(T) * {
+        macro.obj_icost("R", "V", "P", "CUR")
+    };
  {arg1}CST_INVX({
         arg2
-    }RTP_CPTYR(R,V,T,P),SYSINV) = ABS(SYSONE(SYSINV)-COEF_CRF(R,V,P,CUR)) * FIL2(T) * (OBJ_ITAX(R,V,P,CUR)-OBJ_ISUB(R,V,P,CUR));
+    }RTP_CPTYR(R,V,T,P),SYSINV) = ABS(SYSONE(SYSINV)-COEF_CRF(R,V,P,CUR)) * FIL2(T) * ({
+        macro.obj_itax("R", "V", "P", "CUR")
+    }-{macro.obj_isub("R", "V", "P", "CUR")});
 );
 
 * Handle ETL
@@ -231,13 +241,19 @@ LOOP(OBJ_ICUR(R,T,TEG(P),CUR)$VAR_IC.L(R,T,P), OPTION CLEAR=YKK;
 *------------------------------------------------------------------------------
 OPTION OBJ_SUMSI <= OBJ_SUMIII;
 * Calculate decommissioning costs, annualized to operating years:
-LOOP(OBJ_ICUR(NCAP_YES(R,V,P),CUR)$OBJ_DCOST(R,V,P,CUR), F = RTP_CAPVL(R,V,P);
+LOOP(OBJ_ICUR(NCAP_YES(R,V,P),CUR)${
+        macro.obj_dcost("R", "V", "P", "CUR")
+    }, F = RTP_CAPVL(R,V,P);
   F = F*OBJ_CRF(R,V,P,CUR)/OBJ_DIVIII(R,V,P); Z = ROUND(NCAP_{invlif}(R,V,P));
   {arg1}CST_DECC({
         arg2
     }R,VNT(V,T),P) = SUM(OBJ_SUMSI(R,V,P,LL)$((YEARVAL(T) < YEARVAL(LL)+Z)$YK(T,LL)),
-      (SUM(OBJ_SUMIII(R,V,P,LL,K,Y),OBJ_DISC(R,Y,CUR)*OBJ_DCOST(R,K,P,CUR))*COR_SALVD(R,V,P,CUR) +
-       SUM(OBJ_SUMIVS(R,V,P,K(LL),Y),OBJ_DISC(R,Y,CUR))*OBJ_DLAGC(R,LL,P,CUR))*F/OBJ_DISC(R,LL,CUR));
+      (SUM(OBJ_SUMIII(R,V,P,LL,K,Y),OBJ_DISC(R,Y,CUR)*{
+        macro.obj_dcost("R", "K", "P", "CUR")
+    })*COR_SALVD(R,V,P,CUR) +
+       SUM(OBJ_SUMIVS(R,V,P,K(LL),Y),OBJ_DISC(R,Y,CUR))*{
+        macro.obj_dlagc("R", "LL", "P", "CUR")
+    })*F/OBJ_DISC(R,LL,CUR));
 );
 
 *------------------------------------------------------------------------------
@@ -253,10 +269,18 @@ LOOP(OBJ_ICUR(NCAP_YES(R,V,P),CUR)$OBJ_DCOST(R,V,P,CUR), F = RTP_CAPVL(R,V,P);
      YKAGE(T,LL,AGE(LIFE+(FIL2(T)-ORD(LL)-Z)))$(INVSTEP(K_EOH,JOT,LL,JOT)$OPYEAR(LIFE,AGE)$MY_FIL2(T)) = YES);
    FIL2(T)=F*MY_FIL2(T)/MAX(1,SUM(YKAGE(T,LL,AGE),1)$CNT);
    CSTVPJ(R,V,P,'1','FIX',T) = FIL2(T) *
-     SUM(YKAGE(T,K,AGE), OBJ_FOM(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'1',J,JJ),SHAPE(J,AGE)*MULTI(JJ,T)-1)));
-   CSTVPJ(R,V,P,'2','FIX',T)$(OBJ_FTX(R,V,P,CUR)+OBJ_FSB(R,V,P,CUR)) = FIL2(T) *
-     SUM(YKAGE(T,K,AGE), (OBJ_FTX(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'2',J,JJ),SHAPE(J,AGE)*MULTI(JJ,T)-1)) -
-                          OBJ_FSB(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'3',J,JJ),SHAPE(J,AGE)*MULTI(JJ,T)-1))));
+     SUM(YKAGE(T,K,AGE), {
+        macro.obj_fom("R", "K", "P", "CUR")
+    } * (1+SUM(RTP_SHAPE(R,V,P,'1',J,JJ),SHAPE(J,AGE)*MULTI(JJ,T)-1)));
+   CSTVPJ(R,V,P,'2','FIX',T)$({macro.obj_ftx("R", "V", "P", "CUR")}+{
+        macro.obj_fsb("R", "V", "P", "CUR")
+    }) = FIL2(T) *
+     SUM(YKAGE(T,K,AGE), ({
+        macro.obj_ftx("R", "K", "P", "CUR")
+    } * (1+SUM(RTP_SHAPE(R,V,P,'2',J,JJ),SHAPE(J,AGE)*MULTI(JJ,T)-1)) -
+                          {
+        macro.obj_fsb("R", "K", "P", "CUR")
+    } * (1+SUM(RTP_SHAPE(R,V,P,'3',J,JJ),SHAPE(J,AGE)*MULTI(JJ,T)-1))));
  );
  OPTION CSTVNT < CSTVPJ, CLEAR=CSTVPJ;
  {arg1}CST_FIXC({arg2}R,V,T,P) $= CSTVNT('1',R,V,T,P,'FIX');
@@ -264,13 +288,15 @@ LOOP(OBJ_ICUR(NCAP_YES(R,V,P),CUR)$OBJ_DCOST(R,V,P,CUR), F = RTP_CAPVL(R,V,P);
 
 * Report approximate costs for RESID according to available capacity
 LOOP(OBJ_FCUR(R,FIL(V),P,CUR)$PRC_RESID(R,'0',P),
- {arg1}CST_FIXC({
-        arg2
-    }RTP_CPTYR(R,V,T,P)) = NCAP_PASTI(R,V,P)*COEF_RVPT(R,V,P,T) * OBJ_FOM(R,V,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'1',J,JJ),MULTI(JJ,T)-1));
- {arg1}CST_FIXX({
-        arg2
-    }RTP_CPTYR(R,V,T,P)) = NCAP_PASTI(R,V,P)*COEF_RVPT(R,V,P,T) *(OBJ_FTX(R,V,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'2',J,JJ),MULTI(JJ,T)-1)) -
-                                                                          OBJ_FSB(R,V,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'3',J,JJ),MULTI(JJ,T)-1)));
+ {arg1}CST_FIXC({arg2}RTP_CPTYR(R,V,T,P)) = NCAP_PASTI(R,V,P)*COEF_RVPT(R,V,P,T) * {
+        macro.obj_fom("R", "V", "P", "CUR")
+    } * (1+SUM(RTP_SHAPE(R,V,P,'1',J,JJ),MULTI(JJ,T)-1));
+ {arg1}CST_FIXX({arg2}RTP_CPTYR(R,V,T,P)) = NCAP_PASTI(R,V,P)*COEF_RVPT(R,V,P,T) *({
+        macro.obj_ftx("R", "V", "P", "CUR")
+    } * (1+SUM(RTP_SHAPE(R,V,P,'2',J,JJ),MULTI(JJ,T)-1)) -
+                                                                          {
+        macro.obj_fsb("R", "V", "P", "CUR")
+    } * (1+SUM(RTP_SHAPE(R,V,P,'3',J,JJ),MULTI(JJ,T)-1)));
 );
 
  IF(CARD(PRC_RCAP),

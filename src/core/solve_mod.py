@@ -155,13 +155,20 @@ SOLVE {model_name} MAXIMIZING VAR_UTIL USING {method};
         # solve with convert
         model.solve(
             solver="convert",
-            solver_options={"DumpGDX": self.tc.output_convert},
+            solver_options={
+                "DumpGDX": self.tc.output_convert,
+                # "dict": "dict.txt"
+            },
             output=sys.stdout,
         )
 
         # regular solve
         if self.tc.solve:
-            model.solve(output=sys.stdout, options=self.tc.solve_options)
+            model.solve(
+                output=sys.stdout,
+                options=self.tc.solve_options,
+                solver_options=Path(self.tc.config.data_dir, "cplex.opt"),
+            )
         else:
             model.solve(
                 output=sys.stdout,

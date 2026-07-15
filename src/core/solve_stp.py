@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.bnd_cum_mod import bnd_cum_mod
 from core.bnd_ucw_mod import bnd_ucw_mod
 from core.bndmain_mod import bndmain_mod
@@ -29,8 +30,6 @@ from core.eqobsalv_mod import eqobsalv_prepro
 from core.pextlevs_stc import pextlevs_stc
 from core.solve_mod import SolveMod, solve_mod
 from core.solve_stc import SolveStc
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment

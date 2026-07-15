@@ -14,11 +14,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Literal, get_args
 
-from gamspy import Parameter, Set, Sum
+from gamspy import Container, Parameter, Set, Sum
 
 from core.base_class import GamsClass
 from core.fillparm_gms import FillparmGms
 from core.prepparm_gms import PrepparmGms, PrepparmGmsConfig
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -83,23 +84,28 @@ class PrepretDsc(GamsClass):
 
         self.env.set_scoped("tst", self.arg2)
         if self.tc.defined("PRC_REFIT"):
-            self.tc.add_gams_code(
-                module=self,
-                phase="init",
-                code=rf"SET {self.arg2} //; PARAMETER {self.arg3} //;",
-            )
+            set = g.get_set(self.arg2)
+            if set is None:
+                set = Set(m, name=self.arg2)
+                g.set_set(name=self.arg2, set=set, domain=False)
+            g.register_assignment(set)
+
+            self.create_parameter_from_arg3(g, m)
+
         if self.env.retire.upper() == "NO":
             self.tc.add_gams_code(module=self, phase="init", code=rf"$KILL {self.arg2}")
+
         if self.tc.defined(self.arg2.upper()):
-            self.tc.add_gams_code(
-                module=self, phase="init", code=rf"PARAMETER {self.arg3} //;"
-            )
+            self.create_parameter_from_arg3(g, m)
             self.tc.enqueue(self.exec_prep1, sym2=self.arg2, sym3=self.arg3)
+
         if self.env.retire.upper() == "YES":
             self.arg1 = self.arg2
             self.arg2 = self.arg3
             self.arg3 = ""
+
         self.tc.enqueue(self.exec_prep2)
+
         if self.tc.defined(self.arg2.upper()):
             # Declarations
             g.Vnret = Set(m, name="VNRET", domain=[g.year, g.ll])
@@ -159,6 +165,13 @@ class PrepretDsc(GamsClass):
             if self.env.retire.upper() == "MIP":
                 self.env.set_global("solmip", "YES")
 
+    def create_parameter_from_arg3(self, g: TimesModelClass, m: Container) -> None:
+        param = g.get_parameter(name=self.arg3)
+        if param is None:
+            param = Parameter(m, name=self.arg3)
+            g.set_parameter(name=self.arg3, parameter=param)
+        g.register_assignment(param)
+
     def exec_prep1(self: PrepretDsc, sym2: str, sym3: str) -> None:
         self.tc.add_gams_code(
             module=self,
@@ -212,7 +225,9 @@ class PrepretDsc(GamsClass):
 """,
         )
 
-        self.tc.enqueue(self.exec_decl1, sow=self.env.sow, var=self.env.str)
+        self.tc.register_assignment(self.tc.rcap_bnd)
+        self.tc.register_assignment(self.tc.Vnret)
+        self.tc.enqueue(self.exec_decl1, sow=self.env.sow, var=self.env.var)
 
     def exec_decl1(self: PrepretDsc, sow: str, var: str) -> None:
         self.tc.add_gams_code(
@@ -280,39 +295,11 @@ class PrepretDsc(GamsClass):
             ],
         )
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-* Allow retirements in integer multiples of a user-defined block-size or the full residual capacity
-  {self.env.eq}_DSCRET(RTP_CPTYR({self.env.r_v_t},P){self.env.swt})$(VNRET(V,T)$RCAP_BLK(R,V,P))..
-
-   {self.env.var}_SCAP(R,V,T,P{self.env.sow}) - RTFORC(R,V,T,P)  =E=
-   RCAP_BLK(R,V,P) * {self.env.var}_DRCAP(R,V,T,P{self.env.sow},'2') + (NCAP_PASTI(R,V,P)-RTFORC(R,V,T,P)) * {self.env.var}_DRCAP(R,V,T,P{self.env.sow},'1');
-
-* Cumulative retirements
-  {self.env.eq}_CUMRET(R,VNRET(V,K(T-(1-1$RP_RTF(R,P)))),P{self.env.swt})$(RTP_CPTYR(R,V,T,P)$PRC_RCAP(R,P))..
-
-   SUM(RTP_CPTYR(R,V,K,P),{self.env.var}_SCAP(R,V,T,P{self.env.sow}) - {self.env.var}_RCAP(R,V,T,P{self.env.sow})) -
-   SUM(RTP_CPTYR(R,V,MODLYEAR(Y(T-1)),P)$VNRET(V,Y),{self.env.varm}_SCAP(R,V,Y,P{self.env.sws}))
-   =E= 0;
-
-* Maximum salvage capacity
-  {self.env.eq}L_SCAP(RTP(R,V(LL),P),IPS{self.env.sow})$(((OBJ_SUMS(RTP)+(NOT PRC_VINT(R,P))$T(V))$RVPRL(RTP)$L(IPS) OR NCAP_OLIFE(RTP)$IO(IPS))$PRC_RCAP(R,P))..
-
-   SUM(IO(IPS),SUM((RTP_CPTYR(R,V,TT,P),PRC_TS(R,P,S)),{self.env.vartt}_ACT(R,V,TT,P,S{self.env.sws})*FPD(TT))/PRC_CAPACT(R,P)/NCAP_OLIFE(RTP)) +
-   SUM(VNRET(V,T(LL+RVPRL(RTP))),{self.env.vart}_SCAP(R,V,T,P{self.env.sws}))$LIM(IPS)
-
-   =L=  {self.env.varv}_NCAP(R,V,P{self.env.sws})$T(V) + NCAP_PASTI(R,V,P) - {self.env.var}_SCAP(R,V,'0',P{self.env.sow})$OBJ_SUMS(R,V,P)$RVPRL(R,V,P);
-
-* Retrofits and life-extensions
-  {self.env.eq}L_REFIT(RTP_TT(R,TT,T,PRC),LNX(L){self.env.swt})$((BD(L)+VNT(T,TT)$(RP_RTF(R,PRC)=3))$RT_PP(R,T))..
-   SUM((V(TT),P)$((VNT(T,V) OR PRC_REFIT(R,PRC,P)<0)$PRC_REFIT(R,PRC,P)),COEF_CPT(R,V,T,P)*({self.env.varv}_NCAP(R,V,P{self.env.sws}){self.env.rcapsub}))+{self.env.var}_RCAP(R,T,TT,PRC{self.env.sow})$(RP_RTF(R,PRC)$VNT(T,TT)$BD(L)<3)
-   =E=
-   SUM(RTP_CPTYR(R,VNRET(V,TT),PRC),COEF_CPT(R,V,T,PRC) * ({self.env.vartt}_RCAP(R,V,TT,PRC{self.env.sws})-SUM(MODLYEAR(K(TT-1))$VNT(V,K),MIN(INF$MOD(RP_RTF(R,PRC),2),RTFORC(R,V,TT,PRC)-RTFORC(R,V,K,PRC)))))+
-   SUM(K(TT-1)$RTP_TT(R,K,T,PRC),{self.env.var}_RCAP(R,T,K,PRC{self.env.sow}))$(RP_RTF(R,PRC)$BD(L)>0);
-""",
-        )
+        # Equations
+        self.dscret_equation()
+        self.cumulative_retirments_equation()
+        self.max_salvage_capacity_equation()
+        self.retrofit_equation()
 
         if self.env.varmac in ["0==0", "1==1"]:
             self.env.set_scoped("var", self.env.vas)
@@ -321,6 +308,58 @@ class PrepretDsc(GamsClass):
             notmip=self.env.mip != "YES==YES",
             var=self.env.var,
             sow=self.env.sow,
+        )
+
+    def dscret_equation(self: PrepretDsc) -> None:
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=rf"""
+* Allow retirements in integer multiples of a user-defined block-size or the full residual capacity
+  {self.env.eq}_DSCRET(RTP_CPTYR({self.env.r_v_t},P){self.env.swt})$(VNRET(V,T)$RCAP_BLK(R,V,P))..
+   {self.env.var}_SCAP(R,V,T,P{self.env.sow}) - RTFORC(R,V,T,P)  =E=
+   RCAP_BLK(R,V,P) * {self.env.var}_DRCAP(R,V,T,P{self.env.sow},'2') + (NCAP_PASTI(R,V,P)-RTFORC(R,V,T,P)) * {self.env.var}_DRCAP(R,V,T,P{self.env.sow},'1');
+""",
+        )
+
+    def cumulative_retirments_equation(self: PrepretDsc) -> None:
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=rf"""
+* Cumulative retirements
+  {self.env.eq}_CUMRET(R,VNRET(V,K(T-(1-1$RP_RTF(R,P)))),P{self.env.swt})$(RTP_CPTYR(R,V,T,P)$PRC_RCAP(R,P))..
+   SUM(RTP_CPTYR(R,V,K,P),{self.env.var}_SCAP(R,V,T,P{self.env.sow}) - {self.env.var}_RCAP(R,V,T,P{self.env.sow})) -
+   SUM(RTP_CPTYR(R,V,MODLYEAR(Y(T-1)),P)$VNRET(V,Y),{self.env.varm}_SCAP(R,V,Y,P{self.env.sws}))
+   =E= 0;
+""",
+        )
+
+    def max_salvage_capacity_equation(self: PrepretDsc) -> None:
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=rf"""
+* Maximum salvage capacity
+  {self.env.eq}L_SCAP(RTP(R,V(LL),P),IPS{self.env.sow})$(((OBJ_SUMS(RTP)+(NOT PRC_VINT(R,P))$T(V))$RVPRL(RTP)$L(IPS) OR NCAP_OLIFE(RTP)$IO(IPS))$PRC_RCAP(R,P))..
+   SUM(IO(IPS),SUM((RTP_CPTYR(R,V,TT,P),PRC_TS(R,P,S)),{self.env.vartt}_ACT(R,V,TT,P,S{self.env.sws})*FPD(TT))/PRC_CAPACT(R,P)/NCAP_OLIFE(RTP)) +
+   SUM(VNRET(V,T(LL+RVPRL(RTP))),{self.env.vart}_SCAP(R,V,T,P{self.env.sws}))$LIM(IPS)
+   =L=  {self.env.varv}_NCAP(R,V,P{self.env.sws})$T(V) + NCAP_PASTI(R,V,P) - {self.env.var}_SCAP(R,V,'0',P{self.env.sow})$OBJ_SUMS(R,V,P)$RVPRL(R,V,P);
+""",
+        )
+
+    def retrofit_equation(self: PrepretDsc) -> None:
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=rf"""
+* Retrofits and life-extensions
+  {self.env.eq}L_REFIT(RTP_TT(R,TT,T,PRC),LNX(L){self.env.swt})$((BD(L)+VNT(T,TT)$(RP_RTF(R,PRC)=3))$RT_PP(R,T))..
+   SUM((V(TT),P)$((VNT(T,V) OR PRC_REFIT(R,PRC,P)<0)$PRC_REFIT(R,PRC,P)),COEF_CPT(R,V,T,P)*({self.env.varv}_NCAP(R,V,P{self.env.sws}){self.env.rcapsub}))+{self.env.var}_RCAP(R,T,TT,PRC{self.env.sow})$(RP_RTF(R,PRC)$VNT(T,TT)$BD(L)<3)
+   =E=
+   SUM(RTP_CPTYR(R,VNRET(V,TT),PRC),COEF_CPT(R,V,T,PRC) * ({self.env.vartt}_RCAP(R,V,TT,PRC{self.env.sws})-SUM(MODLYEAR(K(TT-1))$VNT(V,K),MIN(INF$MOD(RP_RTF(R,PRC),2),RTFORC(R,V,TT,PRC)-RTFORC(R,V,K,PRC)))))+
+   SUM(K(TT-1)$RTP_TT(R,K,T,PRC),{self.env.var}_RCAP(R,T,K,PRC{self.env.sow}))$(RP_RTF(R,PRC)$BD(L)>0);
+""",
         )
 
     def exec_eqobj1(self: PrepretDsc, notmip: bool, var: str, sow: str) -> None:
@@ -350,9 +389,9 @@ def objfix(capwd: str, vart: str, sws: str) -> str:
      SUM((INVSPRED(K_EOH,JOT,LL,K),KTYAGE(LL,T,Y_EOH,AGE))$OPYEAR(LIFE,AGE),
           -OBJ_DISC(R,Y_EOH,CUR) * (1+RTP_CPX(R,V,P,T)$NCAP_CPX(R,V,P)) * {capwd}
              (
-                OBJ_FOM(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'1',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) +
-                OBJ_FTX(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'2',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) -
-                OBJ_FSB(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'3',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1))
+                {macro.obj_fom("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'1',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) +
+                {macro.obj_ftx("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'2',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) -
+                {macro.obj_fsb("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'3',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1))
              )
         ) *
         {vart}_SCAP(R,V,T,P {sws}) / OBJ_DIVIV(R,V,P)) +
@@ -361,9 +400,9 @@ def objfix(capwd: str, vart: str, sws: str) -> str:
    SUM(RTP_CPTYR(R,PYR_S(V(K)),T,P)$((NOT RVPRL(R,V,P))$PRC_RCAP(R,P)),
         SUM(PERIODYR(T,Y_EOH), -OBJ_DISC(R,Y_EOH,CUR) *
              (
-                OBJ_FOM(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'1',J,JJ),MULTI(JJ,Y_EOH)-1)) +
-                OBJ_FTX(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'2',J,JJ),MULTI(JJ,Y_EOH)-1)) -
-                OBJ_FSB(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'3',J,JJ),MULTI(JJ,Y_EOH)-1))
+                {macro.obj_fom("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'1',J,JJ),MULTI(JJ,Y_EOH)-1)) +
+                {macro.obj_ftx("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'2',J,JJ),MULTI(JJ,Y_EOH)-1)) -
+                {macro.obj_fsb("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'3',J,JJ),MULTI(JJ,Y_EOH)-1))
              )) *
         {vart}_SCAP(R,V,T,P {sws})) +
 """

@@ -499,7 +499,7 @@ class EnvironmentVariableSchema(BaseModel):
     rcapsbm: str = Field(
         description="Capacity allocation sub-region optimization model variables."
     )
-    rcapsbm_GP: Condition | Number = Field(
+    rcapsbm_GP: Expression | Condition | Number = Field(
         description="Capacity allocation sub-region optimization model variables."
     )
     swx: str = Field(

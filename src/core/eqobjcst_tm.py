@@ -90,7 +90,11 @@ class EqobjcstTm(GamsClass):
 * Revised accounting for MACRO: Calculate annualized cost from discounted
 * lump-sum fixed costs undiscounted back to the lump-sum commissioning year K
 
-{objfix(capwd=self.env.capwd, vart=self.env.vart, sws=self.env.sws) if self.tc.defined("VNRET") else ""}
+{
+                objfix(capwd=self.env.capwd, vart=self.env.vart, sws=self.env.sws)
+                if self.tc.defined("VNRET")
+                else ""
+            }
 
    SUM(RTP_CPTYR(R,V,T,P)$COEF_OBFIX(R,V,P,CUR), COEF_CPT(R,V,T,P) * OBJ_PVT(R,T,CUR) *
        COEF_OBFIX(R,V,P,CUR) * (VAR_NCAP(R,V,P)$TT(V)+NCAP_PASTI(R,V,P)))

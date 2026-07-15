@@ -19,6 +19,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from core.atlearn_etl import AtlearnEtl
+from core.base_class import GamsClass
 from core.dumpsol_mod import DumpsolMod
 from core.main_ext_mod import include_extension
 from core.rpt_dam_mod import rpt_dam_mod
@@ -33,8 +34,6 @@ from core.rptmain_stc import RptmainStc
 from core.rptmain_tm import RptmainTm
 from core.solputta_ans import SolputtaAns
 from core.solsetv_v3 import SolsetvV3
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment

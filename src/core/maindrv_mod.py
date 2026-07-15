@@ -353,7 +353,7 @@ class MainDrvMod(GamsClass):
         def_com_cstbal = self.tc.defined("COM_CSTBAL")
         def_gr_vargen = self.tc.defined("GR_VARGEN")
         def_rtc_ms = self.tc.defined("RTC_MS")
-        def_gg_mm = self.tc.defined_assigned("GG_MM")
+        def_gg_mm = self.tc.defined("GG_MM")
 
         if self.env.merge.upper() != "YES" and self.env.extend != "":
             requested_exts = set(self.env.extend.split())

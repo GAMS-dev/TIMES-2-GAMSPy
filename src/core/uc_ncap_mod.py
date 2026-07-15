@@ -19,6 +19,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from utils.macros import macro_config as macro
+
 if TYPE_CHECKING:
     pass
 
@@ -65,9 +67,9 @@ def uc_ncap_mod(
                   PROD(L('N'),PROD(REG(R)$SUM(UC_ATTR(R,UC_N,{arg4},'NCAP',UC_COST),1),
                     SUM(RDCUR(R,CUR),
 {f"                            SUM(UC_ATTR(R,UC_N,{arg4},'NCAP',UC_ANNUL),CST_ANNC(R,{arg3},P,{arg6},UC_ANNUL,CUR))+" if arg3 != arg6 else ""}
-                       OBJ_ICOST(R,{arg3},P,CUR)$UC_ATTR(R,UC_N,{arg4},'NCAP','COST')
-                       +OBJ_ITAX(R,{arg3},P,CUR)$UC_ATTR(R,UC_N,{arg4},'NCAP','TAX')
-                       -OBJ_ISUB(R,{arg3},P,CUR)$UC_ATTR(R,UC_N,{arg4},'NCAP','SUB'))))
+                       {macro.obj_icost("R", arg3, "P", "CUR")}$UC_ATTR(R,UC_N,{arg4},'NCAP','COST')
+                       +{macro.obj_itax("R", arg3, "P", "CUR")}$UC_ATTR(R,UC_N,{arg4},'NCAP','TAX')
+                       -{macro.obj_isub("R", arg3, "P", "CUR")}$UC_ATTR(R,UC_N,{arg4},'NCAP','SUB'))))
 
               )
 

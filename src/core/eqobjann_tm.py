@@ -12,9 +12,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.eqobjcst_tm import EqobjcstTm
-
-from .base_class import GamsClass
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -137,17 +137,17 @@ SUM_OBJ(OBV('OBJSAL'),OBV)  =  0;
 
     SUM(OBJ_SUMII(R,V,P,LIFE,K_EOH,JOT), {capjd}
       SUM(INVSPRED(K_EOH,JOT,LL,K), OBJ_DISC(R,K,CUR) * (1-SALV_INV(R,V,P,LL)$T(V)) *
-        (OBJ_ICOST(R,K,P,CUR) + (OBJ_ITAX(R,K,P,CUR) - OBJ_ISUB(R,K,P,CUR)){arg2})) *
+        ({macro.obj_icost("R", "K", "P", "CUR")} + ({macro.obj_itax("R", "K", "P", "CUR")} - {macro.obj_isub("R", "K", "P", "CUR")}){arg2})) *
       COR_SALVI(R,V,P,CUR) / OBJ_DIVI(R,V,P))
        +
 * Cases III - Decommissioning
 
-    SUM(OBJ_SUMIII(R,V,P,LL,K,Y)$OBJ_DCOST(R,V,P,CUR),
-      OBJ_DISC(R,Y,CUR) * COR_SALVD(R,V,P,CUR) * OBJ_DCOST(R,K,P,CUR) / OBJ_DIVIII(R,V,P))
+    SUM(OBJ_SUMIII(R,V,P,LL,K,Y)${macro.obj_dcost("R", "V", "P", "CUR")},
+      OBJ_DISC(R,Y,CUR) * COR_SALVD(R,V,P,CUR) * {macro.obj_dcost("R", "K", "P", "CUR")} / OBJ_DIVIII(R,V,P))
   );
 
   COEF_OBINV{arg1}(OBJ_ICUR(R,PASTMILE(V),P,CUR))$PRC_RESID(R,'0',P) =
-      OBJ_CRF(R,V,P,CUR)*(OBJ_ICOST(R,V,P,CUR)+(OBJ_ITAX(R,V,P,CUR)-OBJ_ISUB(R,V,P,CUR)){arg2});
+      OBJ_CRF(R,V,P,CUR)*({macro.obj_icost("R", "V", "P", "CUR")}+({macro.obj_itax("R", "V", "P", "CUR")}-{macro.obj_isub("R", "V", "P", "CUR")}){arg2});
 
 *------------------------------------------------------------------------------
 * Fixed costs: Annualizing coefficient for costs over years of capacity transfer
@@ -176,21 +176,21 @@ COEF_CRF(OBJ_FCUR(R,PASTMILE(V),P,CUR)) = SUM(OBJ_SUMIV(K_EOH,R,V,P,JOT,LIFE),OB
 
       SUM(OBJ_SUMIV(K_EOH,R,V,P,JOT,LIFE)$(NOT RTP_ISHPR(R,V,P)),
        SUM(INVSPRED(K_EOH,JOT,LL,K), OBJ_LIFE(LL,R,JOT,LIFE,CUR) * {capwd}
-        (OBJ_FOM(R,K,P,CUR)+(OBJ_FTX(R,K,P,CUR)-OBJ_FSB(R,K,P,CUR)){arg2})) / OBJ_DIVIV(R,V,P)) +
+        ({macro.obj_fom("R", "K", "P", "CUR")}+({macro.obj_ftx("R", "K", "P", "CUR")}-{macro.obj_fsb("R", "K", "P", "CUR")}){arg2})) / OBJ_DIVIV(R,V,P)) +
 
       SUM(OBJ_SUMIV(K_EOH,RTP_ISHPR(R,V,P),JOT,LIFE),
         SUM((INVSPRED(K_EOH,JOT,LL,K),OPYEAR(LIFE,AGE),Y_EOH(LL+(ORD(AGE)-1))),
              OBJ_DISC(R,Y_EOH,CUR) * (1+SUM(PERIODYR(T,Y_EOH),RTP_CPX(R,V,P,T))$NCAP_CPX(R,V,P)) * {capwd}
                 (
-                   OBJ_FOM(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'1',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) +
-                   OBJ_FTX(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'2',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)){arg2} -
-                   OBJ_FSB(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'3',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)){arg2}
+                   {macro.obj_fom("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'1',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) +
+                   {macro.obj_ftx("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'2',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)){arg2} -
+                   {macro.obj_fsb("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'3',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)){arg2}
                 )
            ) / OBJ_DIVIV(R,V,P)
          ) +
 
 * Case V - Decommissioning Surveillance
-      SUM(OBJ_SUMIVS(R,V,P,K,Y), OBJ_DISC(R,Y,CUR) * OBJ_DLAGC(R,K,P,CUR))
+      SUM(OBJ_SUMIVS(R,V,P,K,Y), OBJ_DISC(R,Y,CUR) * {macro.obj_dlagc("R", "K", "P", "CUR")})
   );
 
   COEF_OBFIX{arg1}(OBJ_FCUR(R,PASTMILE(V),P,CUR))$PRC_RESID(R,'0',P) =

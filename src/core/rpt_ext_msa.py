@@ -15,14 +15,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.pp_clean_mod import PpCleanMod
 from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
 from core.solprep_msa import solprep_msa
 from core.solvcoef_msa import SolvcoefMsa
 from core.solve_msa import SolveMsa
 from core.solve_stp import SolveStp
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -63,13 +62,7 @@ class RptExtMsa(GamsClass):
         self.tc.enqueue(self.exec1)
 
         self.env.set_scoped("solveda", "1")
-        self.include(
-            RptliteRpt(
-                self.tc,
-                self.env,
-                config=RptliteRptConfig(),
-            )
-        )
+        self.include(RptliteRpt(self.tc, self.env, config=RptliteRptConfig()))
         self.env.set_scoped("solveda", "0")
         self.tc.enqueue(
             self.exec_solprep_msa,

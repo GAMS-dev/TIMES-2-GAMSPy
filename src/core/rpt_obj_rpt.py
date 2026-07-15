@@ -15,9 +15,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .base_class import GamsClass
-from .eqobjvar_rpt import eqobjvar_rpt
-from .rpt_objc_rpt import rpt_objc_rpt
+from core.base_class import GamsClass
+from core.eqobjvar_rpt import eqobjvar_rpt
+from core.rpt_objc_rpt import rpt_objc_rpt
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -199,9 +200,9 @@ $onMulti
   RTP_OBJ(JJ(UNCD1(J)),OBJ_ICUR(NCAP_YES(R,T(V),P),CUR))=
     {"(VAR_IC.L(R,T,P)*COR_SALVI(R,T,P,CUR))$SEG(R,P) +" if etl == "YES" else ""}
     SUM((OBJ_SUMII(R,T,P,LIFE,K_EOH,JOT),INVSPRED(K_EOH,JOT,Y,K)),
-        (OBJ_ICOST(R,K,P,CUR){
-        sic
-    }$(ORD(J)=2)+(OBJ_ITAX(R,K,P,CUR)-OBJ_ISUB(R,K,P,CUR))$(ORD(J)=1))) *
+        ({macro.obj_icost("R", "K", "P", "CUR")}{sic}$(ORD(J)=2)+({
+        macro.obj_itax("R", "K", "P", "CUR")
+    }-{macro.obj_isub("R", "K", "P", "CUR")})$(ORD(J)=1))) *
     COEF_RTP(R,T,P) * COR_SALVI(R,T,P,CUR) / OBJ_DIVI(R,T,P) /
     (1+G_DRATE(R,T,CUR))**({discshift}$(NOT NCAP_ILED(R,T,P)));
   SYSPLIT(SYSUC)=1-SUM(SYSUCMAP(SYSUC,ITEM),1);
@@ -216,20 +217,28 @@ $onMulti
 * Check objective INV
   RTP_OBJ('1',OBJ_ICUR(NCAP_YES(R,V,P),CUR)) =
     SUM(OBJ_SUMII(R,V,P,AGE,K_EOH,JOT), {capjd}
-      SUM(INVSPRED(K_EOH,JOT,YEAR,K), OBJ_DISC(R,K,CUR) * (1-SALV_INV(R,V,P,YEAR)) * OBJ_ICOST(R,K,P,CUR)) *
+      SUM(INVSPRED(K_EOH,JOT,YEAR,K), OBJ_DISC(R,K,CUR) * (1-SALV_INV(R,V,P,YEAR)) * {
+        macro.obj_icost("R", "K", "P", "CUR")
+    }) *
       (VAR_NCAP.L(R,V,P)$T(V) + OBJ_PASTI(R,V,P,CUR)){
         sic
     } * COR_SALVI(R,V,P,CUR) / OBJ_DIVI(R,V,P)) +
      SUM(OBJ_SUMIII(R,V,P,LL,K,Y), OBJ_DISC(R,Y,CUR) * (1-SALV_INV(R,V,P,LL)) *
        (VAR_NCAP.L(R,V,P)$T(V) + OBJ_PASTI(R,V,P,CUR)) / OBJ_DIVIII(R,V,P) *
-       (COR_SALVD(R,V,P,CUR)*OBJ_DCOST(R,K,P,CUR)-SUM(C$NCAP_OCOM(R,V,P,C),NCAP_OCOM(R,V,P,C)*NCAP_VALU(R,K,P,C,CUR))$(NOT Y_EOH(Y)))) -
-     SUM(OBJ_SUMIVS(R,V,P,K,Y),OBJ_DISC(R,Y,CUR)*SALV_INV(R,V,P,K)*OBJ_DLAGC(R,K,P,CUR)*RTP_CAPVL(R,V,P));
+       (COR_SALVD(R,V,P,CUR)*{
+        macro.obj_dcost("R", "K", "P", "CUR")
+    }-SUM(C$NCAP_OCOM(R,V,P,C),NCAP_OCOM(R,V,P,C)*NCAP_VALU(R,K,P,C,CUR))$(NOT Y_EOH(Y)))) -
+     SUM(OBJ_SUMIVS(R,V,P,K,Y),OBJ_DISC(R,Y,CUR)*SALV_INV(R,V,P,K)*{
+        macro.obj_dlagc("R", "K", "P", "CUR")
+    }*RTP_CAPVL(R,V,P));
 
 * Discounted taxes & subsidies
   RTP_OBJ('2',OBJ_ICUR(NCAP_YES(R,V,P),CUR)) =
     SUM(OBJ_SUMII(R,V,P,AGE,K_EOH,JOT), {capjd}
       SUM(INVSPRED(K_EOH,JOT,YEAR,K), OBJ_DISC(R,K,CUR) * (1-SALV_INV(R,V,P,YEAR)) *
-        (OBJ_ITAX(R,K,P,CUR) - OBJ_ISUB(R,K,P,CUR))) *
+        ({macro.obj_itax("R", "K", "P", "CUR")} - {
+        macro.obj_isub("R", "K", "P", "CUR")
+    })) *
       (VAR_NCAP.L(R,V,P)$T(V) + OBJ_PASTI(R,V,P,CUR)) * COR_SALVI(R,V,P,CUR) / OBJ_DIVI(R,V,P));
 
 {
@@ -268,7 +277,7 @@ $onMulti
  RTP_NPV('1',OBJ_FCUR(NCAP_YES(R,V,P),CUR)) =
    SUM(OBJ_SUMIV(K_EOH,R,V,P,JOT,LIFE)$(NOT RTP_ISHPR(R,V,P)),
       SUM(INVSPRED(K_EOH,JOT,LL,K), OBJ_LIFE(LL,R,JOT,LIFE,CUR) * {capwd}
-        OBJ_FOM(R,K,P,CUR)) * PASTSUM(R,V,P)) +
+        {macro.obj_fom("R", "K", "P", "CUR")}) * PASTSUM(R,V,P)) +
    SUM(OBJ_SUMIV(K_EOH,RTP_ISHPR(R,V,P),JOT,LIFE), PASTSUM(R,V,P) *
       SUM(INVSPRED(K_EOH,JOT,LL,K), {capwd}
         SUM(KTYAGE(LL,Y,Y_EOH,AGE)$OPYEAR(LIFE,AGE), OBJ_DISC(R,Y_EOH,CUR) * (1+RTP_CPX(R,V,P,Y)$NCAP_CPX(R,V,P)) * {
@@ -276,14 +285,20 @@ $onMulti
         if vnret_defined
         else ""
     }
-             OBJ_FOM(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'1',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1))))) +
-   SUM(OBJ_SUMIVS(R,V,P,K,Y),OBJ_DISC(R,Y,CUR)*OBJ_DLAGC(R,K,P,CUR)*PASTSUM(R,V,P));
+             {
+        macro.obj_fom("R", "K", "P", "CUR")
+    } * (1+SUM(RTP_SHAPE(R,V,P,'1',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1))))) +
+   SUM(OBJ_SUMIVS(R,V,P,K,Y),OBJ_DISC(R,Y,CUR)*{
+        macro.obj_dlagc("R", "K", "P", "CUR")
+    }*PASTSUM(R,V,P));
 
 * Discounted taxes & subsidies
   RTP_NPV('2',OBJ_FCUR(NCAP_YES(R,V,P),CUR)) =
     SUM(OBJ_SUMIV(K_EOH,R,V,P,JOT,LIFE)$(NOT RTP_ISHPR(R,V,P)),
       SUM(INVSPRED(K_EOH,JOT,LL,K), OBJ_LIFE(LL,R,JOT,LIFE,CUR) * {capwd}
-        (OBJ_FTX(R,K,P,CUR)-OBJ_FSB(R,K,P,CUR))) * PASTSUM(R,V,P)) +
+        ({macro.obj_ftx("R", "K", "P", "CUR")}-{
+        macro.obj_fsb("R", "K", "P", "CUR")
+    })) * PASTSUM(R,V,P)) +
     SUM(OBJ_SUMIV(K_EOH,RTP_ISHPR(R,V,P),JOT,LIFE), PASTSUM(R,V,P) *
       SUM(INVSPRED(K_EOH,JOT,LL,K), {capwd}
         SUM(KTYAGE(LL,Y,Y_EOH,AGE)$OPYEAR(LIFE,AGE), OBJ_DISC(R,Y_EOH,CUR) * (1+RTP_CPX(R,V,P,Y)$NCAP_CPX(R,V,P)) * {
@@ -292,8 +307,12 @@ $onMulti
         else ""
     }
             (
-              OBJ_FTX(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'2',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) -
-              OBJ_FSB(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'3',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1))
+              {
+        macro.obj_ftx("R", "K", "P", "CUR")
+    } * (1+SUM(RTP_SHAPE(R,V,P,'2',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) -
+              {
+        macro.obj_fsb("R", "K", "P", "CUR")
+    } * (1+SUM(RTP_SHAPE(R,V,P,'3',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1))
             ))));
 
   {arg1}REG_WOBJ({

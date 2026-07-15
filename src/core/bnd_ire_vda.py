@@ -50,7 +50,7 @@ class BndIreVda(GamsClass):
         g = self.tc
         m = g.container
 
-        if not self.tc.defined_assigned(g.Premile):
+        if not self.tc.defined(g.Premile):
             return
 
         self.tc.enqueue(self.exec1)

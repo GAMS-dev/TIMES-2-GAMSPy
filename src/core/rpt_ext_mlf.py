@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.cost_ann_rpt import cost_ann_rpt
 from core.par_uc_rpt import ParUcRpt
 from core.rpt_obj_rpt import rpt_obj_rpt
@@ -12,8 +13,6 @@ from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
 from core.rptmisc_rpt import RptmiscRpt
 from core.sol_flo_red import SolFloRed, sol_flo_red
 from core.sol_ire_rpt import sol_ire_rpt
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -29,11 +28,7 @@ class RptExtMlf(GamsClass):
     module_name: str = "rpt_ext_mlf"
     gams_source: str = "rpt_ext.mlf"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
@@ -41,13 +36,7 @@ class RptExtMlf(GamsClass):
 
     def compile(self) -> None:
         self.env.set_scoped("solveda", "1")
-        self.include(
-            RptliteRpt(
-                self.tc,
-                self.env,
-                config=RptliteRptConfig(),
-            )
-        )
+        self.include(RptliteRpt(self.tc, self.env, config=RptliteRptConfig()))
 
         # * Scenario index not supported in current version, use SOW 1
         self.tc.add_gams_code(
@@ -121,14 +110,7 @@ class RptExtMlf(GamsClass):
         if self.env.var_uc != "YES":
             batincludes = ["EQE", "EQG", "EQL"]
             for arg in batincludes:
-                self.include(
-                    ParUcRpt(
-                        self.tc,
-                        self.env,
-                        arg1="SM",
-                        arg2=arg,
-                    )
-                )
+                self.include(ParUcRpt(self.tc, self.env, arg1="SM", arg2=arg))
 
         self.tc.enqueue(self.exec4)
 

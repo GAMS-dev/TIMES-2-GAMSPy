@@ -23,9 +23,9 @@ from typing import TYPE_CHECKING
 
 from gamspy import Alias, Parameter, Set
 
+from core.base_class import GamsClass
 from core.coef_alt_lin import CoefAltLin
-
-from .base_class import GamsClass
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -159,6 +159,7 @@ class EqobjinvMod(GamsClass):
             )
         self.tc.enqueue(self._label_clrs)
         # $LABEL EQUA %2
+
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -174,7 +175,9 @@ class EqobjinvMod(GamsClass):
 
     SUM(OBJ_SUMII(R,T,P,LIFE,K_EOH,JOT)$OBJ_ICUR(R,T,P,CUR), {self.env.capjd}
       SUM(INVSPRED(K_EOH,JOT,Y,K), OBJ_DISC(R,K,CUR) *
-        (OBJ_ICOST(R,K,P,CUR) + OBJ_ITAX(R,K,P,CUR) - OBJ_ISUB(R,K,P,CUR))) *
+        ({macro.obj_icost("R", "K", "P", "CUR")} + {
+                macro.obj_itax("R", "K", "P", "CUR")
+            } - {macro.obj_isub("R", "K", "P", "CUR")})) *
       COR_SALVI(R,T,P,CUR) / OBJ_DIVI(R,T,P) * {self.env.vart}_NCAP(R,T,P {
                 self.env.sws
             })
@@ -190,7 +193,7 @@ class EqobjinvMod(GamsClass):
                 (
                     rf'''
     SUM((OBJ_SUMII(R,T,P,LIFE,K_EOH,JOT),SW_TSW(SOW,T,WW))$OBJ_SIC(R,T,P,WW), {self.env.capjd}
-      SUM(INVSPRED(K_EOH,JOT,Y,K), OBJ_DISC(R,K,CUR) * OBJ_ICOST(R,K,P,CUR) * (1-SALV_INV(R,T,P,Y))) *
+      SUM(INVSPRED(K_EOH,JOT,Y,K), OBJ_DISC(R,K,CUR) * {macro.obj_icost("R", "K", "P", "CUR")} * (1-SALV_INV(R,T,P,Y))) *
       OBJ_SIC(R,T,P,WW) * COR_SALVI(R,T,P,CUR) / OBJ_DIVI(R,T,P) * {self.env.var}_NCAP(R,T,P {self.env.swd})) +
 '''
                 )
@@ -201,7 +204,9 @@ class EqobjinvMod(GamsClass):
 * PASTI charge
     SUM(OBJ_SUMII(R,PASTYEAR(V),P,LIFE,K_EOH,JOT)$OBJ_PASTI(R,V,P,CUR), {self.env.capjd}
       SUM(INVSPRED(K_EOH,JOT,LL,K), OBJ_DISC(R,K,CUR) *
-        (OBJ_ICOST(R,K,P,CUR) + OBJ_ITAX(R,K,P,CUR) - OBJ_ISUB(R,K,P,CUR))) *
+        ({macro.obj_icost("R", "K", "P", "CUR")} + {
+                macro.obj_itax("R", "K", "P", "CUR")
+            } - {macro.obj_isub("R", "K", "P", "CUR")})) *
       OBJ_PASTI(R,V,P,CUR) * COR_SALVI(R,V,P,CUR) / OBJ_DIVI(R,V,P))
 
        + OBJ_IAD(R,CUR) +
@@ -210,8 +215,10 @@ class EqobjinvMod(GamsClass):
 * Cases III - Decommissioning
 *------------------------------------------------------------------------------
 
-    SUM(OBJ_SUMIII(R,V,P,LL,K,Y)$OBJ_DCOST(R,V,P,CUR),
-      OBJ_DISC(R,Y,CUR) * COR_SALVD(R,V,P,CUR) * OBJ_DCOST(R,K,P,CUR) *
+    SUM(OBJ_SUMIII(R,V,P,LL,K,Y)${macro.obj_dcost("R", "V", "P", "CUR")},
+      OBJ_DISC(R,Y,CUR) * COR_SALVD(R,V,P,CUR) * {
+                macro.obj_dcost("R", "K", "P", "CUR")
+            } *
       ({self.env.varv}_NCAP(R,V,P {
                 self.env.sws
             })$MILESTONYR(V) + OBJ_PASTI(R,V,P,CUR)$PASTYEAR(V)) / OBJ_DIVIII(R,V,P))
@@ -232,12 +239,12 @@ class EqobjinvMod(GamsClass):
 *===============================================================================
 * Investment
   RTP(R,PASTMILE,P)$(NCAP_PASTI(R,PASTMILE,P)=0) = NO;
-  OBJ_ICUR(RTP(R,V,P),CUR)$(OBJ_ICOST(R,V,P,CUR) + OBJ_ISUB(R,V,P,CUR) + OBJ_ITAX(R,V,P,CUR)) = YES;
+  OBJ_ICUR(RTP(R,V,P),CUR)$({macro.obj_icost("R", "V", "P", "CUR")} + {macro.obj_isub("R", "V", "P", "CUR")} + {macro.obj_itax("R", "V", "P", "CUR")}) = YES;
 * if ETL technology then going to do it as well
 {"OBJ_ICUR(RTP(R,V,TEG),CUR)$G_RCUR(R,CUR) = YES;" if etl_yes else ""}
 * Decommissioning
-  OBJ_ICUR(RTP(R,V,P),CUR)$OBJ_DCOST(R,V,P,CUR) = YES;
-  LOOP(CUR,OBJ_SUMS3(RTP(R,V,P))$OBJ_DCOST(R,V,P,CUR) = YES);
+  OBJ_ICUR(RTP(R,V,P),CUR)${macro.obj_dcost("R", "V", "P", "CUR")} = YES;
+  LOOP(CUR,OBJ_SUMS3(RTP(R,V,P))${macro.obj_dcost("R", "V", "P", "CUR")} = YES);
   LOOP((RTP,COM)$NCAP_OCOM(RTP,COM),OBJ_SUMS3(RTP) = YES);
 * Currency independent OBJ_YES
   OBJ_ICUR(RTP_OFF,CUR)$(NOT NCAP_PASTI(RTP_OFF)) = NO;
