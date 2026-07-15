@@ -34,10 +34,14 @@ $  IF     %METHOD% == P     $SETLOCAL METHOD LP
 $  IFI    '%MACRO%'==YES    SOLVE %MODEL_NAME% MAXIMIZING VAR_UTIL USING %METHOD%;
 $  IFI    '%MACRO%'==YES    $GOTO CHECK
 * solve TIMES as an LP/MIP
-$onEcho > convert.opt
+
+$onEcho > "%gams.optDir%%system.dirSep%convert.opt"
 DumpGDX %CONVERT_GDX%
+!dict %MODEL_NAME%_dict.txt
 $offEcho
-%MODEL_NAME%.optfile=1;
+
+%MODEL_NAME%.optfile = 1;
+*%MODEL_NAME%.dictfile = 1;
 option lp=convert, mip=convert;
 SOLVE %MODEL_NAME% MINIMIZING objZ USING %METHOD%;
 

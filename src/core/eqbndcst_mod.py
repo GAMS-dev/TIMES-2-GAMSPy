@@ -15,10 +15,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.cal_nored_red import cal_nored_red
 from core.cal_red_red import cal_red_red
-
-from .base_class import GamsClass
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -217,37 +217,37 @@ class EqbndcstMod(GamsClass):
 * Investment Costs
   (SUM((OBJ_SUMII(R,T,P,AGE,K_EOH(LL),JOT),SPAN(AGE+MIN(ORD(LL)+ORD(JOT)-ORD(YEAR)-1,0)))$YK(TT,T),
     SUM(INVSPRED(K_EOH,JOT,Y,K)$YK(ALLYEAR,Y),
-      OBJ_ICOST(R,K,P,CUR) *
+      {macro.obj_icost("R", "K", "P", "CUR")} *
       MAX(0,MIN(YEARVAL(ALLYEAR)+1,YEARVAL(Y)+ORD(AGE))-MAX(YEARVAL(YEAR),YEARVAL(Y)))) *
     {vart1}_NCAP(R,T,P {sws}) * OBJ_CRF(R,T,P,CUR) / OBJ_DIVI(R,T,P))$(NOT RT_IAN(R,YEAR,ALLYEAR,CUR,'INV')) +
    SUM((T,P)$CST_ANNC(R,T,P,TT,'INVCOST',CUR),CST_ANNC(R,T,P,TT,'INVCOST',CUR)*{vart1}_NCAP(R,T,P {sws}))$RT_IAN(R,YEAR,ALLYEAR,CUR,'INV')
   )$SAMEAS(COSTCAT,'INV') +
 
 * Decommissioning Costs
-  SUM(RTP(R,T,P)$(YK(TT,T)$OBJ_DCOST(R,T,P,CUR)),
-    SUM(OBJ_SUMIII(R,T,P,K_EOH,K,LL)$YK(ALLYEAR,LL), OBJ_DCOST(R,K,P,CUR) *
+  SUM(RTP(R,T,P)$(YK(TT,T)${macro.obj_dcost("R", "T", "P", "CUR")}),
+    SUM(OBJ_SUMIII(R,T,P,K_EOH,K,LL)$YK(ALLYEAR,LL), {macro.obj_dcost("R", "K", "P", "CUR")} *
       MAX(0,MIN(ORD(ALLYEAR)+1,ORD(LL)+ROUND(NCAP_{declif}(R,T,P)))-MAX(ORD(YEAR),ORD(LL)))) *
     {vart1}_NCAP(R,T,P {sws}) * OBJ_CRFD(R,T,P,CUR) / OBJ_DIVIII(R,T,P)
     )$SAMEAS(COSTCAT,'INV') +
 
 * Investment Taxes and Subsidies
-  (SUM(OBJ_SUMII(R,T,P,AGE,K_EOH,JOT)$(YK(TT,T)$OBJ_ITAX(R,T,P,CUR)),
+  (SUM(OBJ_SUMII(R,T,P,AGE,K_EOH,JOT)$(YK(TT,T)${macro.obj_itax("R", "T", "P", "CUR")}),
     SUM((INVSPRED(K_EOH,JOT,LL,K),SPAN(AGE+MIN(ORD(LL)-ORD(YEAR),0)))$YK(ALLYEAR,LL),
-      OBJ_ITAX(R,K,P,CUR) * (MIN(ORD(ALLYEAR)+1,ORD(LL)+ORD(AGE))-MAX(ORD(YEAR),ORD(LL)))) *
+      {macro.obj_itax("R", "K", "P", "CUR")} * (MIN(ORD(ALLYEAR)+1,ORD(LL)+ORD(AGE))-MAX(ORD(YEAR),ORD(LL)))) *
     {vart1}_NCAP(R,T,P {sws}) * OBJ_CRF(R,T,P,CUR) / OBJ_DIVI(R,T,P))$(NOT RT_IAN(R,YEAR,ALLYEAR,CUR,'INVTAXSUB')) +
    SUM((T,P)$CST_ANNC(R,T,P,TT,'INVTAX',CUR),CST_ANNC(R,T,P,TT,'INVTAX',CUR)*{vart1}_NCAP(R,T,P {sws}))$RT_IAN(R,YEAR,ALLYEAR,CUR,'INVTAXSUB')
   )$SAMEAS(COSTCAT,'INVTAX') +
 
-  (SUM(OBJ_SUMII(R,T,P,AGE,K_EOH,JOT)$(YK(TT,T)$OBJ_ISUB(R,T,P,CUR)),
+  (SUM(OBJ_SUMII(R,T,P,AGE,K_EOH,JOT)$(YK(TT,T)${macro.obj_isub("R", "T", "P", "CUR")}),
     SUM((INVSPRED(K_EOH,JOT,LL,K),SPAN(AGE+MIN(ORD(LL)-ORD(YEAR),0)))$YK(ALLYEAR,LL),
-      OBJ_ISUB(R,K,P,CUR) * (MIN(ORD(ALLYEAR)+1,ORD(LL)+ORD(AGE))-MAX(ORD(YEAR),ORD(LL)))) *
+      {macro.obj_isub("R", "K", "P", "CUR")} * (MIN(ORD(ALLYEAR)+1,ORD(LL)+ORD(AGE))-MAX(ORD(YEAR),ORD(LL)))) *
     {vart1}_NCAP(R,T,P {sws}) * OBJ_CRF(R,T,P,CUR) / OBJ_DIVI(R,T,P))$(NOT RT_IAN(R,YEAR,ALLYEAR,CUR,'INVTAXSUB')) -
    SUM((T,P)$CST_ANNC(R,T,P,TT,'INVSUB',CUR),CST_ANNC(R,T,P,TT,'INVSUB',CUR)*{vart1}_NCAP(R,T,P {sws}))$RT_IAN(R,YEAR,ALLYEAR,CUR,'INVTAXSUB')
   )$SAMEAS(COSTCAT,'INVSUB') +
 *------------------------------------------------------------------------------
 * Fixed O&M Cost - shaped or not
   SUM((OBJ_SUMIV(LL,R,T,P,JOT,LIFE),SPAN(LIFE+MIN(ORD(LL)+ORD(JOT)-ORD(YEAR)-1,0)))$YK(TT,T),
-      SUM(INVSTEP(LL,JOT,K,JOT)$YK(ALLYEAR,K), OBJ_FOM(R,K,P,CUR) *
+      SUM(INVSTEP(LL,JOT,K,JOT)$YK(ALLYEAR,K), {macro.obj_fom("R", "K", "P", "CUR")} *
         MAX(0,MIN(YEARVAL(ALLYEAR)+1,YEARVAL(K)+ORD(LIFE))-MAX(YEARVAL(YEAR),YEARVAL(K)))) *
       {vart1}_NCAP(R,T,P {sws}) / OBJ_DIVIV(R,T,P)
      )$SAMEAS(COSTCAT,'FOM') +
@@ -255,35 +255,35 @@ class EqbndcstMod(GamsClass):
   SUM(RTP_SHAPE(R,T,P,'1',J,JJ)$YK(TT,T),
     SUM((OBJ_SUMIV(K,R,T,P,JOT,LIFE),INVSTEP(K,JOT,LL,JOT),SPAN(LIFE+MIN(ORD(LL)-ORD(YEAR),0)))$YK(ALLYEAR,LL),
       SUM(OPYEAR(LIFE,AGE)$((ORD(LL)+ORD(AGE) > ORD(YEAR))$(ORD(LL)+ORD(AGE) < ORD(ALLYEAR)+2)),
-          SHAPE(J,AGE)*MULTI(JJ,LL+(ORD(AGE)-1))-1) * OBJ_FOM(R,LL,P,CUR)) *
+          SHAPE(J,AGE)*MULTI(JJ,LL+(ORD(AGE)-1))-1) * {macro.obj_fom("R", "LL", "P", "CUR")}) *
     {vart1}_NCAP(R,T,P {sws}) / OBJ_DIVIV(R,T,P)
   )$SAMEAS(COSTCAT,'FOM') +
 
 * Fixed O&M Taxes - shaped or not
-  SUM((OBJ_SUMIV(LL,R,T,P,JOT,LIFE),SPAN(LIFE+MIN(ORD(LL)+ORD(JOT)-ORD(YEAR)-1,0)))$(YK(TT,T)$OBJ_FTX(R,T,P,CUR)),
-      SUM(INVSTEP(LL,JOT,K,JOT)$YK(ALLYEAR,K), OBJ_FTX(R,K,P,CUR) *
+  SUM((OBJ_SUMIV(LL,R,T,P,JOT,LIFE),SPAN(LIFE+MIN(ORD(LL)+ORD(JOT)-ORD(YEAR)-1,0)))$(YK(TT,T)${macro.obj_ftx("R", "T", "P", "CUR")}),
+      SUM(INVSTEP(LL,JOT,K,JOT)$YK(ALLYEAR,K), {macro.obj_ftx("R", "K", "P", "CUR")} *
         MAX(0,MIN(YEARVAL(ALLYEAR)+1,YEARVAL(K)+ORD(LIFE))-MAX(YEARVAL(YEAR),YEARVAL(K)))) *
       {vart1}_NCAP(R,T,P {sws}) / OBJ_DIVIV(R,T,P)
      )$SAMEAS(COSTCAT,'FOMTAX') +
 * Fixed O&M Taxes - Shaped
-  SUM(RTP_SHAPE(R,T,P,'2',J,JJ)$(YK(TT,T)$OBJ_FTX(R,T,P,CUR)),
+  SUM(RTP_SHAPE(R,T,P,'2',J,JJ)$(YK(TT,T)${macro.obj_ftx("R", "T", "P", "CUR")}),
     SUM((OBJ_SUMIV(K,R,T,P,JOT,LIFE),INVSTEP(K,JOT,LL,JOT),SPAN(LIFE+MIN(ORD(LL)-ORD(YEAR),0)))$YK(ALLYEAR,LL),
       SUM(OPYEAR(LIFE,AGE)$((ORD(LL)+ORD(AGE) > ORD(YEAR))$(ORD(LL)+ORD(AGE) < ORD(ALLYEAR)+2)),
-          SHAPE(J,AGE)*MULTI(JJ,LL+(ORD(AGE)-1))-1) * OBJ_FTX(R,LL,P,CUR)) *
+          SHAPE(J,AGE)*MULTI(JJ,LL+(ORD(AGE)-1))-1) * {macro.obj_ftx("R", "LL", "P", "CUR")}) *
     {vart1}_NCAP(R,T,P {sws}) / OBJ_DIVIV(R,T,P)
   )$SAMEAS(COSTCAT,'FOMTAX') +
 
 * Fixed O&M Subsidies - shaped or not
-  SUM((OBJ_SUMIV(LL,R,T,P,JOT,LIFE),SPAN(LIFE+MIN(ORD(LL)+ORD(JOT)-ORD(YEAR)-1,0)))$(YK(TT,T)$OBJ_FSB(R,T,P,CUR)),
-      SUM(INVSTEP(LL,JOT,K,JOT)$YK(ALLYEAR,K), OBJ_FSB(R,K,P,CUR) *
+  SUM((OBJ_SUMIV(LL,R,T,P,JOT,LIFE),SPAN(LIFE+MIN(ORD(LL)+ORD(JOT)-ORD(YEAR)-1,0)))$(YK(TT,T)${macro.obj_fsb("R", "T", "P", "CUR")}),
+      SUM(INVSTEP(LL,JOT,K,JOT)$YK(ALLYEAR,K), {macro.obj_fsb("R", "K", "P", "CUR")} *
         MAX(0,MIN(YEARVAL(ALLYEAR)+1,YEARVAL(K)+ORD(LIFE))-MAX(YEARVAL(YEAR),YEARVAL(K)))) *
       {vart1}_NCAP(R,T,P {sws}) / OBJ_DIVIV(R,T,P)
      )$SAMEAS(COSTCAT,'FOMSUB') +
 * Fixed O&M Subsidies - Shaped
-  SUM(RTP_SHAPE(R,T,P,'3',J,JJ)$(YK(TT,T)$OBJ_FSB(R,T,P,CUR)),
+  SUM(RTP_SHAPE(R,T,P,'3',J,JJ)$(YK(TT,T)${macro.obj_fsb("R", "T", "P", "CUR")}),
     SUM((OBJ_SUMIV(K,R,T,P,JOT,LIFE),INVSTEP(K,JOT,LL,JOT),SPAN(LIFE+MIN(ORD(LL)-ORD(YEAR),0)))$YK(ALLYEAR,LL),
       SUM(OPYEAR(LIFE,AGE)$((ORD(LL)+ORD(AGE) > ORD(YEAR))$(ORD(LL)+ORD(AGE) < ORD(ALLYEAR)+2)),
-          SHAPE(J,AGE)*MULTI(JJ,LL+(ORD(AGE)-1))-1) * OBJ_FSB(R,LL,P,CUR)) *
+          SHAPE(J,AGE)*MULTI(JJ,LL+(ORD(AGE)-1))-1) * {macro.obj_fsb("R", "LL", "P", "CUR")}) *
     {vart1}_NCAP(R,T,P {sws}) / OBJ_DIVIV(R,T,P)
   )$SAMEAS(COSTCAT,'FOMSUB') +
 *------------------------------------------------------------------------------
@@ -301,7 +301,7 @@ class EqbndcstMod(GamsClass):
 * Variable flow taxes and subsidies
   SUM(T$(YK(TT,T)*(M(T)+LAGT(T) GT YEARVAL(YEAR))),
      SUM(RTPCS_VARF(R,T,P,C,S)$OBJ_VFLO(R,P,C,CUR,'TAX'),
-        SUM(TS_ANN(S,TS), SUM({tpulse} MAX(0,OBJ_FTAX(R,Y_EOH,P,C,TS,CUR)))) *
+        SUM(TS_ANN(S,TS), SUM({tpulse} MAX(0,{macro.obj_ftax("R", "Y_EOH", "P", "C", "TS", "CUR")}))) *
         SUM(RTP_VINTYR(R,V,T,P),
          {swtd}({swsw}
 {include_cal_red}
@@ -318,7 +318,7 @@ class EqbndcstMod(GamsClass):
 
   SUM(T$(YK(TT,T)*(M(T)+LAGT(T) GT YEARVAL(YEAR))),
      SUM(RTPCS_VARF(R,T,P,C,S)$OBJ_VFLO(R,P,C,CUR,'SUB'),
-        SUM(TS_ANN(S,TS), SUM({tpulse} MAX(0,-OBJ_FTAX(R,Y_EOH,P,C,TS,CUR)))) *
+        SUM(TS_ANN(S,TS), SUM({tpulse} MAX(0,-{macro.obj_ftax("R", "Y_EOH", "P", "C", "TS", "CUR")}))) *
         SUM(RTP_VINTYR(R,V,T,P),
          {swtd}({swsw}
 {include_cal_red}
@@ -367,24 +367,24 @@ OPTION CLEAR=YK1; YK1(TT,T)$YK(T,TT) = YES;
 CST_ANNC(R,TT,P,T(YEAR),'INVCOST',CUR)$(YK1(TT,T)$RTP_IAN(R,TT,P,CUR)) =
   SUM(OBJ_SUMII(R,TT,P,AGE,K_EOH(LL),JOT)$((ORD(LL)+ORD(AGE)+ORD(JOT)-1 > ORD(YEAR))$YK(T,LL)),
     SUM(INVSPRED(K_EOH,JOT,ALLYEAR,K)$((ORD(ALLYEAR)+ORD(AGE) > ORD(YEAR))$YK(T,ALLYEAR)),
-      OBJ_ICOST(R,K,P,CUR)) * OBJ_CRF(R,TT,P,CUR) / OBJ_DIVI(R,TT,P));
+      {macro.obj_icost("R", "K", "P", "CUR")}) * OBJ_CRF(R,TT,P,CUR) / OBJ_DIVI(R,TT,P));
 * Add decommissioning costs when defined
-LOOP(RTP_IAN(R,TT,P,CUR)$OBJ_DCOST(R,TT,P,CUR),
+LOOP(RTP_IAN(R,TT,P,CUR)${macro.obj_dcost("R", "TT", "P", "CUR")},
  CST_ANNC(R,TT,P,T(YEAR),'INVCOST',CUR)$YK1(TT,T) =
    CST_ANNC(R,TT,P,T,'INVCOST',CUR) + OBJ_CRFD(R,TT,P,CUR) / OBJ_DIVIII(R,TT,P) *
    SUM(OBJ_SUMIII(R,TT,P,K_EOH,K,LL)$((ORD(LL)+ROUND(NCAP_{declif}(R,TT,P)) > ORD(YEAR))$YK(T,LL)),
-     OBJ_DCOST(R,K,P,CUR)));
+     {macro.obj_dcost("R", "K", "P", "CUR")}));
 * Calculate annual undiscounted INVTAXSUB coefficients
 OPTION CLEAR=TRACKP, CLEAR=RTP_IAN;
 LOOP(UC_ATTR(R,UC_N,SIDE,'NCAP',UC_ANNUL(UC_NAME(COSTCAT))),LOOP(T,TRACKP(R,P)$UC_NCAP(UC_N,SIDE,R,T,P)=YES));
 RT_IAN(R,T,T,CUR,'INVTAXSUB')$(REG_CUMCST(R,T,T,'INVTAX',CUR,'UP')+REG_CUMCST(R,T,T,'INVSUB',CUR,'UP')) = YES;
 RTP_IAN(OBJ_ICUR(R,T,P,CUR))$(RT_IAN(R,T,T,CUR,'INVTAXSUB')+TRACKP(R,P)) = YES;
-LOOP(RTP_IAN(R,TT,P,CUR)$(OBJ_ITAX(R,TT,P,CUR)+OBJ_ISUB(R,TT,P,CUR)),
+LOOP(RTP_IAN(R,TT,P,CUR)$({macro.obj_itax("R", "TT", "P", "CUR")}+{macro.obj_isub("R", "TT", "P", "CUR")}),
   OPTION CLEAR=YKK; F = OBJ_CRF(R,TT,P,CUR)/OBJ_DIVI(R,TT,P);
   LOOP(OBJ_SUMII(R,TT,P,LIFE,K_EOH,JOT), Z=ORD(LIFE);
     YKK(YK(T(YEAR),LL),K)$((ORD(YEAR) < ORD(LL)+Z)$INVSPRED(K_EOH,JOT,LL,K)) = YES);
-  CST_ANNC(R,TT,P,T,'INVTAX',CUR)$YK1(TT,T) = SUM(YKK(T,LL,K), F * OBJ_ITAX(R,K,P,CUR));
-  CST_ANNC(R,TT,P,T,'INVSUB',CUR)$YK1(TT,T) = SUM(YKK(T,LL,K),-F * OBJ_ISUB(R,K,P,CUR));
+  CST_ANNC(R,TT,P,T,'INVTAX',CUR)$YK1(TT,T) = SUM(YKK(T,LL,K), F * {macro.obj_itax("R", "K", "P", "CUR")});
+  CST_ANNC(R,TT,P,T,'INVSUB',CUR)$YK1(TT,T) = SUM(YKK(T,LL,K),-F * {macro.obj_isub("R", "K", "P", "CUR")});
 );
 OPTION CLEAR=TRACKP, CLEAR=RTP_IAN;
 """,

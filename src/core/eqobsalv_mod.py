@@ -14,7 +14,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .base_class import GamsClass
+from core import prepret_dsc
+from core.base_class import GamsClass
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -31,11 +33,7 @@ class EqobsalvMod(GamsClass):
     gams_source: str = "eqobsalv.mod"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str,
-        arg2: str = "",
+        self, tc: TimesModelClass, env: CompileEnvironment, arg1: str, arg2: str = ""
     ):
         self.env = env.fork()
         self.arg1 = arg1
@@ -159,7 +157,7 @@ class EqobsalvMod(GamsClass):
 """
 
         if self.tc.defined("VNRET"):
-            rhs += "OBSALV"
+            rhs += prepret_dsc.objsalv(var=var, varv=varv, sws=sws, sow=sow)
 
         rhs += rf"""
 *------------------------------------------------------------------------------
@@ -178,7 +176,7 @@ class EqobsalvMod(GamsClass):
 *------------------------------------------------------------------------------
 * The same proportion SALV_INV is salvaged from investments and surveillance costs
       SUM(OBJ_SUMIVS(R,V,P,K,Y)$SALV_INV(R,V,P,K),
-            OBJ_DISC(R,Y,CUR) * OBJ_DLAGC(R,K,P,CUR) * SALV_INV(R,V,P,K) *
+            OBJ_DISC(R,Y,CUR) * {macro.obj_dlagc("R", "K", "P", "CUR")} * SALV_INV(R,V,P,K) *
             ({varv}_NCAP(R,V,P {sws})$MILESTONYR(V) + NCAP_PASTI(R,V,P)$PASTYEAR(V)))
       +
 *------------------------------------------------------------------------------
@@ -263,7 +261,9 @@ def eqobsalv_prepro(
     SUM((OBJ_SUMII(R,V,P,AGE,K_EOH,JOT),INVSPRED(K_EOH,JOT,LL,K))$SALV_INV(R,V,P,LL),{
         capjd
     }
-        (OBJ_ICOST(R,K,P,CUR)+OBJ_ITAX(R,K,P,CUR)-OBJ_ISUB(R,K,P,CUR)) * SALV_INV(R,V,P,LL) * OBJ_DISC(R,K,CUR));
+        ({macro.obj_icost("R", "K", "P", "CUR")}+{
+        macro.obj_itax("R", "K", "P", "CUR")
+    }-{macro.obj_isub("R", "K", "P", "CUR")}) * SALV_INV(R,V,P,LL) * OBJ_DISC(R,K,CUR));
 
 {
         rf'''
@@ -281,16 +281,20 @@ LOOP((OBJ_SUMS(R,T(V),P),G_RCUR(R,CUR))$SEG(R,P),
     }),OBJSCC(R,V,P,CUR)*NCAP_PASTI(R,V,P)*OBJ_DCEOH(R,CUR));
 *===============================================================================
 *GG* only if decommissioning lifetime provided by user
-  COR_SALVD(RTP(R,V,P),CUR)$OBJ_DCOST(R,V,P,CUR) =
+  COR_SALVD(RTP(R,V,P),CUR)${macro.obj_dcost("R", "V", "P", "CUR")} =
                    (((1-1/(1+NCAP_DRATE(R,V,P)))*(1-1/(1+OBJ_RFR(R,V,CUR))**NCAP_DELIF(R,V,P)))/
                     ((1-1/(1+OBJ_RFR(R,V,CUR)))*(1-1/(1+NCAP_DRATE(R,V,P))**NCAP_DELIF(R,V,P)))
                     )$(NCAP_DRATE(R,V,P) GT 0) + 1$(NCAP_DRATE(R,V,P) EQ 0);
-  OBJ_CRFD(RTP(R,V,P),CUR)$OBJ_DCOST(R,V,P,CUR) = COR_SALVD(R,V,P,CUR) * (1-(1/(1+G_DRATE(R,V,CUR)))) / (1-(1+G_DRATE(R,V,CUR))**(-ROUND(NCAP_{
+  OBJ_CRFD(RTP(R,V,P),CUR)${
+        macro.obj_dcost("R", "V", "P", "CUR")
+    } = COR_SALVD(R,V,P,CUR) * (1-(1/(1+G_DRATE(R,V,CUR)))) / (1-(1+G_DRATE(R,V,CUR))**(-ROUND(NCAP_{
         declif
     }(R,V,P))));
 *------------------------------------------------------------------------------
 * Salvage value of Decommissioning at year EOH+1:
 * Documentation defines the value for each decommissioning year Y; here aggregated by vintage
   SALV_DEC(OBJ_SUMS3(R,V,P),CUR)$COR_SALVD(R,V,P,CUR) = COR_SALVD(R,V,P,CUR) / OBJ_DIVIII(R,V,P) / OBJ_DCEOH(R,CUR) *
-      SUM(OBJ_SUMIII(R,V,P,LL,K,Y)$SALV_INV(R,V,P,LL),SALV_INV(R,V,P,LL)*OBJ_DCOST(R,K,P,CUR)*OBJ_DISC(R,Y,CUR));
+      SUM(OBJ_SUMIII(R,V,P,LL,K,Y)$SALV_INV(R,V,P,LL),SALV_INV(R,V,P,LL)*{
+        macro.obj_dcost("R", "K", "P", "CUR")
+    }*OBJ_DISC(R,Y,CUR));
 """

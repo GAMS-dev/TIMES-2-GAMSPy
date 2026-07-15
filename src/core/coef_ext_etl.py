@@ -12,7 +12,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -28,11 +29,7 @@ class CoefExtEtl(GamsClass):
     module_name: str = "coef_ext_etl"
     gams_source: str = "coef_ext.etl"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
@@ -45,7 +42,7 @@ class CoefExtEtl(GamsClass):
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
+            code=rf"""
 * copy aliases
   SC0(R,P)   $= TL_SC0(R,P);
   PRAT(R,P)  $= TL_PRAT(R,P);
@@ -108,7 +105,7 @@ LOOP((RP(R,P),REG,PRC)$((TL_MRCLUST(R,P,REG,PRC) > 0.0)$TL_MRCLUST(R,P,REG,PRC))
 
 *-----------------------------------------------------------------------------
 * setting normal NCAP_COST of ETL technologies to zero to exclude this contribution fro the objective function
-OBJ_ICOST(R,EACHYEAR,P,CUR)$SEG(R,P) = 0;
+{macro.obj_icost("R", "EACHYEAR", "P", "CUR")}$SEG(R,P) = 0;
 *-----------------------------------------------------------------------------
 display ccapk, beta, alph;
 *$LABEL NOMIP

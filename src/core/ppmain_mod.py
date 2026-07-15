@@ -176,9 +176,12 @@ class PpmainMod(GamsClass):
             self.phase_six, rl=self.env.rl, pl=self.env.pl, ctst=self.env.ctst
         )
 
-        self.tc.add_gams_code(
-            module=self, phase=phase, code="SET PRC_RCAP //; PARAMETER PRC_REFIT //;"
-        )
+        if g.PrcRcap is None:
+            g.PrcRcap = Set(m, name="PRC_RCAP")
+        self.tc.register_assignment(g.PrcRcap)
+        if g.prc_refit is None:
+            g.prc_refit = Parameter(m, name="PRC_REFIT")
+        self.tc.register_assignment(g.prc_refit)
 
         self.tc.enqueue(self.phase_seven, ctst=self.env.ctst)
 
@@ -186,6 +189,7 @@ class PpmainMod(GamsClass):
         if self.env.validate == "YES":
             self.tc.enqueue(self.activate_rtp_cptyr)
 
+        self.tc.register_assignment(g.rcap_bnd)
         self.tc.enqueue(
             self.phase_eight,
             pl=self.env.pl,

@@ -59,12 +59,12 @@ class BndUcwMod(GamsClass):
             swd=self.env.swd,
             sow=self.env.sow,
             defined_symbols={
-                f"{var}_UC": self.tc.defined_assigned(f"{var}_UC"),
-                f"{var}_UCR": self.tc.defined_assigned(f"{var}_UCR"),
-                f"{var}_UCT": self.tc.defined_assigned(f"{var}_UCT"),
-                f"{var}_UCRT": self.tc.defined_assigned(f"{var}_UCRT"),
-                f"{var}_UCTS": self.tc.defined_assigned(f"{var}_UCTS"),
-                f"{var}_UCRTS": self.tc.defined_assigned(f"{var}_UCRTS"),
+                f"{var}_UC": self.tc.defined(f"{var}_UC"),
+                f"{var}_UCR": self.tc.defined(f"{var}_UCR"),
+                f"{var}_UCT": self.tc.defined(f"{var}_UCT"),
+                f"{var}_UCRT": self.tc.defined(f"{var}_UCRT"),
+                f"{var}_UCTS": self.tc.defined(f"{var}_UCTS"),
+                f"{var}_UCRTS": self.tc.defined(f"{var}_UCRTS"),
             },
         )
 

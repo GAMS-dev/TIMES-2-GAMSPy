@@ -16,10 +16,8 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    pass
+from utils.macros import macro_config as macro
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +62,7 @@ def uc_act_mod(
                            )
                           )
                             *
-                          PROD(UC_ATTR(R,UC_N,{arg5},'ACT','COST'),SUM(RDCUR(R,CUR),OBJ_ACOST(R,{arg4},P,CUR)))
+                          PROD(UC_ATTR(R,UC_N,{arg5},'ACT','COST'),SUM(RDCUR(R,CUR),{macro.obj_acost("R", arg4, "P", "CUR")}))
               )
 *          closing bracket of arg3 :
            )

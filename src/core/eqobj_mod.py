@@ -93,49 +93,21 @@ class EqobjMod(GamsClass):
         g.ObjSums3 = Set(m, name="OBJ_SUMS3", domain=[r, allyear, p])
         g.ObjSumsi = Set(m, name="OBJ_SUMSI", domain=[r, allyear, p, allyear])
 
-        if "VNRET" in self.tc.container.listSymbols():
-            self.include(
-                PrepretDsc(
-                    self.tc,
-                    self.env,
-                    arg1="EQOBJ",
-                )
-            )
+        if self.tc.declared("VNRET"):
+            self.include(PrepretDsc(self.tc, self.env, arg1="EQOBJ"))
 
         # Elastic Demand costs
         if self.arg1.upper() == "MOD":
-            self.include(
-                EqobjinvMod(
-                    self.tc,
-                    self.env,
-                    arg1="EQOBJ",
-                    arg2="",
-                )
-            )
+            self.include(EqobjinvMod(self.tc, self.env, arg1="EQOBJ", arg2=""))
         elif self.arg1.upper() == "RPT":
-            self.include(
-                EqobjinvRpt(
-                    self.tc,
-                    self.env,
-                )
-            )
+            self.include(EqobjinvRpt(self.tc, self.env))
 
         # Fixed O&M Cost and Tax components
         if self.env.timesed == "YES":
             if self.arg1.upper() == "MOD":
-                self.include(
-                    EqobjelsMod(
-                        self.tc,
-                        self.env,
-                    )
-                )
+                self.include(EqobjelsMod(self.tc, self.env))
             elif self.arg1.upper() == "RPT":
-                self.include(
-                    EqobjelsRpt(
-                        self.tc,
-                        self.env,
-                    )
-                )
+                self.include(EqobjelsRpt(self.tc, self.env))
 
         # Fixed O&M Cost and Tax components
         if self.arg1.upper() == "MOD":

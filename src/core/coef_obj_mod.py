@@ -20,6 +20,7 @@ from gamspy import Alias, Set
 from core.base_class import GamsClass
 from core.fillcost_gms import FillcostGms, FillcostGmsConfig
 from core.filparam_gms import FilparamGms, FilparamGmsConfig
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from gamspy._symbols.implicits import ImplicitSet
@@ -92,7 +93,7 @@ class CoefObjMod(GamsClass):
             self.env.set_scoped("tmp", "2")
             tmp = 2
 
-        if self.tc.defined_assigned("R_CUREX"):
+        if self.tc.defined("R_CUREX"):
             self.env.set_scoped("take", "1")
             take = 1
 
@@ -360,24 +361,18 @@ OPTION CLEAR=FIL; FIL(Y_EOH)$(YEARVAL(Y_EOH) GE MIYR_V1) = YES;
         )
 
     def compile_macros(self: CoefObjMod) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-$macro OBJ_ICOST(r,y,p,m) OB_ICOST(r,p,m,y)
-$macro OBJ_ISUB(r,y,p,m) OB_ISUB(r,p,m,y)
-$macro OBJ_ITAX(r,y,p,m) OB_ITAX(r,p,m,y)
-$macro OBJ_FOM(r,y,p,m) OB_FOM(r,p,m,y)
-$macro OBJ_FSB(r,y,p,m) OB_FSB(r,p,m,y)
-$macro OBJ_FTX(r,y,p,m) OB_FTX(r,p,m,y)
-$macro OBJ_DCOST(r,y,p,m) OB_DCC(r,p,m,y)
-$macro OBJ_DLAGC(r,y,p,m) OB_DLC(r,p,m,y)
-$macro OBJ_ACOST(r,y,p,m) OB_ACT(r,p,m,y)
-$macro OBJ_FCOST(r,y,p,c,s,m) OB_FCOS(r,p,c,s,m,y)
-$macro OBJ_FDELV(r,y,p,c,s,m) OB_FDEL(r,p,c,s,m,y)
-$macro OBJ_FTAX(r,y,p,c,s,m) OB_FTAX(r,p,c,s,m,y)
-""",
-        )
+        macro.obj_icost_active = True
+        macro.obj_isub_active = True
+        macro.obj_itax_active = True
+        macro.obj_fom_active = True
+        macro.obj_fsb_active = True
+        macro.obj_ftx_active = True
+        macro.obj_dcost_active = True
+        macro.obj_dlagc_active = True
+        macro.obj_acost_active = True
+        macro.obj_fcost_active = True
+        macro.obj_fdelv_active = True
+        macro.obj_ftax_active = True
 
     def exec5(self: CoefObjMod) -> None:
         self.tc.add_gams_code(
@@ -399,16 +394,16 @@ $macro OBJ_FTAX(r,y,p,c,s,m) OB_FTAX(r,p,c,s,m,y)
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
+            code=rf"""
 * Flat period assignment
 * As original parameters are not filled, flat data must be taken from OBJ_xxx
   LOOP(V, FIL(FIL)=NO; FIL(K)$PERIODYR(V,K) = YES;
-      OBJ_ICOST(R,FIL,P,CUR)      $= OBJ_ICOST(R,V,P,CUR);
-      OBJ_FOM(R,FIL,P,CUR)        $= OBJ_FOM(R,V,P,CUR);
-      OBJ_ACOST(R,FIL,P,CUR)      $= OBJ_ACOST(R,V,P,CUR);
+      {macro.obj_icost("R", "FIL", "P", "CUR")}      $= {macro.obj_icost("R", "V", "P", "CUR")};
+      {macro.obj_fom("R", "FIL", "P", "CUR")}        $= {macro.obj_fom("R", "V", "P", "CUR")};
+      {macro.obj_acost("R", "FIL", "P", "CUR")}      $= {macro.obj_acost("R", "V", "P", "CUR")};
       OBJ_IPRIC(R,FIL,P,C,S,R,IE,CUR) $= OBJ_IPRIC(R,V,P,C,S,R,IE,CUR);
-      OBJ_FCOST(R,FIL,P,C,S,CUR)  $= OBJ_FCOST(R,V,P,C,S,CUR);
-      OBJ_FDELV(R,FIL,P,C,S,CUR)  $= OBJ_FDELV(R,V,P,C,S,CUR);
+      {macro.obj_fcost("R", "FIL", "P", "C", "S", "CUR")}  $= {macro.obj_fcost("R", "V", "P", "C", "S", "CUR")};
+      {macro.obj_fdelv("R", "FIL", "P", "C", "S", "CUR")}  $= {macro.obj_fdelv("R", "V", "P", "C", "S", "CUR")};
   );
 *display "*** after flat period assignment ***", obj_icost, obj_fom;
 """,

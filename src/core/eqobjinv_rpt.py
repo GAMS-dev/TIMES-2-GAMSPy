@@ -16,7 +16,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -32,11 +33,7 @@ class EqobjinvRpt(GamsClass):
     module_name: str = "eqobjinv_rpt"
     gams_source: str = "eqobjinv.rpt"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
         self.env = env.fork()
         self.tc = tc
         self._sub_modules = {}
@@ -55,9 +52,7 @@ PARAMETER YKAGEP(ALLYEAR,ALLYEAR,AGE);
         )
 
         self.tc.enqueue(
-            self.exec1,
-            etl_enabled=(self.env.etl == "YES"),
-            declif=self.env.declif,
+            self.exec1, etl_enabled=(self.env.etl == "YES"), declif=self.env.declif
         )
 
     def exec1(self: EqobjinvRpt, etl_enabled: bool, declif: str) -> None:
@@ -85,8 +80,8 @@ NCAP_YES(R,LL--ORD(LL),P)$NCAP_YES(R,LL,P) = YES;
 *------------------------------------------------------------------------------
 * Cases I - Investment Cost and II - Taxes/Subsidies
 *------------------------------------------------------------------------------
-OBJ_SUMIK(R,K,P,CUR)$((OBJ_ICOST(R,K,P,CUR)+OBJ_ITAX(R,K,P,CUR)+OBJ_ISUB(R,K,P,CUR))$NCAP_YES(R,'0',P)) =
-   OBJ_ICOST(R,K,P,CUR) + OBJ_ITAX(R,K,P,CUR) - OBJ_ISUB(R,K,P,CUR);
+OBJ_SUMIK(R,K,P,CUR)$(({macro.obj_icost("R", "K", "P", "CUR")}+{macro.obj_itax("R", "K", "P", "CUR")}+{macro.obj_isub("R", "K", "P", "CUR")})$NCAP_YES(R,'0',P)) =
+   {macro.obj_icost("R", "K", "P", "CUR")} + {macro.obj_itax("R", "K", "P", "CUR")} - {macro.obj_isub("R", "K", "P", "CUR")};
 
 * Calculate Annual discounted investment costs PAR_OBJINV
 * VDISC is the constant discount rate used to discount annual payments to the investment year LL
@@ -116,12 +111,12 @@ OPTION CLEAR=OBJ_SUMIK;
 
 * Calculate Annual discounted decommissioning costs PAR_OBJDEC
 * VDISC is the constant discount rate used to discount annual payments to the investment year LL
-LOOP((NCAP_YES(R,V,P),CUR)$OBJ_DCOST(R,V,P,CUR),
+LOOP((NCAP_YES(R,V,P),CUR)${macro.obj_dcost("R", "V", "P", "CUR")},
   F = (VAR_NCAP.L(R,V,P)$T(V)+NCAP_PASTI(R,V,P)$PYR(V)) * OBJ_CRFD(R,V,P,CUR)/OBJ_DIVIII(R,V,P);
   VDISC = 1+G_DRATE(R,V,CUR); Z = ROUND(NCAP_{declif}(R,V,P))-1;
   PAR_OBJDEC(R,V,Y,P,CUR) =
     SUM((OBJ_SUMIII(R,V,P,K_EOH,K,LL),YK(LL+Z,Y))$YK(Y,LL),
-        F * OBJ_DCOST(R,K,P,CUR) * OBJ_DISC(R,LL,CUR) * VDISC**(YEARVAL(LL)-YEARVAL(Y)));
+        F * {macro.obj_dcost("R", "K", "P", "CUR")} * OBJ_DISC(R,LL,CUR) * VDISC**(YEARVAL(LL)-YEARVAL(Y)));
 );
 """,
         )

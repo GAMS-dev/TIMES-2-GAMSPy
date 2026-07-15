@@ -50,11 +50,11 @@ class TimesModelClass:
     )
     compile_states: dict[str, Any] = field(default_factory=dict)
     _modules: list[GamsClass] = field(default_factory=list)
-    container: Container = field(default_factory=Container)
     assigned_symbols: set[Set | Parameter | Variable] = field(default_factory=set)
 
     # POST-INIT VARIABLES
     logger: logging.Logger = field(init=False)
+    container: Container = field(init=False)
 
     # region TIMES symbols
     allts: Set = None  # type: ignore[assignment] # [*] ALL_TS: The universe for time-slices
@@ -1490,6 +1490,7 @@ class TimesModelClass:
         Runs immediately AFTER the dataclass finishes creating itself.
         """
         self.logger = logging.getLogger("TimesModel")
+        self.container = Container()
 
     def register_module(self, module: GamsClass) -> None:
         """Register a module object."""
@@ -1569,7 +1570,7 @@ class TimesModelClass:
         else:
             return symbol is not None
 
-    def defined(self, symbol: Set | Parameter | Variable | str) -> bool:
+    def has_records(self, symbol: Set | Parameter | Variable | str) -> bool:
         if not self.declared(symbol):
             return False
         else:
@@ -1578,14 +1579,14 @@ class TimesModelClass:
             assert not isinstance(symbol, str)
             return bool(symbol.number_records > 0)
 
-    def defined_assigned(self, symbol: Set | Parameter | Variable | str) -> bool:
+    def defined(self, symbol: Set | Parameter | Variable | str) -> bool:
         if not self.declared(symbol):
             return False
         else:
             if isinstance(symbol, str):
                 symbol = self.container[symbol]  # type: ignore
             assert not isinstance(symbol, str)
-            return self.defined(symbol) | self.assigned(symbol)
+            return self.has_records(symbol) | self.assigned(symbol)
 
     def assigned(self, symbol: Set | Parameter | Variable) -> bool:
         return symbol in self.assigned_symbols
@@ -1610,3 +1611,13 @@ class TimesModelClass:
 
     def set_variable(self, name: str, var: Variable) -> None:
         setattr(self, name.upper(), var)
+
+    def set_set(self, name: str, set: Set, domain: bool) -> None:
+        if domain:
+            cased_name = "".join(word.capitalize() for word in name.split("_"))
+        else:
+            cased_name = name.lower()
+        setattr(self, cased_name, set)
+
+    def get_set(self, name: str) -> Any:
+        return self.container[name]

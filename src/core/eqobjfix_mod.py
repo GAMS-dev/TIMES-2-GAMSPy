@@ -23,9 +23,9 @@ import logging
 from typing import TYPE_CHECKING
 
 from core import prepret_dsc
+from core.base_class import GamsClass
 from core.coef_alt_lin import CoefAltLin
-
-from .base_class import GamsClass
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -58,10 +58,7 @@ class EqobjfixMod(GamsClass):
     def compile(self) -> None:
         self.declarations()
 
-        self.tc.enqueue(
-            self.exec1,
-            condition=self.env.validate == "YES",
-        )
+        self.tc.enqueue(self.exec1, condition=self.env.validate == "YES")
         self.env.set_scoped("zhalf", "CEIL(Z/2-.5)")
         self.env.set_scoped("istep", "IPD(T)")
         if self.env.ctst != "":
@@ -147,9 +144,9 @@ class EqobjfixMod(GamsClass):
             code=rf"""
 *UR: 09/30/01
 * if some relevant cost
-  OBJ_FCUR(RTP(R,V,P),CUR)$(OBJ_FOM(R,V,P,CUR)+OBJ_FTX(R,V,P,CUR)+OBJ_FSB(R,V,P,CUR)) = YES;
+  OBJ_FCUR(RTP(R,V,P),CUR)$({macro.obj_fom("R", "V", "P", "CUR")}+{macro.obj_ftx("R", "V", "P", "CUR")}+{macro.obj_fsb("R", "V", "P", "CUR")}) = YES;
 * Decommissioning
-  OBJ_FCUR(RTP(R,V,P),CUR)$OBJ_DLAGC(R,V,P,CUR) = YES;
+  OBJ_FCUR(RTP(R,V,P),CUR)${macro.obj_dlagc("R", "V", "P", "CUR")} = YES;
   OPTION OBJ_YES < OBJ_FCUR;
   OBJ_YES(RTP_OFF(R,T,P))$(NOT NCAP_PASTI(R,T,P)) = NO;
 
@@ -251,7 +248,7 @@ LOOP(SAMEAS(J,'1'),
 * Case IV.2.a: Surveillance ILEDt > ILEDmin,t and TLIFEt + ILEDt >= D(t)
 *-----------------------------------------------------------------------------
 * if some relevant cost
-    LOOP((OBJ_2A(R,V(LL),P),CUR)$OBJ_DLAGC(R,V,P,CUR),
+    LOOP((OBJ_2A(R,V(LL),P),CUR)${macro.obj_dlagc("R", "V", "P", "CUR")},
       MY_F = B(V) + NCAP_ILED(R,V,P);
       F = ROUND(MY_F + NCAP_TLIFE(R,V,P)); Z = F + NCAP_DLAG(R,V,P); MY_F = MY_F-YEARVAL(V);
       OBJ_SUMIVS(R,V,P,LL+MY_F,Y)$((YEARVAL(Y) >= F) AND (YEARVAL(Y) < Z)) = YES;
@@ -275,7 +272,7 @@ LOOP(SAMEAS(J,'1'),
 * Case IV.2.b: Surveillance ILEDt > ILEDmin,t and TLIFEt + ILEDt < D(t)
 *-----------------------------------------------------------------------------
 * determine the number of repeated investments, if some relevant cost
-    LOOP((OBJ_2B(R,T(LL),P),CUR)$OBJ_DLAGC(R,T,P,CUR),
+    LOOP((OBJ_2B(R,T(LL),P),CUR)${macro.obj_dlagc("R", "T", "P", "CUR")},
       FOR(OBJ_C = 1 TO COEF_RPTI(R,T,P),
         MY_F = B(T) + NCAP_ILED(R,T,P) + (OBJ_C-1) * NCAP_TLIFE(R,T,P);
         F = ROUND(MY_F + NCAP_TLIFE(R,T,P)); Z = F + NCAP_DLAG(R,T,P); MY_F = MY_F-YEARVAL(T);
@@ -333,7 +330,11 @@ LOOP(SAMEAS(J,'1'),
         condition1: bool,
         condition2: bool,
     ) -> None:
-        include_prepret = prepret_dsc.objfix(capwd=capwd, vart=vart, sws=sws)
+        include_prepret = prepret_dsc.objfix(
+            capwd=capwd,
+            vart=vart,
+            sws=sws,
+        )
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -350,40 +351,33 @@ LOOP(SAMEAS(J,'1'),
 
       SUM(OBJ_SUMIV(K_EOH,R,V,P,JOT,LIFE)$(NOT RTP_ISHPR(R,V,P)),
        SUM(INVSPRED(K_EOH,JOT,LL,K), OBJ_LIFE(LL,R,JOT,LIFE,CUR) * {capwd}
-        (OBJ_FOM(R,K,P,CUR)+OBJ_FTX(R,K,P,CUR)-OBJ_FSB(R,K,P,CUR))) *
+        ({macro.obj_fom("R", "K", "P", "CUR")}+{macro.obj_ftx("R", "K", "P", "CUR")}-{macro.obj_fsb("R", "K", "P", "CUR")})) *
         ({varv}_NCAP(R,V,P {sws})$MILESTONYR(V) + NCAP_PASTI(R,V,P)$PASTYEAR(V)) / OBJ_DIVIV(R,V,P)) +
 
       SUM(OBJ_SUMIV(K_EOH,RTP_ISHPR(R,V,P),JOT,LIFE),
         SUM((INVSPRED(K_EOH,JOT,LL,K),OPYEAR(LIFE,AGE),Y_EOH(LL+(ORD(AGE)-1))),
              OBJ_DISC(R,Y_EOH,CUR) * (1+SUM(PERIODYR(T,Y_EOH),RTP_CPX(R,V,P,T))$NCAP_CPX(R,V,P)) * {capwd}
                 (
-                   OBJ_FOM(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'1',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) +
-                   OBJ_FTX(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'2',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) -
-                   OBJ_FSB(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,V,P,'3',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1))
+                   {macro.obj_fom("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'1',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) +
+                   {macro.obj_ftx("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'2',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) -
+                   {macro.obj_fsb("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'3',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1))
                 )
-
 * [UR] 07.10.2003: for validating MARKAL using VAR_CAP instead of VAR_NCAP+NCAP_PASTI, since it is possible
 *                  in MARKAL to decommission capacity of demand devices (DMD)
 {f"                       *((SUM(PERIODYR(T(V),Y_EOH),{vart}_CAP(R,T,P {sws})))$(OBJ_1A(R,V,P)+OBJ_1B(R,V,P))+" if condition1 else ""}
 {f"                        ({varv}_NCAP(R,V,P {sws})$MILESTONYR(V) + NCAP_PASTI(R,V,P)$PASTYEAR(V))$(OBJ_2A(R,V,P)+OBJ_2B(R,V,P)))" if condition1 else ""}
-
            )
 {f"            * ({varv}_NCAP(R,V,P {sws})$MILESTONYR(V) + NCAP_PASTI(R,V,P)$PASTYEAR(V)) / OBJ_DIVIV(R,V,P)" if not condition1 else ""}
          ) +
-
 {include_prepret if condition2 else ""}
-
 * Decommissioning Surveillance
       SUM(OBJ_SUMIVS(R,V,P,K,Y),
-            OBJ_DISC(R,Y,CUR) * OBJ_DLAGC(R,K,P,CUR) *
+            OBJ_DISC(R,Y,CUR) * {macro.obj_dlagc("R", "K", "P", "CUR")} *
 * Case 2.a-b
             ({varv}_NCAP(R,V,P {sws})$MILESTONYR(V) + (NCAP_PASTI(R,V,P)$PASTYEAR(V))$OBJ_2A(R,V,P))
          )
-
     =E=
-
       SUM(OBV,SUM_OBJ('OBJFIX',OBV)*{var}_OBJ(R,OBV,CUR {sow}));
-
 * Clears in INITCLR.MOD
 """,
         )

@@ -15,7 +15,8 @@ from typing import TYPE_CHECKING
 
 from gamspy import Equation, Variable
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -31,11 +32,7 @@ class EquExtEcb(GamsClass):
     module_name: str = "equ_ext_ecb"
     gams_source: str = "equ_ext.ecb"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
@@ -48,13 +45,7 @@ class EquExtEcb(GamsClass):
         self.tc.enqueue(self.exec1, self.env.pgprim, self.env.capjd, self.env.capwd)
         g = self.tc
         m = g.container
-        r, c, p, year, item = (
-            g.r,
-            g.c,
-            g.p,
-            g.year,
-            g.item,
-        )
+        r, c, p, year, item = g.r, g.c, g.p, g.year, g.item
 
         # Equations
         g.set_equation(
@@ -113,14 +104,14 @@ class EquExtEcb(GamsClass):
           OPTION RVP < COEF_LMS;
 * Calculate ceiling cost coefficients for dummy flow, according to NCAP_MSPRF(UP)
   PASTSUM(RVP(R,T,P)) = NCAP_MSPRF(R,T,'{pgprim}',P,'UP')/PRC_CAPACT(R,P);
-  FLO_COST(RVP(R,T,P),C('_MSVIOL_'),ANNUAL(S),CUR)$OBJ_FCOST(R,T,P,C,S,CUR) =
+  FLO_COST(RVP(R,T,P),C('_MSVIOL_'),ANNUAL(S),CUR)${macro.obj_fcost("R", "T", "P", "C", "S", "CUR")} =
     SUM(OBJ_SUMII(RVP,LIFE,K_EOH,JOT), {capjd} COR_SALVI(RVP,CUR) / OBJ_DIVI(RVP) *
-      SUM(INVSPRED(K_EOH,JOT,Y,K), (1-SALV_INV(RVP,Y)$OBJ_SUMS(RVP)) * OBJ_DISC(R,K,CUR) * OBJ_ICOST(R,K,P,CUR)));
-  FLO_DELIV(RVP(R,T,P),C('_MSVIOL_'),ANNUAL(S),CUR)$OBJ_FDELV(R,T,P,C,S,CUR) =
+      SUM(INVSPRED(K_EOH,JOT,Y,K), (1-SALV_INV(RVP,Y)$OBJ_SUMS(RVP)) * OBJ_DISC(R,K,CUR) * {macro.obj_icost("R", "K", "P", "CUR")}));
+  FLO_DELIV(RVP(R,T,P),C('_MSVIOL_'),ANNUAL(S),CUR)${macro.obj_fdelv("R", "T", "P", "C", "S", "CUR")} =
     SUM(OBJ_SUMIV(K_EOH,RVP,JOT,LIFE),
-       SUM(INVSPRED(K_EOH,JOT,LL,K), OBJ_LIFE(LL,R,JOT,LIFE,CUR) * {capwd} OBJ_FOM(R,K,P,CUR)) / OBJ_DIVIV(RVP));
-  OBJ_FCOST(R,Y_EOH,P,C('_MSVIOL_'),ANNUAL(S),CUR)$OBJ_FCOST(R,Y_EOH,P,C,S,CUR) = SUM(PERIODYR(T,Y_EOH),FLO_COST(R,T,P,C,S,CUR)*PASTSUM(R,T,P)/OBJ_PVT(R,T,CUR));
-  OBJ_FDELV(R,Y_EOH,P,C('_MSVIOL_'),ANNUAL(S),CUR)$OBJ_FDELV(R,Y_EOH,P,C,S,CUR) = SUM(PERIODYR(T,Y_EOH),FLO_DELIV(R,T,P,C,S,CUR)*PASTSUM(R,T,P)/OBJ_PVT(R,T,CUR));
+       SUM(INVSPRED(K_EOH,JOT,LL,K), OBJ_LIFE(LL,R,JOT,LIFE,CUR) * {capwd} {macro.obj_fom("R", "K", "P", "CUR")}) / OBJ_DIVIV(RVP));
+  {macro.obj_fcost("R", "Y_EOH", "P", 'C("_MSVIOL_")', "ANNUAL(S)", "CUR")}${macro.obj_fcost("R", "Y_EOH", "P", "C", "S", "CUR")} = SUM(PERIODYR(T,Y_EOH),FLO_COST(R,T,P,C,S,CUR)*PASTSUM(R,T,P)/OBJ_PVT(R,T,CUR));
+  {macro.obj_fdelv("R", "Y_EOH", "P", 'C("_MSVIOL_")', "ANNUAL(S)", "CUR")}${macro.obj_fdelv("R", "Y_EOH", "P", "C", "S", "CUR")} = SUM(PERIODYR(T,Y_EOH),FLO_DELIV(R,T,P,C,S,CUR)*PASTSUM(R,T,P)/OBJ_PVT(R,T,CUR));
   OPTION CLEAR=PASTSUM,CLEAR=RVP;
         """,
         )

@@ -12,10 +12,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
 from core.solve_mod import SolveMod
-
-from .base_class import GamsClass
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -99,7 +99,7 @@ class RptExtEcb(GamsClass):
   PASTSUM(RVP)$((PASTSUM(RVP)=0)$PASTSUM(RVP)) = 0;
 * Calculate INV unit cost annuity and intangibles
   COEF_RTP(RVP(R,T,P)) =
-    SUM(OBJ_ICUR(RVP,CUR),SUM(OBJ_SUMII(RVP,LIFE,K_EOH,JOT),{capjd} OBJ_CRF(RVP,CUR) / OBJ_DIVI(RVP) * SUM(INVSPRED(K_EOH,JOT,Y,K),OBJ_ICOST(R,K,P,CUR))));
+    SUM(OBJ_ICUR(RVP,CUR),SUM(OBJ_SUMII(RVP,LIFE,K_EOH,JOT),{capjd} OBJ_CRF(RVP,CUR) / OBJ_DIVI(RVP) * SUM(INVSPRED(K_EOH,JOT,Y,K),{macro.obj_icost("R", "K", "P", "CUR")})));
   NCAP_MSPRF(R,T,C,P,'FX')$COEF_LMS(R,T,C,P) = NCAP_MSPRF(R,T,C,P,'LO')*SUM(OBJ_SUMSI(R,T,P,V)$PASTSUM(R,V,P),COEF_RTP(R,V,P)/PRC_CAPACT(R,P)/PASTSUM(R,V,P));
 * Map LEC(v) and IUF(v) to t
   ECB_NCAPR(RVP)$PASTSUM(RVP)$=PAR_NCAPR(RVP,'LEVCOST');

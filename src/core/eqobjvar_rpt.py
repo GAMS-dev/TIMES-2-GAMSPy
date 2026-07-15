@@ -16,9 +16,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.cal_caps_mod import cal_caps_mod
-
-from .base_class import GamsClass
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -173,7 +173,7 @@ def eqobjvar_rpt_current(
     include_cal_caps_1 = cal_caps_mod(
         is_vnret_defined=is_vnret_defined,
         arg1="T",
-        arg2=f"SUM(TS_ANN(TS,SL),{arg5}({tpulse}(OBJ_FCOST(R,{arg4},P,C,SL,CUR)+OBJ_FDELV(R,{arg4},P,C,SL,CUR))))",
+        arg2=f"SUM(TS_ANN(TS,SL),{arg5}({tpulse}({macro.obj_fcost('R', arg4, 'P', 'C', 'SL', 'CUR')}+{macro.obj_fdelv('R', arg4, 'P', 'C', 'SL', 'CUR')})))",
         arg3="TS",
         arg4=".L",
         varv=varv,
@@ -183,7 +183,7 @@ def eqobjvar_rpt_current(
     include_cal_caps_2 = cal_caps_mod(
         is_vnret_defined=is_vnret_defined,
         arg1="T",
-        arg2=f"SUM(TS_ANN(TS,SL),{arg5}({tpulse} OBJ_FTAX(R,{arg4},P,C,SL,CUR)))",
+        arg2=f"SUM(TS_ANN(TS,SL),{arg5}({tpulse} {macro.obj_ftax('R', arg4, 'P', 'C', 'SL', 'CUR')}))",
         arg3="TS",
         arg4=".L",
         varv=varv,
@@ -199,8 +199,8 @@ def eqobjvar_rpt_current(
 * Costs based on overall activity of process
 *------------------------------------------------------------------------------
 
-  {arg1}_ACTC({arg2}RTP_VINTYR(R,V,T,P),'{pgprim}',CUR)$(RDCUR(R,CUR)$OBJ_ACOST(R,T,P,CUR)) =
-      {arg5}({tpulse} OBJ_ACOST(R,{arg4},P,CUR)) *
+  {arg1}_ACTC({arg2}RTP_VINTYR(R,V,T,P),'{pgprim}',CUR)$(RDCUR(R,CUR)${macro.obj_acost("R", "T", "P", "CUR")}) =
+      {arg5}({tpulse} {macro.obj_acost("R", arg4, "P", "CUR")}) *
       SUM(PRC_TS(R,P,S), VAR_ACT.L(R,V,T,P,S) * POWER(RS_STGAV(R,S),1$RP_STG(R,P)));
   {arg1}_ACTC({arg3}RTP_VINTYR(R,V,T,P),C('{pgprim}'),CUR)$RPC_CUR(R,P,C,CUR) =
       SUM(RP_UPS(R,P,TSL,L('UP')),{arg5}({tpulse} ACT_CSTUP(R,V,P,TSL,CUR))*SUM(TS_GROUP(R,TSL,S),RS_STGPRD(R,S)*VAR_UPS.L(R,V,T,P,S,L))) +
@@ -230,16 +230,16 @@ def eqobjvar_rpt_current(
   OPTION TRACKPC < PAR_FLO;
   {arg1}_FLOC({arg2}RTP_VINTYR(R,V,T,P),C,CUR)$(OBJ_VFLO(R,P,C,CUR,'COST')$TRACKPC(R,P,C)) =
      SUM(RTPCS_VARF(R,T,P,C,S),
-         SUM(TS_ANN(S,TS),{arg5}({tpulse} (OBJ_FCOST(R,{arg4},P,C,TS,CUR)+OBJ_FDELV(R,{arg4},P,C,TS,CUR)))) * PAR_FLO(R,V,T,P,C,S));
+         SUM(TS_ANN(S,TS),{arg5}({tpulse} ({macro.obj_fcost("R", arg4, "P", "C", "TS", "CUR")}+{macro.obj_fdelv("R", arg4, "P", "C", "TS", "CUR")}))) * PAR_FLO(R,V,T,P,C,S));
 
   {arg1}_FLOC({arg2}RTP_VINTYR(R,V,T,P),C,CUR)$(OBJ_VFLO(R,P,C,CUR,'COST')$RPC_STG(R,P,C)) =
      SUM(RPCS_VAR(R,P,C,S),
-         SUM(TS_ANN(S,TS),{arg5}({tpulse} (VAR_SIN.L(R,V,T,P,C,S)*OBJ_FCOST(R,{arg4},P,C,TS,CUR)+VAR_SOUT.L(R,V,T,P,C,S)*STG_EFF(R,V,P)*OBJ_FDELV(R,{arg4},P,C,TS,CUR)))));
+         SUM(TS_ANN(S,TS),{arg5}({tpulse} (VAR_SIN.L(R,V,T,P,C,S)*{macro.obj_fcost("R", arg4, "P", "C", "TS", "CUR")}+VAR_SOUT.L(R,V,T,P,C,S)*STG_EFF(R,V,P)*{macro.obj_fdelv("R", arg4, "P", "C", "TS", "CUR")}))));
 
   {arg1}_FLOC({arg2}RTP_VINTYR(R,V,T,P),C,CUR)$(OBJ_VFLO(R,P,C,CUR,'COST')$RP_IRE(R,P)) =
      {arg1}_FLOC(J,R,V,T,P,C,CUR) +
      SUM(RTPCS_VARF(R,T,P,C,S),
-      SUM(TS_ANN(S,TS),{arg5}({tpulse} (OBJ_FCOST(R,{arg4},P,C,TS,CUR) + OBJ_FDELV(R,{arg4},P,C,TS,CUR)))) *
+      SUM(TS_ANN(S,TS),{arg5}({tpulse} ({macro.obj_fcost("R", arg4, "P", "C", "TS", "CUR")} + {macro.obj_fdelv("R", arg4, "P", "C", "TS", "CUR")}))) *
       (
          SUM(RPC_IRE(R,P,C,IE), PAR_IRE(R,V,T,P,C,S,IE)) +
          SUM(IO$F_INOUTS(R,V,T,P,C,S,IO),F_INOUTS(R,V,T,P,C,S,IO))
@@ -258,11 +258,11 @@ def eqobjvar_rpt_current(
 
   {arg1}_FLOC({arg3}RTP_VINTYR(R,V,T,P),C,CUR)$(OBJ_VFLO(R,P,C,CUR,'TAX')$TRACKPC(R,P,C)) =
      SUM(RTPCS_VARF(R,T,P,C,S),
-         SUM(TS_ANN(S,TS),{arg5}({tpulse} OBJ_FTAX(R,{arg4},P,C,TS,CUR))) * PAR_FLO(R,V,T,P,C,S));
+         SUM(TS_ANN(S,TS),{arg5}({tpulse} {macro.obj_ftax("R", arg4, "P", "C", "TS", "CUR")})) * PAR_FLO(R,V,T,P,C,S));
 
   {arg1}_FLOC({arg3}RTP_VINTYR(R,V,T,P),C,CUR)$(OBJ_VFLO(R,P,C,CUR,'TAX')$RP_IRE(R,P)) =
      SUM(RTPCS_VARF(R,T,P,C,S),
-      SUM(TS_ANN(S,TS),{arg5}({tpulse} OBJ_FTAX(R,{arg4},P,C,TS,CUR))) *
+      SUM(TS_ANN(S,TS),{arg5}({tpulse} {macro.obj_ftax("R", arg4, "P", "C", "TS", "CUR")})) *
       (
          SUM(RPC_IRE(R,P,C,IE), PAR_IRE(R,V,T,P,C,S,IE)) +
          SUM(IO$F_INOUTS(R,V,T,P,C,S,IO),F_INOUTS(R,V,T,P,C,S,IO))
@@ -295,7 +295,7 @@ def eqobjvar_rpt_legacy(
     include_cal_caps = cal_caps_mod(
         is_vnret_defined=is_vnret_defined,
         arg1="T",
-        arg2="SUM(TS_ANN(TS,SL),OBJ_FCOST(R,Y_EOH,P,C,SL,CUR)+OBJ_FDELV(R,Y_EOH,P,C,SL,CUR)+OBJ_FTAX(R,Y_EOH,P,C,SL,CUR))",
+        arg2=f"SUM(TS_ANN(TS,SL),{macro.obj_fcost('R', 'Y_EOH', 'P', 'C', 'SL', 'CUR')}+{macro.obj_fdelv('R', 'Y_EOH', 'P', 'C', 'SL', 'CUR')}+{macro.obj_ftax('R', 'Y_EOH', 'P', 'C', 'SL', 'CUR')})",
         arg3="TS",
         arg4=".L",
         varv=varv,
@@ -313,7 +313,7 @@ def eqobjvar_rpt_legacy(
 *------------------------------------------------------------------------------
  LOOP(T,
         PAR_OBJACT(R,V,Y_EOH,P,S,CUR)$(PERIODYR(T,Y_EOH)*RTP_VINTYR(R,V,T,P)*PRC_TS(R,P,S)) =
-          OBJ_DISC(R,Y_EOH,CUR) * OBJ_ACOST(R,Y_EOH,P,CUR) * VAR_ACT.L(R,V,T,P,S) * POWER(RS_STGAV(R,S),1$RP_STG(R,P))
+          OBJ_DISC(R,Y_EOH,CUR) * {macro.obj_acost("R", "Y_EOH", "P", "CUR")} * VAR_ACT.L(R,V,T,P,S) * POWER(RS_STGAV(R,S),1$RP_STG(R,P))
      );
 
 *------------------------------------------------------------------------------
@@ -340,7 +340,7 @@ def eqobjvar_rpt_legacy(
        PAR_OBJFLO(R,V,Y_EOH,P,C,S,CUR)$(PERIODYR(T,Y_EOH)*RTPCS_VARF(R,T,P,C,S)*RTP_VINTYR(R,V,T,P)*RP_FLO(R,P)) =
 
          OBJ_DISC(R,Y_EOH,CUR) * PAR_FLO(R,V,T,P,C,S) *
-         SUM(TS_ANN(S,TS),OBJ_FCOST(R,Y_EOH,P,C,TS,CUR) + OBJ_FDELV(R,Y_EOH,P,C,TS,CUR) + OBJ_FTAX(R,Y_EOH,P,C,TS,CUR))
+         SUM(TS_ANN(S,TS),{macro.obj_fcost("R", "Y_EOH", "P", "C", "TS", "CUR")} + {macro.obj_fdelv("R", "Y_EOH", "P", "C", "TS", "CUR")} + {macro.obj_ftax("R", "Y_EOH", "P", "C", "TS", "CUR")})
      );
 
  LOOP(T,
@@ -348,7 +348,7 @@ def eqobjvar_rpt_legacy(
 
          PAR_OBJFLO(R,V,Y_EOH,P,C,S,CUR) +
          OBJ_DISC(R,Y_EOH,CUR) *
-         SUM(TS_ANN(S,TS),OBJ_FCOST(R,Y_EOH,P,C,TS,CUR) + OBJ_FDELV(R,Y_EOH,P,C,TS,CUR) + OBJ_FTAX(R,Y_EOH,P,C,TS,CUR)) *
+         SUM(TS_ANN(S,TS),{macro.obj_fcost("R", "Y_EOH", "P", "C", "TS", "CUR")} + {macro.obj_fdelv("R", "Y_EOH", "P", "C", "TS", "CUR")} + {macro.obj_ftax("R", "Y_EOH", "P", "C", "TS", "CUR")}) *
          (
            SUM(RPC_IRE(R,P,C,IE), PAR_IRE(R,V,T,P,C,S,IE)) +
            SUM(IO$F_INOUTS(R,V,T,P,C,S,IO),F_INOUTS(R,V,T,P,C,S,IO))

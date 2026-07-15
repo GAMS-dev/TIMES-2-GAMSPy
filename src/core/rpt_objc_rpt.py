@@ -17,7 +17,8 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -150,9 +151,11 @@ def rpt_objc_rpt(
   PAR_OBJCAP(OBJ_ICUR(R,T,P,CUR)) = COR_SALVI(R,T,P,CUR) / OBJ_DIVI(R,T,P) *
     SUM(OBJ_SUMII(R,T,P,LIFE,K_EOH,JOT), {capjd}
       SUM(INVSPRED(K_EOH,JOT,Y,K), OBJ_DISC(R,K,CUR) *
-        (OBJ_ICOST(R,K,P,CUR) + OBJ_ITAX(R,K,P,CUR) - OBJ_ISUB(R,K,P,CUR)
+        ({macro.obj_icost("R", "K", "P", "CUR")} + {
+        macro.obj_itax("R", "K", "P", "CUR")
+    } - {macro.obj_isub("R", "K", "P", "CUR")}
 {
-        "        +SUM(SW_TSW(SOW,T,WW)$OBJ_SIC(R,T,P,WW),OBJ_SIC(R,T,P,WW)*OBJ_ICOST(R,K,P,CUR)*(1-SALV_INV(R,T,P,Y)))"
+        f"        +SUM(SW_TSW(SOW,T,WW)$OBJ_SIC(R,T,P,WW),OBJ_SIC(R,T,P,WW)*{macro.obj_icost('R', 'K', 'P', 'CUR')}*(1-SALV_INV(R,T,P,Y)))"
         if stages.upper() == "YES"
         else ""
     }
@@ -161,7 +164,9 @@ def rpt_objc_rpt(
 * Decommissioning costs
   OPTION CLEAR=PAR_OBJSAL;
   PAR_OBJSAL(RTP(R,T,P),CUR)$RDCUR(R,CUR) = COR_SALVD(R,T,P,CUR) / OBJ_DIVIII(R,T,P) *
-    SUM(OBJ_SUMIII(R,T,P,LL,K,Y)$OBJ_DCOST(R,T,P,CUR), OBJ_DISC(R,Y,CUR) * OBJ_DCOST(R,K,P,CUR));
+    SUM(OBJ_SUMIII(R,T,P,LL,K,Y)${
+        macro.obj_dcost("R", "T", "P", "CUR")
+    }, OBJ_DISC(R,Y,CUR) * {macro.obj_dcost("R", "K", "P", "CUR")});
 
   PAR_OBJCAP(RTP(R,T,P),CUR)$PAR_OBJSAL(R,T,P,CUR) = PAR_OBJCAP(R,T,P,CUR) + PAR_OBJSAL(R,T,P,CUR));
 *-------------------------------------------------------------------------------
@@ -171,23 +176,35 @@ def rpt_objc_rpt(
   PAR_OBJSAL(OBJ_FCUR(R,T,P,CUR)) =
     SUM(OBJ_SUMIV(K_EOH,R,T,P,JOT,LIFE)$(NOT RTP_ISHPR(R,T,P)),
        SUM(INVSPRED(K_EOH,JOT,LL,K), OBJ_LIFE(LL,R,JOT,LIFE,CUR) * {capwd}
-        (OBJ_FOM(R,K,P,CUR)+OBJ_FTX(R,K,P,CUR)-OBJ_FSB(R,K,P,CUR))) / OBJ_DIVIV(R,T,P)) +
+        ({macro.obj_fom("R", "K", "P", "CUR")}+{macro.obj_ftx("R", "K", "P", "CUR")}-{
+        macro.obj_fsb("R", "K", "P", "CUR")
+    })) / OBJ_DIVIV(R,T,P)) +
 
     SUM(OBJ_SUMIV(K_EOH,RTP_ISHPR(R,T,P),JOT,LIFE),
        SUM((INVSPRED(K_EOH,JOT,LL,K),OPYEAR(LIFE,AGE),Y_EOH(LL+(ORD(AGE)-1))),
            OBJ_DISC(R,Y_EOH,CUR) * {capwd}
               (
-                OBJ_FOM(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,T,P,'1',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) +
-                OBJ_FTX(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,T,P,'2',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) -
-                OBJ_FSB(R,K,P,CUR) * (1+SUM(RTP_SHAPE(R,T,P,'3',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1))
+                {
+        macro.obj_fom("R", "K", "P", "CUR")
+    } * (1+SUM(RTP_SHAPE(R,T,P,'1',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) +
+                {
+        macro.obj_ftx("R", "K", "P", "CUR")
+    } * (1+SUM(RTP_SHAPE(R,T,P,'2',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) -
+                {
+        macro.obj_fsb("R", "K", "P", "CUR")
+    } * (1+SUM(RTP_SHAPE(R,T,P,'3',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1))
               )
            ) / OBJ_DIVIV(R,T,P));
 
   PAR_OBJCAP(RTP(R,T,P),CUR)$PAR_OBJSAL(R,T,P,CUR) = PAR_OBJCAP(R,T,P,CUR) + PAR_OBJSAL(R,T,P,CUR));
 *-------------------------------------------------------------------------------
 * Decommissioning Surveillance coefficient
-  PAR_OBJCAP(RTP(R,T,P),CUR)$(OBJ_DLAGC(R,T,P,CUR)$CNT) = PAR_OBJCAP(R,T,P,CUR) +
-        SUM(OBJ_SUMIVS(R,T,P,K,Y), OBJ_DISC(R,Y,CUR) * OBJ_DLAGC(R,K,P,CUR));
+  PAR_OBJCAP(RTP(R,T,P),CUR)$({
+        macro.obj_dlagc("R", "T", "P", "CUR")
+    }$CNT) = PAR_OBJCAP(R,T,P,CUR) +
+        SUM(OBJ_SUMIVS(R,T,P,K,Y), OBJ_DISC(R,Y,CUR) * {
+        macro.obj_dlagc("R", "K", "P", "CUR")
+    });
 *-------------------------------------------------------------------------------
 * Capacity-related flow cost coefficient
   OPTION CLEAR=PAR_OBJSAL;
@@ -195,15 +212,19 @@ def rpt_objc_rpt(
     SUM((RPC_CAPFLO(R,V,P,C),RDCUR(R,CUR)),
 * Flows related to investment / decommissioning
       SUM(VNT(V,T)$(COEF_ICOM(R,V,T,P,C)+COEF_OCOM(R,V,T,P,C)),(COEF_ICOM(R,V,T,P,C)+COEF_OCOM(R,V,T,P,C)) *
-        SUM(RPCS_VAR(R,P,C,TS), G_YRFR(R,TS) * SUM(TS_ANN(TS,SL),SUM({
-        tpulse
-    }(OBJ_FCOST(R,Y_EOH,P,C,SL,CUR)+OBJ_FDELV(R,Y_EOH,P,C,SL,CUR)+OBJ_FTAX(R,Y_EOH,P,C,SL,CUR)))))) +
+        SUM(RPCS_VAR(R,P,C,TS), G_YRFR(R,TS) * SUM(TS_ANN(TS,SL),SUM({tpulse}({
+        macro.obj_fcost("R", "Y_EOH", "P", "C", "SL", "CUR")
+    }+{macro.obj_fdelv("R", "Y_EOH", "P", "C", "SL", "CUR")}+{
+        macro.obj_ftax("R", "Y_EOH", "P", "C", "SL", "CUR")
+    }))))) +
 * Flows related to existing capacity over lifetime
       SUM((RTP_CPTYR(R,V,T,P),IO)$NCAP_COM(R,V,P,C,IO),
         COEF_CPT(R,V,T,P) * NCAP_COM(R,V,P,C,IO) * (1 + COEF_CIO(R,V,T,P,C,IO)) *
-        SUM(RPCS_VAR(R,P,C,TS), G_YRFR(R,TS) * SUM(TS_ANN(TS,SL),SUM({
-        tpulse
-    }(OBJ_FCOST(R,Y_EOH,P,C,SL,CUR)+OBJ_FDELV(R,Y_EOH,P,C,SL,CUR)+OBJ_FTAX(R,Y_EOH,P,C,SL,CUR))))))
+        SUM(RPCS_VAR(R,P,C,TS), G_YRFR(R,TS) * SUM(TS_ANN(TS,SL),SUM({tpulse}({
+        macro.obj_fcost("R", "Y_EOH", "P", "C", "SL", "CUR")
+    }+{macro.obj_fdelv("R", "Y_EOH", "P", "C", "SL", "CUR")}+{
+        macro.obj_ftax("R", "Y_EOH", "P", "C", "SL", "CUR")
+    })))))
     );
 *-------------------------------------------------------------------------------
 * Salvage coefficient
@@ -215,7 +236,9 @@ def rpt_objc_rpt(
     SUM(OBJ_SUMS3(R,T,P), SALV_DEC(R,T,P,CUR)) * OBJ_DCEOH(R,CUR) +
 *   Cases IV - Decommissioning Surveillance
       SUM(OBJ_SUMIVS(R,T,P,K,Y)$SALV_INV(R,T,P,K),
-          OBJ_DISC(R,Y,CUR) * OBJ_DLAGC(R,K,P,CUR) * SALV_INV(R,T,P,K));
+          OBJ_DISC(R,Y,CUR) * {
+        macro.obj_dlagc("R", "K", "P", "CUR")
+    } * SALV_INV(R,T,P,K));
 
   COEF_RTP(R,T,P) $= SUM(CUR$PAR_OBJCAP(R,T,P,CUR),ROUND(PAR_OBJCAP(R,T,P,CUR)-PAR_OBJSAL(R,T,P,CUR),7));
 {
