@@ -20,6 +20,8 @@ import logging
 import os
 from typing import TYPE_CHECKING
 
+from gamspy import Set
+
 from core.base_class import GamsClass
 from core.bndmain_mod import BndmainMod
 from core.coef_ext_abs import CoefExtAbs
@@ -103,6 +105,7 @@ class MainDrvMod(GamsClass):
 
     def compile(self) -> None:
         g = self.tc
+        m = g.container
 
         self.env.set_local("src", self.arg1)
         self.include(SetglobsGms(tc=self.tc, env=self.env, arg1="1"))
@@ -152,6 +155,8 @@ class MainDrvMod(GamsClass):
         self.env.set_scoped("r_v_t_GP", (g.r, g.v, g.t))
         self.env.set_scoped("rtpx", "")
 
+        # moved symbol declarion from pp_main.py
+        g.Subt = Set(m, name="SUBT", domain=[g.t])
         if self.env.is_set("stepped"):
             self.env.set_scoped("r_t", "R,SUBT(T)")
             self.env.set_scoped("r_t_GP", (g.r, g.Subt[g.t]))

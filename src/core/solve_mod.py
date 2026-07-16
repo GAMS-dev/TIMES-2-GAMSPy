@@ -60,7 +60,7 @@ class SolveMod(GamsClass):
     def compile(self) -> None:
         # * Release some memory
         self.include(PpCleanMod(self.tc, self.env))
-        self.tc.enqueue(self.set_model_param, model_name=self.model_name)
+        self.tc.enqueue(set_model_param, module=self, model_name=self.model_name)
 
         ### * MACRO: Loading solution from GDX file replaced by activating the SPOINT utility
         if self.env.solve_now != "NO":
@@ -86,14 +86,16 @@ class SolveMod(GamsClass):
 
             if self.env.macro.upper() == "YES":
                 self.tc.enqueue(
-                    self.solve_times,
+                    solve_times,
+                    module=self,
                     model_name=self.model_name,
                     method=self.env.method,
                 )
                 # GOTO CHECK
             else:
                 self.tc.enqueue(
-                    self.solve_times_as_lp_mip,
+                    solve_times_as_lp_mip,
+                    module=self,
                     model_name=self.model_name,
                     method=self.env.method,
                     equations=self.equations,
@@ -112,11 +114,12 @@ class SolveMod(GamsClass):
             # * hook for GAMS-CGI WWW output
             # $  IF %GAMS_CGI% == WWW  $BATINCLUDE www_out.cgi
 
-    def set_model_param(self: SolveMod, model_name: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
+
+def set_model_param(module: GamsClass, model_name: str) -> None:
+    module.tc.add_gams_code(
+        module=module,
+        phase="run",
+        code=rf"""
 *  get the optimizer directive file
 {model_name}.OPTFILE = OPTFILEID;
 {model_name}.PRIOROPT=(OPTFILEID=2);
@@ -124,70 +127,115 @@ class SolveMod(GamsClass):
 {model_name}.MODELSTAT = 0;
 {model_name}.TOLPROJ= 1e-8;
 """,
-        )
+    )
 
-    def solve_times(self: SolveMod, model_name: str, method: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
+
+def solve_times(module: GamsClass, model_name: str, method: str) -> None:
+    module.tc.add_gams_code(
+        module=module,
+        phase="run",
+        code=rf"""
 SOLVE {model_name} MAXIMIZING VAR_UTIL USING {method};
 """,
-        )
+    )
 
-    def solve_times_as_lp_mip(
-        self: SolveMod, model_name: str, method: str, equations: list[str]
-    ) -> None:
-        """solve TIMES as an LP/MIP"""
-        eqs: Sequence[Equation] = [self.tc.container[e] for e in equations]  # type: ignore[misc]
-        obj = self.tc.OBJZ
-        model = Model(
-            container=self.tc.container,
-            name=model_name,
-            problem=method,
-            equations=eqs,
-            sense="MIN",
-            objective=obj,
-        )
 
-        set_options({"VALIDATION": 0})
+def solve_times_as_lp_mip(
+    module: GamsClass, model_name: str, method: str, equations: list[str]
+) -> None:
+    """solve TIMES as an LP/MIP"""
+    eqs: Sequence[Equation] = [module.tc.container[e] for e in equations]  # type: ignore[misc]
+    obj = module.tc.OBJZ
+    model = Model(
+        container=module.tc.container,
+        name=model_name,
+        problem=method,
+        equations=eqs,
+        sense="MIN",
+        objective=obj,
+    )
 
-        # solve with convert
+    set_options({"VALIDATION": 0})
+
+    # solve with convert
+    model.solve(
+        solver="convert",
+        solver_options={
+            "DumpGDX": module.tc.output_convert,
+            # "dict": "dict.txt"
+        },
+        output=sys.stdout,
+    )
+
+    # regular solve
+    if module.tc.solve:
         model.solve(
-            solver="convert",
-            solver_options={
-                "DumpGDX": self.tc.output_convert,
-                # "dict": "dict.txt"
-            },
             output=sys.stdout,
+            options=module.tc.solve_options,
+            solver_options=Path(module.tc.config.data_dir, "cplex.opt"),
+        )
+    else:
+        model.solve(
+            output=sys.stdout,
+            options=Options(
+                bypass_solver=True,
+                loadpoint=Path(module.tc.config.data_dir, "times_p2.gdx"),
+            ),
+        )
+        fake_file = Path(module.tc.config.data_dir, "times_modelstat.inc")
+        # fake model status in GAMS
+        module.tc.container.addGamsCode(f"$include {fake_file}")
+
+        # fake model status in GAMSPy
+        with open(fake_file) as f:
+            s = f.read()
+        match = re.search(r"=\s*(\d+);", s)
+        if match:
+            value = int(match.group(1))
+            model._status = ModelStatus(value)
+
+
+def solve_mod_GP(
+    module: GamsClass,
+    model_name: str,
+    equations: list[str],
+    memclean: str,
+    solve_now: str,
+    mixlp: str,
+    nonlp: str,
+    damage: str,
+    micro: str,
+    macro: str,
+    etl: str,
+    solmip: str,
+) -> None:
+    # Release some memory
+    module.tc.add_gams_code(
+        module=module, phase="run", code=pp_clean_mod(memclean=memclean)
+    )
+    set_model_param(module=module, model_name=model_name)
+
+    if solve_now != "NO":
+        # Evaluate mixlp and nonlp states
+        mix_str = (
+            "MI" if "YES" in (etl, solmip) else ("" if mixlp == "%MIXLP%" else mixlp)
+        )
+        non_str = (
+            "NL"
+            if (damage == "NLP" or "YES" in (micro, macro))
+            else ("" if nonlp == "%NONLP%" else nonlp)
         )
 
-        # regular solve
-        if self.tc.solve:
-            model.solve(
-                output=sys.stdout,
-                options=self.tc.solve_options,
-                solver_options=Path(self.tc.config.data_dir, "cplex.opt"),
-            )
-        else:
-            model.solve(
-                output=sys.stdout,
-                options=Options(
-                    bypass_solver=True,
-                    loadpoint=Path(self.tc.config.data_dir, "times_p2.gdx"),
-                ),
-            )
-            fake_file = Path(self.tc.config.data_dir, "times_modelstat.inc")
-            # fake model status in GAMS
-            self.tc.container.addGamsCode(f"$include {fake_file}")
+        # Combine and resolve the optimization method type
+        method = f"{mix_str}{non_str}P"
+        method = "LP" if method == "P" else method
 
-            # fake model status in GAMSPy
-            with open(fake_file) as f:
-                s = f.read()
-            match = re.search(r"=\s*(\d+);", s)
-            if match:
-                value = int(match.group(1))
-                model._status = ModelStatus(value)
+        if macro.upper() == "YES":
+            solve_times(module=module, model_name=model_name, method=method)
+        else:
+            solve_times_as_lp_mip(
+                module=module, model_name=model_name, method=method, equations=equations
+            )
 
 
 def solve_mod(

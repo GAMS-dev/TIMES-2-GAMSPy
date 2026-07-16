@@ -1546,7 +1546,7 @@ class TimesModelClass:
     # -----------------------
     def initialization(self) -> None:
         """Modules are initialized / compiled within their __init__ method. Only used to write GDX state after compilation."""
-        self.container.write(self.output_compile, eps_to_zero=False)
+        self.container.write(self.output_compile, eps_to_zero=False, compress=True)
 
     def enqueue(
         self, func: Callable[P, Any], *args: P.args, **kwargs: P.kwargs
@@ -1559,7 +1559,7 @@ class TimesModelClass:
         self.logger.info("Phase: run")
         for func, args, kwargs in self.execution_list:
             func(*args, **kwargs)
-        self.container.write(self.output_execute, eps_to_zero=False)
+        self.container.write(self.output_execute, eps_to_zero=False, compress=True)
 
     # -----------------------
     # Utils

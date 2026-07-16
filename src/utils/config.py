@@ -2,6 +2,7 @@
 from pathlib import Path
 from typing import Literal
 
+import pandas as pd
 from gamspy import Alias, Expression, Number, Set, Sum
 from gamspy._algebra.condition import Condition
 from gamspy._symbols.implicits import ImplicitSet
@@ -131,7 +132,7 @@ class EnvironmentVariableSchema(BaseModel):
     r_t: str = Field(
         description="Tracking string substitution index layer representing the baseline active multi-region mapping node."
     )
-    r_t_GP: tuple[Set | Alias, Set | Alias] = Field(
+    r_t_GP: tuple[Set | Alias | ImplicitSet, Set | Alias | ImplicitSet] = Field(
         description="Tracking string substitution index layer representing the baseline active multi-region mapping node."
     )
 
@@ -571,10 +572,14 @@ class EnvironmentVariableSchema(BaseModel):
     bigm: str
     gg_wn: str
     ireauxbal: str
+    rpt_opt: pd.DataFrame
+    stepped: str
     trivint: str
 
 
 class UserConfig(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     validate_: Literal["NO", "%validate%"] = Field(
         default="%validate%", alias="validate"
     )
@@ -608,6 +613,8 @@ class UserConfig(BaseModel):
     fixboh: int | Literal["%fixboh%"] = "%fixboh%"
     lpoint: str = "%lpoint%"
     dsc: str = "%dsc%"
+    timestep: int | str = "%timestep%"
+    rpt_opt: pd.DataFrame | Literal["%rpt_opt%"] = "%rpt_opt%"
 
 
 class RunConfig(BaseModel):
