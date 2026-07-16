@@ -2019,8 +2019,8 @@ $ GDXIN
         if not self.tc.j[spoint] and not spoint == "YES":
             raise KeyError(f"Invalid Control: SPOINT = {spoint}")
 
-    def catch_invalid_timestep_control(self, timestep: str) -> None:
-        if not self.tc.age[timestep]:
+    def catch_invalid_timestep_control(self, timestep: int) -> None:
+        if len(self.tc.age[timestep]) == 0:
             raise KeyError(f"Invalid Control: TIMESTEP = {timestep}")
 
     def catch_invalid_fixboh_control(self, fixboh: str) -> None:

@@ -3,10 +3,13 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, Literal
 
+import pandas as pd
 from gamspy import Parameter, SpecialValues
 from gamspy.math import rpower
 
 if TYPE_CHECKING:
+    from gamspy import Alias, Set, SpecialValues
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -17,7 +20,7 @@ class EscapeStack(Exception):
     pass
 
 
-def expand_set(symbol: Any, elements: Sequence[str | tuple[str, str]]) -> None:
+def expand_set(symbol: Set | Alias, elements: Sequence[str | tuple[str, str]]) -> None:
     """
     Expands a 1D GAMSPy Set with additional elements,
     preserving existing records (and their text) and avoiding duplicates.
@@ -51,6 +54,17 @@ def expand_set(symbol: Any, elements: Sequence[str | tuple[str, str]]) -> None:
 
     # 3. Update the GAMSPy symbol with the combined list of tuples
     symbol.setRecords(updated_records)
+
+
+def add_records(symbol: Parameter, elements: pd.DataFrame) -> None:
+    assert symbol.records is not None
+    existing_records = symbol.records
+    elements.columns = existing_records.columns
+
+    merged_records = pd.concat(
+        [existing_records, elements], ignore_index=True
+    ).drop_duplicates()
+    symbol.setRecords(merged_records)
 
 
 def resolve_ctst(exp: Any, val: Literal["", "**EPS", "**0", "1"]) -> Any:

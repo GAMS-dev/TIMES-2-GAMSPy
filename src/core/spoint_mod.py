@@ -15,11 +15,10 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.clearsol_stc import ClearsolStc
 from core.eqobsalv_mod import EqobsalvMod
 from core.pp_clean_mod import PpCleanMod
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -34,12 +33,7 @@ class SpointMod(GamsClass):
     module_name: str = "spoint_mod"
     gams_source: str = "spoint.mod"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str = "",
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment, arg1: str = ""):
         self.env = env.fork()
         self.tc = tc
         self.arg1 = arg1

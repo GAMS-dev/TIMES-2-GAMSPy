@@ -40,10 +40,7 @@ class PpCleanMod(GamsClass):
         if self.env.memclean == "NO":
             return
 
-        self.tc.enqueue(
-            self.exec_pp_clean_mod,
-            memclean=self.env.memclean,
-        )
+        self.tc.enqueue(self.exec_pp_clean_mod, memclean=self.env.memclean)
 
         if not self.env.is_set("bencost"):
             self.env.set_global("bencost", "NO")
@@ -51,10 +48,7 @@ class PpCleanMod(GamsClass):
             # TODO: clarify what this file is about
             shutil.move("timesrng_inc.py", "timesrng_inc_bak.py")
 
-    def exec_pp_clean_mod(
-        self: PpCleanMod,
-        memclean: str,
-    ) -> None:
+    def exec_pp_clean_mod(self: PpCleanMod, memclean: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -62,10 +56,7 @@ class PpCleanMod(GamsClass):
         )
 
 
-def pp_clean_mod(
-    *,
-    memclean: str,
-) -> str:
+def pp_clean_mod(memclean: str) -> str:
     # TODO: in pp_clean.mod there is $IF NOT SET BENCOST $SETGLOBAL BENCOST NO
     # how should this be done in this string-returning function?
     if memclean == "NO":

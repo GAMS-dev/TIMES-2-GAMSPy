@@ -26,7 +26,7 @@ from core.sol_flo_red import sol_flo_red
 from core.sol_ire_rpt import sol_ire_rpt
 from core.solsetv_v3 import SolsetvV3
 from core.solsysd_v3 import SolsysdV3
-from core.utils import resolve_ctst
+from core.utils import add_records, resolve_ctst
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -129,12 +129,12 @@ class RptliteRpt(GamsClass):
         g.ww = Alias(m, name="WW", alias_with=g.allsow)
 
         if self.env.is_set("rpt_opt"):
-            g.rpt_opt = Parameter(m, name="RPT_OPT", records=self.env.rpt_opt)
+            if g.rpt_opt is not None:
+                add_records(g.rpt_opt, self.env.rpt_opt)
+            else:
+                g.rpt_opt = Parameter(m, name="RPT_OPT", records=self.env.rpt_opt)
 
-        if self.env.rpt_flots == "COM":
-            self.tc.enqueue(self.exec1)
-
-        self.tc.enqueue(self.exec2)
+        self.tc.enqueue(self.exec1, rpt_flots=self.env.rpt_flots == "COM")
 
         (
             j,
@@ -728,14 +728,13 @@ class RptliteRpt(GamsClass):
             ),
         )
 
-    def exec1(self: RptliteRpt) -> None:
-        g = self.tc
-        g.rpt_opt["FLO", "1"] = 1
-
-    def exec2(self: RptliteRpt) -> None:
+    def exec1(self: RptliteRpt, rpt_flots: bool) -> None:
         g = self.tc
 
         rpt_opt, item, j = g.rpt_opt, g.item, g.j
+
+        if rpt_flots:
+            rpt_opt["FLO", "1"] = 1
 
         rpt_opt[item, j].where[rpt_opt[item, j] == 0] = 0
         rpt_opt["FLO", "1"].where[rpt_opt["FLO", "3"]] = 1

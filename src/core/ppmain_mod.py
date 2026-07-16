@@ -170,7 +170,8 @@ class PpmainMod(GamsClass):
             return
 
         # initialize timestep control
-        self.tc.add_gams_code(module=self, phase=phase, code="SET SUBT(T) / SET.T /;")
+        # moved symbol declarion to ppmain_mod.py
+        g.Subt.setRecords(records=g.t.toList())
 
         self.tc.enqueue(
             self.phase_six, rl=self.env.rl, pl=self.env.pl, ctst=self.env.ctst

@@ -35,7 +35,7 @@ $  IFI    '%MACRO%'==YES    SOLVE %MODEL_NAME% MAXIMIZING VAR_UTIL USING %METHOD
 $  IFI    '%MACRO%'==YES    $GOTO CHECK
 * solve TIMES as an LP/MIP
 
-$onEcho > "%gams.optDir%%system.dirSep%convert.opt"
+$onEcho > %gams.optDir%%system.dirSep%convert.opt
 DumpGDX %CONVERT_GDX%
 !dict %MODEL_NAME%_dict.txt
 $offEcho
@@ -56,7 +56,7 @@ $elseifi.solvemode %SOLVEMODE%==LOADSOLUTION
   SOLVE %MODEL_NAME% MINIMIZING objZ USING %METHOD%;
 * load solution file and fake modelstatus from "real" solve
   execute_loadpoint '%SAVEPOINT_DIR%%system.dirSep%times_p2.gdx';
-  $$include %SAVEPOINT_DIR%%system.dirSep%times_modelstat.inc
+  $$include times_modelstat.inc
 $endif.solvemode
 
 $LABEL CHECK
