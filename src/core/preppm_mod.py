@@ -12,7 +12,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Set
+from gamspy import Loop, Ord, Set
+from gamspy.math import project
 
 from core.base_class import GamsClass
 from core.curex_gms import CurexGms, CurexGmsConfig
@@ -661,118 +662,234 @@ class PreppmMod(GamsClass):
             self.tc.enqueue(self.exec7)
 
     def exec1(self, dflbl: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-*-----------------------------------------------------------------------------
-* Ensure that both MODLYEAR and DATAYEAR include PASTYEAR
-* Also set the special year among datayears for the processing of control options.
-MODLYEAR(LL) = MILESTONYR(LL)+PASTYEAR(LL);
-DATAYEAR(PASTYEAR)  = YES;
-DATAYEAR('{dflbl}') = YES;
-
-* Build DM_YEAR for interpolation, excluding the special year:
-DM_YEAR(MILESTONYR) = YES;
-DM_YEAR(DATAYEAR) = (YEARVAL(DATAYEAR)>0);
-
-* Set migrating years MY_FIL, and FIL2 of each MY_FIL to the period year, if within periods:
-LOOP(T,FIL2(DM_YEAR)$((YEARVAL(DM_YEAR) >= B(T)) * (YEARVAL(DM_YEAR) <= E(T))) = YEARVAL(T));
-MY_FIL(DM_YEAR)$(FIL2(DM_YEAR)*(NOT T(DM_YEAR))) = YES;
-
-*-----------------------------------------------------------------------------
-""",
+        g = self.tc
+        (
+            Modlyear,
+            ll,
+            Milestonyr,
+            Pastyear,
+            Datayear,
+            DmYear,
+            yearval,
+            t,
+            fil2,
+            b,
+            e,
+            MyFil,
+        ) = (
+            g.Modlyear,
+            g.ll,
+            g.Milestonyr,
+            g.Pastyear,
+            g.Datayear,
+            g.DmYear,
+            g.yearval,
+            g.t,
+            g.fil2,
+            g.b,
+            g.e,
+            g.MyFil,
         )
+        # -----------------------------------------------------------------------------
+        # Ensure that both MODLYEAR and DATAYEAR include PASTYEAR
+        # Also set the special year among datayears for the processing of control options.
+        Modlyear[ll] = Milestonyr[ll] + Pastyear[ll]
+        Datayear[Pastyear] = True
+        Datayear[dflbl] = True
+        # Build DM_YEAR for interpolation, excluding the special year:
+        DmYear[Milestonyr] = True
+        DmYear[Datayear] = yearval[Datayear] > 0
+        # Set migrating years MY_FIL, and FIL2 of each MY_FIL to the period year, if within periods:
+        with Loop(t):
+            fil2[DmYear].where[
+                (yearval[DmYear] >= b[t]) * (yearval[DmYear] <= e[t])
+            ] = yearval[t]
+        MyFil[DmYear].where[fil2[DmYear] * ~t[DmYear]] = True
+        # -----------------------------------------------------------------------------
 
     def exec2(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-R_CUREX(R,CURR,CUR)$NO=0; R_CUREX(R,CURR,CUR)$(NOT R_CUREX(R,CURR,CUR))$=G_CUREX(CURR,CUR);
-""",
+        g = self.tc
+        r_curex, r, curr, cur, g_curex = g.r_curex, g.r, g.curr, g.cur, g.g_curex
+        r_curex[r, curr, cur].where[False] = 0  # type: ignore[index]
+        r_curex[r, curr, cur].where[~r_curex[r, curr, cur] & g_curex[curr, cur]] = (
+            g_curex[curr, cur]
         )
 
     def exec3(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Merge special case user attributes to generic case
-FLO_MARK(R,LL,P,C,BD)$((NOT RPC(R,P,C))$RC(R,C)$FLO_MARK(R,LL,P,C,BD)) = 0;
-PRC_MARK(R,LL,P,P,C,BD)$((RPC(R,P,C)->(FLO_MARK(R,'0',P,C,BD)>1))$RC(R,C)$PRC_MARK(R,LL,P,P,C,BD)) = 0;
-
-* Integration of COM costs
-OBJ_COMNT(R,DATAYEAR,C,S,'COST',CUR) $= COM_CSTNET(R,DATAYEAR,C,S,CUR);
-OBJ_COMNT(R,DATAYEAR,C,S,'TAX',CUR)  $= COM_TAXNET(R,DATAYEAR,C,S,CUR);
-OBJ_COMNT(R,DATAYEAR,C,S,'SUB',CUR)  $= COM_SUBNET(R,DATAYEAR,C,S,CUR)*(-1);
-OBJ_COMPD(R,DATAYEAR,C,S,'COST',CUR) $= COM_CSTPRD(R,DATAYEAR,C,S,CUR);
-OBJ_COMPD(R,DATAYEAR,C,S,'TAX',CUR)  $= COM_TAXPRD(R,DATAYEAR,C,S,CUR);
-OBJ_COMPD(R,DATAYEAR,C,S,'SUB',CUR)  $= COM_SUBPRD(R,DATAYEAR,C,S,CUR)*(-1);
-
-* Integration of UC_COMxxx
-UC_COM(UC_N,'PRD',SIDE,R,DATAYEAR,C,S,'COMPRD')$(NOT UC_ATTR(R,UC_N,SIDE,'COMPRD','NET')) $= UC_COMPRD(UC_N,SIDE,R,DATAYEAR,C,S);
-UC_COM(UC_N,'PRD',SIDE,R,DATAYEAR,C,S,'COMCON')$(NOT UC_ATTR(R,UC_N,SIDE,'COMCON','NET')) $= UC_COMCON(UC_N,SIDE,R,DATAYEAR,C,S);
-UC_COM(UC_N,'NET',SIDE,R,DATAYEAR,C,S,'COMPRD')$UC_ATTR(R,UC_N,SIDE,'COMPRD','NET') $= UC_COMPRD(UC_N,SIDE,R,DATAYEAR,C,S);
-UC_COM(UC_N,'NET',SIDE,R,DATAYEAR,C,S,'COMCON')$UC_COMCON(UC_N,SIDE,R,DATAYEAR,C,S)  = UC_COMCON(UC_N,SIDE,R,DATAYEAR,C,S)*(-1);
-UC_COM(UC_N,'NET',SIDE,R,DATAYEAR,C,S,'COMNET') $= UC_COMNET(UC_N,SIDE,R,DATAYEAR,C,S);
-""",
+        g = self.tc
+        (
+            flo_mark,
+            r,
+            ll,
+            p,
+            c,
+            bd,
+            Rpc,
+            Rc,
+            prc_mark,
+            obj_comnt,
+            Datayear,
+            s,
+            cur,
+            com_cstnet,
+            com_taxnet,
+            com_subnet,
+            obj_compd,
+            com_cstprd,
+            com_taxprd,
+            com_subprd,
+            uc_com,
+            ucn,
+            side,
+            UcAttr,
+            uc_comprd,
+            uc_comcon,
+            uc_comnet,
+        ) = (
+            g.flo_mark,
+            g.r,
+            g.ll,
+            g.p,
+            g.c,
+            g.bd,
+            g.Rpc,
+            g.Rc,
+            g.prc_mark,
+            g.obj_comnt,
+            g.Datayear,
+            g.s,
+            g.cur,
+            g.com_cstnet,
+            g.com_taxnet,
+            g.com_subnet,
+            g.obj_compd,
+            g.com_cstprd,
+            g.com_taxprd,
+            g.com_subprd,
+            g.uc_com,
+            g.ucn,
+            g.side,
+            g.UcAttr,
+            g.uc_comprd,
+            g.uc_comcon,
+            g.uc_comnet,
         )
+        # Merge special case user attributes to generic case
+        flo_mark[r, ll, p, c, bd].where[
+            ~Rpc[r, p, c] & Rc[r, c] & flo_mark[r, ll, p, c, bd]
+        ] = 0
+        prc_mark[r, ll, p, p, c, bd].where[
+            ((~Rpc[r, p, c]) | (flo_mark[r, "0", p, c, bd] > 1)).where[
+                Rc[r, c].where[prc_mark[r, ll, p, p, c, bd]]
+            ]
+        ] = 0
+        # Integration of COM costs
+        obj_comnt[r, Datayear, c, s, "COST", cur].where[
+            com_cstnet[r, Datayear, c, s, cur]
+        ] = com_cstnet[r, Datayear, c, s, cur]
+        obj_comnt[r, Datayear, c, s, "TAX", cur].where[
+            com_taxnet[r, Datayear, c, s, cur]
+        ] = com_taxnet[r, Datayear, c, s, cur]
+        obj_comnt[r, Datayear, c, s, "SUB", cur].where[
+            com_subnet[r, Datayear, c, s, cur] * -1
+        ] = com_subnet[r, Datayear, c, s, cur] * -1
+        obj_compd[r, Datayear, c, s, "COST", cur].where[
+            com_cstprd[r, Datayear, c, s, cur]
+        ] = com_cstprd[r, Datayear, c, s, cur]
+        obj_compd[r, Datayear, c, s, "TAX", cur].where[
+            com_taxprd[r, Datayear, c, s, cur]
+        ] = com_taxprd[r, Datayear, c, s, cur]
+        obj_compd[r, Datayear, c, s, "SUB", cur].where[
+            com_subprd[r, Datayear, c, s, cur] * -1
+        ] = com_subprd[r, Datayear, c, s, cur] * -1
+        # Integration of UC_COMxxx
+        uc_com[ucn, "PRD", side, r, Datayear, c, s, "COMPRD"].where[
+            ~UcAttr[r, ucn, side, "COMPRD", "NET"]
+            & uc_comprd[ucn, side, r, Datayear, c, s]
+        ] = uc_comprd[ucn, side, r, Datayear, c, s]
+        uc_com[ucn, "PRD", side, r, Datayear, c, s, "COMCON"].where[
+            ~UcAttr[r, ucn, side, "COMCON", "NET"]
+            & uc_comcon[ucn, side, r, Datayear, c, s]
+        ] = uc_comcon[ucn, side, r, Datayear, c, s]
+        uc_com[ucn, "NET", side, r, Datayear, c, s, "COMPRD"].where[
+            UcAttr[r, ucn, side, "COMPRD", "NET"]
+            & uc_comprd[ucn, side, r, Datayear, c, s]
+        ] = uc_comprd[ucn, side, r, Datayear, c, s]
+        uc_com[ucn, "NET", side, r, Datayear, c, s, "COMCON"].where[
+            uc_comcon[ucn, side, r, Datayear, c, s]
+        ] = uc_comcon[ucn, side, r, Datayear, c, s] * -1
+        uc_com[ucn, "NET", side, r, Datayear, c, s, "COMNET"].where[
+            uc_comnet[ucn, side, r, Datayear, c, s]
+        ] = uc_comnet[ucn, side, r, Datayear, c, s]
 
     def prepare_flags_for_flow_tax_sub(self: PreppmMod, dflbl: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
- OPTION RPC_CUR <= FLO_TAX; OBJ_VFLO(RPC_CUR,'TAX') = YES;
- OPTION RPC_CUR <= FLO_SUB; OBJ_VFLO(RPC_CUR,'SUB') $= OBJ_VFLO(RPC_CUR,'TAX');
- FLO_TAX(R,LL--ORD(LL),P,C,S,CUR)$((NOT FLO_TAX(R,'{dflbl}',P,C,S,CUR))$FLO_TAX(R,LL,P,C,S,CUR)$OBJ_VFLO(R,P,C,CUR,'SUB')) = 3;
- FLO_SUB(R,LL--ORD(LL),P,C,S,CUR)$((NOT FLO_SUB(R,'{dflbl}',P,C,S,CUR))$FLO_SUB(R,LL,P,C,S,CUR)$OBJ_VFLO(R,P,C,CUR,'SUB')) = 3;
-""",
+        g = self.tc
+        flo_tax, RpcCur, ObjVflo, flo_sub, r, ll, p, c, s, cur = (
+            g.flo_tax,
+            g.RpcCur,
+            g.ObjVflo,
+            g.flo_sub,
+            g.r,
+            g.ll,
+            g.p,
+            g.c,
+            g.s,
+            g.cur,
         )
+        project(source=flo_tax, target=RpcCur, direction="left")
+        ObjVflo[RpcCur, "TAX"] = True
+        project(source=flo_sub, target=RpcCur, direction="left")
+        ObjVflo[RpcCur, "SUB"].where[ObjVflo[RpcCur, "TAX"]] = ObjVflo[RpcCur, "TAX"]
+        flo_tax[r, ll.lag(Ord(ll), "circular"), p, c, s, cur].where[
+            ~flo_tax[r, dflbl, p, c, s, cur]
+            & flo_tax[r, ll, p, c, s, cur]
+            & ObjVflo[r, p, c, cur, "SUB"]
+        ] = 3
+        flo_sub[r, ll.lag(Ord(ll), "circular"), p, c, s, cur].where[
+            ~flo_sub[r, dflbl, p, c, s, cur]
+            & flo_sub[r, ll, p, c, s, cur]
+            & ObjVflo[r, p, c, cur, "SUB"]
+        ] = 3
 
     def exec4(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-*-----------------------------------------------------------------------------
-* Starting data pre-preprocessing with temporary control sets for parameters
-IE_DEFAULT(INT_DEFAULT) = 3;
-""",
-        )
+        g = self.tc
+        ie_default, intdefault = g.ie_default, g.intdefault
+        # -----------------------------------------------------------------------------
+        # Starting data pre-preprocessing with temporary control sets for parameters
+        ie_default[intdefault] = 3
 
     def exec5(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-RVP(RTP(R,V,P))$PRC_VINT(R,P) = YES;
-""",
-        )
+        g = self.tc
+        Rvp, Rtp, r, v, p, PrcVint = g.Rvp, g.Rtp, g.r, g.v, g.p, g.PrcVint
+        Rvp[Rtp[r, v, p]].where[PrcVint[r, p]] = True
 
     def exec6(self, dflbl: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-*-----------------------------------------------------------------------------
-* All parameters now processed, but second pass (dense interpolation) still needed for cost parameters
-OPTION CLEAR = UNCD7;
-PRC_MARK(R,T,P,P,C,BD) $= FLO_MARK(R,T,P,C,BD);
-*-----------------------------------------------------------------------------
-* Augment datayear with MILESTONYR, as they now contain user data.
-* Remove the special year from DATAYEAR, as controls are processed.
-DATAYEAR(MILESTONYR) = YES;
-DATAYEAR('{dflbl}') = NO;
-""",
+        g = self.tc
+        Uncd7, prc_mark, r, t, p, c, bd, flo_mark, Datayear, Milestonyr = (
+            g.Uncd7,
+            g.prc_mark,
+            g.r,
+            g.t,
+            g.p,
+            g.c,
+            g.bd,
+            g.flo_mark,
+            g.Datayear,
+            g.Milestonyr,
         )
+        # -----------------------------------------------------------------------------
+        # All parameters now processed, but second pass (dense interpolation) still needed for cost parameters
+        Uncd7.setRecords(None)
+        prc_mark[r, t, p, p, c, bd].where[flo_mark[r, t, p, c, bd]] = flo_mark[
+            r, t, p, c, bd
+        ]
+        # -----------------------------------------------------------------------------
+        # Augment datayear with MILESTONYR, as they now contain user data.
+        # Remove the special year from DATAYEAR, as controls are processed.
+        Datayear[Milestonyr] = True
+        Datayear[dflbl] = False
 
     def exec7(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-OPTION CLEAR=PASTSUM;
-""",
-        )
+        g = self.tc
+        pastsum = g.pastsum
+        pastsum.setRecords(None)
