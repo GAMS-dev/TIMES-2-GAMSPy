@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING
 
 from gamspy import Set
 
+from core.base_class import GamsClass
 from core.eqobjann_tm import EqobjannTm
 from core.eqobjels_mod import EqobjelsMod
 from core.eqobjels_rpt import EqobjelsRpt
@@ -33,8 +34,6 @@ from core.eqobjvar_rpt import EqobjvarRpt
 from core.eqobsalv_mod import EqobsalvMod
 from core.eqobsalv_rpt import EqobsalvRpt
 from core.prepret_dsc import PrepretDsc
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment

@@ -18,7 +18,8 @@ from typing import TYPE_CHECKING, Literal
 
 from gamspy import Equation, Sum
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
+from core.utils import apply_sw_stvars
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -71,12 +72,7 @@ class EquExtDsc(GamsClass):
         g.set_equation(f"{self.env.eq}_DSCONE", eq_dscone)
 
         if self.env.stages == "YES":
-            # TODO: Resolve
-            self.tc.add_gams_code(
-                module=self,
-                phase="init",
-                code=f"${self.env.witspine} {self.env.sw_stvars}",
-            )
+            apply_sw_stvars(env=self.env, g=self.tc, witspine=self.env.witspine)
 
         r, t, p, Rtp = g.r, g.t, g.p, g.Rtp
         PrcDscncap, ncap_disc, unit, ncap_semi = (

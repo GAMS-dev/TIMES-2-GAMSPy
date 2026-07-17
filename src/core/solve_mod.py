@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 import re
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -25,8 +26,6 @@ from core.err_stat_mod import ErrStatMod
 from core.pp_clean_mod import PpCleanMod, pp_clean_mod
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
-
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 

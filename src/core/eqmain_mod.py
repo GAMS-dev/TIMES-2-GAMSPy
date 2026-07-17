@@ -62,6 +62,7 @@ from core.equ_ext_vda import EquExtVda
 from core.equcwrap_mod import EqucwrapMod
 from core.eqxbnd_mod import EqxbndMod
 from core.recurrin_stc import RecurrinStc
+from core.utils import apply_ewispine, apply_sw_stvars, apply_witspine
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -116,12 +117,7 @@ class EqmainMod(GamsClass):
         if self.env.spines.upper() == "YES":
             self.include(RecurrinStc(tc=self.tc, env=self.env, arg1="SPINES"))
         if self.env.stages == "YES":
-            self.tc.add_gams_code(
-                module=self,
-                phase="init",
-                # TODO: need to check possible values for variables
-                code=rf"${self.env.witspine} {self.env.sw_stvars}",
-            )
+            apply_sw_stvars(env=self.env, g=self.tc, witspine=self.env.witspine)
 
         if self.env.obj.upper() != "LIN":
             self.env.set_local("obj", self.arg1.upper())
@@ -131,10 +127,7 @@ class EqmainMod(GamsClass):
             self.include(EqobjTm(tc=self.tc, env=self.env))
 
         if self.env.spines.upper() == "YES":
-            # TODO: Resolve
-            self.tc.add_gams_code(
-                module=self, phase="init", code=f"${self.env.ewispine}"
-            )
+            apply_ewispine(env=self.env)
 
         # Relationship between process activity & individual primary commodity flows
         self.include(EqactfloMod(tc=self.tc, env=self.env))
@@ -182,10 +175,7 @@ class EqmainMod(GamsClass):
 
         # Capacity transfer constraint
         if self.env.spines.upper() == "YES":
-            # TODO: Resolve
-            self.tc.add_gams_code(
-                module=self, phase="init", code=f"${self.env.witspine}"
-            )
+            apply_witspine(env=self.env)
         if self.env.validate == "YES":
             self._m2t()
         else:
@@ -197,10 +187,7 @@ class EqmainMod(GamsClass):
         # Cumulative process flow / activity
         self.include(EqcumfloMod(tc=self.tc, env=self.env))
         if self.env.spines.upper() == "YES":
-            # TODO: Resolve
-            self.tc.add_gams_code(
-                module=self, phase="init", code=f"${self.env.ewispine}"
-            )
+            apply_ewispine(env=self.env)
 
         # Basic commodity balance equations (by type) ensuring that production >=/= consumption
         self.include(
@@ -356,10 +343,7 @@ class EqmainMod(GamsClass):
             )
 
         if self.env.spines.upper() == "YES":
-            # TODO: Resolve
-            self.tc.add_gams_code(
-                module=self, phase="init", code=f"${self.env.witspine}"
-            )
+            apply_witspine(env=self.env)
 
         # Bounds on undiscounted costs by region, category and currency
         self.include(EqbndcstMod(tc=self.tc, env=self.env))
@@ -409,10 +393,7 @@ class EqmainMod(GamsClass):
             )
 
         if self.env.spines.upper() == "YES":
-            # TODO: Resolve
-            self.tc.add_gams_code(
-                module=self, phase="init", code=f"${self.env.ewispine}"
-            )
+            apply_ewispine(env=self.env)
 
         # Bound on total inter-regional exchange, including external+internal regions
         # *V0.5b avoid equations if LO=0/UP=INF

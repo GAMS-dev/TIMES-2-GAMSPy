@@ -13,13 +13,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Alias
+from gamspy import Alias, Parameter, Set
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
-    from utils.times_model_class import GamsPhase, TimesModelClass
+    from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
 
@@ -44,124 +44,282 @@ class InitmtyStc(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        phase: GamsPhase = "init"
         self.env.set_global("stages", "YES")
 
-        def input_control_parameters() -> None:
-            self.tc.add_gams_code(
-                module=self,
-                phase=phase,
-                code=r"""
+        self.input_control_parameters()
+        self.internal_sets_and_parameters()
+        self.available_sows_per_period()
+        self.stochastic_input_parameters()
+        self.internal_work_sets_and_parameters()
+        self.reporting()
+
+    def input_control_parameters(self) -> None:
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=r"""
 $onMulti
-  PARAMETER SW_START(J) //;
-  PARAMETER SW_SUBS(J,ALLSOW) //;
-  PARAMETER SW_SPROB(J,ALLSOW) //;
-  PARAMETER SW_PROB(ALLSOW) //;
-  PARAMETER SW_LAMBDA / 0 /;
+PARAMETER SW_START(J) //;
+PARAMETER SW_SUBS(J,ALLSOW) //;
+PARAMETER SW_SPROB(J,ALLSOW) //;
+PARAMETER SW_PROB(ALLSOW) //;
+PARAMETER SW_LAMBDA / 0 /;
 * Predefined UC names for tradeoff analysis
-  SET UC_N / OBJZ, OBJ1 /;
+SET UC_N / OBJZ, OBJ1 /;
 """,
-            )
+        )
 
-        def internal_sets_and_parameters() -> None:
-            g = self.tc
-            m = g.container
-            # ALIAS (ALLSOW,WW);
-            Alias(m, "WW", alias_with=g.allsow)
-            self.tc.add_gams_code(
-                module=self,
-                phase=phase,
-                code=r"""
-  SET SW_CHILD(J,WW,WW) 'Child SOWs of parent SOW at stage J' //;
-  SET SW_TREE(J,WW,WW)  'Finest level SOWs of SOW at stage J' //;
-  SET SW_COPY(J,ALLSOW) 'Parent SOW of SOWs to be copied' //;
-  SET SW_CPMAP(J,WW,WW) 'Copy map for attributes' //;
-  SET SW_TSTG(LL,J)     'Valid stages J for each period T' //;
-  SET SW_MAP(T,WW,J,WW) 'Map from internal to original SOW' //;
-  SET SW_REV(WW,J,WW)   'Reverse SOW tree' //;
-  SET SUPERYR(T,ALLYEAR) 'SUpremum PERiod YeaR' //;
-  PARAMETER SW_DESC(J,ALLSOW) 'Number of finest level SOWs' //;
-  SCALARS SW_PHASE / 0 /, SW_PARM / 0 /, SW_NORM / 1 /, DOITER / 0 /;
- """,
-            )
+    def internal_sets_and_parameters(self) -> None:
+        g = self.tc
+        m = g.container
 
-        def available_sows_per_period() -> None:
-            self.tc.add_gams_code(
-                module=self,
-                phase=phase,
-                code=r"""
-  SET SW_T(ALLYEAR,ALLSOW)          'Which SOWs are available at each period'               //;
-  SET SW_TSW(ALLSOW,ALLYEAR,ALLSOW) 'Mapping from finest SOWs to unique SOW at each period' //;
-  SET SW_STAGE(J,ALLSOW)            'Internal SOWs at each stage'                           //;
-  SET SW_UCT(UC_N,T,ALLSOW) //;
-  PARAMETER SW_TPROB(T,ALLSOW) //;
-                             """,
-            )
+        g.ww = Alias(m, "WW", alias_with=g.allsow)
+        g.SwChild = Set(
+            m,
+            name="SW_CHILD",
+            domain=[g.j, g.ww, g.ww],
+            description="Child SOWs of parent SOW at stage J",
+        )
+        g.SwTree = Set(
+            m,
+            name="SW_TREE",
+            domain=[g.j, g.ww, g.ww],
+            description="Finest level SOWs of SOW at stage J",
+        )
+        g.SwCopy = Set(
+            m,
+            name="SW_COPY",
+            domain=[g.j, g.allsow],
+            description="Parent SOW of SOWs to be copied",
+        )
+        g.SwCpmap = Set(
+            m,
+            name="SW_CPMAP",
+            domain=[g.j, g.ww, g.ww],
+            description="Copy map for attributes",
+        )
+        g.SwTstg = Set(
+            m,
+            name="SW_TSTG",
+            domain=[g.ll, g.j],
+            description="Valid stages J for each period T",
+        )
+        g.SwMap = Set(
+            m,
+            name="SW_MAP",
+            domain=[g.t, g.ww, g.j, g.ww],
+            description="Map from internal to original SOW",
+        )
+        g.SwRev = Set(
+            m, name="SW_REV", domain=[g.ww, g.j, g.ww], description="Reverse SOW tree"
+        )
+        g.Superyr = Set(
+            m,
+            name="SUPERYR",
+            domain=[g.t, g.allyear],
+            description="SUpremum PERiod YeaR",
+        )
+        g.sw_desc = Parameter(
+            m,
+            name="SW_DESC",
+            domain=[g.j, g.allsow],
+            description="Number of finest level SOWs",
+        )
+        g.sw_phase = Parameter(m, name="SW_PHASE", records=0)
+        g.sw_parm = Parameter(m, name="SW_PARM", records=0)
+        g.sw_norm = Parameter(m, name="SW_NORM", records=1)
+        g.doiter = Parameter(m, name="DOITER", records=0)
 
-        def stochastic_input_parameters() -> None:
-            self.tc.add_gams_code(
-                module=self,
-                phase=phase,
-                code=r"""
-  PARAMETER S_COM_PROJ(REG,ALLYEAR,COM,J,ALLSOW)  'Demand scenario projection' //;
-  PARAMETER S_CAP_BND(REG,ALLYEAR,PRC,BD,J,ALLSOW) 'Bound on total installed capacity' //;
-  PARAMETER S_COM_CUMPRD(R,BOHYEAR,EOHYEAR,C,BD,J,ALLSOW) 'Cumulative limit on COMPRD' //;
-  PARAMETER S_COM_CUMNET(R,BOHYEAR,EOHYEAR,C,BD,J,ALLSOW) 'Cumulative limit on COMNET' //;
-  PARAMETER S_COM_TAX(R,ALLYEAR,C,S,COM_VAR,CUR,J,ALLSOW) 'Tax on commodity NET/PRD' //;
-  PARAMETER S_FLO_CUM(R,P,C,ITEM,ITEM,BD,J,ALLSOW) 'Cumulative limit on FLOW' //;
-  PARAMETER S_FLO_FUNC(R,ALLYEAR,P,CG,CG,J,ALLSOW) 'Uncertain multiplier of process transformation';
-  PARAMETER S_NCAP_COST(R,ALLYEAR,P,J,ALLSOW) 'Uncertain multiplier of investment cost' //;
-  PARAMETER S_DAM_COST(R,ALLYEAR,C,CUR,J,ALLSOW) 'Damage costs';
-  PARAMETER S_UC_RHS(UC_N,LIM,J,ALLSOW) 'RHS of user constraint' //;
-  PARAMETER S_UC_RHSR(ALL_REG,UC_N,LIM,J,ALLSOW) 'RHS of user constraint' //;
-  PARAMETER S_UC_RHST(UC_N,ALLYEAR,LIM,J,ALLSOW) 'RHS of user constraint' //;
-  PARAMETER S_UC_RHSRT(ALL_REG,UC_N,ALLYEAR,LIM,J,ALLSOW) 'RHS of user constraint' //;
-  PARAMETER S_UC_RHSTS(UC_N,ALLYEAR,TS,LIM,J,ALLSOW) 'RHS of user constraint' //;
-  PARAMETER S_UC_RHSRTS(ALL_REG,UC_N,ALLYEAR,TS,LIM,J,ALLSOW) 'RHS of user constraint' //;
-  PARAMETER S_CM_MAXCO2C(ALLYEAR,J,ALLSOW) 'Maximum allowable atmospheric CO2 concentration' //;
-  PARAMETER S_CM_MAXC(ALLYEAR,ITEM,J,ALLSOW) 'Maximum allowable climatic quantity' //;
-  PARAMETER S_CM_CONST(ITEM,J,ALLSOW) 'Climate constants' //;
-  PARAMETER S_UCOBJ(UC_N,ALLSOW) 'Weight of UC objective component in tradeoff analysis' //;
-  PARAMETER S_NCAP_AFS(R,ALLYEAR,P,S,J,ALLSOW) 'Seasonal availability factors';
-  PARAMETER S_COM_FR(R,ALLYEAR,C,S,J,ALLSOW) 'Commodity fraction multipliers';
+    def available_sows_per_period(self) -> None:
+        g = self.tc
+        m = g.container
+        j, t, ucn, allyear, allsow = g.j, g.t, g.ucn, g.allyear, g.allsow
+
+        g.SwT = Set(
+            m,
+            name="SW_T",
+            domain=[allyear, allsow],
+            description="Which SOWs are available at each period",
+        )
+        g.SwTsw = Set(
+            m,
+            name="SW_TSW",
+            domain=[allsow, allyear, allsow],
+            description="Mapping from finest SOWs to unique SOW at each period",
+        )
+        g.SwStage = Set(
+            m,
+            name="SW_STAGE",
+            domain=[j, allsow],
+            description="Internal SOWs at each stage",
+        )
+        g.SwUct = Set(m, name="SW_UCT", domain=[ucn, t, allsow])
+        g.sw_tprob = Parameter(m, name="SW_TPROB", domain=[t, allsow])
+
+    def stochastic_input_parameters(self: InitmtyStc) -> None:
+        g = self.tc
+        m = g.container
+
+        r, p, c, j, s, item, allyear = g.r, g.p, g.c, g.j, g.s, g.item, g.allyear
+        prc, allsow, bohyear, eohyear = g.prc, g.allsow, g.bohyear, g.eohyear
+        bd, comvar, cur, cg, ucn = g.bd, g.comvar, g.cur, g.cg, g.ucn
+        reg, com, lim, allreg, ts = g.Reg, g.Com, g.lim, g.allreg, g.ts
+
+        g.s_com_proj = Parameter(
+            m,
+            name="S_COM_PROJ",
+            domain=[reg, allyear, com, j, allsow],
+            description="Demand scenario projection",
+        )
+        g.s_cap_bnd = Parameter(
+            m,
+            name="S_CAP_BND",
+            domain=[reg, allyear, prc, bd, j, allsow],
+            description="Bound on total installed capacity",
+        )
+        g.s_com_cumprd = Parameter(
+            m,
+            name="S_COM_CUMPRD",
+            domain=[r, bohyear, eohyear, c, bd, j, allsow],
+            description="Cumulative limit on COMPRD",
+        )
+        g.s_com_cumnet = Parameter(
+            m,
+            name="S_COM_CUMNET",
+            domain=[r, bohyear, eohyear, c, bd, j, allsow],
+            description="Cumulative limit on COMNET",
+        )
+        g.s_com_tax = Parameter(
+            m,
+            name="S_COM_TAX",
+            domain=[r, allyear, c, s, comvar, cur, j, allsow],
+            description="Tax on commodity NET/PRD",
+        )
+        g.s_flo_cum = Parameter(
+            m,
+            name="S_FLO_CUM",
+            domain=[r, p, c, item, item, bd, j, allsow],
+            description="Cumulative limit on FLOW",
+        )
+        g.s_flo_func = Parameter(
+            m,
+            name="S_FLO_FUNC",
+            domain=[r, allyear, p, cg, cg, j, allsow],
+            description="Uncertain multiplier of process transformation",
+        )
+        g.s_ncap_cost = Parameter(
+            m,
+            name="S_NCAP_COST",
+            domain=[r, allyear, p, j, allsow],
+            description="Uncertain multiplier of investment cost",
+        )
+        g.s_dam_cost = Parameter(
+            m,
+            name="S_DAM_COST",
+            domain=[r, allyear, c, cur, j, allsow],
+            description="Damage costs",
+        )
+        g.s_uc_rhs = Parameter(
+            m,
+            name="S_UC_RHS",
+            domain=[ucn, lim, j, allsow],
+            description="RHS of user constraint",
+        )
+        g.s_uc_rhsr = Parameter(
+            m,
+            name="S_UC_RHSR",
+            domain=[allreg, ucn, lim, j, allsow],
+            description="RHS of user constraint",
+        )
+        g.s_uc_rhst = Parameter(
+            m,
+            name="S_UC_RHST",
+            domain=[ucn, allyear, lim, j, allsow],
+            description="RHS of user constraint",
+        )
+        g.s_uc_rhsrt = Parameter(
+            m,
+            name="S_UC_RHSRT",
+            domain=[allreg, ucn, allyear, lim, j, allsow],
+            description="RHS of user constraint",
+        )
+        g.s_uc_rhsts = Parameter(
+            m,
+            name="S_UC_RHSTS",
+            domain=[ucn, allyear, ts, lim, j, allsow],
+            description="RHS of user constraint",
+        )
+        g.s_uc_rhsrts = Parameter(
+            m,
+            name="S_UC_RHSRTS",
+            domain=[allreg, ucn, allyear, ts, lim, j, allsow],
+            description="RHS of user constraint",
+        )
+        g.s_cm_maxco2c = Parameter(
+            m,
+            name="S_CM_MAXCO2C",
+            domain=[allyear, j, allsow],
+            description="Maximum allowable atmospheric CO2 concentration",
+        )
+        g.s_cm_maxc = Parameter(
+            m,
+            name="S_CM_MAXC",
+            domain=[allyear, item, j, allsow],
+            description="Maximum allowable climatic quantity",
+        )
+        g.s_cm_const = Parameter(
+            m,
+            name="S_CM_CONST",
+            domain=[item, j, allsow],
+            description="Climate constants",
+        )
+        g.s_ucobj = Parameter(
+            m,
+            name="S_UCOBJ",
+            domain=[ucn, allsow],
+            description="Weight of UC objective component in tradeoff analysis",
+        )
+        g.s_ncap_afs = Parameter(
+            m,
+            name="S_NCAP_AFS",
+            domain=[r, allyear, p, s, j, allsow],
+            description="Seasonal availability factors",
+        )
+        g.s_com_fr = Parameter(
+            m,
+            name="S_COM_FR",
+            domain=[r, allyear, c, s, j, allsow],
+            description="Commodity fraction multipliers",
+        )
+
+    def internal_work_sets_and_parameters(self) -> None:
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=r"""
+PARAMETER S_COM_CUM(R,COM_VAR,ALLYEAR,ALLYEAR,C,BD,J,ALLSOW) 'Cumulative limit on COMPRD' //;
+SET T0(LL) 'Augmented periods';
+SET SW_T2W(WW,T,WW,LL) 'Augmented map for SOWs by period';
+SET RTCSW(R,T,C,S,WW) 'Indicator for uncertain timeslice fractions';
+SET RTPW(R,ALLYEAR,P,ALLSOW) 'Uncertain SOW by vintage';
+SET RP_FFSGG(R,P,CG,CG) 'Uncertain transformation groups';
+SET RP_FFSGGM(R,P,CG,CG,COM_GRP,COM_GRP) 'Map of transformation groups';
+PARAMETER OBJ_SIC(R,T,P,ALLSOW) 'Uncertainty in investments';
+PARAMETER SUC_L(ALL_R,UC_N) 'Dynamic type LHS' //;
+PARAMETER RTP_SAFS(R,T,P,S,WW) 'Uncertain availability factors';
+PARAMETER RTCS_SFR(R,LL,C,S,WW,TS) 'Uncertain COM_FR multipliers';
+PARAMETER RCS_SSFR(R,C,S,TS,WW,LL) 'Uncertain COM_FR multipliers';
+
 """,
-            )
+        )
 
-        def internal_work_sets_and_parameters() -> None:
-            self.tc.add_gams_code(
-                module=self,
-                phase=phase,
-                code=r"""
-  PARAMETER S_COM_CUM(R,COM_VAR,ALLYEAR,ALLYEAR,C,BD,J,ALLSOW) 'Cumulative limit on COMPRD' //;
-  SET T0(LL) 'Augmented periods';
-  SET SW_T2W(WW,T,WW,LL) 'Augmented map for SOWs by period';
-  SET RTCSW(R,T,C,S,WW) 'Indicator for uncertain timeslice fractions';
-  SET RTPW(R,ALLYEAR,P,ALLSOW) 'Uncertain SOW by vintage';
-  SET RP_FFSGG(R,P,CG,CG) 'Uncertain transformation groups';
-  SET RP_FFSGGM(R,P,CG,CG,COM_GRP,COM_GRP) 'Map of transformation groups';
-  PARAMETER OBJ_SIC(R,T,P,ALLSOW) 'Uncertainty in investments';
-  PARAMETER SUC_L(ALL_R,UC_N) 'Dynamic type LHS' //;
-  PARAMETER RTP_SAFS(R,T,P,S,WW) 'Uncertain availability factors';
-  PARAMETER RTCS_SFR(R,LL,C,S,WW,TS) 'Uncertain COM_FR multipliers';
-  PARAMETER RCS_SSFR(R,C,S,TS,WW,LL) 'Uncertain COM_FR multipliers';
-
- """,
-            )
-
-        def reporting() -> None:
-            self.tc.add_gams_code(
-                module=self,
-                phase=phase,
-                code=r"""
-  PARAMETER SPAR_UCSL(WW,UC_N,*,*,*) //;
-  PARAMETER CM_SRESULT(ALLSOW,ITEM,ITEM,ALLYEAR) 'Climate Module basic results' //;
-  PARAMETER CM_SMAXC_M(ALLSOW,ITEM,ALLYEAR) 'Marginals for max constraints' //;
- """,
-            )
-
-        input_control_parameters()
-        internal_sets_and_parameters()
-        available_sows_per_period()
-        stochastic_input_parameters()
-        internal_work_sets_and_parameters()
-        reporting()
+    def reporting(self) -> None:
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=r"""
+PARAMETER SPAR_UCSL(WW,UC_N,*,*,*) //;
+PARAMETER CM_SRESULT(ALLSOW,ITEM,ITEM,ALLYEAR) 'Climate Module basic results' //;
+PARAMETER CM_SMAXC_M(ALLSOW,ITEM,ALLYEAR) 'Marginals for max constraints' //;
+""",
+        )

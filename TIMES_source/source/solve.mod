@@ -48,8 +48,8 @@ SOLVE %MODEL_NAME% MINIMIZING objZ USING %METHOD%;
 option lp=cplex, mip=cplex;
 $ifThenI.solvemode %SOLVEMODE%==SOLVE
   SOLVE %MODEL_NAME% MINIMIZING objZ USING %METHOD%;
-  file modelstatus / '%MODEL_NAME%_modelstat.inc' / ;
-  put modelstatus '%MODEL_NAME%.modelstat = ' %MODEL_NAME%.modelstat:0:0 ';' ;
+*  file modelstatus / '%MODEL_NAME%_modelstat.inc' / ;
+*  put modelstatus '%MODEL_NAME%.modelstat = ' %MODEL_NAME%.modelstat:0:0 ';' ;
 $elseifi.solvemode %SOLVEMODE%==LOADSOLUTION
 * generate model but do not pass it to the solver
   %MODEL_NAME%.JustScrDir=1;

@@ -762,7 +762,7 @@ class EqdeclrMod(GamsClass):
                 m,
                 name=f"{eq}L_SCAP",
                 type="regular",
-                domain=[g.r, g.allyear, g.p, g.ips, *swtd],
+                domain=[g.r, g.allyear, g.p, g.ips, *swd],
                 description="Salvage capacity (=L=)",
             ),
         )

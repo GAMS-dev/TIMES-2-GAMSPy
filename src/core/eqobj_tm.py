@@ -22,13 +22,12 @@ from typing import TYPE_CHECKING
 
 from gamspy import Parameter, Set
 
+from core.base_class import GamsClass
 from core.eqobjann_tm import EqobjannTm
 from core.eqobjels_mod import EqobjelsMod
 from core.eqobjfix_mod import EqobjfixMod
 from core.eqobjinv_mod import EqobjinvMod
 from core.eqobsalv_mod import EqobsalvMod
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment

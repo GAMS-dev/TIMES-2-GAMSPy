@@ -42,7 +42,7 @@ def mod_equa_mod(
         equations.append("EQ_OBJ")
 
         if stages.upper() == "YES":
-            equations.extend([f"EQ_EXPOBJ, EQ_UPDEV, {eq}_SOBJ, {eq}_ROBJ"])
+            equations.extend(["EQ_EXPOBJ", "EQ_UPDEV", f"{eq}_SOBJ", f"{eq}_ROBJ"])
 
         # * Resource depletion costs
         # equations.append("EQ_OBJDPL")

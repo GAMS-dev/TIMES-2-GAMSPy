@@ -452,7 +452,15 @@ MODEL {model_name} / {", ".join(equations)} /;
                     )
                 )
             elif ext == "stc":
-                self.include(SolveStc(tc=self.tc, env=self.env, arg1=self.arg1))
+                self.include(
+                    SolveStc(
+                        tc=self.tc,
+                        env=self.env,
+                        arg1=self.arg1,
+                        model_name=model_name,
+                        equations=equations,
+                    )
+                )
             elif ext == "stp":
                 self.include(
                     SolveStp(

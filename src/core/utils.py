@@ -97,8 +97,11 @@ def apply_sw_tags(env: CompileEnvironment, g: TimesModelClass) -> None:
         env.set_scoped("swt", ",SW_T(T,SOW)")
         env.set_scoped("swt_GP", (g.SwT[g.t, g.Sow],))
         env.set_scoped("vart", "SUM(SW_TSW(SOW,T,W),VAS")
+        env.set_scoped("vart_GP", ("VAS", g.SwTsw[g.Sow, g.t, g.w]))
         env.set_scoped("varv", "SUM(SW_TSW(SOW,V,W),VAS")
+        env.set_scoped("varv_GP", ("VAS", g.SwTsw[g.Sow, g.v, g.w]))
         env.set_scoped("varm", "SUM(SW_TSW(SOW,MODLYEAR,W),VAS")
+        env.set_scoped("varm_GP", ("VAS", g.SwTsw[g.Sow, g.Modlyear, g.w]))
     else:
         raise ValueError(f"Unknown value in sw_tags: {env.sw_tags}")
 
@@ -123,11 +126,43 @@ def apply_sw_notags(env: CompileEnvironment) -> None:
         env.set_scoped("swtd_GP", tuple())
         env.set_scoped("swsw", "")
         env.set_scoped("vart", "VAR")
+        env.set_scoped("vart_GP", ("VAR", None))
         env.set_scoped("varv", "VAR")
+        env.set_scoped("varv_GP", ("VAR", None))
         env.set_scoped("varm", "VAR")
+        env.set_scoped("varm_GP", ("VAR", None))
         env.set_scoped("vartt", "VAR")
+        env.set_scoped("vartt_GP", ("VAR", None))
     else:
         raise ValueError(f"Unknown value in sw_notags: {env.sw_notags}")
+
+
+def apply_witspine(env: CompileEnvironment) -> None:
+    # rf"SET EQS '{self.env.eq}' SET EQ 'Q'")
+    env.set_scoped("eqs", env.eq)
+    env.set_scoped("eq", "Q")
+
+
+def apply_ewispine(env: CompileEnvironment) -> None:
+    # rf"SET EQ {self.env.eq}"
+    env.set_scoped("eq", env.eq)
+
+
+def apply_sw_stvars(
+    env: CompileEnvironment, g: TimesModelClass, witspine: bool = False
+) -> None:
+    if witspine:
+        apply_witspine(env=env)
+
+    if (
+        env.sw_stvars
+        == "SET VARTT 'SUM(SW_TSW(SOW,TT,W),VAS' SET SWSW SW_TSW(SOW,T,WW),"
+    ):
+        env.set_scoped("vartt", "SUM(SW_TSW(SOW,TT,W),VAS")
+        env.set_scoped("vartt_GP", ("VAS", g.SwTsw[g.Sow, g.tt, g.w]))
+        env.set_scoped("swsw", "SW_TSW(SOW,T,WW),")
+    else:
+        raise ValueError(f"Unknown value in sw_stvars: {env.sw_stvars}")
 
 
 def generate_equation(lhs: Any, type: Literal["E", "N", "L", "G"], rhs: Any) -> Any:

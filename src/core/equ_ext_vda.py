@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
 from gamspy import Alias, Equation, Parameter, Set, Sum
 
+from core.base_class import GamsClass
 from core.bnd_ire_vda import BndIreVda
 from core.eqactups_vda import EqactupsVda
 from core.eqashar_vda import EqasharVda
@@ -30,8 +31,7 @@ from core.powerflo_vda import PowerfloVda
 from core.pp_actef_vda import PpActefVda
 from core.resloadc_vda import ResloadcVda
 from core.ucbet_vda import UcbetVda
-
-from .base_class import GamsClass
+from core.utils import apply_sw_stvars
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -71,10 +71,7 @@ class EquExtVda(GamsClass):
             return
         self.env.set_scoped("vas", self.env.var)
         if self.env.stages == "YES":
-            # TODO: Expected to FAIL: invalid add_gams_code
-            self.tc.add_gams_code(
-                module=self, phase="init", code=rf"""${self.env.sw_stvars}"""
-            )
+            apply_sw_stvars(env=self.env, g=self.tc)
         self.env.set_scoped(
             "upscap0", f"({self.env.upscaps}$PRC_TS(R,P,S))$RP_UPL(R,P,'FX')"
         )
@@ -143,12 +140,7 @@ class EquExtVda(GamsClass):
         for arg1, arg2, arg3, arg4 in equcrtp_batinclude:
             self.include(
                 EqucrtpVda(
-                    self.tc,
-                    self.env,
-                    arg1=arg1,
-                    arg2=arg2,
-                    arg3=arg3,
-                    arg4=arg4,
+                    self.tc, self.env, arg1=arg1, arg2=arg2, arg3=arg3, arg4=arg4
                 )
             )
 
@@ -466,7 +458,7 @@ class EquExtVda(GamsClass):
             Equation(
                 m,
                 name=f"{eq}_RL_LOAD",
-                domain=[r, t, s],
+                domain=[r, t, s, *swtd],
                 description="Total dispatchable residual loads",
             ),
         )
@@ -475,7 +467,7 @@ class EquExtVda(GamsClass):
             Equation(
                 m,
                 name=f"{eq}_RL_NDIS",
-                domain=[r, t, s, item],
+                domain=[r, t, s, item, *swtd],
                 description="Non-dispatchable loads by group",
             ),
         )
@@ -484,7 +476,7 @@ class EquExtVda(GamsClass):
             Equation(
                 m,
                 name=f"{eq}_RL_STCAP",
-                domain=[r, t, s],
+                domain=[r, t, s, *swtd],
                 description="Minimum available storage capacity",
             ),
         )
@@ -493,7 +485,7 @@ class EquExtVda(GamsClass):
             Equation(
                 m,
                 name=f"{eq}_RL_PKCAP",
-                domain=[r, t, s],
+                domain=[r, t, s, *swtd],
                 description="Minimum dispatchable reserve during peak",
             ),
         )
@@ -502,7 +494,7 @@ class EquExtVda(GamsClass):
             Equation(
                 m,
                 name=f"{eq}_RL_THMIN",
-                domain=[r, t, s, bd],
+                domain=[r, t, s, bd, *swtd],
                 description="Aggregate thermal minimum constraint",
             ),
         )

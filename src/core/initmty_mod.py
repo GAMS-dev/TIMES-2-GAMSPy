@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 
 from gamspy import Alias, Ord, Parameter, Set, Sum
 
+from core.base_class import GamsClass
 from core.err_stat_mod import ErrStatMod
 from core.initmty_abs import InitmtyAbs
 from core.initmty_cli import InitmtyCli
@@ -38,8 +39,6 @@ from core.initmty_vda import InitmtyVda
 from core.main_ext_mod import include_extension
 from core.maindrv_mod import MainDrvMod
 from core.utils import EscapeStack, expand_set
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment

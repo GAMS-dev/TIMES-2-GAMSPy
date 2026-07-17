@@ -19,9 +19,8 @@ import logging
 from typing import TYPE_CHECKING
 
 from core import cal_nored_red, cal_red_red, pp_lvlfc_mod
+from core.base_class import GamsClass
 from core.utils import callable_rts
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment

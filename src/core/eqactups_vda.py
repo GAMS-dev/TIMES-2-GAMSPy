@@ -46,33 +46,15 @@ class EqactupsVda(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        g = self.tc
-        r, v, p, k, t = g.r, g.v, g.p, g.k, g.t
         self.tc.enqueue(self.set_indicators, pgprim=self.env.pgprim)
-
-        varm_ncap = g.get_variable(name=f"{self.env.varm}_NCAP")
-        sws = self.env.sws_GP
 
         self.env.set_scoped(
             "capon",
             f"(COEF_CPT(R,V,T,P)*({self.env.varv}_NCAP(R,V,P{self.env.sws})$T(V)+NCAP_PASTI(R,V,P){self.env.rcapsub}))$PRC_VINT(R,P)+{self.env.var}_CAP(R,T,P{self.env.sow})$RP_UX(R,P)",
         )
-        self.env.set_scoped(
-            "mx",
-            f"SUM(RVP_KMAP(R,V,P,MODLYEAR(K)),COEF_VNT(R,T,P,K)*({self.env.varm}_NCAP(R,K,P{self.env.sws})$T(K)+NCAP_PASTI(R,K,P){self.env.rcapsbm}))",
-        )
-        self.env.set_scoped(
-            "mx_GP",
-            Sum(
-                g.RvpKmap[r, v, p, g.Modlyear[k]],
-                g.coef_vnt[r, t, p, k]
-                * (
-                    varm_ncap[r, k, p, *sws].where[t[k]]
-                    + g.ncap_pasti[r, k, p]
-                    + self.env.rcapsbm_GP
-                ),
-            ),
-        )
+
+        self.set_scoped_mx()
+
         self.env.set_scoped(
             "tmp",
             f"$(NOT RP_UX(R,P))+{self.env.var}_CAP(R,T,P{self.env.sow})$RP_UX(R,P){self.env.upscaps}",
@@ -162,6 +144,34 @@ class EqactupsVda(GamsClass):
             pgprim=self.env.pgprim,
             rts=rts,
         )
+
+    def set_scoped_mx(self: EqactupsVda) -> None:
+        g = self.tc
+
+        r, v, p, k, t = g.r, g.v, g.p, g.k, g.t
+        sws = self.env.sws_GP
+
+        self.env.set_scoped(
+            "mx",
+            f"SUM(RVP_KMAP(R,V,P,MODLYEAR(K)),COEF_VNT(R,T,P,K)*({self.env.varm}_NCAP(R,K,P{self.env.sws})$T(K)+NCAP_PASTI(R,K,P){self.env.rcapsbm}))",
+        )
+
+        varm_id, varm_set = self.env.varm_GP
+        VARM_NCAP = g.get_variable(f"{varm_id}_NCAP")
+
+        shared_expr = (
+            VARM_NCAP[r, k, p, *sws].where[t[k]]
+            + g.ncap_pasti[r, k, p]
+            + self.env.rcapsbm_GP
+        )
+
+        inner_expr = shared_expr if varm_set is None else Sum(varm_set, shared_expr)
+
+        mx_GP = Sum(
+            g.RvpKmap[r, v, p, g.Modlyear[k]], g.coef_vnt[r, t, p, k] * inner_expr
+        )
+
+        self.env.set_scoped("mx_GP", mx_GP)
 
     def set_indicators(self: EqactupsVda, pgprim: str) -> None:
         m = self.tc.container

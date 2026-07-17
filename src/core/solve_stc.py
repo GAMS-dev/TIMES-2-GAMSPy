@@ -13,14 +13,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.bnd_ucw_mod import bnd_ucw_mod
 from core.rpt_dam_mod import rpt_dam_mod
 from core.rpt_par_cli import rpt_par_cli
 from core.rptlite_rpt import RptliteRpt, RptliteRptConfig, rptlite_rpt
 from core.sensis_stc import sensis_stc
-from core.solve_mod import solve_mod
-
-from .base_class import GamsClass
+from core.solve_mod import solve_mod, solve_mod_GP
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -39,12 +38,16 @@ class SolveStc(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
+        model_name: str,
+        equations: list[str],
         arg1: str = "",
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
         self.arg1 = arg1
+        self.model_name = model_name
+        self.equations = equations
         self.compile()
 
     def compile(self) -> None:
@@ -70,7 +73,7 @@ class SolveStc(GamsClass):
                 RptliteRpt(
                     self.tc,
                     self.env,
-                    config=RptliteRptConfig(arg1=(self.tc.s,), arg2=(self.tc.ww,)),
+                    config=RptliteRptConfig(arg1="S", arg2=(self.tc.ww,)),
                 )
             )
 
@@ -81,13 +84,14 @@ class SolveStc(GamsClass):
         gdl_init = ""
         if (
             self.env.obmac == "YES"
-            and self.env.gams_gdir != self.tc.container._process_directory
+            # and self.env.gams_gdir != self.tc.container._process_directory
+            and self.env.is_set("gams_gdir")  # Solution for now
         ):
-            gdl_init = "GDL=%solvelink.AsyncGrid%;"
+            gdl_init = "GDL=3;"
 
         rptlite_no_code = (
             rptlite_rpt(
-                config=RptliteRptConfig(arg1=(self.tc.s,), arg2=(self.tc.ww,)),
+                config=RptliteRptConfig(arg1="S", arg2=(self.tc.ww,)),
                 sow="ALLSOW,",
                 sysprefix=self.env.sysprefix,
                 sensis=self.env.sensis,
@@ -100,6 +104,7 @@ class SolveStc(GamsClass):
                 bencost=self.env.bencost,
                 rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
                 etl=self.env.etl,
+                mx=self.env.mx,
                 capjd=self.env.capjd,
                 capwd=self.env.capwd,
                 timesed=self.env.timesed,
@@ -165,7 +170,6 @@ class SolveStc(GamsClass):
             spines_yes=(self.env.spines.upper() == "YES"),
             stages=self.env.stages,
             swd=self.env.swd,
-            model_name=self.env.model_name,
             var=self.env.var,
             sow=self.env.sow,
             bnd_ucw_defined={
@@ -247,7 +251,6 @@ class SolveStc(GamsClass):
         spines_yes: bool,
         stages: str,
         swd: str,
-        model_name: str,
         var: str,
         sow: str,
         bnd_ucw_defined: dict[str, bool],
@@ -274,6 +277,8 @@ class SolveStc(GamsClass):
         memclean: str,
         err_abort: str,
     ) -> None:
+        g = self.tc
+
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -297,11 +302,17 @@ class SolveStc(GamsClass):
        SW_PHASE=1; DISPLAY "Phase 1 deterministic scenarios.",CNT;
      ELSE SW_PHASE=-1; DISPLAY "Multiphase tradeoff scenarios.",CNT);
    ELSE DISPLAY "Decomposed deterministic scenarios!",CNT;
-     IF(GDL,{model_name}.solvelink = GDL));
+     IF(GDL,{self.model_name}.solvelink = GDL));
 *  Use MERGE for stochastic, because otherwise bounds for other scenarios get cleared
    OPTION SOLVEOPT=MERGE;
   );
+""",
+        )
 
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=rf"""
   LOOP(ALLSOW$(SUM(SW_T(MIYR_1,ALLSOW),1)$DOITER),
      CNT = ORD(ALLSOW); DISPLAY CNT;
      IF(S_UCOBJ('OBJ1',ALLSOW) EQ 4,
@@ -345,7 +356,7 @@ class SolveStc(GamsClass):
                     cufscal=cufscal,
                     cucscal=cucscal,
                     cli=cli,
-                    model_name=model_name,
+                    model_name=self.model_name,
                     mca="",
                     stages=stages,
                     swd=swd,
@@ -363,7 +374,7 @@ class SolveStc(GamsClass):
             }
 {
                 solve_mod(
-                    model_name=model_name,
+                    model_name=self.model_name,
                     solve_now=solve_now,
                     damage=damage,
                     micro=micro,
@@ -377,7 +388,7 @@ class SolveStc(GamsClass):
                     err_abort=err_abort,
                 )
             }
-       WHANDLE(ALLSOW)={model_name}.handle;
+       WHANDLE(ALLSOW)={self.model_name}.handle;
 {
                 f'''       IF(NOT (SW_PARM OR GDL), Z=0;
 {rptlite_no_code}{rpt_dam_code}{rpt_par_cli_loop_code}
@@ -394,11 +405,25 @@ class SolveStc(GamsClass):
             }
      );
   );
+""",
+        )
+
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=r"""
 * Reset SOW
   IF(DOITER,
    SOW(WW)$(ORD(WW) LE SW_DESC('1','1')) = YES;
    AUXSOW(WW)$(ORD(WW) GT 1) = NO;
   );
+""",
+        )
+
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=rf"""
 *------------------------------------------------------------------------------
   IF(SW_PARM$SW_PHASE, SW_PHASE = SW_PARM;
 {
@@ -425,7 +450,7 @@ class SolveStc(GamsClass):
                     cufscal=cufscal,
                     cucscal=cucscal,
                     cli=cli,
-                    model_name=model_name,
+                    model_name=self.model_name,
                     mca="",
                     stages=stages,
                     swd=swd,
@@ -443,7 +468,7 @@ class SolveStc(GamsClass):
             }
 {
                 solve_mod(
-                    model_name=model_name,
+                    model_name=self.model_name,
                     solve_now=solve_now,
                     damage=damage,
                     micro=micro,
@@ -475,27 +500,7 @@ class SolveStc(GamsClass):
        OPTION SOLVEOPT=REPLACE;
 {
                 solve_mod(
-                    model_name=model_name,
-                    solve_now=solve_now,
-                    damage=damage,
-                    micro=micro,
-                    macro=macro,
-                    etl=etl,
-                    solmip=solmip,
-                    mixlp=mixlp,
-                    nonlp=nonlp,
-                    gams_cgi=gams_cgi,
-                    memclean=memclean,
-                    err_abort=err_abort,
-                )
-            }
-  ));
-  IF(SW_PHASE,SW_PROB(SOW) = EPS);
-*------------------------------------------------------------------------------
-  IF(NOT DOITER, SW_NORM = 1;
-{
-                solve_mod(
-                    model_name=model_name,
+                    model_name=self.model_name,
                     solve_now=solve_now,
                     damage=damage,
                     micro=micro,
@@ -512,6 +517,31 @@ class SolveStc(GamsClass):
   ));
 """,
         )
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=r"""
+  IF(SW_PHASE,SW_PROB(SOW) = EPS);
+  """,
+        )
+
+        if not g.doiter.toValue():
+            g.sw_norm[...] = 1
+
+            solve_mod_GP(
+                module=self,
+                model_name=self.model_name,
+                solve_now=solve_now,
+                damage=damage,
+                micro=micro,
+                macro=macro,
+                etl=etl,
+                solmip=solmip,
+                mixlp=mixlp,
+                nonlp=nonlp,
+                memclean=memclean,
+                equations=self.equations,
+            )
 
     def exec_async_grid(
         self: SolveStc,

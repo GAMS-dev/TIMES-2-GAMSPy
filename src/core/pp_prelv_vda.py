@@ -14,11 +14,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.dynslite_vda import DynsliteVda
 from core.powerflo_vda import PowerfloVda
 from core.pp_lvlfc_mod import PpLvlfcMod
 
-from .base_class import GamsClass
 from .pp_qaput_mod import pp_qaput
 
 if TYPE_CHECKING:

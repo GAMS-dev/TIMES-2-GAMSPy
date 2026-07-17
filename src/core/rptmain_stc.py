@@ -12,7 +12,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.clearsol_stc import ClearsolStc
+from core.base_class import GamsClass
+from core.clearsol_stc import ClearsolStc, clearsol_stc
 from core.cost_ann_rpt import cost_ann_rpt
 from core.pextlevs_stc import PextlevsStc
 from core.rpt_obj_rpt import rpt_obj_rpt
@@ -20,8 +21,7 @@ from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
 from core.rptmisc_rpt import rptmisc_rpt
 from core.sol_flo_red import SolFloRed, sol_flo_red
 from core.sol_ire_rpt import SolIreRpt, sol_ire_rpt
-
-from .base_class import GamsClass
+from core.utils import apply_sw_notags
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -62,9 +62,21 @@ class RptmainStc(GamsClass):
         self.include(ClearsolStc(self.tc, self.env, arg1="DEF"))
 
         if self.env.etl == "YES":
-            self.tc.enqueue(self.define_variable_bases_on_if)
+            self.tc.add_gams_code(
+                module=self,
+                phase="run",
+                code=r"""
+POSITIVE VARIABLES VAR_IC(R,YEAR,PRC)
+""",
+            )
 
-        self.tc.enqueue(self.define_variable)
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=r"""
+PARAMETERS SW_UNPB(LL,WW), SW_UNPC(LL,WW);
+""",
+        )
 
         if self.env.stepped == "+":
             self.env.set_scoped("solveda", "1")
@@ -79,38 +91,31 @@ class RptmainStc(GamsClass):
                 RptliteRpt(
                     self.tc,
                     self.env,
-                    config=RptliteRptConfig(arg1=(self.tc.s,), arg2=(self.tc.ww,)),
+                    config=RptliteRptConfig(arg1="S", arg2=(self.tc.ww,)),
                 )
             )
 
             self.tc.enqueue(self.calculate_sw_unpb, spines=self.env.spines)
-            # NOTE/TODO: L33, The LOOP does not effect the batinclude and the lines till L64
-            # For now, we can place the loop down to L63 and hope the tests pass.
-            self.include(ClearsolStc(self.tc, self.env))
+
             self.tc.enqueue(
-                self.get_variable_levels,
+                self.sow_loop,
                 vart=self.env.vart,
                 sws=self.env.sws,
                 var=self.env.var,
                 etl=self.env.etl,
                 arg1=self.arg1,
                 arg2=self.arg2,
-            )
-            self.tc.enqueue(
-                # NOTE: check the defined method args
-                self.sow_loop,
+                var_dam_defined=self.tc.defined("VAR_DAM"),
+                var_scap_defined=self.tc.defined("VAR_SCAP"),
                 eq=self.env.eq,
-                arg1=self.env.arg1,
                 v=self.env.v,
                 pgprim=self.env.pgprim,
                 sow=self.env.sow,
                 rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
                 stages=self.env.stages,
                 sysprefix=self.env.sysprefix,
-                etl=self.env.etl,
                 capjd=self.env.capjd,
                 capwd=self.env.capwd,
-                var=self.env.var,
                 timesed=self.env.timesed,
                 obj=self.env.obj,
                 varcost=self.env.varcost,
@@ -120,16 +125,15 @@ class RptmainStc(GamsClass):
                 tpulse=self.env.tpulse,
                 is_vnret_defined=self.tc.defined("IS_VNRET"),
                 varv=self.env.varv,
-                sws=self.env.sws,
                 varm=self.env.varm,
                 is_obj_combal_defined=self.tc.defined("IS_OBJ_COMBAL"),
-                vart=self.env.vart,
                 micro=self.env.micro,
                 bencost=self.env.bencost,
                 cufscal=self.env.cufscal,
                 rpt_flots=self.env.rpt_flots,
                 var_uc=self.env.var_uc,
                 solans=self.env.solans,
+                mx=self.env.mx,
                 discshift=self.env.discshift,
                 model_name=self.model_name,
                 is_mi_agc_defined=self.tc.defined("IS_MI_AGC"),
@@ -146,18 +150,13 @@ class RptmainStc(GamsClass):
         # * Standard Reports based on expected values
         # *-----------------------------------------------------------------------------
 
-        if (
-            self.env.sw_notags
-            != "SET EQ 'EQ' SET VAR 'VAR' SET SWS '' SET SOW '' SET SWT '' SET SWD '' SET SWTD '' SET SWSW '' SET VART 'VAR' SET VARV 'VAR' SET VARM 'VAR' SET VARTT VAR"
-        ):
-            raise ValueError(f"Unknown value in sw_notags: {self.env.sw_notags}")
-
+        apply_sw_notags(env=self.env)
         self.tc.enqueue(self.report_param)
         self.include(
             RptliteRpt(
                 self.tc,
                 self.env,
-                config=RptliteRptConfig(arg1=(self.tc.s,), arg2=(self.tc.ww,)),
+                config=RptliteRptConfig(arg1="S", arg2=(self.tc.ww,)),
             )
         )
 
@@ -206,31 +205,13 @@ class RptmainStc(GamsClass):
                 self.tc,
                 self.env,
                 config=RptliteRptConfig(
-                    arg1=(self.tc.s,), arg2=(self.tc.ww,), arg3=("'1'",), arg4=("NO",)
+                    arg1="S", arg2=(self.tc.ww,), arg3=("'1'",), arg4=("NO",)
                 ),
             )
         )
 
         if "RTP_FFCS" in self.tc.container.listSymbols():
             self.tc.add_gams_code(module=self, phase="init", code="$CLEAR RTP_FFCS")
-
-    def define_variable_bases_on_if(self: RptmainStc) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-POSITIVE VARIABLES VAR_IC(R,YEAR,PRC)
-""",
-        )
-
-    def define_variable(self: RptmainStc) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-PARAMETERS SW_UNPB(LL,WW), SW_UNPC(LL,WW);
-""",
-        )
 
     def report_param(self: RptmainStc) -> None:
         self.tc.add_gams_code(
@@ -261,13 +242,58 @@ OPTION CLEAR=RPC_EMIS,CLEAR=RPC_FFUNC,CLEAR=F_IOSET; SOW(W)=AUXSOW(W);
 """,
         )
 
-    def get_variable_levels(
-        self: RptmainStc, vart: str, sws: str, var: str, etl: str, arg1: str, arg2: str
+    def sow_loop(
+        self: RptmainStc,
+        vart: str,
+        sws: str,
+        var: str,
+        etl: str,
+        arg1: str,
+        arg2: str,
+        eq: str,
+        v: str,
+        pgprim: str,
+        sow: str,
+        rtp_ffcs_defined: bool,
+        stages: str,
+        sysprefix: str,
+        capjd: str,
+        capwd: str,
+        timesed: str,
+        obj: str,
+        varcost: str,
+        vnret_defined: bool,
+        invlif: str,
+        anncost: str,
+        tpulse: str,
+        is_vnret_defined: bool,
+        varv: str,
+        varm: str,
+        is_obj_combal_defined: bool,
+        micro: str,
+        bencost: str,
+        cufscal: str,
+        rpt_flots: str,
+        var_uc: str,
+        solans: str,
+        mx: str,
+        discshift: str,
+        model_name: str,
+        is_mi_agc_defined: bool,
+        if_not_defined_eq_g_ucmax: bool,
+        if_defined_vnret: bool,
+        if_defined_eqe_ucrtp: bool,
+        var_dam_defined: bool,
+        var_scap_defined: bool,
     ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"""
+  LOOP(SOW$SW_PROB(SOW),
+
+  {clearsol_stc(var_dam_defined=var_dam_defined, var_scap_defined=var_scap_defined)}
+
 * Get the variable levels
     VAR_ACT.L(R,V,T,P,S)      $= {vart}_ACT.L(R,V,T,P,S {sws});
     VAR_BLND.L(R,T,COM,C)     $= {vart}_BLND.L(R,T,COM,C {sws});
@@ -283,63 +309,27 @@ OPTION CLEAR=RPC_EMIS,CLEAR=RPC_FFUNC,CLEAR=F_IOSET; SOW(W)=AUXSOW(W);
     VAR_UPS.L(R,V,T,P,S,L)    $= {vart}_UPS.L(R,V,T,P,S,L {sws});
     VAR_UPT.L(R,V,T,P,S,UPT)  $= {vart}_UPT.L(R,V,T,P,S,UPT {sws});
     VAR_UDP.L(R,V,T,P,S,L)    $= {vart}_UDP.L(R,V,T,P,S,L {sws});
-    VAR_SCAP.L(R,V,T,P)       $= {vart}_SCAP.L(R,V,T,P{arg2}); VAR_SCAP.L(R,V,'0',P) $= {var}_SCAP.L(R,V,'0',P,{arg1});
-{f"OPTION CLEAR=VAR_IC; VAR_IC.L(R,T,P) $= {vart}_IC.L(R,T,P {arg2});" if etl == "YES" else ""}
+    VAR_SCAP.L(R,V,T,P)       $= {vart}_SCAP.L(R,V,T,P{
+                arg2
+            }); VAR_SCAP.L(R,V,'0',P) $= {var}_SCAP.L(R,V,'0',P,{arg1});
+{
+                f"OPTION CLEAR=VAR_IC; VAR_IC.L(R,T,P) $= {vart}_IC.L(R,T,P{arg2});"
+                if etl == "YES"
+                else ""
+            }
 * Get variable marginals
     VAR_ACT.M(R,V,T,P,S)    $= {vart}_ACT.M(R,V,T,P,S,W)*SW_UNPB(T{sws});
-    VAR_CAP.M(R,T,P)        $= SUM(SW_TSW({arg1},T,W),{var}_CAP.M(R,T,P,W)*SW_UNPC(T,W));
-    VAR_NCAP.M(R,T,P)       $= SUM(SW_TSW({arg1},T,W),{var}_NCAP.M(R,T,P,W)*SW_UNPC(T,W));
+    VAR_CAP.M(R,T,P)        $= SUM(SW_TSW({arg1},T,W),{
+                var
+            }_CAP.M(R,T,P,W)*SW_UNPC(T,W));
+    VAR_NCAP.M(R,T,P)       $= SUM(SW_TSW({arg1},T,W),{
+                var
+            }_NCAP.M(R,T,P,W)*SW_UNPC(T,W));
     VAR_COMNET.M(R,T,COM,S) $= {vart}_COMNET.M(R,T,COM,S,W)*SW_UNPB(T{sws});
     VAR_COMPRD.M(R,T,COM,S) $= {vart}_COMPRD.M(R,T,COM,S,W)*SW_UNPB(T{sws});
     VAR_FLO.M(R,V,T,P,C,S)  $= {vart}_FLO.M(R,V,T,P,C,S,W)*SW_UNPB(T{sws});
-""",
-        )
 
-    def sow_loop(
-        self: RptmainStc,
-        eq: str,
-        arg1: str,
-        v: str,
-        pgprim: str,
-        sow: str,
-        rtp_ffcs_defined: bool,
-        stages: str,
-        sysprefix: str,
-        etl: str,
-        capjd: str,
-        capwd: str,
-        var: str,
-        timesed: str,
-        obj: str,
-        varcost: str,
-        vnret_defined: bool,
-        invlif: str,
-        anncost: str,
-        tpulse: str,
-        is_vnret_defined: bool,
-        varv: str,
-        sws: str,
-        varm: str,
-        is_obj_combal_defined: bool,
-        vart: str,
-        micro: str,
-        bencost: str,
-        cufscal: str,
-        rpt_flots: str,
-        var_uc: str,
-        solans: str,
-        discshift: str,
-        model_name: str,
-        is_mi_agc_defined: bool,
-        if_not_defined_eq_g_ucmax: bool,
-        if_defined_vnret: bool,
-        if_defined_eqe_ucrtp: bool,
-    ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-  LOOP(SOW$SW_PROB(SOW),
+
 * Get equation marginals
     EQG_COMBAL.M(R,T,C,S)  $= SUM(SW_TSW(SOW,T,W),{
                 eq
@@ -369,9 +359,8 @@ OPTION CLEAR=RPC_EMIS,CLEAR=RPC_FFUNC,CLEAR=F_IOSET; SOW(W)=AUXSOW(W);
 {
                 sol_flo_red(
                     arg1="PAR_FLO",
-                    arg2="''",
+                    arg2="",
                     arg3=".L",
-                    v=v,
                     pgprim=pgprim,
                     sow=sow,
                     rtp_ffcs_defined=rtp_ffcs_defined,
@@ -382,19 +371,12 @@ OPTION CLEAR=RPC_EMIS,CLEAR=RPC_FFUNC,CLEAR=F_IOSET; SOW(W)=AUXSOW(W);
                     arg1="PAR_FLO",
                     arg2="M",
                     arg3=".M",
-                    v=v,
                     pgprim=pgprim,
                     sow=sow,
                     rtp_ffcs_defined=rtp_ffcs_defined,
                 )
             }
-{
-                sol_ire_rpt(
-                    v=v,
-                    sow=sow,
-                    rtp_ffcs_defined=rtp_ffcs_defined,
-                )
-            }
+{sol_ire_rpt(sow=sow, mx=mx, rtp_ffcs_defined=rtp_ffcs_defined)}
   OPTION CLEAR=COEF_OBJINV;
 {
                 rpt_obj_rpt(
@@ -426,7 +408,7 @@ OPTION CLEAR=RPC_EMIS,CLEAR=RPC_FFUNC,CLEAR=F_IOSET; SOW(W)=AUXSOW(W);
 {
                 cost_ann_rpt(
                     arg1="S",
-                    arg2="SOW",
+                    arg2="SOW,",
                     stages=stages,
                     etl=etl,
                     invlif=invlif,

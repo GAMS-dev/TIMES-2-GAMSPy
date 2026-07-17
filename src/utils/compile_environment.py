@@ -76,9 +76,9 @@ class CompileEnvironment:
             return True
         return False
 
-    def get(self, key: str) -> Any | None:
+    def get(self, key: str, no_local: bool = False) -> Any:
         # GAMS Priority: Local -> Scoped -> Global
-        if key in self._local:
+        if key in self._local and not no_local:
             return self._local[key]
         if key in self._scoped:
             return self._scoped[key]

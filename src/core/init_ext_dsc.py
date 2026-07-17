@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 import gamspy.math as gmath
 from gamspy import Ord, SpecialValues
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment

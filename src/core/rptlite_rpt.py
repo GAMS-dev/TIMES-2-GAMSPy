@@ -37,10 +37,10 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class RptliteRptConfig:
-    arg1: tuple[Alias] | tuple[()] = ()  # Alias s
+    arg1: str = ""  # Alias s
     arg2: tuple[Alias] | tuple[()] = ()  # Alias ww
     arg3: tuple[Literal["'1'"]] | tuple[()] = ()
-    arg4: tuple[Literal["NO"]] | tuple[()] = ()
+    arg4: tuple[Literal["NO"]] | tuple[()] | str = ()
 
 
 class RptliteRpt(GamsClass):
@@ -65,7 +65,7 @@ class RptliteRpt(GamsClass):
 
         # $IF NOT %SOLVEDA%==1 $SHIFT SHIFT SHIFT
         if self.env.solveda != "1":
-            cc.arg1 = cc.arg4
+            cc.arg1 = cc.arg4  # type: ignore
             cc.arg2 = ()
             cc.arg3 = ()
             cc.arg4 = ()
@@ -640,6 +640,7 @@ class RptliteRpt(GamsClass):
             model_name=self.env.model_name,
             eq=self.env.eq,
             rpt_flots=self.env.rpt_flots,
+            mx=self.env.mx,
             solans=self.env.solans,
             discshift=self.env.discshift,
             eqe_ucrtp_defined=self.tc.defined("EQE_UCRTP"),
@@ -682,6 +683,7 @@ class RptliteRpt(GamsClass):
         rpt_flots: str,
         solans: str,
         discshift: str,
+        mx: str,
         eqe_ucrtp_defined: bool,
         eq_g_ucmax_not_defined: bool,
     ) -> None:
@@ -722,6 +724,7 @@ class RptliteRpt(GamsClass):
                 eq=eq,
                 rpt_flots=rpt_flots,
                 solans=solans,
+                mx=mx,
                 discshift=discshift,
                 eqe_ucrtp_defined=eqe_ucrtp_defined,
                 eq_g_ucmax_not_defined=eq_g_ucmax_not_defined,
@@ -828,6 +831,7 @@ def rptlite_rpt(
     rpt_flots: str,
     solans: str,
     bencost: str,
+    mx: str,
     discshift: str,
     eqe_ucrtp_defined: bool,
     eq_g_ucmax_not_defined: bool,
@@ -853,7 +857,6 @@ def rptlite_rpt(
             arg1="PAR_FLO",
             arg2="",
             arg3=".L",
-            v=var,
             pgprim=pgprim,
             sow=sow,
             rtp_ffcs_defined=rtp_ffcs_defined,
@@ -864,19 +867,12 @@ def rptlite_rpt(
             arg1="PAR_FLO",
             arg2="M",
             arg3=".M",
-            v=var,
             pgprim=pgprim,
             sow=sow,
             rtp_ffcs_defined=rtp_ffcs_defined,
         )
     }
-{
-        sol_ire_rpt(
-            v=var,
-            sow=sow,
-            rtp_ffcs_defined=rtp_ffcs_defined,
-        )
-    }
+{sol_ire_rpt(sow=sow, mx=mx, rtp_ffcs_defined=rtp_ffcs_defined)}
 
 *------------------------------------------------------------------------------
 * Objective function

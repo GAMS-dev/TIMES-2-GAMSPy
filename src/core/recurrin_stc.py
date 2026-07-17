@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -112,8 +112,8 @@ $MACRO COM_FRMX(R,T,C,S) COM_FR(R,T,C,S)*{self.env.sw1}({self.env.sw2}1+S_COM_FR
                     "sw_stvars",
                     rf"SET VAR \"Z\" SET VART '{self.env.vsum}T,W),Z' SET VARM '{self.env.vsum}MODLYEAR,W),Z' SET VARV '{self.env.vsum}V,W),Z'",
                 )
-                self.env.set_global("witspine", rf"SET EQS '{self.env.eq}' SET EQ 'Q'")
-                self.env.set_global("ewispine", rf"SET EQ {self.env.eq}")
+                self.env.set_global("witspine", True)
+                self.env.set_global("ewispine", True)
                 self.tc.add_gams_code(
                     module=self,
                     phase="init",

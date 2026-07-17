@@ -16,9 +16,8 @@ from typing import TYPE_CHECKING
 
 from gamspy import Equation, Variable
 
+from core.base_class import GamsClass
 from core.utils import callable_rts
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment

@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -45,15 +45,6 @@ class EqcumfloMod(GamsClass):
 
     def compile(self) -> None:
         g = self.tc
-        self.env.set_local("sw1", "")
-        self.env.set_local("sw2", "")
-        if self.env.stages + self.env.scum == "YES":
-            self.env.set_scoped("sow", "',WW'")
-            self.env.set_scoped("sow_GP", (g.ww,))
-            self.env.set_scoped("swt", "',SOW'")
-            self.env.set_scoped("swt_GP", (g.Sow,))
-            self.env.set_scoped("sw1", "'S_'")
-            self.env.set_scoped("sw2", ",'1',SOW")
 
         if self.env.cal_red == "cal_red.red":
             from core.cal_red_red import cal_red_red as cal_red_func
@@ -66,6 +57,15 @@ class EqcumfloMod(GamsClass):
 * all commodity/activity flows within period range
                  SUM(TT(T)$
 """
+        self.env.set_local("sw1", "")
+        self.env.set_local("sw2", "")
+        if self.env.stages + self.env.scum == "YES":
+            self.env.set_scoped("sow", ",WW")
+            self.env.set_scoped("sow_GP", (g.ww,))
+            self.env.set_scoped("swt", ",SOW")
+            self.env.set_scoped("swt_GP", (g.Sow,))
+            self.env.set_scoped("sw1", "S_")
+            self.env.set_scoped("sw2", ",'1',SOW")
         if self.env.obj.upper() != "LIN":
             equation += "((E(T) >= YEARVAL(ALLYEAR))$(B(T) <= YEARVAL(LL))),"
         else:

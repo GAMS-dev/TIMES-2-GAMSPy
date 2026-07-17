@@ -94,7 +94,7 @@ class RptmainMod(GamsClass):
                                 self.tc,
                                 self.env,
                                 config=RptliteRptConfig(
-                                    arg1=(self.tc.s,), arg2=(self.tc.ww,), arg3=("'1'",)
+                                    arg1="S", arg2=(self.tc.ww,), arg3=("'1'",)
                                 ),
                             )
                         )
@@ -102,6 +102,7 @@ class RptmainMod(GamsClass):
                 if self.env.macro.upper() == "YES":
                     self.include(RptmainTm(self.tc, self.env))
 
+                #  If running stochastics, streamline reports
                 if self.env.stages.upper() == "YES":
                     self.include(
                         RptmainStc(

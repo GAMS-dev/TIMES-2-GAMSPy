@@ -22,6 +22,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.uc_act_mod import uc_act_mod
 from core.uc_cap_mod import uc_cap_mod
 from core.uc_cli_mod import uc_cli_mod
@@ -30,8 +31,6 @@ from core.uc_flo_mod import uc_flo_mod
 from core.uc_ire_mod import uc_ire_mod
 from core.uc_ncap_mod import uc_ncap_mod
 from core.uc_pasti_mod import uc_pasti_mod
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -78,24 +77,22 @@ class EqusercoMod(GamsClass):
 
     def compile(self) -> None:
         lhs = ""
-        if self.arg8 != "1":
-            self.env.set_local("hs", "'LHS'")
-            if self.arg8 == "2":
-                self.env.set_scoped("sow", self.env.swd)
-                self.env.set_scoped("sow_GP", self.env.swd_GP)
-                self.env.set_scoped("swt", self.env.sow)
-                self.env.set_scoped("swt_GP", self.env.sow_GP)
-            elif self.arg8 == "S":
-                self.env.set_local("hs", "SIDE")
-            lhs = self._static_lhs(
-                hs=self.env.hs,
-                swt=self.env.swt,
-                is_several=self.arg8 == "2",
-            )
-        else:
+        if self.arg8 == "1":
             lhs = self._label_dynamic(
                 is_stages=self.env.stages == "YES",
                 is_cli=self.env.cli == "YES",
+            )
+        else:
+            self.env.set_local("hs", "'LHS'")
+            if self.arg8 == "2":
+                self.env.set_scoped("swt", self.env.sow)
+                self.env.set_scoped("swt_GP", self.env.sow_GP)
+                self.env.set_scoped("sow", self.env.swd)
+                self.env.set_scoped("sow_GP", self.env.swd_GP)
+            elif self.arg8 == "S":
+                self.env.set_local("hs", "SIDE")
+            lhs = self._static_lhs(
+                is_several=self.arg8 == "2",
             )
 
         rhs = (
@@ -132,8 +129,6 @@ class EqusercoMod(GamsClass):
 
     def _static_lhs(
         self: EqusercoMod,
-        hs: str,
-        swt: str,
         is_several: bool,
     ) -> str:
         include_uc_flo = uc_flo_mod(
@@ -152,7 +147,7 @@ class EqusercoMod(GamsClass):
             arg2=self.arg5,
             arg3=self.arg6,
             arg4="T",
-            arg5=hs,
+            arg5=self.env.hs,
             arg6=self.arg8,
             arg7="T",
             arg8=self.arg7,
@@ -165,7 +160,7 @@ class EqusercoMod(GamsClass):
             arg1=f"{self.arg4}{self.arg7}",
             arg2=self.arg5,
             arg3="T",
-            arg4=hs,
+            arg4=self.env.hs,
             arg5=self.arg8,
             arg6="T",
         )
@@ -178,7 +173,7 @@ class EqusercoMod(GamsClass):
             arg1=f"{self.arg4}{self.arg7}",
             arg2=self.arg5,
             arg3="T",
-            arg4=hs,
+            arg4=self.env.hs,
             arg5=self.arg8,
             arg6="T",
         )
@@ -189,10 +184,9 @@ class EqusercoMod(GamsClass):
             arg2=self.arg5,
             arg3=self.arg6,
             arg4="T",
-            arg5=hs,
+            arg5=self.env.hs,
             arg6=self.arg8,
             arg7="T",
-            arg8=self.arg7,
         )
         include_uc_com_prd = uc_com_mod(
             var=self.env.var,
@@ -201,7 +195,7 @@ class EqusercoMod(GamsClass):
             arg2=self.arg5,
             arg3=self.arg6,
             arg4="T",
-            arg5=hs,
+            arg5=self.env.hs,
             arg6=self.arg8,
             arg7="T",
             arg8="PRD",
@@ -215,7 +209,7 @@ class EqusercoMod(GamsClass):
             arg2=self.arg5,
             arg3=self.arg6,
             arg4="T",
-            arg5=hs,
+            arg5=self.env.hs,
             arg6=self.arg8,
             arg7="T",
             arg8="BAL",
@@ -229,16 +223,15 @@ class EqusercoMod(GamsClass):
             arg2=self.arg5,
             arg3=self.arg6,
             arg4="T",
-            arg5=hs,
+            arg5=self.env.hs,
             arg6=self.arg8,
             arg7="T",
-            arg8=self.arg7,
         )
 
         cumcom_term = ""
         if is_several:
             cumcom_term = rf"""
-+SUM(({self.arg7}COM_VAR,C,YEAR,LL)$UC_CUMCOM(UC_N,R,COM_VAR,C,YEAR,LL),UC_CUMCOM(UC_N,R,COM_VAR,C,YEAR,LL)*{self.env.var}_CUMCOM(R,C,COM_VAR,YEAR,LL{swt})*{self.env.cucscal})
++SUM(({self.arg7}COM_VAR,C,YEAR,LL)$UC_CUMCOM(UC_N,R,COM_VAR,C,YEAR,LL),UC_CUMCOM(UC_N,R,COM_VAR,C,YEAR,LL)*{self.env.var}_CUMCOM(R,C,COM_VAR,YEAR,LL{self.env.swt})*{self.env.cucscal})
 """
 
         return rf"""
@@ -265,12 +258,21 @@ class EqusercoMod(GamsClass):
     ) -> str:
         g = self.tc
 
-        self.env.set_scoped("swflo", self.env.var)
+        uc_flo_arg9 = self.env.var  # self.env.set_scoped("swflo", self.env.var)
+        uc_flo_arg10 = ""
+        uc_flo_arg11 = ""
+        uc_flo_arg12 = ""
+
         if is_stages:
-            self.env.set_scoped("var", f"SUM({self.arg5}{self.env.var}")
+            temp_var = self.env.var
+            self.env.set_scoped("var", f"SUM({self.arg5}{temp_var}")
             self.env.set_scoped("sow", ",WW)")
             self.env.set_scoped("sow_GP", (g.ww,))
-            self.env.set_scoped("swflo", f"{self.env.var},WW SUM {self.arg5}")
+            # self.env.set_scoped("swflo", f"{temp_var} ,WW SUM {self.arg5}")
+            uc_flo_arg9 = temp_var
+            uc_flo_arg10 = " ,WW"
+            uc_flo_arg11 = "SUM"
+            uc_flo_arg12 = self.arg5
 
         self.env.set_local("tsum", "SUM(UC_TMAP(TT,T,T,SIDE,'N'),UC_SIGN(SIDE)*")
         block_tplus = rf"""
@@ -296,8 +298,11 @@ class EqusercoMod(GamsClass):
                 arg6=self.arg8,
                 arg7="TT",
                 arg8="LAGT(T)",
-                arg9=self.env.swflo,
-                arg10=self.env.sow,
+                # arg9=self.env.swflo, !%SWFLO% contains emtpy strings! -> split into multiple arguments
+                arg9=uc_flo_arg9,
+                arg10=uc_flo_arg10,
+                arg11=uc_flo_arg11,
+                arg12=uc_flo_arg12,
             )
         }
 +
@@ -434,7 +439,10 @@ class EqusercoMod(GamsClass):
                 arg6=self.arg8,
                 arg7="LL",
                 arg8="-LEAD(T)",
-                arg9=self.env.swflo,
+                arg9=uc_flo_arg9,
+                arg10=uc_flo_arg10,
+                arg11=uc_flo_arg11,
+                arg12=uc_flo_arg12,
             )
         }
 +
@@ -549,7 +557,7 @@ class EqusercoMod(GamsClass):
                 arg1=f"{self.arg4}{self.arg7}",
                 arg2=f"{self.env.tsum}'CLI'{self.env.tucn}",
                 arg3=self.arg6,
-                arg4="'TT'",
+                arg4="TT",
                 arg5="SIDE",
                 arg6=self.arg8,
                 arg7="LL",

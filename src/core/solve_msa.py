@@ -12,14 +12,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.clearsol_stp import clearsol_stp
 from core.ddfupd_msa import ddfupd_msa
 from core.preppm_msa import preppm_msa_label_tolp
 from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
 from core.solprep_msa import solprep_msa
 from core.writeddf_msa import writeddf_msa
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -77,6 +76,7 @@ class SolveMsa(GamsClass):
                     etl=self.env.etl,
                     invlif=self.env.invlif,
                     anncost=self.env.anncost,
+                    mx=self.env.mx,
                     sysprefix=self.env.sysprefix,
                     tpulse=self.env.tpulse,
                     is_vnret_defined=self.tc.defined("VNRET"),
@@ -121,6 +121,7 @@ class SolveMsa(GamsClass):
             macro=self.env.macro,
             stages=self.env.stages,
             v=self.env.v,
+            mx=self.env.mx,
             pgprim=self.env.pgprim,
             rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
             etl=self.env.etl,
@@ -174,6 +175,7 @@ class SolveMsa(GamsClass):
                 invlif=self.env.invlif,
                 anncost=self.env.anncost,
                 sysprefix=self.env.sysprefix,
+                mx=self.env.mx,
                 tpulse=self.env.tpulse,
                 is_vnret_defined=self.tc.defined("VNRET"),
                 varv=self.env.varv,
@@ -240,6 +242,7 @@ class SolveMsa(GamsClass):
         solveda: str,
         scum: str,
         sw_notags: str,
+        mx: str,
         objann: str,
         dflbl: str,
         bencost: str,
@@ -258,6 +261,7 @@ class SolveMsa(GamsClass):
                 rtp_ffcs_defined=rtp_ffcs_defined,
                 stages=stages,
                 etl=etl,
+                mx=mx,
                 invlif=invlif,
                 anncost=anncost,
                 sysprefix=sysprefix,
@@ -419,6 +423,7 @@ class SolveMsa(GamsClass):
         objann: str,
         dflbl: str,
         bencost: str,
+        mx: str,
         discshift: str,
     ) -> None:
         include_solprep = solprep_msa(
@@ -431,6 +436,7 @@ class SolveMsa(GamsClass):
             rtp_ffcs_defined=rtp_ffcs_defined,
             stages=stages,
             etl=etl,
+            mx=mx,
             invlif=invlif,
             anncost=anncost,
             sysprefix=sysprefix,
@@ -513,6 +519,7 @@ class SolveMsa(GamsClass):
         is_dam_cost_defined: bool,
         solveda: str,
         scum: str,
+        mx: str,
         sw_notags: str,
         objann: str,
         dflbl: str,
@@ -540,6 +547,7 @@ class SolveMsa(GamsClass):
             stages=stages,
             etl=etl,
             invlif=invlif,
+            mx=mx,
             anncost=anncost,
             sysprefix=sysprefix,
             tpulse=tpulse,

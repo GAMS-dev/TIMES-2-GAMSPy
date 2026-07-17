@@ -20,12 +20,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.cal_cap_mod import cal_cap_mod
 from core.cal_fflo_mod import cal_fflo_mod
 from core.cal_ire_mod import cal_ire_mod
 from core.cal_stgn_mod import cal_stgn_mod
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment

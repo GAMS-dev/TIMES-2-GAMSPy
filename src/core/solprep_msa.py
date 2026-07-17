@@ -56,6 +56,7 @@ def solprep_msa(
     scum: str,
     sw_notags: str,
     objann: str,
+    mx: str,
     dflbl: str,
     bencost: str,
     discshift: str,
@@ -80,6 +81,7 @@ def solprep_msa(
             varm=varm,
             is_obj_combal_defined=is_obj_combal_defined,
             var=var,
+            mx=mx,
             vart=vart,
             micro=micro,
             is_mi_agc_defined=is_mi_agc_defined,
@@ -144,6 +146,7 @@ def _solprep_msa_init(
     solveda: str,
     scum: str,
     sw_notags: str,
+    mx: str,
     objann: str,
     dflbl: str,
     bencost: str,
@@ -155,17 +158,12 @@ def _solprep_msa_init(
         arg1="PAR_FLO",
         arg2="",
         arg3=".L",
-        v=v,
         pgprim=pgprim,
         sow=sow,
         rtp_ffcs_defined=rtp_ffcs_defined,
     )
 
-    execution_str += sol_ire_rpt(
-        v=v,
-        sow=sow,
-        rtp_ffcs_defined=rtp_ffcs_defined,
-    )
+    execution_str += sol_ire_rpt(sow=sow, mx=mx, rtp_ffcs_defined=rtp_ffcs_defined)
 
     execution_str += """
 *-----------------------------------------------------------------------------

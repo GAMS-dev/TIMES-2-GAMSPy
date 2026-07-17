@@ -13,10 +13,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Set
+
+from core.base_class import GamsClass
 from core.fillsow_stc import FillsowStc
 from core.pp_lvlfc_mod import PpLvlfcMod
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -46,6 +47,7 @@ class StagesStc(GamsClass):
 
     def compile(self) -> None:
         g = self.tc
+        m = g.container
 
         if self.env.macro == "YES":
             raise NotImplementedError("Stochastic MACRO Not Implemented - aborted.")
@@ -61,18 +63,20 @@ class StagesStc(GamsClass):
                     "sw_stvars",
                     r"""SET VARTT 'SUM(SW_TSW(SOW,TT,W),VAS' SET SWSW SW_TSW(SOW,T,WW),""",
                 )
-            self.env.set_global("swd", "',WW'")
+            self.env.set_global("swd", ",WW")
             self.env.set_global("swd_GP", (g.ww,))
-            self.env.set_global("witspine", "")
+            self.env.set_global("witspine", False)
             if self.env.stages == "YES":
-                self.env.set_global("swx", "',SOW'")
+                self.env.set_global("swx", ",SOW")
                 self.env.set_global("swx_GP", (g.Sow,))
                 self.env.set_global("swtx", "SW_T(T,SOW)$")
                 self.env.set_global("swtx_GP", g.SwT[g.t, g.Sow])
             if self.env.sensis == "YES":
                 self.env.set_global("swd", "")
                 self.env.set_global("swd_GP", tuple())
-            self.tc.enqueue(self.set_auxsow)
+
+            g.Auxsow = Set(m, name="AUXSOW", domain=[g.allsow], records=["1"])
+
             self.env.set_global("var_uc", "YES")
             if not self.env.var_uc == "YES":
                 raise ValueError("Invalid VAR_UC setting in stochastic mode - abort")
@@ -100,9 +104,9 @@ DISPLAY SW_START,SW_SUBS,SW_CHILD,SW_TREE,SW_MAP,SW_STAGE,SW_T,SW_TSW,SW_TPROB,S
             self.tc.enqueue(self.preprocess_cumulative_bounds)
             # fmt: off
             fillsow_batincludes1 = [
-                ("COM_PROJ", "'R,'", "C", "T", "NO", "", ""),
-                ("COM_TAX", "'R,'", "'C,S,COM_VAR,CUR'", "T", "YES", "'SW_T(T,WW)'", "NO"),
-                ("NCAP_COST", "'R,'", "P", "T", "NO", "", ""),
+                ("COM_PROJ", "R,", "C", "T", "NO", "", ""),
+                ("COM_TAX", "R,", "C,S,COM_VAR,CUR", "T", "YES", "SW_T(T,WW)", "NO"),
+                ("NCAP_COST", "R,", "P", "T", "NO", "", ""),
             ]
             # fmt: on
 
@@ -127,8 +131,8 @@ DISPLAY SW_START,SW_SUBS,SW_CHILD,SW_TREE,SW_MAP,SW_STAGE,SW_T,SW_TSW,SW_TPROB,S
                         self.tc,
                         self.env,
                         arg1="FLO_FUNC",
-                        arg2="'R,'",
-                        arg3="'P,CG,CG2'",
+                        arg2="R,",
+                        arg3="P,CG,CG2",
                         arg4="T",
                         arg5="NO",
                         arg6="",
@@ -142,8 +146,8 @@ DISPLAY SW_START,SW_SUBS,SW_CHILD,SW_TREE,SW_MAP,SW_STAGE,SW_T,SW_TSW,SW_TPROB,S
                         self.tc,
                         self.env,
                         arg1="NCAP_AFS",
-                        arg2="'R,'",
-                        arg3="'P,S'",
+                        arg2="R,",
+                        arg3="P,S",
                         arg4="T",
                         arg5="NO",
                         arg6="",
@@ -157,8 +161,8 @@ DISPLAY SW_START,SW_SUBS,SW_CHILD,SW_TREE,SW_MAP,SW_STAGE,SW_T,SW_TSW,SW_TPROB,S
                         self.tc,
                         self.env,
                         arg1="COM_FR",
-                        arg2="'R,'",
-                        arg3="'C,S'",
+                        arg2="R,",
+                        arg3="C,S",
                         arg4="T",
                         arg5="NO",
                         arg6="",
@@ -168,13 +172,13 @@ DISPLAY SW_START,SW_SUBS,SW_CHILD,SW_TREE,SW_MAP,SW_STAGE,SW_T,SW_TSW,SW_TPROB,S
 
             # fmt: off
             fillsow_batincludes2 = [
-                ("CAP_BND", "'R,'", "'P,BD'", "T", "YES", "'SW_T(T,WW)'", "NO"),
-                ("COM_CUM", "'R,COM_VAR,ALLYEAR,'", "'C,BD'", "LL", "YES", "'SUPERYR(T,LL)'", "YES"),
-                ("FLO_CUM", "'R,P,C,ALLYEAR,'", "'BD'", "LL", "YES", "'SUPERYR(T,LL)'", "YES"),
-                ("UC_RHST", "'UC_N,'", "'LIM'", "T", "YES", "'SW_T(T,WW)'", "NO"),
-                ("UC_RHSRT", "'R,UC_N,'", "'LIM'", "T", "YES", "'SW_T(T,WW)'", "NO"),
-                ("UC_RHSTS", "'UC_N,'", "'TS,LIM'", "T", "YES", "'SW_T(T,WW)'", "NO"),
-                ("UC_RHSRTS", "'R,UC_N,'", "'TS,LIM'", "T", "YES", "'SW_T(T,WW)'", "NO"),
+                ("CAP_BND", "R,", "P,BD", "T", "YES", "SW_T(T,WW)", "NO"),
+                ("COM_CUM", "R,COM_VAR,ALLYEAR,", "C,BD", "LL", "YES", "SUPERYR(T,LL)", "YES"),
+                ("FLO_CUM", "R,P,C,ALLYEAR,", "BD", "LL", "YES", "SUPERYR(T,LL)", "YES"),
+                ("UC_RHST", "UC_N,", "LIM", "T", "YES", "SW_T(T,WW)", "NO"),
+                ("UC_RHSRT", "R,UC_N,", "LIM", "T", "YES", "SW_T(T,WW)", "NO"),
+                ("UC_RHSTS", "UC_N,", "TS,LIM", "T", "YES", "SW_T(T,WW)", "NO"),
+                ("UC_RHSRTS", "R,UC_N,", "TS,LIM", "T", "YES", "SW_T(T,WW)", "NO"),
             ]
             # fmt: on
 
@@ -199,19 +203,19 @@ DISPLAY SW_START,SW_SUBS,SW_CHILD,SW_TREE,SW_MAP,SW_STAGE,SW_T,SW_TSW,SW_TPROB,S
                         self.tc,
                         self.env,
                         arg1="DAM_COST",
-                        arg2="'R,'",
-                        arg3="'COM,CUR'",
+                        arg2="R,",
+                        arg3="COM,CUR",
                         arg4="T",
                         arg5="YES",
-                        arg6="'SW_T(T,WW)'",
+                        arg6="SW_T(T,WW)",
                         arg7="YES",
                     )
                 )
 
             # fmt: off
             fillsow_batincludes3 = [
-                ("UC_RHS", "'UC_N,LIM'", "''", "''", "YES", "YES", "YES"),
-                ("UC_RHSR", "'R,UC_N,LIM'", "''", "''", "YES", "YES", "YES"),
+                ("UC_RHS", "UC_N,LIM", "", "", "YES", "YES", "YES"),
+                ("UC_RHSR", "R,UC_N,LIM", "", "", "YES", "YES", "YES"),
             ]
             # fmt: on
 
@@ -230,9 +234,7 @@ DISPLAY SW_START,SW_SUBS,SW_CHILD,SW_TREE,SW_MAP,SW_STAGE,SW_T,SW_TSW,SW_TPROB,S
                     )
                 )
 
-            self.tc.add_gams_code(
-                module=self, phase="run", code="OPTION CLEAR=SUPERYR;"
-            )
+            self.tc.enqueue(self.clear_superyr)
             if self.env.mca == "YES":
                 return
         self.post()
@@ -250,6 +252,9 @@ DISPLAY SW_START,SW_SUBS,SW_CHILD,SW_TREE,SW_MAP,SW_STAGE,SW_T,SW_TSW,SW_TPROB,S
 
         if self.tc.defined("S_COM_FR"):
             self.tc.enqueue(self.process_com_fr)
+
+    def clear_superyr(self) -> None:
+        self.tc.add_gams_code(module=self, phase="run", code="OPTION CLEAR=SUPERYR;")
 
     def post(self: StagesStc) -> None:
         # fmt: off
@@ -288,15 +293,6 @@ DISPLAY SW_START,SW_SUBS,SW_CHILD,SW_TREE,SW_MAP,SW_STAGE,SW_T,SW_TSW,SW_TPROB,S
   OPTION RVP < S_NCAP_COST;
   OBJ_SIC(RVP(R,T,P),SOW)$SW_T(T,SOW) = PROD(SW_MAP(T,SOW,J,WW)$S_NCAP_COST(R,T,P,J,WW),S_NCAP_COST(R,T,P,J,WW))-1;
   OPTION CLEAR=RVP,CLEAR=TRACKP,CLEAR=S_NCAP_COST;
-""",
-        )
-
-    def set_auxsow(self: StagesStc) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-SET AUXSOW(ALLSOW) / 1 /;
 """,
         )
 
