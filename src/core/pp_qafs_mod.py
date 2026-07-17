@@ -12,6 +12,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Set
+
 from core.base_class import GamsClass
 from core.pp_qaput_mod import pp_qaput
 
@@ -42,17 +44,14 @@ class PpQafsMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-* Eliminate redundant / inconsistent shares due to careless modelling
- SET RTPGIG(R,ALLYEAR,P,CG,IO,CG) //;
- SET RTP_CG(R,ALLYEAR,P,CG,IO)    //;
- SET RTP_GRP(R,ALLYEAR,P,CG,IO)   //;
- SET RP_GIC(R,P,CG,IO,C)          //;
-""",
-        )
+        g = self.tc
+        m = g.container
+        r, allyear, p, cg, io, c = g.r, g.allyear, g.p, g.cg, g.io, g.c
+        g.Rtpgig = Set(m, name="RTPGIG", domain=[r, allyear, p, cg, io, cg])
+        g.RtpCg = Set(m, name="RTP_CG", domain=[r, allyear, p, cg, io])
+        g.RtpGrp = Set(m, name="RTP_GRP", domain=[r, allyear, p, cg, io])
+        g.RpGic = Set(m, name="RP_GIC", domain=[r, p, cg, io, c])
+
         self.tc.enqueue(self.pp_qafs_exec1, rl=self.env.rl, pl=self.env.pl)
         if not self.env.is_set("sharetol"):
             self.env.set_local("sharetol", "9E-5")

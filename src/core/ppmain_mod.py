@@ -328,7 +328,7 @@ class PpmainMod(GamsClass):
 
         self.tc.enqueue(self.phase_fiveteen)
 
-        self.include(PpLvlpkMod(tc=self.tc, env=self.env, arg1="1.0"))
+        self.include(PpLvlpkMod(tc=self.tc, env=self.env, arg1=Number(1)))
 
         # *-----------------------------------------------------------------------------
         # * flow related attributes

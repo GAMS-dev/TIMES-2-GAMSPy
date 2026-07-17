@@ -16,7 +16,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Parameter, Set
+from gamspy import Else, If, Loop, Number, Parameter, Set, Smax, SpecialValues, Sum
+from gamspy.math import project
 
 from core.base_class import GamsClass
 
@@ -38,7 +39,7 @@ class PpLvlpkMod(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
+        arg1: Number,
     ):
         self.env = env.fork()
         self._sub_modules = {}
@@ -55,52 +56,202 @@ class PpLvlpkMod(GamsClass):
 
         self.tc.enqueue(self.pp_lvlpk_exec, arg1=self.arg1)
 
-    def pp_lvlpk_exec(self: PpLvlpkMod, arg1: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-*-----------------------------------------------------------------------------
-* Collect PKTS for all COM_PEAK commodities
-  LOOP(COM_PKTS(R,CG,S), RCS(COM_TS(R,C,TS))$(RS_TREE(R,S,TS)$COM_GMAP(R,CG,C)) = YES);
-  TRACKC(R,C) $= SUM(RCS(R,C,S),1);
-*-----------------------------------------------------------------------------
-* Levelization of NCAP_PKCNT
-  OPTION RTP_ISHPR < NCAP_PKCNT;
-  FLO_PKCOI(RTP(R,T,P),C,S)$(TRACKC(R,C)$PRC_PKNO(R,P)) = 0;
-  TRACKPC(RPC(R,P,C))$((TOP(RPC,'OUT')+RPC_IRE(RPC,'IMP'))$TRACKC(R,C)) = YES;
-  RTP_GRP(RTP_ISHPR(RTP(R,V,P)),C,IO(IPS))$(SUM(RCS(R,C,S)$(NOT NCAP_PKCNT(R,V,P,S)),1)$TRACKPC(R,P,C)) = YES;
-*-----------------------------------------------------------------------------
-* Aggregation/inheritance to target timeslices
-*-----------------------------------------------------------------------------
- LOOP(RTP_GRP(R,V,P,C,IO), TS_ARRAY(S) = NCAP_PKCNT(R,V,P,S);
-  F = TS_ARRAY('ANNUAL');
-  IF((NOT SUM(RS_BELOW(R,ANNUAL,S)$TS_ARRAY(S),1))$F,NCAP_PKCNT(R,V,P,S)$RCS(R,C,S) = F;
-  ELSE
-* Set leveling default = {arg1};
-   IF(NOT F,TS_ARRAY(ANNUAL) = {arg1});
-* Simultaneous inheritance/aggregation; but only if target level value is not present
-   LOOP(RCS(R,C,TS)$(NOT TS_ARRAY(TS)),
-     NCAP_PKCNT(R,V,P,TS) $=
-       SUM(TS_MAP(R,TS,S)$FINEST(R,S), G_YRFR(R,S)/G_YRFR(R,TS) * (TS_ARRAY(S) +
-             SUM(RS_BELOW(R,ALL_TS,S)$((NOT SUM(SL$RS_BELOW(R,ALL_TS,SL),TS_MAP(R,SL,S)*TS_ARRAY(SL)))$TS_ARRAY(ALL_TS)),
-                  TS_ARRAY(ALL_TS)))))));
-*-----------------------------------------------------------------------------
-* Peak contribution
-* If PRC_PKAF, apply PKCNT only for capacity
-  TRACKP(PRC_PKAF(RP))=NOT PRC_PKNO(RP); TRACKPC(PRC_PKNO(RP),C) = NO;
-  RPC_PKF(RPC(RP_FLO(R,P),C))$TRACKC(R,C) = EPS**1$TRACKP(R,P);
-* If no PKCNT provided, copy NCAP_AF if PRC_PKAF; otherwise set default 1
-  LOOP(TRACKPC(R,P,C),PRC_TS2(R,P,S)$((NOT SUM(RTP(R,V,P),NCAP_PKCNT(RTP,S)))$RCS(R,C,S)) = YES);
-  NCAP_PKCNT(R,YEAR,P,S)$(NCAP_PKCNT(R,YEAR,P,S)=0) = 0;
-  NCAP_PKCNT(RTP(R,V,P),S)$PRC_TS2(R,P,S) = 1$(NOT PRC_PKAF(R,P)) +
-    SUM(PRC_TS(R,P,TS)$RS_TREE(R,S,TS),SMAX(BD,NCAP_AF(RTP,TS,BD))*(1+(G_YRFR(R,TS)/G_YRFR(R,S)-1)$RS_BELOW(R,S,TS)))$PRC_PKAF(R,P);
-*-----------------------------------------------------------------------------
-* RPC_PKC indicator for peak contribution by capacity
- RPC_PKC(TRACKPC(RPC_ACT(TRACKP(RP_STD),C)))=YES;
- TRACKPC(RP,C)$(NOT RPC_PG(RP,C)*RP_FLO(RP))=NO;
- RPC_PKC(TRACKPC(RP_PGACT(RP),C))$(RP_PG(RP,C)+TRACKP(RP))=YES;
- LOOP(NRG_TMAP(R,'ELC',C)$TRACKC(R,C),RPC_PKC(TRACKPC(TRACKP(R,P),C))=YES;TRACKP(R,P)$TRACKPC(R,P,C)=NO);
- OPTION CLEAR=TRACKP,CLEAR=TRACKC,CLEAR=TRACKPC,CLEAR=RTP_GRP,CLEAR=RCS,CLEAR=RTP_ISHPR,CLEAR=PRC_TS2;
-""",
+    def pp_lvlpk_exec(self: PpLvlpkMod, arg1: Number) -> None:
+        g = self.tc
+        (
+            ComPkts,
+            r,
+            cg,
+            s,
+            Rcs,
+            ComTs,
+            c,
+            ts,
+            RsTree,
+            ComGmap,
+            Trackc,
+            ncap_pkcnt,
+            RtpIshpr,
+            flo_pkcoi,
+            Rtp,
+            t,
+            p,
+            PrcPkno,
+            Trackpc,
+            Rpc,
+            Top,
+            RpcIre,
+            RtpGrp,
+            v,
+            io,
+            ips,
+            ts_array,
+            f,
+            RsBelow,
+            Annual,
+            TsMap,
+            g_yrfr,
+            allts,
+            sl,
+            Finest,
+            Trackp,
+            PrcPkaf,
+            Rp,
+            rpc_pkf,
+            RpFlo,
+            PrcTs2,
+            year,
+            PrcTs,
+            bd,
+            ncap_af,
+            RpcPkc,
+            RpcAct,
+            RpStd,
+            RpcPg,
+            RpPgact,
+            RpPg,
+            NrgTmap,
+        ) = (
+            g.ComPkts,
+            g.r,
+            g.cg,
+            g.s,
+            g.Rcs,
+            g.ComTs,
+            g.c,
+            g.ts,
+            g.RsTree,
+            g.ComGmap,
+            g.Trackc,
+            g.ncap_pkcnt,
+            g.RtpIshpr,
+            g.flo_pkcoi,
+            g.Rtp,
+            g.t,
+            g.p,
+            g.PrcPkno,
+            g.Trackpc,
+            g.Rpc,
+            g.Top,
+            g.RpcIre,
+            g.RtpGrp,
+            g.v,
+            g.io,
+            g.ips,
+            g.ts_array,
+            g.f,
+            g.RsBelow,
+            g.Annual,
+            g.TsMap,
+            g.g_yrfr,
+            g.allts,
+            g.sl,
+            g.Finest,
+            g.Trackp,
+            g.PrcPkaf,
+            g.Rp,
+            g.rpc_pkf,
+            g.RpFlo,
+            g.PrcTs2,
+            g.year,
+            g.PrcTs,
+            g.bd,
+            g.ncap_af,
+            g.RpcPkc,
+            g.RpcAct,
+            g.RpStd,
+            g.RpcPg,
+            g.RpPgact,
+            g.RpPg,
+            g.NrgTmap,
         )
+        with Loop(ComPkts[r, cg, s]):
+            Rcs[ComTs[r, c, ts]].where[RsTree[r, s, ts] & ComGmap[r, cg, c]] = True
+        Trackc[r, c].where[Sum(Rcs[r, c, s], 1)] = Sum(Rcs[r, c, s], 1)
+        project(source=ncap_pkcnt, target=RtpIshpr)
+        flo_pkcoi[Rtp[r, t, p], c, s].where[Trackc[r, c] & PrcPkno[r, p]] = 0
+        Trackpc[Rpc[r, p, c]].where[
+            Top[Rpc, "OUT"] + RpcIre[Rpc, "IMP"] & Trackc[r, c]
+        ] = True
+
+        RtpGrp[RtpIshpr[Rtp[r, v, p]], c, io[ips]].where[
+            Sum(Rcs[r, c, s].where[~ncap_pkcnt[r, v, p, s]], 1) & Trackpc[r, p, c]
+        ] = True
+        with Loop(RtpGrp[r, v, p, c, io]):
+            ts_array[s] = ncap_pkcnt[r, v, p, s]
+            f[...] = ts_array["ANNUAL"]
+            with If((~Sum(RsBelow[r, Annual, s].where[ts_array[s]], 1)).where[f]):
+                ncap_pkcnt[r, v, p, s].where[Rcs[r, c, s]] = f
+            with Else():  # type: ignore[no-untyped-call]
+                with If(~f):
+                    ts_array[Annual] = arg1
+                with Loop(Rcs[r, c, ts].where[~ts_array[ts]]):
+                    ncap_pkcnt[r, v, p, ts].where[
+                        Sum(
+                            TsMap[r, ts, s].where[Finest[r, s]],
+                            g_yrfr[r, s]
+                            / g_yrfr[r, ts]
+                            * (
+                                ts_array[s]
+                                + Sum(
+                                    RsBelow[r, allts, s].where[
+                                        ~Sum(
+                                            sl.where[RsBelow[r, allts, sl]],
+                                            TsMap[r, sl, s] * ts_array[sl],
+                                        )
+                                        & ts_array[allts]
+                                    ],
+                                    ts_array[allts],
+                                )
+                            ),
+                        )
+                    ] = Sum(
+                        TsMap[r, ts, s].where[Finest[r, s]],
+                        g_yrfr[r, s]
+                        / g_yrfr[r, ts]
+                        * (
+                            ts_array[s]
+                            + Sum(
+                                RsBelow[r, allts, s].where[
+                                    ~Sum(
+                                        sl.where[RsBelow[r, allts, sl]],
+                                        TsMap[r, sl, s] * ts_array[sl],
+                                    )
+                                    & ts_array[allts]
+                                ],
+                                ts_array[allts],
+                            )
+                        ),
+                    )
+        Trackp[PrcPkaf[Rp]] = ~PrcPkno[Rp]
+        Trackpc[PrcPkno[Rp], c] = False
+        rpc_pkf[Rpc[RpFlo[r, p], c]].where[Trackc[r, c]] = (
+            SpecialValues.EPS ** (Number(1)).where[Trackp[r, p]]
+        )
+        with Loop(Trackpc[r, p, c]):
+            PrcTs2[r, p, s].where[
+                ~Sum(Rtp[r, v, p], ncap_pkcnt[Rtp, s]) & Rcs[r, c, s]
+            ] = True
+        ncap_pkcnt[r, year, p, s].where[ncap_pkcnt[r, year, p, s] == 0] = 0
+        ncap_pkcnt[Rtp[r, v, p], s].where[PrcTs2[r, p, s]] = (Number(1)).where[
+            ~PrcPkaf[r, p]
+        ] + (
+            Sum(
+                PrcTs[r, p, ts].where[RsTree[r, s, ts]],
+                Smax(bd, ncap_af[Rtp, ts, bd])
+                * (1 + (g_yrfr[r, ts] / g_yrfr[r, s] - 1).where[RsBelow[r, s, ts]]),
+            )
+        ).where[PrcPkaf[r, p]]
+        RpcPkc[Trackpc[RpcAct[Trackp[RpStd], c]]] = True
+        Trackpc[Rp, c].where[~RpcPg[Rp, c] * RpFlo[Rp]] = False
+        RpcPkc[Trackpc[RpPgact[Rp], c]].where[RpPg[Rp, c] + Trackp[Rp]] = True
+        with Loop(NrgTmap[r, "ELC", c].where[Trackc[r, c]]):
+            RpcPkc[Trackpc[Trackp[r, p], c]] = True
+            Trackp[r, p].where[Trackpc[r, p, c]] = False
+        Trackp.setRecords(None)
+        Trackc.setRecords(None)
+        Trackpc.setRecords(None)
+        RtpGrp.setRecords(None)
+        Rcs.setRecords(None)
+        RtpIshpr.setRecords(None)
+        PrcTs2.setRecords(None)
