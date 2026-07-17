@@ -248,9 +248,6 @@ class EnvironmentVariableSchema(BaseModel):
     tsum: str = Field(
         description="Summary execution check identifier tracking mathematical summation steps."
     )
-    swflo: str = Field(
-        description="Flow control switch expression token managing internal operational boundaries."
-    )
     sigo: str = Field(
         description="Output tracking switch handling environmental constraint emissions parameters."
     )
@@ -278,7 +275,7 @@ class EnvironmentVariableSchema(BaseModel):
     swt: str = Field(
         description="Dynamic switch template tracker managing temporary loop attributes."
     )
-    swt_GP: tuple[Set | Alias, ...] | tuple[()] = Field(
+    swt_GP: tuple[Set | Alias | ImplicitSet, ...] | tuple[()] = Field(
         description="Dynamic switch template tracker managing temporary loop attributes."
     )
     swsw: str = Field(
@@ -287,7 +284,7 @@ class EnvironmentVariableSchema(BaseModel):
     swtd: str = Field(
         description="Time-step differentiation switch expression string mapped to parameters."
     )
-    swtd_GP: tuple[Set | Alias, ...] | tuple[()] = Field(
+    swtd_GP: tuple[Set | Alias | ImplicitSet, ...] | tuple[()] | str = Field(
         description="Time-step differentiation switch expression string mapped to parameters."
     )
     x1: str = Field(
@@ -309,7 +306,7 @@ class EnvironmentVariableSchema(BaseModel):
     capwd: str = Field(
         description="Capacity width adjustment parameter string mapping operating lifetimes."
     )
-    sow: Literal["", ",SOW", ",WW", ",0", "1", "SOW.TL"] = Field(
+    sow: Literal["", ",SOW", ",WW", ",WW)", ",0", "1", "SOW.TL"] = Field(
         description="Stochastic World (Scenario State) active indexing identifier token."
     )
     sow_GP: tuple[Literal["0", "1"] | Set | Alias] | tuple[()] = Field(
@@ -345,22 +342,36 @@ class EnvironmentVariableSchema(BaseModel):
     varm: str = Field(
         description="Macro tracking variant variable used in objective calculation hooks."
     )
+    varm_GP: tuple[str, ImplicitSet | None] = Field(
+        description="varm is always a tuple with format <(variable prefix, set identifier for sum statement)>."
+    )
     vart: str = Field(
         description="Temporal indexing mapping string tracking current variable periods."
     )
-    vartt: str = Field(
-        description="Nested temporal index mapping string tracking cumulative variable horizons."
+    vart_GP: tuple[str, ImplicitSet | None] = Field(
+        description="vart is always a tuple with format <(variable prefix, set identifier for sum statement)>."
     )
     vart1: str = Field(
         description="First shift temporal index mapping string tracking period boundaries."
     )
+    vartt: str = Field(
+        description="Nested temporal index mapping string tracking cumulative variable horizons."
+    )
+    vartt_GP: tuple[str, ImplicitSet | None] = Field(
+        description="vartt is always a tuple with format <(variable prefix, set identifier for sum statement)>."
+    )
     varv: str = Field(
         description="Vintage index mapping identifier tracking installed configuration years."
+    )
+    varv_GP: tuple[str, ImplicitSet | None] = Field(
+        description="varv is always a tuple with format <(variable prefix, set identifier for sum statement)>."
     )
     cal_red: str = Field(
         description="Calculation reduction parameter mapping tracking array dimensions."
     )
-    eq: str = Field(description="Equation declaration mapping identifier string.")
+    eq: Literal["EQ", "ES", "Q"] = Field(
+        description="Equation declaration mapping identifier string."
+    )
     sws: str = Field(
         description="Scenario switch tracking token handling multi-stage matrix settings."
     )
@@ -370,7 +381,7 @@ class EnvironmentVariableSchema(BaseModel):
     swstmp: str = Field(
         description="Temporary matrix scenario tracker state parameter."
     )
-    swd: Literal["", ",WW", ",W"] = Field(
+    swd: Literal["", ",WW", ",W", ",SOW", ")"] = Field(
         description="Solution domain tracking token mapped to variable dimensions."
     )
     swd_GP: tuple[Set | Alias] | tuple[()] = Field(
@@ -575,6 +586,13 @@ class EnvironmentVariableSchema(BaseModel):
     rpt_opt: pd.DataFrame
     stepped: str
     trivint: str
+    need: str
+    witspine: bool
+    ewispine: bool
+    stg: str
+    ix: str
+    eqs: str
+    v: str
 
 
 class UserConfig(BaseModel):
@@ -599,7 +617,7 @@ class UserConfig(BaseModel):
     oblong: Literal["YES", "NO", "%oblong%"] = "%oblong%"
     damage: Literal["LP", "NLP", "NO"] = "LP"
     stages: Literal["YES", "Yes", "NO", "%stages%"] = "%stages%"
-    solveda: Literal["YES", "%solveda%"] = "%solveda%"
+    solveda: Literal["YES", "1", "%solveda%"] = "%solveda%"
     varcost: Literal["LIN", "%varcost%"] = "%varcost%"
     dscauto: Literal["YES", "%dscauto%"] = "%dscauto%"
     datagdx: Literal["YES", "%datagdx%"] = "%datagdx%"

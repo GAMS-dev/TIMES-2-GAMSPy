@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.bnd_act_mod import bnd_act_mod
 from core.bnd_cum_mod import bnd_cum_mod
 from core.bnd_elas_mod import bnd_elas_mod
@@ -27,8 +28,6 @@ from core.bnd_set_mod import bnd_set_mod
 from core.bnd_stg_mod import bnd_stg_mod
 from core.bnd_ucw_mod import bnd_ucw_mod
 from core.dynslite_vda import dynslite_vda_bounds
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -179,6 +178,10 @@ def bndmain_mod(
     bnd_ucw_defined: dict[str, bool],
     stochastic_symbols_declared: dict[str, bool],
 ) -> str:
+    # TODO: Line 42 in GAMS code: $ IF %STAGES%==YES  $SETLOCAL SWT '$SW_T(T%SOW%)'
+    # is tranlated multiple times within the calls to other functions
+    # this should be pulled into an assignment to swt when translating to GAMSPy
+    # to have less code duplication and be more consistent with the original code
     return rf"""
 {rf"$CLEAR {var}_IRE {var}_UPS {var}_UDP {var}_UPT {var}_SCAP" if arg2 == "0" else ""}
 
@@ -284,7 +287,7 @@ CAP_BND(RTP(RTP_VARP),'LO')$CAP_BND(RTP,'UP') = SMIN(BDNEQ,CAP_BND(RTP,BDNEQ));
             arg2="R,T,P",
             arg3="CAP_BND",
             arg4=f"RTP({r_t},P)",
-            arg5=swt,
+            arg5=f"$SW_T(T{sow})" if stages == "YES" else swt,
             arg6="",
             stages=stages,
             swd=swd,
@@ -304,7 +307,7 @@ CAP_BND(RTP(RTP_VARP),'LO')$CAP_BND(RTP,'UP') = SMIN(BDNEQ,CAP_BND(RTP,BDNEQ));
             arg2="R,T,C,S",
             arg3="COM_BNDNET",
             arg4=f"RTCS_VARC({r_t},C,S)",
-            arg5=swt,
+            arg5=f"$SW_T(T{sow})" if stages == "YES" else swt,
             arg6="",
             stages=stages,
             swd=swd,
@@ -320,7 +323,7 @@ CAP_BND(RTP(RTP_VARP),'LO')$CAP_BND(RTP,'UP') = SMIN(BDNEQ,CAP_BND(RTP,BDNEQ));
             arg2="R,T,C,S",
             arg3="COM_BNDPRD",
             arg4=f"RTCS_VARC({r_t},C,S)",
-            arg5=swt,
+            arg5=f"$SW_T(T{sow})" if stages == "YES" else swt,
             arg6="",
             stages=stages,
             swd=swd,
@@ -357,7 +360,7 @@ CAP_BND(RTP(RTP_VARP),'LO')$CAP_BND(RTP,'UP') = SMIN(BDNEQ,CAP_BND(RTP,BDNEQ));
 *-----------------------------------------------------------------------------
 {
         bnd_ucw_mod(
-            arg1=swt,
+            arg1=f"$SW_T(T{sow})" if stages == "YES" else swt,
             arg2="",
             var=var,
             stages=stages,

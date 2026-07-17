@@ -90,7 +90,7 @@ class EqbndcstMod(GamsClass):
         if self.env.stages == "YES":
             self.env.set_scoped("swt", f"SW_T(TT{self.env.sow})$")
             self.env.set_scoped(
-                "swt_GP", g.SwT[g.tt, *self.env.sow_GP]
+                "swt_GP", (g.SwT[g.tt, *self.env.sow_GP],)
             )  # ToDo: Move $ to main code
 
         if self.env.scum == "1":
@@ -127,9 +127,13 @@ class EqbndcstMod(GamsClass):
                 "(TPULSEYR(T,Y),MILESTONYR(Y_EOH),YK(ALLYEAR,Y))$(YK(Y,YEAR)$TPULSE(Y_EOH,Y)),TPULSE(Y_EOH,Y)*TPULSE(T,Y)*",
             )
 
-        self.env.set_scoped("vart1", self.env.vart)
+        # vart  & vart1 are only used in this file, not used in its children
+        # degradation to local
+        vart1 = self.env.vart
         if self.env.scum == "1":
-            self.env.set_scoped("vart", "SUM(SW_TSW(W,T,W),SW_TPROB(T,W)*Z")
+            vart = "SUM(SW_TSW(W,T,W),SW_TPROB(T,W)*Z"
+        else:
+            vart = self.env.vart
 
         self.env.set_scoped("sowend", self.env.sow)
         if self.env.stages == "YES":
@@ -139,11 +143,11 @@ class EqbndcstMod(GamsClass):
             eq=self.env.eq,
             sowstart=self.env.sowstart,
             swt=self.env.swt,
-            vart1=self.env.vart1,
+            vart1=vart1,
             sws=self.env.sws,
             declif=self.env.declif,
             tpulse=self.env.tpulse,
-            vart=self.env.vart,
+            vart=vart,
             swtd=self.env.swtd,
             swsw=self.env.swsw,
             cal_red=self.env.cal_red,

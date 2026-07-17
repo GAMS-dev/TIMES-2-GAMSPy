@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -54,12 +54,11 @@ class SolIreRpt(GamsClass):
 
         self.tc.enqueue(
             self.exec1,
-            arg1=self.arg1,
             arg2=self.arg2,
             arg3=self.arg3,
             arg4=self.arg4,
-            v=self.env.v,
             sow=self.env.sow,
+            mx=self.env.mx,
             rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
         )
 
@@ -74,24 +73,22 @@ class SolIreRpt(GamsClass):
 
     def exec1(
         self: SolIreRpt,
-        arg1: str,
         arg2: str,
         arg3: str,
         arg4: str,
-        v: str,
         sow: str,
+        mx: str,
         rtp_ffcs_defined: bool,
     ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code=sol_ire_rpt(
-                arg1=arg1,
                 arg2=arg2,
                 arg3=arg3,
                 arg4=arg4,
-                v=v,
                 sow=sow,
+                mx=mx,
                 rtp_ffcs_defined=rtp_ffcs_defined,
             ),
         )
@@ -99,15 +96,15 @@ class SolIreRpt(GamsClass):
 
 def sol_ire_rpt(
     *,
-    arg1: str = "",
     arg2: str = "",
     arg3: str = "",
     arg4: str = "",
-    v: str,
     sow: str,
+    mx: str,
     rtp_ffcs_defined: bool,
 ) -> str:
     src = "PAR_IRE(R,V,T,P,C,S,IE)"
+    v = "VAR"
 
     sws = (
         f"{v}_IRE.L(R,V,T,P,C,S,IE{arg2})$(NOT RPC_AIRE(R,P,C))"
@@ -124,7 +121,6 @@ def sol_ire_rpt(
         sws = "0"
         swd = "0"
 
-    mx = ""
     if rtp_ffcs_defined:
         mx = f"(1+RTP_FFCS(R,V,P,COM,COM{sow}))*"
 

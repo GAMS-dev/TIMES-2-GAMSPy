@@ -76,6 +76,7 @@ class RptExtMlf(GamsClass):
             is_vnret_defined=self.tc.defined("VNRET"),
             varv=self.env.varv,
             sws=self.env.sws,
+            mx=self.env.mx,
             varm=self.env.varm,
             is_obj_combal_defined=self.tc.defined("OBJ_COMBAL"),
             vart=self.env.vart,
@@ -138,6 +139,7 @@ class RptExtMlf(GamsClass):
         is_vnret_defined: bool,
         varv: str,
         sws: str,
+        mx: str,
         varm: str,
         is_obj_combal_defined: bool,
         vart: str,
@@ -150,7 +152,6 @@ class RptExtMlf(GamsClass):
             arg1="PAR_FLO",
             arg2="",
             arg3=".L",
-            v=v,
             pgprim=pgprim,
             sow=sow,
             rtp_ffcs_defined=rtp_ffcs_defined,
@@ -210,7 +211,7 @@ class RptExtMlf(GamsClass):
 *   Calculation of annual costs and commodity marginals
     OPTION CLEAR=PAR_FLO,CLEAR=PAR_IRE;
 {include_sol_flo_red}
-{sol_ire_rpt(v=v, sow=sow, rtp_ffcs_defined=rtp_ffcs_defined)}
+{sol_ire_rpt(sow=sow, mx=mx, rtp_ffcs_defined=rtp_ffcs_defined)}
     OPTION CLEAR=CST_PVP,CLEAR=CST_ACTC,CLEAR=CST_INVC,CLEAR=CST_INVX,CLEAR=CST_FIXC,CLEAR=CST_FIXX;
     OPTION CLEAR=CAP_NEW,CLEAR=CST_FLOC,CLEAR=CST_FLOX,CLEAR=CST_COMC,CLEAR=CST_COMX,CLEAR=CST_IREC;
 {include_rpt_obj}

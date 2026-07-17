@@ -15,10 +15,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.eqchpelc_ier import EqchpelcIer
 from core.eqmrkcom_ier import EqmrkcomIer
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment

@@ -22,7 +22,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -65,7 +65,7 @@ class FillsowStc(GamsClass):
     def compile(self) -> None:
         self.env.set_local("tail", f",{self.arg3}")
         self.env.set_local("stg", "")
-        self.env.set_local("ix", "0")
+        self.env.set_local("ix", "'0'")
 
         if not len(self.arg3):
             self.env.set_local("tail", "")

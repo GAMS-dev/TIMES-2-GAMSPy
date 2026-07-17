@@ -16,12 +16,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.eqashar_vda import EqasharVda
 from core.eqlducs_vda import EqlducsVda
 from core.fillwave_gms import FillwaveGms
 from core.powerflo_vda import PowerfloVda
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment

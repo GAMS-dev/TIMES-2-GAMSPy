@@ -22,6 +22,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.eqobjels_rpt import EqobjelsRpt
 from core.eqobjfix_rpt import EqobjfixRpt
 from core.eqobjinv_rpt import EqobjinvRpt
@@ -29,8 +30,6 @@ from core.eqobjvar_rpt import EqobjvarRpt
 from core.eqobsalv_rpt import EqobsalvRpt
 from core.par_uc_rpt import ParUcRpt
 from core.sol_flo_red import SolFloRed
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment

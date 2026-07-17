@@ -12,14 +12,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.coef_alt_lin import CoefAltLin
 from core.coef_cpt_mod import CoefCptMod
 from core.coef_nio_mod import CoefNioMod
 from core.coef_obj_mod import CoefObjMod
 from core.coef_ptr_mod import CoefPtrMod
 from core.coef_shp_mod import CoefShpMod
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment

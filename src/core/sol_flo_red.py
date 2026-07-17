@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .base_class import GamsClass
+from core.base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -60,10 +60,8 @@ class SolFloRed(GamsClass):
             arg1=self.arg1,
             arg2=self.arg2,
             arg3=self.arg3,
-            arg4=self.arg4,
             arg5=self.arg5,
             arg6=self.arg6,
-            v=self.env.v,
             pgprim=self.env.pgprim,
             sow=self.env.sow,
             rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
@@ -83,10 +81,8 @@ class SolFloRed(GamsClass):
         arg1: str,
         arg2: str,
         arg3: str,
-        arg4: str,
         arg5: str,
         arg6: str,
-        v: str,
         pgprim: str,
         sow: str,
         rtp_ffcs_defined: bool,
@@ -98,10 +94,8 @@ class SolFloRed(GamsClass):
                 arg1=arg1,
                 arg2=arg2,
                 arg3=arg3,
-                arg4=arg4,
                 arg5=arg5,
                 arg6=arg6,
-                v=v,
                 pgprim=pgprim,
                 sow=sow,
                 rtp_ffcs_defined=rtp_ffcs_defined,
@@ -114,20 +108,21 @@ def sol_flo_red(
     arg1: str = "",
     arg2: str = "",
     arg3: str = "",
-    arg4: str = "",
+    # arg4: str = "", # not used
     arg5: str = "",
     arg6: str = "",
-    v: str,
     pgprim: str,
     sow: str,
     rtp_ffcs_defined: bool,
 ) -> str:
+    shp1 = ""
+    # shp2 = "" # not used
+    shp3 = ""
     tst = "$PRC_VINT(R,P)"
+    v = "VAR"
+
     shg1 = f",P,'{pgprim}',C"
     shg = ",P,CG1,C"
-
-    shp1 = ""
-    shp3 = ""
 
     if rtp_ffcs_defined:
         shp1 = f"*(1+RTP_FFCS(R,V{shg1}{sow}))"

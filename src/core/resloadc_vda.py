@@ -12,10 +12,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.fillparm_gms import FillparmGms
 from core.utils import callable_rts
-
-from .base_class import GamsClass
 
 # from core.cal_nored_red import cal_nored_red
 # from core.cal_red_red import cal_red_red

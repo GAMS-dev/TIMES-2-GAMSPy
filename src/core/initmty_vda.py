@@ -14,9 +14,8 @@ from typing import TYPE_CHECKING
 
 from gamspy import Parameter, Set
 
+from core.base_class import GamsClass
 from core.utils import expand_set
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment

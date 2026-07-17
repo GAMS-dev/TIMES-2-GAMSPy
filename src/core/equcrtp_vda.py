@@ -189,19 +189,19 @@ class EqucrtpVda(GamsClass):
 *-------
 * Difference in capacity between previous and current period
   (SUM(SAMEAS(T-1,V(TT))$RTP(R,V,P), POWER(PRC_DYNUC(UC_N,'LHS',R,T,P,UC_GRPTYPE,BD),LEAD(T)) *
-     {self.env.varv}_CAP(R,V,P {self.env.swt}))*(1-2$BDUPX(BD))
+     {self.env.varv}_CAP(R,V,P {self.env.sws}))*(1-2$BDUPX(BD))
    -  {self.env.var}_CAP(R,T,P {self.env.sow}) *(1-2$BDUPX(BD)))$SAMEAS('CAP',UC_GRPTYPE)
 *-------
   +
 * Difference in NCAP between previous and current period
   (SUM(SAMEAS(T-1,V(TT))$RTP(R,V,P), POWER(PRC_DYNUC(UC_N,'LHS',R,T,P,UC_GRPTYPE,BD),LEAD(T)) *
-     {self.env.varv}_NCAP(R,V,P {self.env.swt}))*(1-2$BDUPX(BD))
+     {self.env.varv}_NCAP(R,V,P {self.env.sws}))*(1-2$BDUPX(BD))
    -  {self.env.var}_NCAP(R,T,P {self.env.sow}) *(1-2$BDUPX(BD)))$SAMEAS('NCAP',UC_GRPTYPE)
 *-------
   +
 * Difference in ACT between previous and current period
   (SUM(SAMEAS(T-1,V(TT))$RTP_VARA(R,V,P), POWER(PRC_DYNUC(UC_N,'LHS',R,T,P,UC_GRPTYPE,BD),LEAD(T)) *
-       SUM((RTP_VINTYR(R,MODLYEAR,V,P),PRC_TS(R,P,S)),{self.env.vartt}_ACT(R,MODLYEAR,V,P,S {self.env.swt})))*(1-2$BDUPX(BD))
+       SUM((RTP_VINTYR(R,MODLYEAR,V,P),PRC_TS(R,P,S)),{self.env.vartt}_ACT(R,MODLYEAR,V,P,S {self.env.sws})))*(1-2$BDUPX(BD))
    -   SUM((RTP_VINTYR(R,MODLYEAR,T,P),PRC_TS(R,P,S)),  {self.env.var}_ACT(R,MODLYEAR,T,P,S {self.env.sow})) *(1-2$BDUPX(BD)))$SAMEAS('ACT',UC_GRPTYPE)
 
   ={self.arg3}=

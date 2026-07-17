@@ -18,12 +18,11 @@ from typing import TYPE_CHECKING
 
 from gamspy import Alias, Ord, Parameter, Set, UniverseAlias
 
+from core.base_class import GamsClass
 from core.globals_def import Globals
 from core.maplists_def import Maplists
 from core.units_def import Units
 from core.utils import expand_set
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment

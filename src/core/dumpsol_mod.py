@@ -14,10 +14,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
 from core.dumpsol1_mod import Dumpsol1Mod
 from core.dumpsolv_mod import DumpsolvMod
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment

@@ -18,6 +18,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from core.base_class import GamsClass
+
 # from core.rpt_chp_ire import RrpChpIre
 from core.cost_ann_rpt import CostAnnRpt
 from core.ddfupd_msa import ddfupd_msa
@@ -28,8 +30,6 @@ from core.rptmisc_rpt import RptmiscRpt
 from core.sol_flo_red import SolFloRed
 from core.sol_ire_rpt import SolIreRpt
 from core.writeddf_msa import writeddf_msa
-
-from .base_class import GamsClass
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
