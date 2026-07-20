@@ -20,7 +20,7 @@ from core.fillparm_gms import FillparmGms
 from core.filparam_gms import FilparamGms, FilparamGmsConfig
 from core.gasgrids_vda import GasgridsVda
 from core.pp_lvlfc_mod import PpLvlfcMod
-from core.utils import callable_rts
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -683,7 +683,7 @@ $ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,'{pgprim}',s,ie{sow}
             pgprim=pgprim,
             def_rtp_ffcs=def_rtp_ffcs,
         )
-        rts = callable_rts(self.env)
+        rts = macro.rts(s="S", g=self.tc, env=self.env)
         self.tc.add_gams_code(
             module=self,
             phase="init",

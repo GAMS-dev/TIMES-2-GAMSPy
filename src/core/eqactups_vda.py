@@ -17,7 +17,7 @@ from gamspy import Sum
 
 from core.base_class import GamsClass
 from core.pp_lvlfc_mod import pp_lvlfc_mod
-from core.utils import callable_rts
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -70,7 +70,7 @@ class EqactupsVda(GamsClass):
             upscaps=self.env.upscaps,
             arg1=self.arg1,
         )
-        rts = callable_rts(self.env)
+        rts = macro.rts(s="S", g=self.tc, env=self.env)
         self.equation_acttramp(
             eq=self.env.eq,
             r_v_t=self.env.r_v_t,

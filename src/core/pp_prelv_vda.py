@@ -93,7 +93,7 @@ class PpPrelvVda(GamsClass):
         if self.env.powerflo.upper() == "YES":
             self.include(PowerfloVda(self.tc, self.env))
         self.tc.enqueue(self.set_com_var_def_bounds)
-        if self.env.rts != "S":
+        if self.env.rts() != "S":
             self.include(DynsliteVda(self.tc, self.env, arg1="PRELEV"))
 
     def restore_ncap_tlife(self: PpPrelvVda, dflbl: str) -> None:

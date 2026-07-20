@@ -161,7 +161,7 @@ class SolveStp(GamsClass):
             pgprim=self.env.pgprim,
             r_t=self.env.r_t,
             var_uc=self.env.var_uc,
-            rts=self.env.rts,
+            rts=self.env.rts(),
             stochastic_symbols_declared={
                 "S_NCAP_BND": self.tc.defined("S_NCAP_BND"),
                 "S_CAP_BND": self.tc.defined("S_CAP_BND"),

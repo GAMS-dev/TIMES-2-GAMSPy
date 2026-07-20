@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 
 from core import cal_nored_red, cal_red_red, pp_lvlfc_mod
 from core.base_class import GamsClass
-from core.utils import callable_rts
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -138,7 +138,7 @@ class EqasharVda(GamsClass):
                 sow=self.env.sow,
                 var=self.env.var,
             )
-        rts = callable_rts(self.env)
+        rts = macro.rts(s="S", g=self.tc, env=self.env)
         self.tc.add_gams_code(
             module=self,
             phase="init",

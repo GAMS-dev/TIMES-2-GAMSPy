@@ -76,7 +76,7 @@ class PpmExtVda(GamsClass):
 
         self.include(EqucrtpVda(self.tc, self.env, arg1="PPM_EXT"))
 
-        if self.env.rts != "S":
+        if self.env.rts() != "S":
             self.include(DynsliteVda(self.tc, self.env, arg1="POSTLEV"))
 
     def display(self: PpmExtVda) -> None:

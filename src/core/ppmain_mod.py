@@ -42,7 +42,7 @@ from core.ppmain_tm import PpmainTm
 from core.preppm_mod import PreppmMod
 from core.prepxtra_mod import PrepxtraMod
 from core.timslice_mod import TimsliceMod
-from core.utils import callable_rts
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -304,7 +304,7 @@ class PpmainMod(GamsClass):
                 self.tc.container, name="RTCS_FR", domain=[g.r, g.t, g.c, g.s, g.s]
             )
 
-        rts = callable_rts(self.env)
+        rts = macro.rts(s="S", g=self.tc, env=self.env)
         self.tc.enqueue(self.phase_thirteen, mx=self.env.mx, rts=rts)
 
         # Preprocess TIMES-Micro

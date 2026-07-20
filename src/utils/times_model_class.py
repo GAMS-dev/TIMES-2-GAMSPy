@@ -58,6 +58,7 @@ class TimesModelClass:
 
     # region TIMES symbols
     allts: Set = None  # type: ignore[assignment] # [*] ALL_TS: The universe for time-slices
+    rts: Alias = None  # type: ignore[assignment] # [*] RTS
     phantom: Set = None  # type: ignore[assignment] # [*] PHANTOM:
     item: UniverseAlias = None  # type: ignore[assignment] # [*] ITEM: Aliased with *
     bohyear: Set = None  # type: ignore[assignment] # [*] BOHYEAR: BOH + years

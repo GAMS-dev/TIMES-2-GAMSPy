@@ -23,6 +23,7 @@ from core.cal_fflo_mod import cal_fflo_mod
 from core.cal_ire_mod import cal_ire_mod
 from core.cal_stgn_mod import cal_stgn_mod
 from core.eqpk_ect_ier import eqpk_ect_ier
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -193,11 +194,12 @@ class EqpeakMod(GamsClass):
             arg6="$RPC_PKF(R,P,C)",
         )
 
+        rts = macro.rts(s="SL", g=self.tc, env=self.env)
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=rf"""
-    {eq}_PEAK({r_t},CG2,RTS(SL){swt})$(SUM(COM_GMAP(R,CG2,C)$RTC(R,T,C),1)$COM_PKTS(R,CG2,SL)) ..
+    {eq}_PEAK({r_t},CG2,{rts}{swt})$(SUM(COM_GMAP(R,CG2,C)$RTC(R,T,C),1)$COM_PKTS(R,CG2,SL)) ..
 
      SUM((COM_GMAP(R,CG2,C),COM_TS(R,C,S))$RS_FR(R,SL,S),
        RS_FR(R,SL,S) *

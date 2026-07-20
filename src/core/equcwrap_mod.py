@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Literal, get_args
 
 from core.base_class import GamsClass
 from core.equserco_mod import EqusercoMod
-from core.utils import callable_rts
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -183,7 +183,7 @@ class EqucwrapMod(GamsClass):
             )
         )
 
-        rts = callable_rts(self.env)
+        rts = macro.rts(s="S", g=self.tc, env=self.env)
         self.include(
             EqusercoMod(
                 self.tc,
@@ -234,7 +234,7 @@ class EqucwrapMod(GamsClass):
                 arg10=f"UC_RHSRT(R,UC_N,T,{self.arg2})",
             )
         )
-        rts = callable_rts(self.env)
+        rts = macro.rts(s="S", g=self.tc, env=self.env)
         self.include(
             EqusercoMod(
                 self.tc,
@@ -269,13 +269,14 @@ class EqucwrapMod(GamsClass):
             )
         )
 
+        rts = macro.rts(s="SL", g=self.tc, env=self.env)
         self.include(
             EqusercoMod(
                 self.tc,
                 self.env,
                 arg1="mod",
                 arg2=self.arg1,
-                arg3=f"RS({self.env.r_t},UC_N,TSL(UC_NUMBER),RTS(SL){self.env.swt})$(UC_RHSMAP(R,T,UC_N,UC_NUMBER,SL{self.arg3})$UC_DS(R,UC_N,TSL))",
+                arg3=f"RS({self.env.r_t},UC_N,TSL(UC_NUMBER),{rts}{self.env.swt})$(UC_RHSMAP(R,T,UC_N,UC_NUMBER,SL{self.arg3})$UC_DS(R,UC_N,TSL))",
                 arg4="(",
                 arg5="SUM((UC_TSL(R,UC_N,SIDE,TSL),G_UDS(SL,SIDE,S))$(RHS(SIDE)->RS_PREV(R,SL,S)),UC_SIGN(SIDE)*",
                 arg6="(",

@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 from gamspy import Equation, Variable
 
 from core.base_class import GamsClass
-from core.utils import callable_rts
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -175,7 +175,7 @@ $ macro SPRSV \
     def define_equation1(
         self: EqlducsVda, capon: str, r_v_t: str, swx: str, swtx: str, upscaps: str
     ) -> None:
-        rts = callable_rts(self.env)
+        rts = macro.rts(s="S", g=self.tc, env=self.env)
         self.tc.add_gams_code(
             module=self,
             phase="init",

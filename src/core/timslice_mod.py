@@ -13,11 +13,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Parameter, Set
+from gamspy import Alias, Parameter, Set
 
 from core.base_class import GamsClass
 from core.pp_off_mod import pp_off
 from core.pp_qaput_mod import pp_qaput
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -61,14 +62,15 @@ class TimsliceMod(GamsClass):
 
         self.env.set_scoped("mx", "(MIYR_1)")
         self.env.set_scoped("mx_GP", (g.Miyr1,))
-        self.env.set_global("rts", "S")
+        self.env.set_global("rts", lambda s="S": s)
+        self.env.set_global("rts_GP", lambda s=g.s: s)
 
         if (self.env.obmac + self.env.dynts).upper() == "YESYES" and self.tc.defined(
             "TS_OFF"
         ):
             self.env.set_scoped("mx", "")
             self.env.set_scoped("mx_GP", ())
-            self.env.set_global("rts", "S+NORTS(R,T,S)")
+            self.env.set_global("rts_GP", lambda s=g.s: s + g.norts[g.r, g.t, s])
 
         self.tc.add_gams_code(module=self, phase="init", code="SET TS_OFF //;")
 
@@ -78,11 +80,9 @@ class TimsliceMod(GamsClass):
         )
 
         if self.env.obmac == "YES":
-            self.tc.add_gams_code(
-                module=self, phase="init", code=f"$MACRO RTS(S) {self.env.rts}"
-            )
+            macro.rts_active = True
         else:
-            self.tc.add_gams_code(module=self, phase="init", code="ALIAS(ALL_TS,RTS);")
+            g.rts = Alias(m, name="RTS", alias_with=g.allts)
 
         self.tc.enqueue(self.exec2)
 

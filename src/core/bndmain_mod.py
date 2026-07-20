@@ -80,7 +80,7 @@ class BndmainMod(GamsClass):
             cucscal=self.env.cucscal,
             macro=self.env.macro,
             var_uc=self.env.var_uc,
-            rts=self.env.rts,
+            rts=self.env.rts(),
             model_name=self.env.model_name,
             bnd_ucw_defined={
                 f"{var}_UC": self.tc.defined(f"{var}_UC"),

@@ -71,7 +71,7 @@ class PpReduceRed(GamsClass):
                     self.reddone,
                 )
 
-        if self.env.rts != "S":
+        if self.env.rts() != "S":
             self.include(DynsliteVda(self.tc, self.env, arg1="REDUCE"))
 
     def reduction_of_model_size(self: PpReduceRed) -> None:
