@@ -128,12 +128,7 @@ class EqactupsVda(GamsClass):
         )
 
         if self.env.obmac.upper() == "YES":
-            # TODO: Macro, check implication.
-            self.tc.add_gams_code(
-                module=self,
-                phase="init",
-                code=rf"""$macro var_sift(v,s,l) {self.env.var}_udp(r,v,t,p,s,l{self.env.sow})*prc_capact(r,p)*rs_stgprd(r,s)/8760""",
-            )
+            macro.var_sift_active = True
 
         self.equation_slsift(
             eq=self.env.eq,
@@ -480,18 +475,18 @@ class EqactupsVda(GamsClass):
        SUM(TOP(RPC_STG(R,P,C),'IN'),{var}_SIN(R,V,T,P,C,S{sow}))-({var}_ACT(R,V,T,P,S{sow})-{var}_SIN(R,V,T,P,COM,S{sow})))$PRC_TS(R,P,S) +
       SUM(PRC_TS(R,P,TS)$RS_BELOW1(R,S,TS),{var}_SIN(R,V,T,P,COM,TS{sow})-{var}_ACT(R,V,T,P,TS{sow}))$(SUM(LIM$ACT_TIME(RTP,LIM),1)=0)) +
 * Asymmetric advance or delay
-    SUM(BDNEQ(BD(L))$ACT_TIME(RTP,'LO'),VAR_SIFT(V,S,L)+VAR_SIFT('0',S,L) -
+    SUM(BDNEQ(BD(L))$ACT_TIME(RTP,'LO'),{macro.var_sift(var, "V", "S", "L", sow)}+{macro.var_sift(var, "'0'", "S", "L", sow)} -
        SUM((RS_UP(R,S,JS),RJ_SL(R,JS,SL)),{var}_UPS(R,V,T,P,SL,L{sow})$(MOD((RS_HR(R,S)-RS_HR(R,SL)+G_YRFR(R,S)/RS_STGPRD(R,S)/9)*BDSIG(L)+1/JS_CCL(R,JS),1/JS_CCL(R,JS))<ACT_TIME(RTP,L)/8760))))$BD(LNX)
   =E=
   SUM(RTP_VINTYR(R,V,T,P),
 * Balance for sifting (LO=advance, UP=delay)
-    SUM(TS(S--RS_STG(R,S)),SUM(BDNEQ(BD),(VAR_SIFT(V,TS,BD)-VAR_SIFT(V,S,BD))*BDSIG(BD))+{var}_SIN(R,V,T,P,COM,S{sow})-{var}_ACT(R,V,T,P,S{sow}))$(BDSIG(L)<0) +
+    SUM(TS(S--RS_STG(R,S)),SUM(BDNEQ(BD),({macro.var_sift(var, "V", "TS", "BD", sow)}-{macro.var_sift(var, "V", "S", "BD", sow)})*BDSIG(BD))+{var}_SIN(R,V,T,P,COM,S{sow})-{var}_ACT(R,V,T,P,S{sow}))$(BDSIG(L)<0) +
     (SUM(BDNEQ(BD),{var}_UPS(R,V,T,P,S,BD{sow}))-{var}_SIN(R,V,T,P,COM,S{sow}))$(BDSIG(L)>0) +
 * Limit advance and delay or balancing time window
-    SUM(LASTLL$LNX(L),SUM(LIM$(IPS(L) XOR BD(LIM)),VAR_SIFT(V,S,LIM)) +
+    SUM(LASTLL$LNX(L),SUM(LIM$(IPS(L) XOR BD(LIM)),{macro.var_sift(var, "V", "S", "LIM", sow)}) +
       SUM((RS_UP(R,S,JS),RJ_SL(R,JS,TS(SL--RS_STG(R,SL)))),
         ({var}_ACT(R,V,T,P,SL{sow})$IPS(L)-{var}_SIN(R,V,T,P,COM,SL{sow}) -
-         (VAR_SIFT(V,SL,'UP')-VAR_SIFT(V,TS,'UP'))$BD(L))$(MOD(RS_HR(R,S)-RS_HR(R,SL)+G_YRFR(R,S)/RS_STGPRD(R,S)/9+1/JS_CCL(R,JS),1/JS_CCL(R,JS))<ACT_TIME(RTP,L)/8760))))$IPS(LNX);
+         ({macro.var_sift(var, "V", "SL", "'UP'", sow)}-{macro.var_sift(var, "V", "TS", "'UP'", sow)})$BD(L))$(MOD(RS_HR(R,S)-RS_HR(R,SL)+G_YRFR(R,S)/RS_STGPRD(R,S)/9+1/JS_CCL(R,JS),1/JS_CCL(R,JS))<ACT_TIME(RTP,L)/8760))))$IPS(LNX);
 
 """,
         )
