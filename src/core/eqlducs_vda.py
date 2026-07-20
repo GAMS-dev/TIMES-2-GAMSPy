@@ -72,8 +72,10 @@ class EqlducsVda(GamsClass):
                 "capon",
                 f"(COEF_CPT(R,V,T,P)*({self.env.varv}_NCAP(R,V,P{self.env.sws})$T(V)+NCAP_PASTI(R,V,P){self.env.rcapsub}))$PRC_VINT(R,P)+{self.env.var}_CAP(R,T,P{self.env.sow})$RP_UX(R,P)",
             )
+            capups = f"({self.env.capon}-SUM(rs_below(r,all_ts,s)$rps_ups(r,p,all_ts),var_off(r,v,t,p,all_ts)))"
             self.define_equation1(
                 capon=self.env.capon,
+                capups=capups,
                 r_v_t=self.env.r_v_t,
                 swx=self.env.swx,
                 swtx=self.env.swtx,
@@ -100,8 +102,7 @@ class EqlducsVda(GamsClass):
                 Path("xpress.op2").write_text(Path("xpress.opt").read_text() + ind)
 
             self.define_equation2(
-                r_v_t=self.env.r_v_t,
-                capon=self.env.capon,
+                r_v_t=self.env.r_v_t, capon=self.env.capon, capups=capups
             )
 
     def exec1(self: EqlducsVda) -> None:
@@ -173,14 +174,20 @@ $ macro SPRSV \
         )
 
     def define_equation1(
-        self: EqlducsVda, capon: str, r_v_t: str, swx: str, swtx: str, upscaps: str
+        self: EqlducsVda,
+        capon: str,
+        capups: str,
+        r_v_t: str,
+        swx: str,
+        swtx: str,
+        upscaps: str,
     ) -> None:
         rts = macro.rts(s="S", g=self.tc, env=self.env)
+
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=rf"""
-$macro CAPUPS ({capon}-SUM(rs_below(r,all_ts,s)$rps_ups(r,p,all_ts),var_off(r,v,t,p,all_ts)))
 *-----------------------------------------------------------------------------
 
   eq_sdlogic(rtp_vintyr({r_v_t},p),tsl,{rts},lnx(l){swx})$({swtx}ts_group(r,tsl,s)$rp_dpl(r,p,tsl))..
@@ -199,7 +206,7 @@ $macro CAPUPS ({capon}-SUM(rs_below(r,all_ts,s)$rps_ups(r,p,all_ts),var_off(r,v,
 
   eq_sdslant(rtp_vintyr({r_v_t},p),tsl,{rts}{swx})$({swtx}ts_group(r,tsl,s)$rp_dpl(r,p,tsl))..
 
-     var_on(r,v,t,p,s) =E= sum(rs_below1(r,ts,s),v_u(ups,r,v,t,p,ts,'FX')-CAPUPS)$PRC_TS(R,P,S) + (CAPUPS) - var_off(r,v,t,p,s) -
+     var_on(r,v,t,p,s) =E= sum(rs_below1(r,ts,s),v_u(ups,r,v,t,p,ts,'FX')-{capups})$PRC_TS(R,P,S) + ({capups}) - var_off(r,v,t,p,s) -
      sum(rp_upt(r,p,upt,bd),
       sum((rs_up(r,s,js),rj_sl(r,js,sl))$(RS_MODUS(R,SL,JS,S)<ACT_SDTIME(r,v,p,upt,bd)/8760*(1+sdtol)),
          v_u(upt,r,v,t,p,sl,upt)*(0$DIAG(S,SL) +
@@ -303,7 +310,7 @@ $macro CAPUPS ({capon}-SUM(rs_below(r,all_ts,s)$rps_ups(r,p,all_ts),var_off(r,v,
    """,
         )
 
-    def define_equation2(self: EqlducsVda, r_v_t: str, capon: str) -> None:
+    def define_equation2(self: EqlducsVda, r_v_t: str, capon: str, capups: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -311,7 +318,7 @@ $macro CAPUPS ({capon}-SUM(rs_below(r,all_ts,s)$rps_ups(r,p,all_ts),var_off(r,v,
   eq_sdind_1(rtp_vintyr({r_v_t},p),tsl,ts(s--rs_stg(r,s)),ips,L)$(ts_group(r,tsl,s)$DP_UNS(r,v,t,p,tsl,ips,l))..
 
      var_onind(r,v,t,p,ts,l)*EPS +
-     (var_on(r,v,t,p,ts)-sum(rs_below1(r,sl,s)$prc_ts(r,p,s),var_ups(r,v,t,p,sl,'FX')-CAPUPS) - ((CAPUPS)+var_ups(r,v,t,p,ts,'LO')+var_ups(r,v,t,p,s,'UP')))$L(ips) +
+     (var_on(r,v,t,p,ts)-sum(rs_below1(r,sl,s)$prc_ts(r,p,s),var_ups(r,v,t,p,sl,'FX')-{capups}) - (({capups})+var_ups(r,v,t,p,ts,'LO')+var_ups(r,v,t,p,s,'UP')))$L(ips) +
      ((var_on(r,v,t,p,ts) - var_gap(r,v,t,p,ts)$(NOT PRC_TSL(r,p,tsl)) - MAX(DP_UNS(r,v,t,p,tsl,ips,l),NCAP_SEMI(r,v,p)$PRC_TSL(r,p,tsl)/2))$ips(L) +
       (var_ups(r,v,t,p,ts,'UP') + var_ups(r,v,t,p,ts,'LO') - MAX(DP_UNS(r,v,t,p,tsl,ips,l),NCAP_SEMI(r,v,p)$PRC_TSL(r,p,tsl)/2))$diag('FX',L) +
       ({capon}-var_on(r,v,t,p,ts) - DP_UNS(r,v,t,p,tsl,ips,l))$diag('LO',L) +
