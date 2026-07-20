@@ -12,6 +12,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy.math import diag
+
 from core.base_class import GamsClass
 from core.coef_alt_lin import CoefAltLin
 from core.coef_cpt_mod import CoefCptMod
@@ -58,8 +60,7 @@ class CoefmainMod(GamsClass):
         self.include(CoefShpMod(tc=self.tc, env=self.env))
 
     def exec(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""SOW(ALLSOW)=DIAG(ALLSOW,'1'); SW_T(T,ALLSOW)=SOW(ALLSOW);""",
-        )
+        g = self.tc
+        Sow, allsow, SwT, t = g.Sow, g.allsow, g.SwT, g.t
+        Sow[allsow] = diag(allsow, "1")  # type: ignore[assignment]
+        SwT[t, allsow] = Sow[allsow]
