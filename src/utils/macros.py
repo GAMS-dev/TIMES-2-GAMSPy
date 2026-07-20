@@ -190,14 +190,33 @@ class Macros:
     def rts_active(self, value: bool) -> None:
         self._active["RTS"] = value
 
-    def rts(
-        self, s: Any, env: CompileEnvironment, g: TimesModelClass, gp: bool = False
-    ) -> Any:
+    def rts(self, s: Any, env: CompileEnvironment, g: TimesModelClass) -> Any:
         # Return environment variable
         if self.rts_active:
-            return env.rts_GP(s) if gp else env.rts(s)
+            return env.rts(s)
         # Return the Alias
-        return g.rts if gp else "RTS"
+        return "RTS"
+
+    def rts_GP(self, s: Any, env: CompileEnvironment, g: TimesModelClass) -> Any:
+        # Return environment variable
+        if self.rts_active:
+            return env.rts_GP(s)
+        # Return the Alias
+        return g.rts
+
+    # VAR_SIFT
+    @property
+    def var_sift_active(self) -> bool:
+        return self._active.get("VAR_SIFT", False)
+
+    @var_sift_active.setter
+    def var_sift_active(self, value: bool) -> None:
+        self._active["VAR_SIFT"] = value
+
+    def var_sift(self, env_var: str, v: str, s: str, lA: str, env_sow: str) -> str:
+        if self.var_sift_active:
+            return f"{env_var}_udp(r,{v},t,p,{s},{lA}{env_sow})*prc_capact(r,p)*rs_stgprd(r,{s})/8760"
+        return f"VAR_SIFT({v},{s},{lA})"
 
 
 macro_config = Macros()
