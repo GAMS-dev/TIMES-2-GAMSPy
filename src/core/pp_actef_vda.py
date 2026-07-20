@@ -14,7 +14,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from core.base_class import GamsClass
-from core.utils import callable_rts
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -74,7 +74,7 @@ SCALAR MICRO / 1E-6 /;
     def define_equation(
         self: PpActefVda, eq: str, r_v_t: str, swt: str, var: str, sow: str, shp1: str
     ) -> None:
-        rts = callable_rts(self.env)
+        rts = macro.rts(s="S", g=self.tc, env=self.env)
         self.tc.add_gams_code(
             module=self,
             phase="init",

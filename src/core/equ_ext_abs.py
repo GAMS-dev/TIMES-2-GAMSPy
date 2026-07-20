@@ -18,7 +18,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from core.base_class import GamsClass
-from core.utils import callable_rts
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -82,7 +82,7 @@ class EquExtAbs(GamsClass):
             swtx=self.env.swtx,
             var=self.env.var,
             sow=self.env.sow,
-            rts=callable_rts(self.env),
+            rts=macro.rts(s="S", g=self.tc, env=self.env),
         )
         self.abs_eq_1p(
             r_t=self.env.r_t,
@@ -90,7 +90,7 @@ class EquExtAbs(GamsClass):
             sow=self.env.sow,
             swx=self.env.swx,
             swtx=self.env.swtx,
-            rts=callable_rts(self.env),
+            rts=macro.rts(s="S", g=self.tc, env=self.env),
         )
         self.abs_eq_2(
             r_t=self.env.r_t,
@@ -98,7 +98,7 @@ class EquExtAbs(GamsClass):
             swtx=self.env.swtx,
             var=self.env.var,
             sow=self.env.sow,
-            rts=callable_rts(self.env),
+            rts=macro.rts(s="S", g=self.tc, env=self.env),
         )
         self.abs_eq_3(
             r_t=self.env.r_t,
@@ -106,7 +106,7 @@ class EquExtAbs(GamsClass):
             swx=self.env.swx,
             var=self.env.var,
             sow=self.env.sow,
-            rts=callable_rts(self.env),
+            rts=macro.rts(s="S", g=self.tc, env=self.env),
         )
         self.abs_eq_4(
             r_t=self.env.r_t,
@@ -114,13 +114,13 @@ class EquExtAbs(GamsClass):
             swtx=self.env.swtx,
             tmp=self.env.tmp,
             mx=self.env.mx,
-            rts=callable_rts(self.env),
+            rts=macro.rts(s="S", g=self.tc, env=self.env),
         )
         self.abs_eq_5_to_6(
             r_v_t=self.env.r_v_t,
             swx=self.env.swx,
             swtx=self.env.swtx,
-            rts=callable_rts(self.env),
+            rts=macro.rts(s="S", g=self.tc, env=self.env),
         )
         self.abs_eq_7_to_8(
             r_v_t=self.env.r_v_t,
@@ -128,7 +128,7 @@ class EquExtAbs(GamsClass):
             swtx=self.env.swtx,
             var=self.env.var,
             sow=self.env.sow,
-            rts=callable_rts(self.env),
+            rts=macro.rts(s="S", g=self.tc, env=self.env),
         )
         self.abs_eq_9(
             r_v_t=self.env.r_v_t,
@@ -137,7 +137,7 @@ class EquExtAbs(GamsClass):
             mx=self.env.mx,
             sow=self.env.sow,
             var=self.env.var,
-            rts=callable_rts(self.env),
+            rts=macro.rts(s="S", g=self.tc, env=self.env),
         )
         self.abs_eq_10(
             r_v_t=self.env.r_v_t,
@@ -145,25 +145,25 @@ class EquExtAbs(GamsClass):
             swtx=self.env.swtx,
             sow=self.env.sow,
             var=self.env.var,
-            rts=callable_rts(self.env),
+            rts=macro.rts(s="S", g=self.tc, env=self.env),
         )
         self.abs_eq_11_to_17(
             r_w_t=self.env.r_w_t,
             swx=self.env.swx,
             swtx=self.env.swtx,
-            rts=callable_rts(self.env),
+            rts=macro.rts(s="S", g=self.tc, env=self.env),
         )
         self.abs_eq_18_20(
             r_w_t=self.env.r_w_t,
             swx=self.env.swx,
             swtx=self.env.swtx,
-            rts=callable_rts(self.env),
+            rts=macro.rts(s="S", g=self.tc, env=self.env),
         )
         self.abs_eq_19_21(
             r_w_t=self.env.r_w_t,
             swx=self.env.swx,
             swtx=self.env.swtx,
-            rts=callable_rts(self.env),
+            rts=macro.rts(s="S", g=self.tc, env=self.env),
         )
         self.abs_eq_22(
             r_w_t=self.env.r_w_t,
@@ -171,7 +171,7 @@ class EquExtAbs(GamsClass):
             swtx=self.env.swtx,
             var=self.env.var,
             sow=self.env.sow,
-            rts=callable_rts(self.env),
+            rts=macro.rts(s="S", g=self.tc, env=self.env),
         )
         self.abs_eq_23(
             r_v_t=self.env.r_v_t,
@@ -180,7 +180,7 @@ class EquExtAbs(GamsClass):
             sow=self.env.sow,
             var=self.env.var,
             tmp=self.env.tmp,
-            rts=callable_rts(self.env),
+            rts=macro.rts(s="S", g=self.tc, env=self.env),
         )
         self.abs_eq_24(
             r_w_t=self.env.r_w_t,
@@ -189,19 +189,19 @@ class EquExtAbs(GamsClass):
             var=self.env.var,
             mx=self.env.mx,
             sow=self.env.sow,
-            rts=callable_rts(self.env),
+            rts=macro.rts(s="S", g=self.tc, env=self.env),
         )
         self.abs_eq_25(
             r_w_t=self.env.r_w_t,
             swx=self.env.swx,
             swtx=self.env.swtx,
-            rts=callable_rts(self.env),
+            rts=macro.rts(s="S", g=self.tc, env=self.env),
         )
         self.abs_eq_26(
             r_t=self.env.r_t,
             swx=self.env.swx,
             swtx=self.env.swtx,
-            rts=callable_rts(self.env),
+            rts=macro.rts(s="S", g=self.tc, env=self.env),
         )
         self.abs_eq_27(
             r_v_t=self.env.r_v_t,
@@ -211,7 +211,7 @@ class EquExtAbs(GamsClass):
             sws=self.env.sws,
             mx=self.env.mx,
             rcapsbm=self.env.rcapsbm,
-            rts=callable_rts(self.env),
+            rts=macro.rts(s="S", g=self.tc, env=self.env),
         )
         self.abs_eq_28(
             r_v_t=self.env.r_v_t,
@@ -220,7 +220,7 @@ class EquExtAbs(GamsClass):
             tmp=self.env.tmp,
             mx=self.env.mx,
             upscaps=self.env.upscaps,
-            rts=callable_rts(self.env),
+            rts=macro.rts(s="S", g=self.tc, env=self.env),
         )
 
     def exec1(self: EquExtAbs, pgprim: str) -> None:

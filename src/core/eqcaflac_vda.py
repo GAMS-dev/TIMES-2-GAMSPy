@@ -74,7 +74,7 @@ class EqcaflacVda(GamsClass):
         self.comp2(
             eq=self.env.eq,
             r_v_t=self.env.r_v_t,
-            rts=self.env.rts,
+            rts=self.env.rts(),
             swt=self.env.swt,
             sow=self.env.sow,
             rcapsbm=self.env.rcapsbm,

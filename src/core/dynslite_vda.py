@@ -38,7 +38,7 @@ class DynsliteVda(GamsClass):
     def compile(self: DynsliteVda) -> None:
         g = self.tc
 
-        if self.env.rts == "S":
+        if self.env.rts() == "S":
             return
         self.env.set_scoped("tmp", "$NORTS(R,T,S)")
         if self.arg1.upper() == "PRELEV":
@@ -46,8 +46,8 @@ class DynsliteVda(GamsClass):
                 self.prelev_exec, ducyes=self.env.duc.upper() == "YES", tmp=self.env.tmp
             )
         if self.arg1.upper() in ["PRELEV", "CLEAR"]:
-            self.env.set_local("rts", "$(NORTS(R,V,S)+NORTS(R,T,S)$PASTMILE(V))")
-            self.tc.enqueue(self.clear_exec, tmp=self.env.tmp, rts=self.env.rts)
+            rts = "$(NORTS(R,V,S)+NORTS(R,T,S)$PASTMILE(V))"
+            self.tc.enqueue(self.clear_exec, tmp=self.env.tmp, rts=rts)
         elif self.arg1.upper() == "REDUCE":
             self.tc.enqueue(self.reduce_exec, tmp=self.env.tmp)
         elif self.arg1.upper() == "POSTLEV":
@@ -60,8 +60,8 @@ class DynsliteVda(GamsClass):
                 add=self.env.add,
                 reset=self.env.reset,
             )
-            self.env.set_local("rts", "$(NORTS(R,V,S)+NORTS(R,T,S)$PASTMILE(V))")
-            self.tc.enqueue(self.clear_exec, tmp=self.env.tmp, rts=self.env.rts)
+            rts = "$(NORTS(R,V,S)+NORTS(R,T,S)$PASTMILE(V))"
+            self.tc.enqueue(self.clear_exec, tmp=self.env.tmp, rts=rts)
         elif self.arg1.upper() == "BOUNDS":
             if self.env.stages == "YES":
                 self.env.set_local("swt", f"SW_T(T{self.env.swd})$")

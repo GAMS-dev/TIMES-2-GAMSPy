@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from utils.compile_environment import CompileEnvironment
+    from utils.times_model_class import TimesModelClass
+
 
 class Macros:
     def __init__(self) -> None:
@@ -174,6 +180,24 @@ class Macros:
         if self.obj_ftax_active:
             return f"OB_FTAX({r},{p},{c},{s},{m},{y})"
         return f"OBJ_FTAX({r},{y},{p},{c},{s},{m})"
+
+    # RTS
+    @property
+    def rts_active(self) -> bool:
+        return self._active.get("RTS", False)
+
+    @rts_active.setter
+    def rts_active(self, value: bool) -> None:
+        self._active["RTS"] = value
+
+    def rts(
+        self, s: Any, env: CompileEnvironment, g: TimesModelClass, gp: bool = False
+    ) -> Any:
+        # Return environment variable
+        if self.rts_active:
+            return env.rts_GP(s) if gp else env.rts(s)
+        # Return the Alias
+        return g.rts if gp else "RTS"
 
 
 macro_config = Macros()

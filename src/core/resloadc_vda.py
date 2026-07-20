@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 from core.base_class import GamsClass
 from core.fillparm_gms import FillparmGms
-from core.utils import callable_rts
+from utils.macros import macro_config as macro
 
 # from core.cal_nored_red import cal_nored_red
 # from core.cal_red_red import cal_red_red
@@ -137,7 +137,8 @@ class ResloadcVda(GamsClass):
                     sow=self.env.sow,
                     var=self.env.var,
                 )
-            rts = callable_rts(self.env)
+            rts = macro.rts(s="S", g=self.tc, env=self.env)
+            rts_ts = macro.rts(s="TS", g=self.tc, env=self.env)
             self.tc.add_gams_code(
                 module=self,
                 phase="init",
@@ -214,7 +215,7 @@ class ResloadcVda(GamsClass):
 
 *-----------------------------------------------------------------------
 * Aggregate thermal min level
-  {self.env.eq}_RL_THMIN(GR_RLDC({self.env.r_t}),RTS(TS),BDNEQ {self.env.swt})$((BDLOX(BDNEQ)+RLDC('RL-THMIN'))$FINEST(R,TS))..
+  {self.env.eq}_RL_THMIN(GR_RLDC({self.env.r_t}),{rts_ts},BDNEQ {self.env.swt})$((BDLOX(BDNEQ)+RLDC('RL-THMIN'))$FINEST(R,TS))..
 
   {self.env.var}_RLD(R,T,TS,'RL_THMIN'{self.env.sow})*BDSIG(BDNEQ) +
   {self.env.var}_RLD(R,T,TS,'RL-THMIN'{self.env.sow})*BDUPX(BDNEQ)

@@ -1,4 +1,5 @@
 # config.py
+from collections.abc import Callable
 from pathlib import Path
 from typing import Literal
 
@@ -496,10 +497,10 @@ class EnvironmentVariableSchema(BaseModel):
     ctst: Literal["", "**EPS", "**0", "1"] = Field(
         description="Calculation time step parameter used inside optimization updates."
     )
-    rts: str = Field(
+    rts: Callable[[str], str] = Field(
         description="Regional sub-annual tracking parameter handling seasonal loads."
     )
-    rts_GP: Expression | Alias | Set = Field(
+    rts_GP: Callable[[Set | Alias], Set | Alias | Expression] = Field(
         description="Regional sub-annual tracking parameter handling seasonal loads."
     )
     rcapsub: str = Field(

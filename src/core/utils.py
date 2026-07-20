@@ -212,7 +212,3 @@ def get_callable_parameter_type(
         "Expected a GAMSPy Parameter or callable macro replacement, "
         f"but got {type(symbol_or_func).__name__}."
     )
-
-
-def callable_rts(env: CompileEnvironment, gp: bool = False) -> Any:
-    return env.rts_GP if gp else env.rts

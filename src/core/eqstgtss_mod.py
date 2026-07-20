@@ -15,7 +15,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from core.base_class import GamsClass
-from core.utils import callable_rts
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -42,7 +42,7 @@ class EqstgtssMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        rts = callable_rts(self.env)
+        rts = macro.rts(s="S", g=self.tc, env=self.env)
         self.tc.add_gams_code(
             module=self,
             phase="init",
