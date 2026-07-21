@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -9,9 +10,55 @@ if TYPE_CHECKING:
     from utils.times_model_class import TimesModelClass
 
 
+@dataclass
+class VarSiftContext:
+    active: bool = False
+    var: str = ""
+    sow: str = ""
+
+    def activate(self, var: str, sow: str) -> None:
+        self.active = True
+        self.var = var
+        self.sow = sow
+
+    def deactivate(self) -> None:
+        self.active = False
+        self.var = ""
+        self.sow = ""
+
+    def render(self, v: str, s: str, lA: str) -> str:
+        if self.active:
+            return f"{self.var}_udp(r,{v},t,p,{s},{lA}{self.sow})*prc_capact(r,p)*rs_stgprd(r,{s})/8760"
+        return f"VAR_SIFT({v},{s},{lA})"
+
+
+@dataclass
+class VarStsContext:
+    active: bool = False
+    var: str = ""
+    sow: str = ""
+
+    def activate(self, var: str, sow: str) -> None:
+        self.active = True
+        self.var = var
+        self.sow = sow
+
+    def deactivate(self) -> None:
+        self.active = False
+        self.var = ""
+        self.sow = ""
+
+    def render(self, r: str, v: str, t: str, p: str, ts: str, bd: str) -> str:
+        if self.active:
+            return f"sum(rp_stl({r},{p},tsl,{bd})$ts_group({r},tsl,{ts}),{self.var}_udp({r},{v},{t},{p},{ts},{bd}{self.sow}))"
+        return f"VAR_STS({r},{v},{t},{p},{ts},{bd})"
+
+
 class Macros:
     def __init__(self) -> None:
         self._active: dict[str, bool] = {}
+        self.var_sift = VarSiftContext()
+        self.var_sts = VarStsContext()
 
     # ICOST
     @property
@@ -203,20 +250,6 @@ class Macros:
             return env.rts_GP(s)
         # Return the Alias
         return g.rts
-
-    # VAR_SIFT
-    @property
-    def var_sift_active(self) -> bool:
-        return self._active.get("VAR_SIFT", False)
-
-    @var_sift_active.setter
-    def var_sift_active(self, value: bool) -> None:
-        self._active["VAR_SIFT"] = value
-
-    def var_sift(self, env_var: str, v: str, s: str, lA: str, env_sow: str) -> str:
-        if self.var_sift_active:
-            return f"{env_var}_udp(r,{v},t,p,{s},{lA}{env_sow})*prc_capact(r,p)*rs_stgprd(r,{s})/8760"
-        return f"VAR_SIFT({v},{s},{lA})"
 
 
 macro_config = Macros()

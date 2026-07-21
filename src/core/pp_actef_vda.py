@@ -13,6 +13,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter
+
 from core.base_class import GamsClass
 from utils.macros import macro_config as macro
 
@@ -43,14 +45,10 @@ class PpActefVda(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
         if self.arg1 == "LVL":
-            self.tc.add_gams_code(
-                module=self,
-                phase="init",
-                code=r"""
-SCALAR MICRO / 1E-6 /;
-""",
-            )
+            g.micro = Parameter(m, "MICRO", records=1e-6)
             self.tc.enqueue(self.exec1)
         else:  # EQUA
             self.env.set_scoped("shg", f",P,CG,'{self.env.pgprim}'")

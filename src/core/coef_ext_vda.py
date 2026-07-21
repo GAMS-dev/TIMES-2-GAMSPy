@@ -16,11 +16,15 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Else, If, Loop, Number, Parameter, Smax, SpecialValues, Sum
+from gamspy.math import Max, Min, Round, mod, power, project
+
 from core.base_class import GamsClass
 from core.eqashar_vda import EqasharVda
 from core.eqlducs_vda import EqlducsVda
 from core.fillwave_gms import FillwaveGms
 from core.powerflo_vda import PowerfloVda
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -46,8 +50,6 @@ class CoefExtVda(GamsClass):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
         self.compile()
 
     def compile(self) -> None:
@@ -79,10 +81,8 @@ class CoefExtVda(GamsClass):
             "upscaps",
             f"-SUM(TS_MAP(R,ALL_TS,S)$RPS_UPS(R,P,ALL_TS),{self.env.var}_UPS(R,V,T,P,ALL_TS,'N'{self.env.sow}))",
         )
-        self.comp2(
-            var=self.env.var,
-            sow=self.env.sow,
-        )
+
+        macro.var_sts.activate(var=self.env.var, sow=self.env.sow)
 
         self.tc.enqueue(
             self.exec2,
@@ -100,111 +100,352 @@ class CoefExtVda(GamsClass):
         self.tc.enqueue(self.exec3)
 
     def comp1(self: CoefExtVda) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  PARAMETER VDA_DISC(R,ALLYEAR);
-$ CLEAR VDA_DISC
-""",
-        )
+        g = self.tc
+        m = g.container
+        g.vda_disc = Parameter(m, name="VDA_DISC", domain=[g.r, g.allyear])
+        g.vda_disc.setRecords(None)
 
     def exec1(self: CoefExtVda) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-OPTION CLEAR=VDA_DISC;
-""",
-        )
+        g = self.tc
+        vda_disc = g.vda_disc
+        vda_disc.setRecords(None)
 
     def make_sensible_resid_pasti(self: CoefExtVda) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Try making sensible RESID PASTI (although it does not affect solution)
-* Finalize PRC_RESID capacity coefficients:
-  LOOP(T, TRACKP(R,P)$((PRC_RESID(R,T,P)>0)$PRC_RESID(R,T,P)) = YES);
-  LOOP(PYR_S(V),
-  LOOP(PRC_RCAP(TRACKP(R,P)),Z=SMAX(T,PRC_RESID(R,T,P));RTFORC(RTP_CPTYR(R,V,T,P))=Z-PRC_RESID(R,T,P)+EPS;PRC_RESID(R,T,P)$RTFORC(R,V,T,P)=Z);
-    NCAP_PASTI(R,V,P)$PRC_RESID(R,'0',P) = (SUM(T,PRC_RESID(R,T,P)*D(T))/SUM(T$(PRC_RESID(R,T,P)>0),D(T)))$TRACKP(R,P);
-  );
-  PRC_RESID(R,'0',P)$(NOT TRACKP(R,P)) = 0;
-  COEF_CPT(RTP_CPTYR(R,PYR_S(V),T,P))$TRACKP(R,P) = PRC_RESID(R,T,P)/NCAP_PASTI(R,V,P);
-""",
+        g = self.tc
+        (
+            t,
+            Trackp,
+            r,
+            p,
+            prc_resid,
+            PyrS,
+            v,
+            PrcRcap,
+            z,
+            rtforc,
+            RtpCptyr,
+            ncap_pasti,
+            d,
+            coef_cpt,
+        ) = (
+            g.t,
+            g.Trackp,
+            g.r,
+            g.p,
+            g.prc_resid,
+            g.PyrS,
+            g.v,
+            g.PrcRcap,
+            g.z,
+            g.rtforc,
+            g.RtpCptyr,
+            g.ncap_pasti,
+            g.d,
+            g.coef_cpt,
         )
-
-    def comp2(self: CoefExtVda, var: str, sow: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-$ macro var_sts(r,v,t,p,ts,bd) sum(rp_stl(r,p,tsl,bd)$ts_group(r,tsl,ts),{var}_udp(r,v,t,p,ts,bd{sow}))
-""",
+        # Try making sensible RESID PASTI (although it does not affect solution)
+        # Finalize PRC_RESID capacity coefficients:
+        with Loop(t):
+            Trackp[r, p].where[(prc_resid[r, t, p] > 0) & prc_resid[r, t, p]] = True
+        with Loop(PyrS[v]):
+            with Loop(PrcRcap[Trackp[r, p]]):
+                z[...] = Smax(t, prc_resid[r, t, p])
+                rtforc[RtpCptyr[r, v, t, p]] = (
+                    z - prc_resid[r, t, p] + SpecialValues.EPS
+                )
+                prc_resid[r, t, p].where[rtforc[r, v, t, p]] = z
+            ncap_pasti[r, v, p].where[prc_resid[r, "0", p]] = (
+                Sum(t, prc_resid[r, t, p] * d[t])
+                / Sum(t.where[prc_resid[r, t, p] > 0], d[t])
+            ).where[Trackp[r, p]]
+        prc_resid[r, "0", p].where[~Trackp[r, p]] = 0
+        coef_cpt[RtpCptyr[r, PyrS[v], t, p]].where[Trackp[r, p]] = (
+            prc_resid[r, t, p] / ncap_pasti[r, v, p]
         )
 
     def exec2(
         self: CoefExtVda, pgprim: str, condition1: bool, condition2: bool
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-{"RP_STL(RP_STS,TSL,BD)=0;" if condition1 else ""}
-*-----------------------------------------------------------------------------
-* Get AF-UPs for processes having storage level constrained
-  COEF_AFUPS(RTP(R,V,P),S)$(NOT RPS_CAFLAC(R,P,S,'UP')) $= NCAP_AF(RTP,S,'UP')$RPS_STG(R,P,S);
-  COEF_AFUPS(RTP(R,V,P),S(STL))$RPS_STG(R,P,S) $= NCAP_AFC(RTP,'{pgprim}',STL);
-  COEF_AFUPS(R,V,P,S)$(NOT PRC_CAP(R,P)) = NO;
-* Cycling cost annuity
-  ACT_CSTUP(RTP(R,V,P),TSL(S),CUR)$(RDCUR(R,CUR)$STG_MAXCYC(RTP))=ACT_CSTUP(RTP,TSL,CUR)*G_DRATE(R,V,CUR)/(1-(1+G_DRATE(R,V,CUR))**(-NCAP_TLIFE(RTP)));
-*-----------------------------------------------------------------------------
-* Remove commodity balance equations from non-demand sinks
-  OPTION TRACKP < RTP, TRACKC < RHS_COMBAL, RCS < IRE_FLOSUM;
-  LOOP(TRACKP(R,P),TRACKC(R,C)$TOP(R,P,C,'IN') = YES);
-  TRACKC(R,C) $= SUM(RPC_IRE(TRACKP(R,P),C,'EXP'),1);
-  TRACKC(RC)  $= SUM(RCS(RC,S),1); TRACKC(DEM)=YES;
-  TRACKC(R,C) $= SUM(RPC_NOFLO(TRACKP(R,P),C),1);
-  RCS_COMBAL(RTCS_VARC(R,T,C,S),L)$(NOT TRACKC(R,C)) = NO;
-* Reduce overhead from UCU trades
-  TRACKC(RC) = COM_UNIT(RC,'UCU')$(NOT TRACKC(RC));
-  RTCS_VARC(R,T,C,S)$((NOT RHS_COMPRD(R,T,C,S))$TRACKC(R,C)) = NO;
-  TOP_IRE('IMPEXP',C,TRACKC,P) = NO;
-  OPTION CLEAR=TRACKC,CLEAR=TRACKP,CLEAR=RCS;
-* Filter out UC constraints
-  IF(CARD(UC_TIME),OPTION R_UC<UC_TIME;
-    LOOP(R_UC(R,UCN)$(ROUND(UC_TIME(UCN,R,'0'))=-13),UC_ON(R_UC)=NO; IF(UC_R_SUM(R_UC),UC_ON(UC_R_SUM(REG,UCN))=NO));
-    UC_TIME(UCN,R,T)$((NOT UC_ON(R,UCN))$R_UC(R,UCN))=0; OPTION CLEAR=R_UC);
-*-----------------------------------------------------------------------------
-* Add singleton ACT_EFFs to COEF_PTRANS or ACT_FLO
-  RP_CGC(RPG_1ACE) = YES; OPTION TRACKPC < RPG_1ACE, RP_GRP < RP_CGC;
-* Convert ACT_EFF factors for reduced flows
-  TRACKPC(TRACKPC) = RPC_FFUNC(TRACKPC);
-  ACT_FLO(RTP(R,V,P),C,S)$(RPCS_VAR(R,P,C,S)$TRACKPC(R,P,C)) = 1/SUM(RP_CGC(R,P,CG,C),MAX(MICRO,ACT_EFF(RTP,CG,S)*(1+(ACT_EFF(RTP,C,S)-1)$ACT_EFF(RTP,C,S))));
-* Convert FLO_FUNCX factors for all reduced flows
-  OPTION CG_GRP <= RTP_FFCX;
-  LOOP(RPCG_PTRAN(RP,C,COM,CG,CG2)$CG_GRP(RP,CG,CG2),IF(RPC_FFUNC(RP,C),RP_DCGG(RP,C,CG,CG2,'UP')=YES; ELSE RP_DCGG(RP,COM,CG,CG2,'LO')=YES));
-  RP_DCGG(TRACKPC(RP,COM),CG,C,'UP')$(RP_CGC(RP,CG,COM)$RPC_ACT(RP,C)) $= CG_GRP(RP,CG,C);
-  RTP_FFCX(RTP_CAPYR(R,V,T,P),ACTCG,C)$RPC_FFUNC(R,P,C) $= SUM(RP_DCGG(R,P,C,CG,CG2,L),(POWER(RTP_FFCX(R,V,T,P,CG,CG2)+1,BDSIG(L))-1)$(RTP_FFCX(R,V,T,P,CG,CG2)-MIN(0,BDSIG(L))));
-  LOOP(RP_DCGG(R,P,C,CG,CG2,L),RTP_FFCX(R,V,T,P,CG,CG2)=0);
-* Default to COEF_PTRAN
-  RP_CGC(R,P,CG,C)$TRACKPC(R,P,C) = NO;
-  COEF_PTRAN(RTP(R,V,P),CG,C,COM,S)$(RPCS_VAR(R,P,C,S)$RPC_PG(R,P,COM)$RP_CGC(R,P,CG,C)) = ACT_EFF(RTP,CG,S)*PRC_ACTFLO(RTP,COM)*(1+(ACT_EFF(RTP,C,S)-1)$ACT_EFF(RTP,C,S));
-  ACT_EFF(R,LL,P,CG,S)$RP_GRP(R,P,CG) = 0;
-  OPTION RP_GRP < RP_CGC; RPCC_FFUNC(RP_GRP(R,P,CG),COM)$RPC_PG(R,P,COM) = YES;
-{"OPTION CLEAR=RPCG_PTRAN;" if condition2 else ""}
-  OPTION CLEAR=TRACKPC,CLEAR=RP_GRP,CLEAR=CG_GRP,CLEAR=RP_DCGG,CLEAR=RTP_CAPYR,CLEAR=RP_CGC;
-  """,
+        g = self.tc
+        (
+            RpStl,
+            RpSts,
+            tsl,
+            bd,
+            coef_afups,
+            Rtp,
+            r,
+            v,
+            p,
+            s,
+            RpsCaflac,
+            ncap_af,
+            RpsStg,
+            stl,
+            ncap_afc,
+            PrcCap,
+            act_cstup,
+            cur,
+            Rdcur,
+            stg_maxcyc,
+            g_drate,
+            ncap_tlife,
+            Trackp,
+            RhsCombal,
+            Trackc,
+            ire_flosum,
+            Rcs,
+            c,
+            Top,
+            RpcIre,
+            Rc,
+            Dem,
+            RpcNoflo,
+            RcsCombal,
+            RtcsVarc,
+            t,
+            lA,
+            ComUnit,
+            RhsComprd,
+            TopIre,
+            uc_time,
+            RUc,
+            ucnA,
+            UcOn,
+            UcRSum,
+            Reg,
+            RpCgc,
+            Rpg1ace,
+            Trackpc,
+            RpGrp,
+            RpcFfunc,
+            act_flo,
+            RpcsVar,
+            cg,
+            micro,
+            act_eff,
+            rtp_ffcx,
+            CgGrp,
+            RpcgPtran,
+            Rp,
+            Com,
+            cg2,
+            RpDcgg,
+            RpcAct,
+            RtpCapyr,
+            Actcg,
+            bdsig,
+            coef_ptran,
+            RpcPg,
+            prc_actflo,
+            ll,
+            RpccFfunc,
+        ) = (
+            g.RpStl,
+            g.RpSts,
+            g.tsl,
+            g.bd,
+            g.coef_afups,
+            g.Rtp,
+            g.r,
+            g.v,
+            g.p,
+            g.s,
+            g.RpsCaflac,
+            g.ncap_af,
+            g.RpsStg,
+            g.stl,
+            g.ncap_afc,
+            g.PrcCap,
+            g.act_cstup,
+            g.cur,
+            g.Rdcur,
+            g.stg_maxcyc,
+            g.g_drate,
+            g.ncap_tlife,
+            g.Trackp,
+            g.RhsCombal,
+            g.Trackc,
+            g.ire_flosum,
+            g.Rcs,
+            g.c,
+            g.Top,
+            g.RpcIre,
+            g.Rc,
+            g.Dem,
+            g.RpcNoflo,
+            g.RcsCombal,
+            g.RtcsVarc,
+            g.t,
+            g.lA,
+            g.ComUnit,
+            g.RhsComprd,
+            g.TopIre,
+            g.uc_time,
+            g.RUc,
+            g.ucnA,
+            g.UcOn,
+            g.UcRSum,
+            g.Reg,
+            g.RpCgc,
+            g.Rpg1ace,
+            g.Trackpc,
+            g.RpGrp,
+            g.RpcFfunc,
+            g.act_flo,
+            g.RpcsVar,
+            g.cg,
+            g.micro,
+            g.act_eff,
+            g.rtp_ffcx,
+            g.CgGrp,
+            g.RpcgPtran,
+            g.Rp,
+            g.Com,
+            g.cg2,
+            g.RpDcgg,
+            g.RpcAct,
+            g.RtpCapyr,
+            g.Actcg,
+            g.bdsig,
+            g.coef_ptran,
+            g.RpcPg,
+            g.prc_actflo,
+            g.ll,
+            g.RpccFfunc,
         )
+        if condition1:
+            RpStl[RpSts, tsl, bd] = 0  # type: ignore[assignment]
+        # -----------------------------------------------------------------------------
+        # Get AF-UPs for processes having storage level constrained
+        coef_afups[Rtp[r, v, p], s].where[
+            (~RpsCaflac[r, p, s, "UP"]).where[ncap_af[Rtp, s, "UP"] & RpsStg[r, p, s]]
+        ] = ncap_af[Rtp, s, "UP"].where[RpsStg[r, p, s]]
+        coef_afups[Rtp[r, v, p], s[stl]].where[
+            RpsStg[r, p, s] & ncap_afc[Rtp, pgprim, stl]
+        ] = ncap_afc[Rtp, pgprim, stl]
+        coef_afups[r, v, p, s].where[~PrcCap[r, p]] = False
+        # Cycling cost annuity
+        act_cstup[Rtp[r, v, p], tsl[s], cur].where[Rdcur[r, cur] & stg_maxcyc[Rtp]] = (
+            act_cstup[Rtp, tsl, cur]
+            * g_drate[r, v, cur]
+            / (1 - (1 + g_drate[r, v, cur]) ** -ncap_tlife[Rtp])
+        )
+        # -----------------------------------------------------------------------------
+        # Remove commodity balance equations from non-demand sinks
+        project(source=Rtp, target=Trackp)
+        project(source=RhsCombal, target=Trackc)
+        project(source=ire_flosum, target=Rcs)
+        with Loop(Trackp[r, p]):
+            Trackc[r, c].where[Top[r, p, c, "IN"]] = True
+        Trackc[r, c].where[Sum(RpcIre[Trackp[r, p], c, "EXP"], 1)] = Sum(
+            RpcIre[Trackp[r, p], c, "EXP"], 1
+        )
+        Trackc[Rc].where[Sum(Rcs[Rc, s], 1)] = Sum(Rcs[Rc, s], 1)
+        Trackc[Dem] = True
+        Trackc[r, c].where[Sum(RpcNoflo[Trackp[r, p], c], 1)] = Sum(
+            RpcNoflo[Trackp[r, p], c], 1
+        )
+        RcsCombal[RtcsVarc[r, t, c, s], lA].where[~Trackc[r, c]] = False
+        # Reduce overhead from UCU trades
+        Trackc[Rc] = ComUnit[Rc, "UCU"].where[~Trackc[Rc]]
+        RtcsVarc[r, t, c, s].where[(~RhsComprd[r, t, c, s]).where[Trackc[r, c]]] = False
+        TopIre["IMPEXP", c, Trackc, p] = False
+        Trackc.setRecords(None)
+        Trackp.setRecords(None)
+        Rcs.setRecords(None)
+        # Filter out UC constraints
+        if len(uc_time):
+            project(source=uc_time, target=RUc)
+            with Loop(RUc[r, ucnA].where[Round(uc_time[ucnA, r, "0"]) == -13]):
+                UcOn[RUc] = False
+                with If(UcRSum[RUc]):  # type: ignore[arg-type]
+                    UcOn[UcRSum[Reg, ucnA]] = False
+            uc_time[ucnA, r, t].where[(~UcOn[r, ucnA]).where[RUc[r, ucnA]]] = 0
+            RUc.setRecords(None)
+        # -----------------------------------------------------------------------------
+        # Add singleton ACT_EFFs to COEF_PTRANS or ACT_FLO
+        RpCgc[Rpg1ace] = True
+        project(source=Rpg1ace, target=Trackpc)
+        project(source=RpCgc, target=RpGrp)
+        # Convert ACT_EFF factors for reduced flows
+        Trackpc[Trackpc] = RpcFfunc[Trackpc]
+        act_flo[Rtp[r, v, p], c, s].where[RpcsVar[r, p, c, s] & Trackpc[r, p, c]] = (
+            1
+            / Sum(
+                RpCgc[r, p, cg, c],
+                Max(
+                    micro,
+                    act_eff[Rtp, cg, s]
+                    * (1 + (act_eff[Rtp, c, s] - 1).where[act_eff[Rtp, c, s]]),
+                ),
+            )
+        )
+        # Convert FLO_FUNCX factors for all reduced flows
+        project(source=rtp_ffcx, target=CgGrp, direction="left")
+        with Loop(RpcgPtran[Rp, c, Com, cg, cg2].where[CgGrp[Rp, cg, cg2]]):
+            with If(RpcFfunc[Rp, c]):  # type: ignore[arg-type]
+                RpDcgg[Rp, c, cg, cg2, "UP"] = True
+            with Else():  # type: ignore[no-untyped-call]
+                RpDcgg[Rp, Com, cg, cg2, "LO"] = True
+        RpDcgg[Trackpc[Rp, Com], cg, c, "UP"].where[
+            RpCgc[Rp, cg, Com] & RpcAct[Rp, c] & CgGrp[Rp, cg, c]
+        ] = CgGrp[Rp, cg, c]
+        rtp_ffcx[RtpCapyr[r, v, t, p], Actcg, c].where[
+            RpcFfunc[r, p, c]
+            & Sum(
+                RpDcgg[r, p, c, cg, cg2, lA],
+                (power(rtp_ffcx[r, v, t, p, cg, cg2] + 1, bdsig[lA]) - 1).where[  # type: ignore[arg-type]
+                    rtp_ffcx[r, v, t, p, cg, cg2] - Min(0, bdsig[lA])
+                ],
+            )
+        ] = Sum(
+            RpDcgg[r, p, c, cg, cg2, lA],
+            (power(rtp_ffcx[r, v, t, p, cg, cg2] + 1, bdsig[lA]) - 1).where[  # type: ignore[arg-type]
+                rtp_ffcx[r, v, t, p, cg, cg2] - Min(0, bdsig[lA])
+            ],
+        )
+        with Loop(RpDcgg[r, p, c, cg, cg2, lA]):
+            rtp_ffcx[r, v, t, p, cg, cg2] = 0
+        # Default to COEF_PTRAN
+        RpCgc[r, p, cg, c].where[Trackpc[r, p, c]] = False
+        coef_ptran[Rtp[r, v, p], cg, c, Com, s].where[
+            RpcsVar[r, p, c, s] & RpcPg[r, p, Com] & RpCgc[r, p, cg, c]
+        ] = (
+            act_eff[Rtp, cg, s]
+            * prc_actflo[Rtp, Com]
+            * (1 + (act_eff[Rtp, c, s] - 1).where[act_eff[Rtp, c, s]])
+        )
+        act_eff[r, ll, p, cg, s].where[RpGrp[r, p, cg]] = 0
+        project(source=RpCgc, target=RpGrp)
+        RpccFfunc[RpGrp[r, p, cg], Com].where[RpcPg[r, p, Com]] = True
+
+        if condition2:
+            RpcgPtran.setRecords(None)
+
+        Trackpc.setRecords(None)
+        RpGrp.setRecords(None)
+        CgGrp.setRecords(None)
+        RpDcgg.setRecords(None)
+        RtpCapyr.setRecords(None)
+        RpCgc.setRecords(None)
 
     def exec3(self: CoefExtVda) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-  COEF_PVT(R,T)$(NOT COEF_PVT(R,T)) = FPD(T);
-  VDA_DISC(R,T) $= COEF_PVT(R,T);
-  COEF_ILED(RTP(R,T,P))$NCAP_BND(RTP,'N') = MOD(COEF_ILED(RTP),1000)+EPS$NCAP_ILED(RTP);
-""",
+        g = self.tc
+        coef_pvt, r, t, fpd, vda_disc, coef_iled, Rtp, p, ncap_bnd, ncap_iled = (
+            g.coef_pvt,
+            g.r,
+            g.t,
+            g.fpd,
+            g.vda_disc,
+            g.coef_iled,
+            g.Rtp,
+            g.p,
+            g.ncap_bnd,
+            g.ncap_iled,
+        )
+        coef_pvt[r, t].where[~coef_pvt[r, t]] = fpd[t]
+        vda_disc[r, t].where[coef_pvt[r, t]] = coef_pvt[r, t]
+        coef_iled[Rtp[r, t, p]].where[ncap_bnd[Rtp, "N"]] = (
+            mod(coef_iled[Rtp], 1000) + Number(SpecialValues.EPS).where[ncap_iled[Rtp]]
         )
