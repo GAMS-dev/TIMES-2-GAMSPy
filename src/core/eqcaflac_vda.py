@@ -20,6 +20,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from core.base_class import GamsClass
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -180,7 +181,7 @@ class EqcaflacVda(GamsClass):
 {include_cal_red}
        )) +
 * storage: for activity multiply by number of storage cycles in a year
-    SUM(PRC_TS(RP_STG(R,P),TS)$RS_FR(R,TS,S),({var}_ACT(R,V,T,P,TS{sow})+VAR_STS(R,V,T,P,TS,{arg2}))*RS_FR(R,TS,S)*EXP(PRC_SC(R,P))/RS_STGPRD(R,TS)*G_YRFR(R,S))$ACTCG(CG) +
+    SUM(PRC_TS(RP_STG(R,P),TS)$RS_FR(R,TS,S),({var}_ACT(R,V,T,P,TS{sow})+{macro.var_sts.render("R", "V", "T", "P", "TS", arg2)})*RS_FR(R,TS,S)*EXP(PRC_SC(R,P))/RS_STGPRD(R,TS)*G_YRFR(R,S))$ACTCG(CG) +
     SUM(RPC_STG(R,P,C)$COM_GMAP(R,CG,C),
       SUM((TOP(R,P,C,IO),RPCS_VAR(R,P,C,TS))$RS_FR(R,S,TS),RS_FR(R,S,TS)*(1+RTCS_FR(R,T,C,S,TS))*
         ({var}_SIN(R,V,T,P,C,TS{sow})$(NOT TOP(R,P,C,'OUT'))$IPS(IO)+{var}_SOUT(R,V,T,P,C,TS{sow})*STG_EFF(R,V,P)*DIAG(IO,'OUT'))))

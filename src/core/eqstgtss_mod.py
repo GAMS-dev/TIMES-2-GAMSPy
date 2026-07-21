@@ -90,14 +90,14 @@ class EqstgtssMod(GamsClass):
     {self.env.eq}_STSBAL(RTP_VINTYR({self.env.r_v_t},P),TSL,{rts},L{self.env.swt})$(TS_GROUP(R,TSL,S)$PRC_TS(R,P,S)$RP_STL(R,P,TSL,L))..
 
 * storage level in time-slice s
-         SUM(RS_BELOW(R,ANNUAL,S),{self.env.var}_ACT(R,V,T,P,S{self.env.sow})+({self.env.var}_SIN(R,V,T,P,'{self.env.pgprim}',S{self.env.sow})+VAR_STS(R,V,T,P,S,'N'))$RP_STL(R,P,TSL,'UP'))
+         SUM(RS_BELOW(R,ANNUAL,S),{self.env.var}_ACT(R,V,T,P,S{self.env.sow})+({self.env.var}_SIN(R,V,T,P,'{self.env.pgprim}',S{self.env.sow})+{macro.var_sts.render("R", "V", "T", "P", "S", "'N'")})$RP_STL(R,P,TSL,'UP'))
 
     =E=
 
          SUM(RS_BELOW(R,ANNUAL,SL(S--RS_STG(R,S))),
 * storage level in time-slice s
              {self.env.var}_ACT(R,V,T,P,SL{self.env.sow})$IPS(L) + {self.env.var}_UDP(R,V,T,P,SL,'LO'{self.env.sow})$BD(L) +
-             ({self.env.var}_SIN(R,V,T,P,'{self.env.pgprim}',SL{self.env.sow})+VAR_STS(R,V,T,P,SL,L))$RP_STL(R,P,TSL,'UP')
+             ({self.env.var}_SIN(R,V,T,P,'{self.env.pgprim}',SL{self.env.sow})+{macro.var_sts.render("R", "V", "T", "P", "SL", "L")})$RP_STL(R,P,TSL,'UP')
              +
 * balancer flows
              ({self.env.var}_SOUT(R,V,T,P,'{self.env.pgprim}',SL{self.env.sow}) -
@@ -125,7 +125,7 @@ class EqstgtssMod(GamsClass):
     EQ_STSLEV(RTP_VINTYR({self.env.r_v_t},P),TSL,{rts}{self.env.swx})$({self.env.swtx}(STOAL(R,S)=PRC_SGL(R,P))$TS_GROUP(R,TSL,S)$RP_STL(R,P,TSL,'UP'))..
 
 * Sum of levelizers must be less than average variation over S
-        SUM(TS_MAP(R,TS,S)$STOA(TS),({self.env.var}_SIN(R,V,T,P,'{self.env.pgprim}',TS{self.env.sow})+{self.env.var}_UDP(R,V,T,P,TS,'LO'{self.env.sow})+VAR_STS(R,V,T,P,TS,'N'))/RS_STGPRD(R,TS))
+        SUM(TS_MAP(R,TS,S)$STOA(TS),({self.env.var}_SIN(R,V,T,P,'{self.env.pgprim}',TS{self.env.sow})+{self.env.var}_UDP(R,V,T,P,TS,'LO'{self.env.sow})+{macro.var_sts.render("R", "V", "T", "P", "TS", "'N'")})/RS_STGPRD(R,TS))
         =L=
         SUM(RS_BELOW1(R,S,TS)$RS_FR(R,TS,S),{self.env.var}_ACT(R,V,T,P,TS{self.env.sow})/RS_STGPRD(R,TS)*RS_FR(R,TS,S));
 """,

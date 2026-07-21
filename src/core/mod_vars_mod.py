@@ -15,11 +15,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Set, Variable
+from gamspy import Parameter, Set, Variable
 
 from core.base_class import GamsClass
 from core.powerflo_vda import PowerfloVda
 from core.prepret_dsc import PrepretDsc
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -418,13 +419,8 @@ class ModVarsMod(GamsClass):
             self.include(PrepretDsc(self.tc, self.env, arg1="DECL"))
         if self.tc.defined("PRC_REACT"):
             self.include(PowerfloVda(self.tc, self.env, arg1="DECL"))
-        # TODO: Wait for GAMSPy macros
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="$IF NOT DEFINED VAR_STS PARAMETER VAR_STS(R,YEAR,T,P,S,L) //;",
-        )
-        # if not self.tc.defined("VAR_STS"):
-        #     g.var_sts = Parameter(
-        #         m, name="VAR_STS", domain=[g.r, g.year, g.t, g.p, g.s, g.lA]
-        #     )
+
+        if not macro.var_sts.active:
+            g.var_sts = Parameter(
+                m, name="VAR_STS", domain=[g.r, g.year, g.t, g.p, g.s, g.lA]
+            )
