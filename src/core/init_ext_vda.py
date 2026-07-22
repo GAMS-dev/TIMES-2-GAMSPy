@@ -18,7 +18,7 @@ from gamspy import Domain, If, Loop, Ord, Parameter, Set, SpecialValues, Sum
 from gamspy.math import Max, Min, Round, abs, mod, project  # noqa: F401
 
 from core.base_class import GamsClass
-from core.equcrtp_vda import EqucrtpVda
+from core.equcrtp_vda import EqucrtpVda, EqucrtpVdaConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -137,7 +137,7 @@ class InitExtVda(GamsClass):
         # * Handle Updatable OFF-ranges & REG_BDNCAP process-based bounds
         self.tc.enqueue(self.handle_updatetable_off_ranges, self.env.eotime)
 
-        self.include(EqucrtpVda(self.tc, self.env, arg1="INIT_EXT"))
+        self.include(EqucrtpVda(self.tc, self.env, EqucrtpVdaConfig(arg1="INIT_EXT")))
 
         uc_actbet_defined = self.tc.defined("UC_ACTBET")
         self.tc.enqueue(

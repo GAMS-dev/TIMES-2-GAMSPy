@@ -16,7 +16,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from core.base_class import GamsClass
-from core.equcrtp_vda import EqucrtpVda
+from core.equcrtp_vda import EqucrtpVda, EqucrtpVdaConfig
 from core.fillparm_gms import FillparmGms
 from core.fillvint_gms import FillvintGms, FillvintGmsConfig
 from core.powerflo_vda import PowerfloVda
@@ -98,7 +98,7 @@ class PrepExtVda(GamsClass):
         if self.tc.defined("GR_VARGEN"):
             self.include(ResloadcVda(self.tc, self.env))
 
-        self.include(EqucrtpVda(self.tc, self.env, arg1="PREP_EXT"))
+        self.include(EqucrtpVda(self.tc, self.env, EqucrtpVdaConfig(arg1="PREP_EXT")))
 
         if self.env.vintopt == "1":
             self.include(
