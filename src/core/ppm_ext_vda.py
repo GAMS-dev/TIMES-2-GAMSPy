@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 
 from core.base_class import GamsClass
 from core.dynslite_vda import DynsliteVda
-from core.equcrtp_vda import EqucrtpVda
+from core.equcrtp_vda import EqucrtpVda, EqucrtpVdaConfig
 from core.pp_actef_vda import PpActefVda
 from core.pp_qaput_mod import pp_qaput
 from core.resloadc_vda import ResloadcVda
@@ -74,7 +74,7 @@ class PpmExtVda(GamsClass):
         self.tc.register_assignment(self.tc.RpsCaflac)
         self.tc.enqueue(self.prep_commodity_factors, pgprim=self.env.pgprim)
 
-        self.include(EqucrtpVda(self.tc, self.env, arg1="PPM_EXT"))
+        self.include(EqucrtpVda(self.tc, self.env, EqucrtpVdaConfig(arg1="PPM_EXT")))
 
         if self.env.rts() != "S":
             self.include(DynsliteVda(self.tc, self.env, arg1="POSTLEV"))

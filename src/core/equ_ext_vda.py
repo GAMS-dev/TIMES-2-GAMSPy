@@ -15,9 +15,6 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from core.equcrtp_vda import EqucrtpPhases
-
 from gamspy import Alias, Equation, Parameter, Set, Sum
 
 from core.base_class import GamsClass
@@ -26,7 +23,7 @@ from core.eqactups_vda import EqactupsVda
 from core.eqashar_vda import EqasharVda
 from core.eqcaflac_vda import EqcaflacVda
 from core.eqlducs_vda import EqlducsVda
-from core.equcrtp_vda import EqucrtpVda
+from core.equcrtp_vda import EqucrtpVda, EqucrtpVdaConfig
 from core.powerflo_vda import PowerfloVda
 from core.pp_actef_vda import PpActefVda
 from core.resloadc_vda import ResloadcVda
@@ -133,16 +130,12 @@ class EquExtVda(GamsClass):
             self.include(ResloadcVda(self.tc, self.env, arg1="EQUA"))
 
         # * EQUCRTP equations
-        equcrtp_batinclude: list[tuple[EqucrtpPhases, str, str, str]] = [
-            ("EQU_EXT", "N", "L", "BDNEQ"),
-            ("EQU_EXT", "E", "E", "'FX'"),
+        equcrtp_batinclude: list[EqucrtpVdaConfig] = [
+            EqucrtpVdaConfig(arg1="EQU_EXT", arg2="N", arg3="L", arg4=(g.Bdneq,)),
+            EqucrtpVdaConfig(arg1="EQU_EXT", arg2="E", arg3="E", arg4=("FX",)),
         ]
-        for arg1, arg2, arg3, arg4 in equcrtp_batinclude:
-            self.include(
-                EqucrtpVda(
-                    self.tc, self.env, arg1=arg1, arg2=arg2, arg3=arg3, arg4=arg4
-                )
-            )
+        for config in equcrtp_batinclude:
+            self.include(EqucrtpVda(self.tc, self.env, config=config))
 
     def equations(
         self: EquExtVda,

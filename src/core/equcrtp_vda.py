@@ -15,12 +15,15 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
-from gamspy import Number
+from gamspy import Alias, Domain, Loop, Number, Ord, Set, SpecialValues, Sum
+from gamspy.math import power, same_as
 
 from core.base_class import GamsClass
 from core.prepparm_gms import PrepparmGmsConfig, prepparm
+from core.utils import generate_equation
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -29,6 +32,16 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 EqucrtpPhases = Literal["INIT_EXT", "PREP_EXT", "PPM_EXT", "EQU_EXT"]
+
+
+@dataclass
+class EqucrtpVdaConfig:
+    """Strongly typed data contract replacing legacy positional batch-include loops."""
+
+    arg1: Literal[EqucrtpPhases]
+    arg2: Literal["E", "N", ""] = ""
+    arg3: Literal["E", "G", "L", ""] = ""
+    arg4: tuple[Set | Alias | Literal["FX"]] | tuple[()] = ()
 
 
 class EqucrtpVda(GamsClass):
@@ -42,59 +55,135 @@ class EqucrtpVda(GamsClass):
         self: EqucrtpVda,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: Literal[EqucrtpPhases],
-        arg2: str = "",
-        arg3: str = "",
-        arg4: str = "",
+        config: EqucrtpVdaConfig,
     ):
         self.env = env.fork()
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
-        self.arg4 = arg4
+        self.config = config
         self._sub_modules = {}
         self.compile()
 
     def compile(self: EqucrtpVda) -> None:
-        if self.arg1 == "INIT_EXT":
+        cc = self.config
+        if cc.arg1 == "INIT_EXT":
             self.tc.enqueue(self.init_ext)
-        elif self.arg1 == "PREP_EXT":
+        elif cc.arg1 == "PREP_EXT":
             self.label_prep_ext()
-        elif self.arg1 == "PPM_EXT":
+        elif cc.arg1 == "PPM_EXT":
             self.tc.enqueue(self.ppm_ext)
-        elif self.arg1 == "EQU_EXT":
-            self.label_equ_ext()
+        elif cc.arg1 == "EQU_EXT":
+            sense = cc.arg3
+            if sense not in ["E", "G", "L"]:
+                raise ValueError(f"Incompatible sense {sense}.")
+            self.label_equ_ext(sense)  # type: ignore[arg-type]
 
     def init_ext(self: EqucrtpVda) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Move dynamic bounds to dedicated attribute
-  IF(CARD(UC_DYNBND), OPTION CLEAR=UNCD1; LOOP(UC_DYNBND(UCN,BD),UNCD1(UCN)=YES);
-    PRC_DYNUC(UC_N,SIDE,R,LL,P,'CAP',BD)$UC_DYNBND(UC_N,BD) $= UC_CAP(UC_N,SIDE,R,LL,P);
-    PRC_DYNUC(UC_N,SIDE,R,LL,P,'NCAP',BD)$UC_DYNBND(UC_N,BD) $= UC_NCAP(UC_N,SIDE,R,LL,P);
-    PRC_DYNUC(UC_N,SIDE,R,LL,P,'ACT',BD)$UC_DYNBND(UC_N,BD) $= UC_ACT(UC_N,SIDE,R,LL,P,'ANNUAL');
-    UC_COM(UC_N(UNCD1),'NET',SIDE,R,LL,C,ANNUAL(S),'UCN') $= UC_COMNET(UC_N,SIDE,R,LL,C,S);
-    UC_COM(UC_N(UNCD1),'PRD',SIDE,R,LL,C,ANNUAL(S),'UCN') $= UC_COMPRD(UC_N,SIDE,R,LL,C,S);
-    UC_CAP(UC_N(UNCD1),SIDE,R,LL,P) = 0;
-    UC_NCAP(UC_N(UNCD1),SIDE,R,LL,P) = 0;
-    UC_ACT(UC_N(UNCD1),SIDE,R,LL,P,S) = 0;
-    UC_COMPRD(UC_N(UNCD1),SIDE,R,LL,C,S) = 0;
-    UC_COMNET(UC_N(UNCD1),SIDE,R,LL,C,S) = 0;
-* Set LHS default IE to 5 and RHS default to 10
-    UC_COM(UCN(UNCD1),COM_VAR,'LHS',R,LL--ORD(LL),C,S,'UCN')$((NOT UC_COM(UCN,COM_VAR,'LHS',R,'0',C,S,'UCN'))$UC_COM(UCN,COM_VAR,'LHS',R,LL,C,S,'UCN'))=5;
-    UC_COM(UCN(UNCD1),COM_VAR,'RHS',R,LL--ORD(LL),C,S,'UCN')$((NOT UC_COM(UCN,COM_VAR,'RHS',R,'0',C,S,'UCN'))$UC_COM(UCN,COM_VAR,'RHS',R,LL,C,S,'UCN'))=
-      UC_COM(UCN,COM_VAR,'LHS',R,'0',C,S,'UCN')+10$(NOT UC_COM(UCN,COM_VAR,'LHS',R,'0',C,S,'UCN'));
-* If no RHS/LHS defined, set it to EPS/1 for all other side years except for the IE option as on other side
-    UC_COM(UCN,COM_VAR,'RHS',R,LL,C,S,'UCN')$((NOT UC_COM(UCN,COM_VAR,'RHS',R,'0',C,S,'UCN'))$UC_COM(UCN,COM_VAR,'LHS',R,LL,C,S,'UCN'))=
-      EPS$(NOT MIYR_1(LL))+UC_COM(UCN,COM_VAR,'LHS',R,LL,C,S,'UCN')$LASTLL(LL);
-    UC_COM(UCN,COM_VAR,'LHS',R,LL,C,S,'UCN')$((NOT UC_COM(UCN,COM_VAR,'LHS',R,'0',C,S,'UCN'))$UC_COM(UCN,COM_VAR,'RHS',R,LL,C,S,'UCN'))=
-      (1+(UC_COM(UCN,COM_VAR,'RHS',R,LL,C,S,'UCN')-1)$LASTLL(LL));
-  );
-""",
+        g = self.tc
+        (
+            UcDynbnd,
+            uncd1,
+            ucnA,
+            bd,
+            prc_dynuc,
+            ucn,
+            side,
+            r,
+            ll,
+            p,
+            uc_cap,
+            uc_ncap,
+            uc_act,
+            uc_com,
+            c,
+            Annual,
+            s,
+            uc_comnet,
+            uc_comprd,
+            comvar,
+            Miyr1,
+            Lastll,
+        ) = (
+            g.UcDynbnd,
+            g.uncd1,
+            g.ucnA,
+            g.bd,
+            g.prc_dynuc,
+            g.ucn,
+            g.side,
+            g.r,
+            g.ll,
+            g.p,
+            g.uc_cap,
+            g.uc_ncap,
+            g.uc_act,
+            g.uc_com,
+            g.c,
+            g.Annual,
+            g.s,
+            g.uc_comnet,
+            g.uc_comprd,
+            g.comvar,
+            g.Miyr1,
+            g.Lastll,
         )
+        # Move dynamic bounds to dedicated attribute
+        if len(UcDynbnd):
+            uncd1.setRecords(None)
+            with Loop(UcDynbnd[ucnA, bd]):
+                uncd1[ucnA] = True
+
+            prc_dynuc[ucn, side, r, ll, p, "CAP", bd].where[
+                UcDynbnd[ucn, bd] & uc_cap[ucn, side, r, ll, p]
+            ] = uc_cap[ucn, side, r, ll, p]
+            prc_dynuc[ucn, side, r, ll, p, "NCAP", bd].where[
+                UcDynbnd[ucn, bd] & uc_ncap[ucn, side, r, ll, p]
+            ] = uc_ncap[ucn, side, r, ll, p]
+            prc_dynuc[ucn, side, r, ll, p, "ACT", bd].where[
+                UcDynbnd[ucn, bd] & uc_act[ucn, side, r, ll, p, "ANNUAL"]
+            ] = uc_act[ucn, side, r, ll, p, "ANNUAL"]
+            uc_com[ucn[uncd1], "NET", side, r, ll, c, Annual[s], "UCN"].where[
+                uc_comnet[ucn, side, r, ll, c, s]
+            ] = uc_comnet[ucn, side, r, ll, c, s]
+            uc_com[ucn[uncd1], "PRD", side, r, ll, c, Annual[s], "UCN"].where[
+                uc_comprd[ucn, side, r, ll, c, s]
+            ] = uc_comprd[ucn, side, r, ll, c, s]
+            uc_cap[ucn[uncd1], side, r, ll, p] = 0
+            uc_ncap[ucn[uncd1], side, r, ll, p] = 0
+            uc_act[ucn[uncd1], side, r, ll, p, s] = 0
+            uc_comprd[ucn[uncd1], side, r, ll, c, s] = 0
+            uc_comnet[ucn[uncd1], side, r, ll, c, s] = 0
+
+            # Set LHS default IE to 5 and RHS default to 10
+            uc_com[ucnA[uncd1], comvar, "LHS", r, ll.lag(Ord(ll)), c, s, "UCN"].where[
+                ~uc_com[ucnA, comvar, "LHS", r, "0", c, s, "UCN"]
+                & uc_com[ucnA, comvar, "LHS", r, ll, c, s, "UCN"]
+            ] = 5
+            uc_com[ucnA[uncd1], comvar, "RHS", r, ll.lag(Ord(ll)), c, s, "UCN"].where[
+                ~uc_com[ucnA, comvar, "RHS", r, "0", c, s, "UCN"]
+                & uc_com[ucnA, comvar, "RHS", r, ll, c, s, "UCN"]
+            ] = (
+                uc_com[ucnA, comvar, "LHS", r, "0", c, s, "UCN"]
+                + (Number(10)).where[~uc_com[ucnA, comvar, "LHS", r, "0", c, s, "UCN"]]
+            )
+
+            # If no RHS/LHS defined, set it to EPS/1 for all other side years except
+            # for the IE option as on other side
+            uc_com[ucnA, comvar, "RHS", r, ll, c, s, "UCN"].where[
+                ~uc_com[ucnA, comvar, "RHS", r, "0", c, s, "UCN"]
+                & uc_com[ucnA, comvar, "LHS", r, ll, c, s, "UCN"]
+            ] = (
+                Number(SpecialValues.EPS).where[~Miyr1[ll]]
+                + uc_com[ucnA, comvar, "LHS", r, ll, c, s, "UCN"].where[Lastll[ll]]
+            )
+            uc_com[ucnA, comvar, "LHS", r, ll, c, s, "UCN"].where[
+                ~uc_com[ucnA, comvar, "LHS", r, "0", c, s, "UCN"]
+                & uc_com[ucnA, comvar, "RHS", r, ll, c, s, "UCN"]
+            ] = (
+                1
+                + (uc_com[ucnA, comvar, "RHS", r, ll, c, s, "UCN"] - 1).where[
+                    Lastll[ll]
+                ]
+            )
 
     def label_prep_ext(self: EqucrtpVda) -> None:
         self.env.set_scoped("reset", 1)
@@ -112,25 +201,42 @@ class EqucrtpVda(GamsClass):
         g = self.tc
         ucn, side, r, p = g.ucn, g.side, g.r, g.p
         t, ucgrptype, bd = g.t, g.ucgrptype, g.bd
-        prc_dynuc = self.tc.container["PRC_DYNUC"]
+        prc_dynuc = g.prc_dynuc
+
         if prc_dynuc.number_records:
-            self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code=r"""
-*  Set LHS default IE to 5 and RHS default to 10
-   PRC_DYNUC(UC_N,'LHS',R,LL--ORD(LL),P,UC_GRPTYPE,BD)$((NOT PRC_DYNUC(UC_N,'LHS',R,'0',P,UC_GRPTYPE,BD))$PRC_DYNUC(UC_N,'LHS',R,LL,P,UC_GRPTYPE,BD))=5;
-   PRC_DYNUC(UC_N,'RHS',R,LL--ORD(LL),P,UC_GRPTYPE,BD)$((NOT PRC_DYNUC(UC_N,'RHS',R,'0',P,UC_GRPTYPE,BD))$PRC_DYNUC(UC_N,'RHS',R,LL,P,UC_GRPTYPE,BD))=
-     PRC_DYNUC(UC_N,'LHS',R,'0',P,UC_GRPTYPE,BD)+10$(NOT PRC_DYNUC(UC_N,'LHS',R,'0',P,UC_GRPTYPE,BD));
-   LOOP(BD, UC_GMAP_P(R,UC_N,UC_GRPTYPE,P)$PRC_DYNUC(UC_N,'RHS',R,'0',P,UC_GRPTYPE,BD) = YES);
-*  If no RHS defined, set RHS to EPS for all LHS years except for the IE option according to LHS
-   PRC_DYNUC(UC_N,'RHS',R,LL,P,UC_GRPTYPE,BD)$((NOT PRC_DYNUC(UC_N,'RHS',R,'0',P,UC_GRPTYPE,BD))$PRC_DYNUC(UC_N,'LHS',R,LL,P,UC_GRPTYPE,BD))=
-     EPS+PRC_DYNUC(UC_N,'LHS',R,LL,P,UC_GRPTYPE,BD)$LASTLL(LL);
-*  If no LHS defined, set LHS to 1 for all RHS years except for the IE option according to RHS
-   PRC_DYNUC(UC_N,'LHS',R,LL,P,UC_GRPTYPE,BD)$((NOT PRC_DYNUC(UC_N,'LHS',R,'0',P,UC_GRPTYPE,BD))$PRC_DYNUC(UC_N,'RHS',R,LL,P,UC_GRPTYPE,BD))=
-     (1+(PRC_DYNUC(UC_N,'RHS',R,LL,P,UC_GRPTYPE,BD)-1)$LASTLL(LL))$(NOT SAMEAS('NCAP',UC_GRPTYPE));
-""",
+            ll, UcGmapP, Lastll = g.ll, g.UcGmapP, g.Lastll
+            # Set LHS default IE to 5 and RHS default to 10
+            prc_dynuc[ucn, "LHS", r, ll.lag(Ord(ll)), p, ucgrptype, bd].where[
+                ~prc_dynuc[ucn, "LHS", r, "0", p, ucgrptype, bd]
+                & prc_dynuc[ucn, "LHS", r, ll, p, ucgrptype, bd]
+            ] = 5
+            prc_dynuc[ucn, "RHS", r, ll.lag(Ord(ll)), p, ucgrptype, bd].where[
+                ~prc_dynuc[ucn, "RHS", r, "0", p, ucgrptype, bd]
+                & prc_dynuc[ucn, "RHS", r, ll, p, ucgrptype, bd]
+            ] = (
+                prc_dynuc[ucn, "LHS", r, "0", p, ucgrptype, bd]
+                + (Number(10)).where[~prc_dynuc[ucn, "LHS", r, "0", p, ucgrptype, bd]]
             )
+            with Loop(bd):
+                UcGmapP[r, ucn, ucgrptype, p].where[
+                    prc_dynuc[ucn, "RHS", r, "0", p, ucgrptype, bd]
+                ] = True
+            # If no RHS defined, set RHS to EPS for all LHS years except for the IE option according to LHS
+            prc_dynuc[ucn, "RHS", r, ll, p, ucgrptype, bd].where[
+                ~prc_dynuc[ucn, "RHS", r, "0", p, ucgrptype, bd]
+                & prc_dynuc[ucn, "LHS", r, ll, p, ucgrptype, bd]
+            ] = (
+                SpecialValues.EPS
+                + prc_dynuc[ucn, "LHS", r, ll, p, ucgrptype, bd].where[Lastll[ll]]
+            )
+            # If no LHS defined, set LHS to 1 for all RHS years except for the IE option according to RHS
+            prc_dynuc[ucn, "LHS", r, ll, p, ucgrptype, bd].where[
+                ~prc_dynuc[ucn, "LHS", r, "0", p, ucgrptype, bd]
+                & prc_dynuc[ucn, "RHS", r, ll, p, ucgrptype, bd]
+            ] = (
+                1
+                + (prc_dynuc[ucn, "RHS", r, ll, p, ucgrptype, bd] - 1).where[Lastll[ll]]
+            ).where[~same_as("NCAP", ucgrptype)]
 
             prepparm(
                 module=self,
@@ -148,94 +254,291 @@ class EqucrtpVda(GamsClass):
                 reset=reset,
             )
 
-            self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code=r"""
-*  Disable growth/decay equation in first period of availability if no constant specified
-   PRC_DYNUC(UCN,RHS,RTP(R,TT(T+1),P),UC_GRPTYPE,BD)$((RTP(R,T,P)->MIYR_1(TT))$(NOT UC_GMAP_P(R,UCN,UC_GRPTYPE,P))$PRC_DYNUC(UCN,'LHS',R,'0',P,UC_GRPTYPE,BD)) = 0;
-*  Set final UC_GMAPs for REDUCE
-   LOOP(BD,UC_JMAP('1',UCN,RHS,R,T(MIYR_1),P,UC_GRPTYPE)$PRC_DYNUC(UCN,RHS,R,'0',P,UC_GRPTYPE,BD) = YES);
-""",
+            (
+                prc_dynuc,
+                ucnA,
+                Rhs,
+                Rtp,
+                tt,
+                Miyr1,
+                UcGmapP,
+                UcJmap,
+            ) = (
+                g.prc_dynuc,
+                g.ucnA,
+                g.Rhs,
+                g.Rtp,
+                g.tt,
+                g.Miyr1,
+                g.UcGmapP,
+                g.UcJmap,
             )
+            # Disable growth/decay equation in first period of availability if no constant specified
+            prc_dynuc[ucnA, Rhs, Rtp[r, tt[t + 1], p], ucgrptype, bd].where[
+                Rtp[r, t, p] - Miyr1[tt]
+                & ~UcGmapP[r, ucnA, ucgrptype, p]
+                & prc_dynuc[ucnA, "LHS", r, "0", p, ucgrptype, bd]
+            ] = 0
+            # Set final UC_GMAPs for REDUCE
+            with Loop(bd):
+                UcJmap["1", ucnA, Rhs, r, t[Miyr1], p, ucgrptype].where[
+                    prc_dynuc[ucnA, Rhs, r, "0", p, ucgrptype, bd]
+                ] = True
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"LOOP(UC_DYNBND(UCN,BD),UC_T_SUCC(R,UCN,'0') = YES);",
-        )
+        UcDynbnd, ucnA, UcTSucc = g.UcDynbnd, g.ucnA, g.UcTSucc
+        with Loop(UcDynbnd[ucnA, bd]):
+            UcTSucc[r, ucnA, "0"] = True
 
     def ppm_ext(self: EqucrtpVda) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Make sure that standard UCs are not generated
-  LOOP(UC_DYNBND(UCN,BD),
-    UC_ON(R,UCN) = NO;
-    UC_R_SUM(R,UCN) = NO;
-    UC_R_EACH(R,UCN) = NO;
-  );
-""",
+        g = self.tc
+        UcDynbnd, ucnA, bd, UcOn, r, UcRSum, UcREach = (
+            g.UcDynbnd,
+            g.ucnA,
+            g.bd,
+            g.UcOn,
+            g.r,
+            g.UcRSum,
+            g.UcREach,
+        )
+        # Make sure that standard UCs are not generated
+        with Loop(UcDynbnd[ucnA, bd]):
+            UcOn[r, ucnA] = False
+            UcRSum[r, ucnA] = False
+            UcREach[r, ucnA] = False
+
+    def label_equ_ext(self: EqucrtpVda, sense: Literal["E", "G", "L"]) -> None:
+        self.define_eq_ucrtp(sense)
+
+        if self.config.arg2.upper() != "E":
+            self.define_eq_ucrtc(sense)
+
+    def define_eq_ucrtp(self, sense: Literal["E", "G", "L"]) -> None:
+        g = self.tc
+        cc = self.config
+        (
+            ucn,
+            Rtp,
+            p,
+            ucgrptype,
+            bd,
+            t,
+            v,
+            tt,
+            prc_dynuc,
+            r,
+            lead,
+            Bdupx,
+            RtpVintyr,
+            Modlyear,
+            PrcTs,
+            s,
+            RtpVara,
+        ) = (
+            g.ucn,
+            g.Rtp,
+            g.p,
+            g.ucgrptype,
+            g.bd,
+            g.t,
+            g.v,
+            g.tt,
+            g.prc_dynuc,
+            g.r,
+            g.lead,
+            g.Bdupx,
+            g.RtpVintyr,
+            g.Modlyear,
+            g.PrcTs,
+            g.s,
+            g.RtpVara,
         )
 
-    def label_equ_ext(self: EqucrtpVda) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-{self.env.eq}{self.arg2}_UCRTP(UC_N,RTP({self.env.r_t},P),UC_GRPTYPE,BD({self.arg4}) {self.env.swt})$(PRC_DYNUC{self.env.mx}(UC_N,'RHS',R,T,P,UC_GRPTYPE,BD))..
+        r_t = self.env.r_t_GP
+        sws = self.env.sws_GP
+        sow = self.env.sow_GP
+        swt = self.env.swt_GP
+        varv_id, varv_set = self.env.varv_GP
+        vartt_id, vartt_set = self.env.vartt_GP
 
-*-------
-* Difference in capacity between previous and current period
-  (SUM(SAMEAS(T-1,V(TT))$RTP(R,V,P), POWER(PRC_DYNUC(UC_N,'LHS',R,T,P,UC_GRPTYPE,BD),LEAD(T)) *
-     {self.env.varv}_CAP(R,V,P {self.env.sws}))*(1-2$BDUPX(BD))
-   -  {self.env.var}_CAP(R,T,P {self.env.sow}) *(1-2$BDUPX(BD)))$SAMEAS('CAP',UC_GRPTYPE)
-*-------
-  +
-* Difference in NCAP between previous and current period
-  (SUM(SAMEAS(T-1,V(TT))$RTP(R,V,P), POWER(PRC_DYNUC(UC_N,'LHS',R,T,P,UC_GRPTYPE,BD),LEAD(T)) *
-     {self.env.varv}_NCAP(R,V,P {self.env.sws}))*(1-2$BDUPX(BD))
-   -  {self.env.var}_NCAP(R,T,P {self.env.sow}) *(1-2$BDUPX(BD)))$SAMEAS('NCAP',UC_GRPTYPE)
-*-------
-  +
-* Difference in ACT between previous and current period
-  (SUM(SAMEAS(T-1,V(TT))$RTP_VARA(R,V,P), POWER(PRC_DYNUC(UC_N,'LHS',R,T,P,UC_GRPTYPE,BD),LEAD(T)) *
-       SUM((RTP_VINTYR(R,MODLYEAR,V,P),PRC_TS(R,P,S)),{self.env.vartt}_ACT(R,MODLYEAR,V,P,S {self.env.sws})))*(1-2$BDUPX(BD))
-   -   SUM((RTP_VINTYR(R,MODLYEAR,T,P),PRC_TS(R,P,S)),  {self.env.var}_ACT(R,MODLYEAR,T,P,S {self.env.sow})) *(1-2$BDUPX(BD)))$SAMEAS('ACT',UC_GRPTYPE)
+        VAR_CAP = g.get_variable(f"{self.env.var}_CAP")
+        VAR_NCAP = g.get_variable(f"{self.env.var}_NCAP")
+        VAR_ACT = g.get_variable(f"{self.env.var}_ACT")
+        VARV_CAP = g.get_variable(f"{varv_id}_CAP")
+        VARV_NCAP = g.get_variable(f"{varv_id}_NCAP")
+        VARTT_ACT = g.get_variable(f"{vartt_id}_ACT")
+        eqe_ucrtp = g.get_equation(f"{self.env.eq}{cc.arg2}_UCRTP")
 
-  ={self.arg3}=
-
-* RHS constant term
-  PRC_DYNUC(UC_N,'RHS',R,T,P,UC_GRPTYPE,BD)*LEAD(T)*(-1+2$BDUPX(BD))
-  ;
-""",
+        shared_varv_cap = VARV_CAP[r, v, p, *sws]
+        VARV_CAP_expr = (
+            shared_varv_cap if varv_set is None else Sum(varv_set, shared_varv_cap)
         )
-        if self.arg2.upper() == "E":
-            return
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-{self.env.eq}{self.arg2}_UCRTC(UC_N,COM_VAR,RTC({self.env.r_t},C),ANNUAL(S),BD({self.arg4}) {self.env.swt})$(UC_COM(UC_N,COM_VAR,'RHS',RTC,S,'UCN')$UC_DYNBND(UC_N,BD))..
+        shared_varv_ncap = VARV_NCAP[r, v, p, *sws]
+        VARV_NCAP_expr = (
+            shared_varv_ncap if varv_set is None else Sum(varv_set, shared_varv_ncap)
+        )
 
-*-------
-* Difference in COMNET between previous and current period
-  (SUM(SAMEAS(T-1,Y(TT))$RTC(R,Y,C), POWER(UC_COM(UC_N,COM_VAR,'LHS',RTC,S,'UCN'),LEAD(T)) *
-     SUM(RHS_COMBAL(R,Y,C,S),{self.env.vartt}_COMNET(R,Y,C,S {self.env.sws})))*(1-2$BDUPX(BD))
-   - SUM(RHS_COMBAL(R,T,C,S),  {self.env.var}_COMNET(R,T,C,S {self.env.sow})) *(1-2$BDUPX(BD)))$SAMEAS('NET',COM_VAR)
-*-------
-  +
-* Difference in COMPRD between previous and current period
-  (SUM(SAMEAS(T-1,Y(TT))$RTC(R,Y,C), POWER(UC_COM(UC_N,COM_VAR,'LHS',RTC,S,'UCN'),LEAD(T)) *
-     SUM(RHS_COMPRD(R,Y,C,S),{self.env.vartt}_COMPRD(R,Y,C,S {self.env.sws})))*(1-2$BDUPX(BD))
-   - SUM(RHS_COMPRD(R,T,C,S),  {self.env.var}_COMPRD(R,T,C,S {self.env.sow})) *(1-2$BDUPX(BD)))$SAMEAS('PRD',COM_VAR)
+        shared_vartt_act = VARTT_ACT[r, Modlyear, v, p, s, *sws]
+        VARTT_ACT_expr = (
+            shared_vartt_act if vartt_set is None else Sum(vartt_set, shared_vartt_act)
+        )
 
-  ={self.arg3}=
+        # TODO: self.env.mx is ignored
+        if self.env.mx != "":
+            raise NotImplementedError("MX is not implemented here yet.")
 
-* RHS constant term
-  UC_COM(UC_N,COM_VAR,'RHS',R,T,C,S,'UCN')*LEAD(T)*(-1+2$BDUPX(BD))
-  ;
-""",
+        eqe_ucrtp[ucn, Rtp[*r_t, p], ucgrptype, bd[*cc.arg4], *swt].where[
+            prc_dynuc[ucn, "RHS", r, t, p, ucgrptype, bd]
+        ] = generate_equation(
+            (
+                # * Difference in capacity between previous and current period
+                Sum(
+                    same_as(t - 1, v[tt]).where[Rtp[r, v, p]],
+                    power(prc_dynuc[ucn, "LHS", r, t, p, ucgrptype, bd], lead[t])
+                    * VARV_CAP_expr,
+                )
+                * (1 - (Number(2)).where[Bdupx[bd]])
+                - VAR_CAP[r, t, p, *sow] * (1 - (Number(2)).where[Bdupx[bd]])
+            ).where[same_as("CAP", ucgrptype)]
+            + (
+                # * Difference in NCAP between previous and current period
+                Sum(
+                    same_as(t - 1, v[tt]).where[Rtp[r, v, p]],
+                    power(prc_dynuc[ucn, "LHS", r, t, p, ucgrptype, bd], lead[t])
+                    * VARV_NCAP_expr,
+                )
+                * (1 - (Number(2)).where[Bdupx[bd]])
+                - VAR_NCAP[r, t, p, *sow] * (1 - (Number(2)).where[Bdupx[bd]])
+            ).where[same_as("NCAP", ucgrptype)]
+            + (
+                # * Difference in ACT between previous and current period
+                Sum(
+                    same_as(t - 1, v[tt]).where[RtpVara[r, v, p]],
+                    power(prc_dynuc[ucn, "LHS", r, t, p, ucgrptype, bd], lead[t])
+                    * Sum(
+                        Domain(RtpVintyr[r, Modlyear, v, p], PrcTs[r, p, s]),
+                        VARTT_ACT_expr,
+                    ),
+                )
+                * (1 - (Number(2)).where[Bdupx[bd]])
+                - Sum(
+                    Domain(RtpVintyr[r, Modlyear, t, p], PrcTs[r, p, s]),
+                    VAR_ACT[r, Modlyear, t, p, s, *sow],
+                )
+                * (1 - (Number(2)).where[Bdupx[bd]])
+            ).where[same_as("ACT", ucgrptype)],
+            sense,
+            (
+                # * RHS constant term
+                prc_dynuc[ucn, "RHS", r, t, p, ucgrptype, bd]
+                * lead[t]
+                * (-1 + (Number(2)).where[Bdupx[bd]])
+            ),
+        )
+
+    def define_eq_ucrtc(self, sense: Literal["E", "G", "L"]) -> None:
+        g = self.tc
+        cc = self.config
+        (
+            ucn,
+            comvar,
+            Rtc,
+            c,
+            Annual,
+            s,
+            bd,
+            t,
+            Y,
+            tt,
+            uc_com,
+            lead,
+            RhsCombal,
+            r,
+            Bdupx,
+            RhsComprd,
+            UcDynbnd,
+        ) = (
+            g.ucn,
+            g.comvar,
+            g.Rtc,
+            g.c,
+            g.Annual,
+            g.s,
+            g.bd,
+            g.t,
+            g.Y,
+            g.tt,
+            g.uc_com,
+            g.lead,
+            g.RhsCombal,
+            g.r,
+            g.Bdupx,
+            g.RhsComprd,
+            g.UcDynbnd,
+        )
+
+        r_t = self.env.r_t_GP
+        sws = self.env.sws_GP
+        sow = self.env.sow_GP
+        swt = self.env.swt_GP
+        vartt_id, vartt_set = self.env.vartt_GP
+
+        VAR_COMNET = g.get_variable(f"{self.env.var}_COMNET")
+        VAR_COMPRD = g.get_variable(f"{self.env.var}_COMPRD")
+        VARTT_COMNET = g.get_variable(f"{vartt_id}_COMNET")
+        VARTT_COMPRD = g.get_variable(f"{vartt_id}_COMPRD")
+        eqe_ucrtc = g.get_equation(f"{self.env.eq}{cc.arg2}_UCRTC")
+
+        shared_vartt_comnet = VARTT_COMNET[r, Y, c, s, *sws]
+        VARTT_COMNET_expr = (
+            shared_vartt_comnet
+            if vartt_set is None
+            else Sum(vartt_set, shared_vartt_comnet)
+        )
+
+        shared_vartt_comprd = VARTT_COMPRD[r, Y, c, s, *sws]
+        VARTT_COMPRD_expr = (
+            shared_vartt_comprd
+            if vartt_set is None
+            else Sum(vartt_set, shared_vartt_comprd)
+        )
+
+        eqe_ucrtc[ucn, comvar, Rtc[*r_t, c], Annual[s], bd[*cc.arg4], *swt].where[
+            uc_com[ucn, comvar, "RHS", Rtc, s, "UCN"] & UcDynbnd[ucn, bd]
+        ] = generate_equation(
+            (
+                # * Difference in COMNET between previous and current period
+                Sum(
+                    same_as(t - 1, Y[tt]).where[Rtc[r, Y, c]],
+                    power(uc_com[ucn, comvar, "LHS", Rtc, s, "UCN"], lead[t])
+                    * Sum(
+                        RhsCombal[r, Y, c, s],
+                        VARTT_COMNET_expr,
+                    ),
+                )
+                * (1 - (Number(2)).where[Bdupx[bd]])
+                - Sum(RhsCombal[r, t, c, s], VAR_COMNET[r, t, c, s, *sow])
+                * (1 - (Number(2)).where[Bdupx[bd]])
+            ).where[same_as("NET", comvar)]
+            + (
+                # * Difference in COMPRD between previous and current period
+                Sum(
+                    same_as(t - 1, Y[tt]).where[Rtc[r, Y, c]],
+                    power(uc_com[ucn, comvar, "LHS", Rtc, s, "UCN"], lead[t])
+                    * Sum(
+                        RhsComprd[r, Y, c, s],
+                        VARTT_COMPRD_expr,
+                    ),
+                )
+                * (1 - (Number(2)).where[Bdupx[bd]])
+                - Sum(RhsComprd[r, t, c, s], VAR_COMPRD[r, t, c, s, *sow])
+                * (1 - (Number(2)).where[Bdupx[bd]])
+            ).where[same_as("PRD", comvar)],
+            sense,
+            # * RHS constant term
+            (
+                uc_com[ucn, comvar, "RHS", r, t, c, s, "UCN"]
+                * lead[t]
+                * (-1 + (Number(2)).where[Bdupx[bd]])
+            ),
         )
