@@ -12,6 +12,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Variable
+
 from core.base_class import GamsClass
 from core.clearsol_stc import ClearsolStc, clearsol_stc
 from core.cost_ann_rpt import cost_ann_rpt
@@ -212,6 +214,12 @@ PARAMETERS SW_UNPB(LL,WW), SW_UNPC(LL,WW);
 
         if "RTP_FFCS" in self.tc.container.listSymbols():
             self.tc.add_gams_code(module=self, phase="init", code="$CLEAR RTP_FFCS")
+
+    def define_variable_bases_on_if(self: RptmainStc) -> None:
+        g = self.tc
+        m = g.container
+        r, year, Rpc = g.r, g.year, g.Rpc
+        g.VAR_IC = Variable(m, "VAR_IC", type="Positive", domain=[r, year, Rpc])
 
     def report_param(self: RptmainStc) -> None:
         self.tc.add_gams_code(
