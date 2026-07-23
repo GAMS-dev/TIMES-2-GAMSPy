@@ -11,9 +11,11 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
-from gamspy import Parameter
+from gamspy import Alias, Domain, Expression, If, Loop, Ord, Parameter, Set, Sum
+from gamspy._symbols.implicits import ImplicitSet
+from gamspy.math import abs, project, sqrt
 
 from core.base_class import GamsClass
 from utils.macros import macro_config as macro
@@ -47,104 +49,373 @@ class PpActefVda(GamsClass):
     def compile(self) -> None:
         g = self.tc
         m = g.container
+
         if self.arg1 == "LVL":
             g.micro = Parameter(m, "MICRO", records=1e-6)
             self.tc.enqueue(self.exec1)
         else:  # EQUA
-            self.env.set_scoped("shg", f",P,CG,'{self.env.pgprim}'")
-            base_shp1 = f"(1+RTP_FFCX(R,V,T{self.env.shg})$PRC_VINT(R,P))"
+            p, cg, rtp_ffcx, rtp_ffcs, r, v, t, PrcVint = (
+                g.p,
+                g.cg,
+                g.rtp_ffcx,
+                g.rtp_ffcs,
+                g.r,
+                g.v,
+                g.t,
+                g.PrcVint,
+            )
+            self.env.set_scoped("shg", (p, cg, self.env.pgprim))
+            base_shp1 = 1 + rtp_ffcx[r, v, t, *self.env.shg].where[PrcVint[r, p]]
             if self.tc.defined("RTP_FFCS"):
                 self.env.set_scoped(
-                    "shp1", f"{base_shp1}*(1+RTP_FFCS(R,V{self.env.shg}{self.env.sow}))"
+                    "shp1",
+                    base_shp1 * (1 + rtp_ffcs[r, v, *self.env.shg, *self.env.sow]),
                 )
             else:
                 self.env.set_scoped("shp1", base_shp1)
 
             self.define_equation(
                 eq=self.env.eq,
-                r_v_t=self.env.r_v_t,
-                swt=self.env.swt,
+                r_v_t=self.env.r_v_t_GP,
+                swt=self.env.swt_GP,
                 var=self.env.var,
-                sow=self.env.sow,
+                sow=self.env.sow_GP,
                 shp1=self.env.shp1,
             )
 
     def define_equation(
-        self: PpActefVda, eq: str, r_v_t: str, swt: str, var: str, sow: str, shp1: str
+        self: PpActefVda,
+        eq: str,
+        r_v_t: tuple[Set | Alias | ImplicitSet, ...],
+        swt: tuple[Set | Alias, ...] | tuple[()],
+        var: str,
+        sow: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
+        shp1: Expression,
     ) -> None:
-        rts = macro.rts(s="S", g=self.tc, env=self.env)
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
- {eq}E_ACTEFF(RTP_VINTYR({r_v_t},P),CG,IO,{rts} {swt})$(RPS_S1(R,P,S)$RPG_ACE(R,P,CG,IO))..
+        g = self.tc
+        rts = macro.rts(s=g.s, g=self.tc, env=self.env)
+        (
+            RtpVintyr,
+            p,
+            cg,
+            io,
+            RpcAce,
+            r,
+            c,
+            ComGmap,
+            TsMap,
+            s,
+            ts,
+            act_eff,
+            v,
+            t,
+            RtpcsVarf,
+            TsAnn,
+            PrcTs,
+            rs_fr,
+            RpPgflo,
+            RpcPg,
+            RpPgact,
+            prc_actflo,
+            rtcs_fr,
+            RpgPace,
+            RpPl,
+            lA,
+            act_lospl,
+            RpsS1,
+            RpgAce,
+        ) = (
+            g.RtpVintyr,
+            g.p,
+            g.cg,
+            g.io,
+            g.RpcAce,
+            g.r,
+            g.c,
+            g.ComGmap,
+            g.TsMap,
+            g.s,
+            g.ts,
+            g.act_eff,
+            g.v,
+            g.t,
+            g.RtpcsVarf,
+            g.TsAnn,
+            g.PrcTs,
+            g.rs_fr,
+            g.RpPgflo,
+            g.RpcPg,
+            g.RpPgact,
+            g.prc_actflo,
+            g.rtcs_fr,
+            g.RpgPace,
+            g.RpPl,
+            g.lA,
+            g.act_lospl,
+            g.RpsS1,
+            g.RpgAce,
+        )
 
-* Sum over input flows
-  SUM((RPC_ACE(R,P,C),COM_GMAP(R,CG,C),TS_MAP(R,S,TS))$RTPCS_VARF(R,T,P,C,TS),
-    (1+(ACT_EFF(R,V,P,C,TS)-1)$ACT_EFF(R,V,P,C,TS)) * {var}_FLO(R,V,T,P,C,TS {sow})) *
-* Multiply with group efficiency
-  SUM(TS_ANN(S,TS),ACT_EFF(R,V,P,CG,TS))*{shp1}
+        VAR_FLO = g.get_variable(f"{var}_FLO")
+        VAR_ACT = g.get_variable(f"{var}_ACT")
+        VAR_UPS = g.get_variable(f"{var}_UPS")
 
-   =E=
+        eqe_acteff = g.get_equation(f"{eq}e_acteff")
 
-  SUM(PRC_TS(R,P,TS)$RS_FR(R,S,TS),RS_FR(R,S,TS) *
-* COM_FR needs to be taken into account if process operates above S
-    ({var}_ACT(R,V,T,P,TS {sow})$(NOT RP_PGFLO(R,P)) +
-     SUM(RPC_PG(R,P,C),({var}_ACT(R,V,T,P,TS {sow})$RP_PGACT(R,P)+({var}_FLO(R,V,T,P,C,TS {sow})/PRC_ACTFLO(R,V,P,C))$(NOT RP_PGACT(R,P))) *
-       (1+RTCS_FR(R,T,C,S,TS)))$RP_PGFLO(R,P)))$(NOT RPG_PACE(R,P,CG)) +
-
-* Handle the special cases where ACT_EFF has been specified for PG commodities
-  SUM(PRC_TS(R,P,TS)$RS_FR(R,S,TS),RS_FR(R,S,TS) *
-    SUM(RPC_PG(R,P,C), ({var}_ACT(R,V,T,P,TS {sow})$RP_PGACT(R,P) +
-         ({var}_FLO(R,V,T,P,C,TS {sow})/PRC_ACTFLO(R,V,P,C))$(NOT RP_PGACT(R,P))) /
-        (1+(ACT_EFF(R,V,P,C,TS)-1)$ACT_EFF(R,V,P,C,TS)) * (1+RTCS_FR(R,T,C,S,TS))))$RPG_PACE(R,P,CG) +
-
-* Partial loads
-  SUM(RP_PL(R,P,L('FX')),ACT_LOSPL(R,V,P,L) *
-    SUM(PRC_TS(R,P,TS)$RS_FR(R,S,TS),{var}_UPS(R,V,T,P,TS,L{sow})*RS_FR(R,S,TS)));
-""",
+        eqe_acteff[RtpVintyr[*r_v_t, p], cg, io, rts, *swt].where[
+            RpsS1[r, p, s] & RpgAce[r, p, cg, io]
+        ] = Sum(  # Sum over input flows
+            Domain(RpcAce[r, p, c], ComGmap[r, cg, c], TsMap[r, s, ts]).where[
+                RtpcsVarf[r, t, p, c, ts]
+            ],
+            (1 + (act_eff[r, v, p, c, ts] - 1).where[act_eff[r, v, p, c, ts]])
+            * VAR_FLO[r, v, t, p, c, ts, *sow],
+            # Multiply with group efficiency
+        ) * Sum(TsAnn[s, ts], act_eff[r, v, p, cg, ts]) * shp1 == (
+            Sum(
+                PrcTs[r, p, ts].where[rs_fr[r, s, ts]],
+                rs_fr[r, s, ts]
+                * (
+                    # COM_FR needs to be taken into account if process operates above S
+                    VAR_ACT[r, v, t, p, ts, *sow].where[~RpPgflo[r, p]]
+                    + (
+                        Sum(
+                            RpcPg[r, p, c],
+                            (
+                                VAR_ACT[r, v, t, p, ts, *sow].where[RpPgact[r, p]]
+                                + (
+                                    VAR_FLO[r, v, t, p, c, ts, *sow]
+                                    / prc_actflo[r, v, p, c]
+                                ).where[~RpPgact[r, p]]
+                            )
+                            * (1 + rtcs_fr[r, t, c, s, ts]),
+                        )
+                    ).where[RpPgflo[r, p]]
+                ),
+            )
+        ).where[~RpgPace[r, p, cg]] + (
+            # Handle the special cases where ACT_EFF has been specified for PG commodities
+            Sum(
+                PrcTs[r, p, ts].where[rs_fr[r, s, ts]],
+                rs_fr[r, s, ts]
+                * Sum(
+                    RpcPg[r, p, c],
+                    (
+                        VAR_ACT[r, v, t, p, ts, *sow].where[RpPgact[r, p]]
+                        + (
+                            VAR_FLO[r, v, t, p, c, ts, *sow] / prc_actflo[r, v, p, c]
+                        ).where[~RpPgact[r, p]]
+                    )
+                    / (1 + (act_eff[r, v, p, c, ts] - 1).where[act_eff[r, v, p, c, ts]])
+                    * (1 + rtcs_fr[r, t, c, s, ts]),
+                ),
+            )
+        ).where[RpgPace[r, p, cg]] + Sum(  # Partial loads
+            RpPl[r, p, lA["FX"]],
+            act_lospl[r, v, p, lA]
+            * Sum(
+                PrcTs[r, p, ts].where[rs_fr[r, s, ts]],
+                VAR_UPS[r, v, t, p, ts, lA, *sow] * rs_fr[r, s, ts],
+            ),
         )
 
     def exec1(self: PpActefVda) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-OPTION CLEAR=UNCD7;
-*-----------------------------------------------------------------------------
-* Save commodity ACT_EFF partitions
-  CG_GRP(RPC_ACE(RPC(R,P,C)),C) = YES;
-  OPTION KEEP_FLOF<RPG_1ACE, CLEAR=RPG_1ACE;
-* Catch singleton groups
-  LOOP(RPG_ACE(RP_PGACT(R,P),CG,IO)$(SUM(TOP(R,P,C,IO)$COM_GMAP(R,CG,C),1) LE 1),
-    IF(NOT RPG_PACE(R,P,CG)+RP_PL(R,P,'FX'),RP_GRP(R,P,CG)=YES; RPG_1ACE(RP_GRP(R,P,CG),C)$(TOP(R,P,C,IO)$COM_GMAP(R,CG,C)) = YES));
-* Accept EPS for shadow group flows only
-  ACT_EFF(R,LL,P,C,S)$((RPC_PG(R,P,C)+KEEP_FLOF(R,P,C))$(ACT_EFF(R,LL,P,C,S)=0)$ACT_EFF(R,LL,P,C,S))=0;
-  LOOP(RPG_ACE(RPC_SPG(R,P,C),IO),ACT_EFF(RTP(R,V,P),C,S)$ACT_EFF(RTP,C,S)=SQRT(ABS(ACT_EFF(RTP,C,S))));
-* Store all flow level commodities in CG_GRP
-  CG_GRP(RPG_1ACE) = YES;
-  RPG_ACE(RP_GRP,IO) = NO;
-*-----------------------------------------------------------------------------
-* Inherit values to target timeslices when possible
-  VDA_FLOP(R,LL--ORD(LL),P,CG,S--ORD(S))$STOAL(R,S)$=ACT_EFF(R,LL,P,CG,S); OPTION RPC_ACE<VDA_FLOP, CLEAR=VDA_FLOP;
-  UNCD7('1',CG_GRP(RPC_ACE(R,P,CG),C),TSL,S+STOA(S))$TS_GROUP(R,TSL,S)$=RPCS_VAR(R,P,C,S);
-  UNCD7('2',RPG_ACE(RPC_ACE(R,P,CG),IO),TSL,S+STOA(S))$TS_GROUP(R,TSL,S)$=RPS_S1(R,P,S); CG_GRP(RPC_ACE,C)=NO;
-  IF(CARD(NORTS),LOOP((MIYR_1(T),UNCD7(J,R,P,CG,ITEM,TS,TS)),ACT_EFF(RTP(R,V,P),CG,S)$(NORTS(R,V,S)+NORTS(R,T,S)$PASTMILE(V))=0));
-  OPTION CLEAR=RPC_ACE;
-  LOOP(RPG_ACE(R,P,CG,IO),RPC_ACE(R,P,C)$(TOP(R,P,C,IO)$COM_GMAP(R,CG,C)) = YES);
-  RPC_ACE(KEEP_FLOF) = NO;
-*-----------------------------------------------------------------------------
-* Aggregate values to target timeslices when inheritance could not be done
-  LOOP(UNCD7(J,R,P,CG,ITEM,TSL,STL), MY_TS(S) = TS_GROUP(R,TSL,S);
-   LOOP(RTP(R,V,P), TS_ARRAY(S) = ACT_EFF(R,V,P,CG,S);
-    ACT_EFF(R,V,P,CG,MY_TS)$(NOT TS_ARRAY(MY_TS)) =
-      SUM(RS_TREE(FINEST(R,S),MY_TS), G_YRFR(R,S) * (TS_ARRAY(S) +
-           SUM(RS_BELOW(R,ALL_TS,S)$((NOT SUM(TS_MAP(R,SL,S)$RS_BELOW(R,ALL_TS,SL),TS_ARRAY(SL)))$TS_ARRAY(ALL_TS)),
-               TS_ARRAY(ALL_TS))))/G_YRFR(R,MY_TS)));
-*-----------------------------------------------------------------------------
-  FSCKS(CG_GRP(R,P,CG,C),CG,S)$RPCS_VAR(R,P,C,S) = YES; OPTION FFCKS <= FSCKS;
-  ACT_EFF(RTP(R,V,P),CG,S+STOA(S))$(RPS_S1(R,P,S)$STOA(S)$ACT_EFF(RTP,CG,S)) = 0;
-  ACT_EFF(RTP(R,V,P),CG,S)$(NOT ACT_EFF(RTP,CG,S)) $= SUM(FFCKS(R,P,CG,CG,S),ACT_EFF(R,V,P,CG,'ANNUAL'));
-  OPTION CLEAR=FFCKS,CLEAR=FSCKS,CLEAR=CG_GRP;
-""",
+        g = self.tc
+        (
+            Uncd7,
+            CgGrp,
+            RpcAce,
+            Rpc,
+            r,
+            p,
+            c,
+            Rpg1ace,
+            KeepFlof,
+            RpgAce,
+            RpPgact,
+            cg,
+            io,
+            Top,
+            ComGmap,
+            RpgPace,
+            RpPl,
+            RpGrp,
+            act_eff,
+            ll,
+            s,
+            RpcPg,
+            RpcSpg,
+            Rtp,
+            v,
+            vda_flop,
+            tsl,
+            stoa,
+            RpcsVar,
+            RpsS1,
+            norts,
+            Miyr1,
+            t,
+            j,
+            item,
+            ts,
+            Pastmile,
+            stl,
+            MyTs,
+            TsGroup,
+            ts_array,
+            RsTree,
+            Finest,
+            g_yrfr,
+            RsBelow,
+            allts,
+            TsMap,
+            sl,
+            Fscks,
+            Ffcks,
+        ) = (
+            g.Uncd7,
+            g.CgGrp,
+            g.RpcAce,
+            g.Rpc,
+            g.r,
+            g.p,
+            g.c,
+            g.Rpg1ace,
+            g.KeepFlof,
+            g.RpgAce,
+            g.RpPgact,
+            g.cg,
+            g.io,
+            g.Top,
+            g.ComGmap,
+            g.RpgPace,
+            g.RpPl,
+            g.RpGrp,
+            g.act_eff,
+            g.ll,
+            g.s,
+            g.RpcPg,
+            g.RpcSpg,
+            g.Rtp,
+            g.v,
+            g.vda_flop,
+            g.tsl,
+            g.stoa,
+            g.RpcsVar,
+            g.RpsS1,
+            g.norts,
+            g.Miyr1,
+            g.t,
+            g.j,
+            g.item,
+            g.ts,
+            g.Pastmile,
+            g.stl,
+            g.MyTs,
+            g.TsGroup,
+            g.ts_array,
+            g.RsTree,
+            g.Finest,
+            g.g_yrfr,
+            g.RsBelow,
+            g.allts,
+            g.TsMap,
+            g.sl,
+            g.Fscks,
+            g.Ffcks,
         )
+        Uncd7.setRecords(None)
+
+        # Save commodity ACT_EFF partitions
+        CgGrp[RpcAce[Rpc[r, p, c]], c] = True
+        project(source=Rpg1ace, target=KeepFlof)
+        Rpg1ace.setRecords(None)
+
+        # Catch singleton groups
+        with Loop(  # noqa: SIM117
+            RpgAce[RpPgact[r, p], cg, io].where[
+                Sum(Top[r, p, c, io].where[ComGmap[r, cg, c]], 1) <= 1
+            ]
+        ):
+            with If(~RpgPace[r, p, cg] + RpPl[r, p, "FX"]):  # type: ignore[arg-type]
+                RpGrp[r, p, cg] = True
+                Rpg1ace[RpGrp[r, p, cg], c].where[
+                    Top[r, p, c, io].where[ComGmap[r, cg, c]]
+                ] = True
+        # Accept EPS for shadow group flows only
+        act_eff[r, ll, p, c, s].where[
+            (RpcPg[r, p, c] + KeepFlof[r, p, c]).where[
+                (act_eff[r, ll, p, c, s] == 0).where[act_eff[r, ll, p, c, s]]
+            ]
+        ] = 0
+        with Loop(RpgAce[RpcSpg[r, p, c], io]):
+            act_eff[Rtp[r, v, p], c, s].where[act_eff[Rtp, c, s]] = sqrt(
+                abs(act_eff[Rtp, c, s])
+            )
+        # Store all flow level commodities in CG_GRP
+        CgGrp[Rpg1ace] = True
+        RpgAce[RpGrp, io] = False
+
+        # Inherit values to target timeslices when possible
+        vda_flop[r, ll.lag(Ord(ll)), p, cg, s.lag(Ord(s))].where[
+            act_eff[r, ll, p, cg, s]
+        ] = act_eff[r, ll, p, cg, s]
+        project(source=vda_flop, target=RpcAce)
+        vda_flop.setRecords(None)
+        Uncd7["1", CgGrp[RpcAce[r, p, cg], c], tsl, s + stoa[s]].where[
+            RpcsVar[r, p, c, s]
+        ] = RpcsVar[r, p, c, s]
+        Uncd7["2", RpgAce[RpcAce[r, p, cg], io], tsl, s + stoa[s]].where[
+            RpsS1[r, p, s]
+        ] = RpsS1[r, p, s]
+        CgGrp[RpcAce, c] = False
+        if len(norts):
+            with Loop((Miyr1[t], Uncd7[j, r, p, cg, item, ts, ts])):
+                act_eff[Rtp[r, v, p], cg, s].where[
+                    norts[r, v, s] + norts[r, t, s].where[Pastmile[v]]
+                ] = 0
+        RpcAce.setRecords(None)
+
+        # Aggregate values to target timeslices when inheritance could not be done
+        with Loop(RpgAce[r, p, cg, io]):
+            RpcAce[r, p, c].where[Top[r, p, c, io].where[ComGmap[r, cg, c]]] = True
+        RpcAce[KeepFlof] = False
+        with Loop(Uncd7[j, r, p, cg, item, tsl, stl]):
+            MyTs[s] = TsGroup[r, tsl, s]
+            with Loop(Rtp[r, v, p]):
+                ts_array[s] = act_eff[r, v, p, cg, s]
+                act_eff[r, v, p, cg, MyTs].where[~ts_array[MyTs]] = (
+                    Sum(
+                        RsTree[Finest[r, s], MyTs],
+                        g_yrfr[r, s]
+                        * (
+                            ts_array[s]
+                            + Sum(
+                                RsBelow[r, allts, s].where[
+                                    ~(
+                                        Sum(
+                                            TsMap[r, sl, s].where[
+                                                RsBelow[r, allts, sl]
+                                            ],
+                                            ts_array[sl],
+                                        ).where[ts_array[allts]]
+                                    )
+                                ],
+                                ts_array[allts],
+                            )
+                        ),
+                    )
+                    / g_yrfr[r, MyTs]
+                )
+
+        Fscks[CgGrp[r, p, cg, c], cg, s].where[RpcsVar[r, p, c, s]] = True
+        project(source=Fscks, target=Ffcks, direction="left")
+        act_eff[Rtp[r, v, p], cg, s + stoa[s]].where[
+            RpsS1[r, p, s] & stoa[s] & act_eff[Rtp, cg, s]
+        ] = 0
+        act_eff[Rtp[r, v, p], cg, s].where[
+            Sum(Ffcks[r, p, cg, cg, s], act_eff[r, v, p, cg, "ANNUAL"])
+        ] = Sum(Ffcks[r, p, cg, cg, s], act_eff[r, v, p, cg, "ANNUAL"])
+        Ffcks.setRecords(None)
+        Fscks.setRecords(None)
+        CgGrp.setRecords(None)
