@@ -13,6 +13,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Domain, Else, If, Loop, Ord, Set, Sum, set_options
+from gamspy.math import project
+
 from core.base_class import GamsClass
 from core.fillparm_gms import FillparmGms
 
@@ -66,67 +69,175 @@ class PpmExtCli(GamsClass):
         self.tc.enqueue(self.statistic_mappings)
 
     def comp1(self: PpmExtCli) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-* Additional declarations
-  SET CM_USUBS(CM_ITEM);
-  SET CM_COUPMAP(CM_ITEM,CM_ITEM,CM_Q);
-  SET CM_REBOX(CM_Q,CM_Q) / CM-ATM.ATM, CM-UP.UP, CM-LO.LO /;
-""",
+        g = self.tc
+        m = g.container
+
+        # Additional declarations
+        g.CmUsubs = Set(m, name="CM_USUBS", domain=[g.cmitem])
+        g.CmCoupmap = Set(m, name="CM_COUPMAP", domain=[g.cmitem, g.cmitem, g.cmq])
+        g.CmRebox = Set(
+            m,
+            name="CM_REBOX",
+            domain=[g.cmq, g.cmq],
+            records=[("CM-ATM", "ATM"), ("CM-UP", "UP"), ("CM-LO", "LO")],
         )
 
     def user_defined_emissions(self: PpmExtCli) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Add user-defined emissions
-  CM_GHGMAP(R,COM,C)$(NOT CM_GHGMAP(R,COM,C)) $= IRE_CCVT(R,COM,R,C);
-  CM_USUBS(CM_ITEM)$SUM(RC(R,COM)$CM_GHGMAP(R,COM,CM_ITEM),1) = CM_PPM(CM_ITEM);
-  OPTION CLEAR=UNCD1; UNCD1(CM_USUBS) = CM_HISTS(CM_USUBS);
-  CM_HISTS(CM_USUBS) = YES;
-  CM_EMIS(CM_USUBS) = YES;
-* Prepare coupled agents
-  CM_COUPLE(CG,LL,CM_ITEM,'ATM') = 0;
-  UNCD7(CG,LL--ORD(LL),CM_ITEM,LIM(CM_Q),'','','')$CM_COUPLE(CG,LL,CM_ITEM,CM_Q) = YES;
-  LOOP(UNCD7(CG,LL,CM_ITEM,L('N'),'','',''),
-    IF(CM_EMIS(CG), CM_COUPLE(CG,YEAR,CM_ITEM,'ATM')$=CM_COUPLE(CG,YEAR,CM_ITEM,L);
-    ELSE LOOP((RC(R,C(CG)),CM_VAR)$(CM_GHGMAP(R,C,CM_VAR)$CM_EMIS(CM_VAR)),
-      CM_COUPLE(CM_VAR,YEAR,CM_ITEM,'ATM') $= CM_COUPLE(CG,YEAR,CM_ITEM,L);
-      CM_COUPLE(CM_VAR,YEAR,CM_ITEM,CM_Q) $= CM_COUPLE(CG,YEAR,CM_ITEM,CM_Q))));
-  OPTION CM_COUPMAP <= CM_COUPLE;
-  CM_COUPLE(CG,LL,CM_ITEM,'N') = 0;
-  CM_COUPLE(CG,LL,CM_ITEM,CM_Q)$(NOT CM_COUPMAP(CG,CM_ITEM,'ATM')) = 0;
-  OPTION CM_USUBS < CM_COUPMAP;
-  LOOP(CM_USUBS(CM_ITEM),
-    CM_PPM(CM_ITEM)$(NOT CM_PPM(CM_ITEM)) = 1;
-    CM_STAT0(CM_ITEM,'LIFE')$(NOT CM_STAT0(CM_ITEM,'LIFE'))=1;
-    IF(NOT (UNCD1(CM_ITEM) OR CM_DECAY(CM_ITEM,'ATM')),CM_DECAY(CM_ITEM,'ATM') = 1;
-       CM_COUPLE(CM_VAR,T,CM_ITEM,'FX')$CM_COUPMAP(CM_VAR,CM_ITEM,'ATM') = 1);
-    CM_EMIS(CM_ITEM) = YES);
-""",
+        g = self.tc
+        (
+            cm_ghgmap,
+            r,
+            Com,
+            c,
+            ire_ccvt,
+            CmUsubs,
+            cmitem,
+            Rc,
+            cm_ppm,
+            uncd1,
+            CmHists,
+            CmEmis,
+            cm_couple,
+            cg,
+            ll,
+            Uncd7,
+            lim,
+            cmq,
+            lA,
+            year,
+            CmVar,
+            CmCoupmap,
+            cm_decay,
+            t,
+            cm_stat0,
+        ) = (
+            g.cm_ghgmap,
+            g.r,
+            g.Com,
+            g.c,
+            g.ire_ccvt,
+            g.CmUsubs,
+            g.cmitem,
+            g.Rc,
+            g.cm_ppm,
+            g.uncd1,
+            g.CmHists,
+            g.CmEmis,
+            g.cm_couple,
+            g.cg,
+            g.ll,
+            g.Uncd7,
+            g.lim,
+            g.cmq,
+            g.lA,
+            g.year,
+            g.CmVar,
+            g.CmCoupmap,
+            g.cm_decay,
+            g.t,
+            g.cm_stat0,
         )
+        # Add user-defined emissions
+        cm_ghgmap[r, Com, c].where[~cm_ghgmap[r, Com, c] & ire_ccvt[r, Com, r, c]] = (
+            ire_ccvt[r, Com, r, c]
+        )
+        CmUsubs[cmitem].where[Sum(Rc[r, Com].where[cm_ghgmap[r, Com, cmitem]], 1)] = (
+            cm_ppm[cmitem]
+        )
+        uncd1.setRecords(None)
+        uncd1[CmUsubs] = CmHists[CmUsubs]
+        CmHists[CmUsubs] = True
+        CmEmis[CmUsubs] = True
+
+        # Prepare coupled agents
+        cm_couple[cg, ll, cmitem, "ATM"] = 0
+        Uncd7[cg, ll.lag(Ord(ll), "circular"), cmitem, lim[cmq], "", "", ""].where[
+            cm_couple[cg, ll, cmitem, cmq]
+        ] = True
+
+        set_options({"VALIDATION": 0})
+        with Loop(Uncd7[cg, ll, cmitem, lA["N"], "", "", ""]):
+            with If(CmEmis[cg]):  # type: ignore[arg-type]
+                cm_couple[cg, year, cmitem, "ATM"].where[
+                    cm_couple[cg, year, cmitem, lA]
+                ] = cm_couple[cg, year, cmitem, lA]
+            with Else():  # type: ignore[no-untyped-call] # noqa: SIM117
+                with Loop(
+                    Domain(Rc[r, c[cg]], CmVar).where[
+                        cm_ghgmap[r, c, CmVar] & CmEmis[CmVar]
+                    ]
+                ):
+                    cm_couple[CmVar, year, cmitem, "ATM"].where[
+                        cm_couple[cg, year, cmitem, lA]
+                    ] = cm_couple[cg, year, cmitem, lA]
+                    cm_couple[CmVar, year, cmitem, cmq].where[
+                        cm_couple[cg, year, cmitem, cmq]
+                    ] = cm_couple[cg, year, cmitem, cmq]
+        set_options({"VALIDATION": 0})
+
+        project(source=cm_couple, target=CmCoupmap, direction="left")
+        cm_couple[cg, ll, cmitem, "N"] = 0
+        cm_couple[cg, ll, cmitem, cmq].where[~CmCoupmap[cg, cmitem, "ATM"]] = 0
+        project(source=CmCoupmap, target=CmUsubs)
+        with Loop(CmUsubs[cmitem]):
+            cm_ppm[cmitem].where[~cm_ppm[cmitem]] = 1
+            cm_stat0[cmitem, "LIFE"].where[~cm_stat0[cmitem, "LIFE"]] = 1
+            with If(~(uncd1[cmitem] | cm_decay[cmitem, "ATM"])):
+                cm_decay[cmitem, "ATM"] = 1
+                cm_couple[CmVar, t, cmitem, "FX"].where[
+                    CmCoupmap[CmVar, cmitem, "ATM"]
+                ] = 1
+            CmEmis[cmitem] = True
 
     def statistic_mappings(self: PpmExtCli) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Statistics mappings
-  CM_STATS(CM_HISTS,LL,'ATM')    $= CM_STATS(CM_HISTS,LL,'N');
-  CM_STATS('FORCING',LL,CM_BOX)  $= CM_STATS('DELTA',LL,CM_BOX);
-  CM_STAT0(CM_VAR,'LIFE')$((CM_DECAY(CM_VAR,'UP')>0)$CM_DECAY(CM_VAR,'UP'))=1/CM_DECAY(CM_VAR,'UP');
-
-* Add missing forcings if functions defined
-  OPTION CLEAR=UNCD1, CM_USUBS < CM_LINFOR;
-  UNCD1(CM_USUBS) = YES;
-  OPTION CM_USUBS < CM_FORCMAP;
-  CM_USUBS(CM_EMIS) = NOT CM_USUBS(CM_EMIS);
-  CM_USUBS(CM_USUBS) = UNCD1(CM_USUBS);
-  CM_USUBS('CO2-GTC') = NO;
-  CM_FORCMAP(CM_USUBS,CM_USUBS) = YES;
-  CM_OFOR(CM_USUBS) = YES;
-""",
+        g = self.tc
+        (
+            cm_stats,
+            CmHists,
+            ll,
+            CmBox,
+            cm_stat0,
+            CmVar,
+            cm_decay,
+            uncd1,
+            cm_linfor,
+            CmUsubs,
+            CmForcmap,
+            CmEmis,
+            CmOfor,
+        ) = (
+            g.cm_stats,
+            g.CmHists,
+            g.ll,
+            g.CmBox,
+            g.cm_stat0,
+            g.CmVar,
+            g.cm_decay,
+            g.uncd1,
+            g.cm_linfor,
+            g.CmUsubs,
+            g.CmForcmap,
+            g.CmEmis,
+            g.CmOfor,
         )
+        # Statistics mappings
+        cm_stats[CmHists, ll, "ATM"].where[cm_stats[CmHists, ll, "N"]] = cm_stats[
+            CmHists, ll, "N"
+        ]
+        cm_stats["FORCING", ll, CmBox].where[cm_stats["DELTA", ll, CmBox]] = cm_stats[
+            "DELTA", ll, CmBox
+        ]
+        cm_stat0[CmVar, "LIFE"].where[
+            (cm_decay[CmVar, "UP"] > 0) & cm_decay[CmVar, "UP"]
+        ] = 1 / cm_decay[CmVar, "UP"]
+
+        # Add missing forcings if functions defined
+        uncd1.setRecords(None)
+        project(source=cm_linfor, target=CmUsubs)
+        uncd1[CmUsubs] = True
+        project(source=CmForcmap, target=CmUsubs)
+        CmUsubs[CmEmis] = ~CmUsubs[CmEmis]
+        CmUsubs[CmUsubs] = uncd1[CmUsubs]
+        CmUsubs["CO2-GTC"] = False
+        CmForcmap[CmUsubs, CmUsubs] = True
+        CmOfor[CmUsubs] = True
