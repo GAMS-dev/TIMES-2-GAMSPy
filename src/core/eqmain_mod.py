@@ -90,9 +90,9 @@ class EqmainMod(GamsClass):
         m = g.container
 
         if not self.env.is_set("cufscal"):
-            self.env.set_global("cufscal", "10")
+            self.env.set_global("cufscal", 10)
         if not self.env.is_set("cucscal"):
-            self.env.set_global("cucscal", "1000")
+            self.env.set_global("cucscal", 1000)
 
         # Equations
         if self.arg1.upper() == "MOD":

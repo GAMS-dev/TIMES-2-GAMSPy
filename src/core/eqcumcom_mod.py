@@ -16,9 +16,13 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
+
+from gamspy import Ord, Sum
+from gamspy.math import Max, Min
 
 from core.base_class import GamsClass
+from core.utils import generate_equation
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -38,50 +42,105 @@ class EqcumcomMod(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str,
-        arg2: str,
+        arg1: Literal["E"],
+        arg2: Literal["NET", "PRD"],
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
+        self.sense = arg1
         self.arg2 = arg2
         self.compile()
 
     def compile(self) -> None:
-        equation = rf"""
-*$ONLISTING
-    {self.env.eq}_CUM{self.arg2}(RC(R,C),ALLYEAR,LL {self.env.sow})$RC_CUMCOM(R,'{self.arg2}',ALLYEAR,LL,C)..
+        g = self.tc
 
-* all commodity flows within period range
-               SUM(RTC_{self.arg2}(R,TT(T),C)$
-"""
+        (
+            Rc,
+            r,
+            c,
+            e,
+            allyear,
+            ll,
+            t,
+            tt,
+            lagt,
+            yearval,
+            b,
+            m,
+            lead,
+            Tpulse,
+            year,
+            s,
+            RcCumcom,
+            RtcsVarc,
+            Tpulseyr,
+        ) = (
+            g.Rc,
+            g.r,
+            g.c,
+            g.e,
+            g.allyear,
+            g.ll,
+            g.t,
+            g.tt,
+            g.lagt,
+            g.yearval,
+            g.b,
+            g.m,
+            g.lead,
+            g.tpulse,
+            g.year,
+            g.s,
+            g.RcCumcom,
+            g.RtcsVarc,
+            g.Tpulseyr,
+        )
+
+        sow = self.env.sow_GP
+        sws = self.env.sws_GP
+        cucscal = self.env.cucscal
+        vartt_id, vartt_set = self.env.vartt_GP
+
+        Rtc = g.get_set(f"RTC_{self.arg2}")
+        VAR_CUMCOM = g.get_variable(f"{self.env.var}_CUMCOM")
+        VARTT_COM = g.get_variable(f"{vartt_id}_COM{self.arg2}")
+
+        shared_vartt_com = VARTT_COM[r, t, c, s, *sws]
+        VARRT_COM_expr = (
+            shared_vartt_com if vartt_set is None else Sum(vartt_set, shared_vartt_com)
+        )
+
         if self.env.obj.upper() != "LIN":
-            equation += "((E(T) >= YEARVAL(ALLYEAR))$(B(T) <= YEARVAL(LL))),"
+            condition = (e[t] >= yearval[allyear]).where[b[t] <= yearval[ll]]
         else:
-            equation += (
-                "((M(T)+LAGT(T) > YEARVAL(ALLYEAR))$(M(T)-LEAD(T) < YEARVAL(LL))),"
+            condition = ((m[t] + lagt[t]) > yearval[allyear]).where[
+                (m[t] - lead[t]) < yearval[ll]
+            ]
+
+        if self.env.obj.upper() != "LIN":
+            rhs = Max(0, Min(e[t], yearval[ll]) - Max(b[t], yearval[allyear]) + 1)
+        else:
+            rhs = Sum(  # type: ignore[assignment]
+                Tpulseyr[t, year].where[
+                    (Ord(year) >= Ord(allyear)).where[Ord(year) <= Ord(ll)]
+                ],
+                Tpulse[t, year],
             )
 
-        equation += "SUM(RTCS_VARC(R,T,C,S),"
+        eq_cum = g.get_equation(f"{self.env.eq}_CUM{self.arg2}")
 
-        if self.env.obj.upper() != "LIN":
-            equation += "MAX(0,MIN(E(T),YEARVAL(LL))-MAX(B(T),YEARVAL(ALLYEAR))+1)"
-        else:
-            equation += "SUM(TPULSEYR(T,YEAR)$((ORD(YEAR) >= ORD(ALLYEAR))$(ORD(YEAR) <= ORD(LL))),TPULSE(T,YEAR))"
-
-        equation += rf"""
-                         * {self.env.vartt}_COM{self.arg2}(R,T,C,S {self.env.sws})
-                   )
-               ) / {self.env.cucscal}
-
-    ={self.arg1}=
-
-* bound range working on
-    {self.env.var}_CUMCOM(R,C,'{self.arg2}',ALLYEAR,LL {self.env.sow})
-    ;
-
-$OFFLISTING
-
-"""
-        self.tc.add_gams_code(module=self, phase="init", code=equation)
+        eq_cum[Rc[r, c], allyear, ll, *sow].where[
+            RcCumcom[r, self.arg2, allyear, ll, c]
+        ] = generate_equation(
+            # all commodity flows within period range
+            Sum(
+                Rtc[r, tt[t], c].where[condition],
+                Sum(
+                    RtcsVarc[r, t, c, s],
+                    (rhs * VARRT_COM_expr) / cucscal,
+                ),
+            ),
+            self.sense,
+            VAR_CUMCOM[r, c, self.arg2, allyear, ll, *sow],
+        )
