@@ -434,10 +434,10 @@ class EnvironmentVariableSchema(BaseModel):
     capjd: str = Field(
         description="Technical capacity retirement degradation tracking marker."
     )
-    cufscal: str = Field(
+    cufscal: int = Field(
         description="Capacity utilization factors scaling parameters modifier parameter."
     )
-    cucscal: str = Field(
+    cucscal: int = Field(
         description="Capacity optimization cost scaling factors modifier parameter."
     )
     semicont: str = Field(
