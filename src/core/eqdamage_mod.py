@@ -103,7 +103,6 @@ class EqdamageMod(GamsClass):
         if self.env.damage == "NO":
             self.tc.enqueue(self.exec3)
 
-        # TODO: correct check? $IF %VARMAC% $SET VAR %VAS%
         if self.env.varmac:
             self.env.set_scoped("var", self.env.vas)
 
