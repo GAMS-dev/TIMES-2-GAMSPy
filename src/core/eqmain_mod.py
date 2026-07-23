@@ -28,7 +28,7 @@ from gamspy.math import project
 
 from core.base_class import GamsClass
 from core.coef_csv_mod import CoefCsvMod
-from core.eqactbnd_mod import EqactbndMod
+from core.eqactbnd_mod import EqactbndMod, EqactbndModConfig
 from core.eqactflo_mod import EqactfloMod
 from core.eqblnd_mod import EqblndMod
 from core.eqbndcom_mod import EqbndcomMod, EqbndcomModConfig
@@ -134,19 +134,19 @@ class EqmainMod(GamsClass):
 
         # Bound of vintage process activity or TS-level above PRC_TS
         # *V0.5b avoid equations if LO=0/UP=INF
-        eqactbnd_batincludes: list[tuple[str, str, str]] = [
-            ("G", "LO", "(ACT_BND(R,T,P,S,'LO') NE 0)"),
-            ("E", "FX", "YES"),
-            ("L", "UP", "(ACT_BND(R,T,P,S,'UP') NE INF)"),
+        act_bnd, r, t, p, s = g.act_bnd, g.r, g.t, g.p, g.s
+        eqactbnd_batincludes: list[EqactbndModConfig] = [
+            EqactbndModConfig("G", "LO", act_bnd[r, t, p, s, "LO"] != 0),
+            EqactbndModConfig("E", "FX", Number(1)),
+            EqactbndModConfig(
+                "L", "UP", act_bnd[r, t, p, s, "UP"] != SpecialValues.POSINF
+            ),
         ]
-        for arg1, arg2, arg3 in eqactbnd_batincludes:
-            self.include(
-                EqactbndMod(tc=self.tc, env=self.env, arg1=arg1, arg2=arg2, arg3=arg3)
-            )
+        for eqactbnd_config in eqactbnd_batincludes:
+            self.include(EqactbndMod(tc=self.tc, env=self.env, config=eqactbnd_config))
 
         # Bound on commodity Net/Production activity above COM_TS
         # fmt: off
-        g=self.tc
         eqbndcom_batincludes: list[EqbndcomModConfig]= [
             EqbndcomModConfig("G", "LO", (g.com_bndnet[g.r,g.t,g.c,g.s, 'LO'] != 0), "NET"),
             EqbndcomModConfig("E", "FX", Number(1), "NET"),
@@ -156,8 +156,8 @@ class EqmainMod(GamsClass):
             EqbndcomModConfig("L", "UP", (g.com_bndprd[g.r,g.t,g.c,g.s,'UP'] != SpecialValues.POSINF), "PRD"),
         ]
         # fmt: on
-        for config in eqbndcom_batincludes:
-            self.include(EqbndcomMod(tc=self.tc, env=self.env, config=config))
+        for eqbndcom_config in eqbndcom_batincludes:
+            self.include(EqbndcomMod(tc=self.tc, env=self.env, config=eqbndcom_config))
 
         # Utilization equation ensure activity <= or = capacity
         eqcapact_batincludes: list[EqcapactModConfig] = [
