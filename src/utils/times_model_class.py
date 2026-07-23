@@ -1609,6 +1609,9 @@ class TimesModelClass:
     CmConc: Set = None  # type: ignore[assignment] #
     CmAtmap: Set = None  # type: ignore[assignment] #
     CmBuck: Set = None  # type: ignore[assignment] #
+    CmUsubs: Set = None  # type: ignore[assignment]
+    CmRebox: Set = None  # type: ignore[assignment]
+    CmCoupmap: Set = None  # type: ignore[assignment]
     Pret: Set = None  # type: ignore[assignment] #
     CmForcmap: Set = None  # type: ignore[assignment] #
     cm_stat0: Parameter = None  # type: ignore[assignment] #
