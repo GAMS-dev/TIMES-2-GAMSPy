@@ -14,6 +14,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Domain, Sum
+from gamspy.math import Max, exp
+
 from core.base_class import GamsClass
 from utils.macros import macro_config as macro
 
@@ -31,102 +34,270 @@ class EqstgtssMod(GamsClass):
     module_name: str = "eqstgtss_mod"
     gams_source: str = "eqstgtss.mod"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
         self.compile()
 
     def compile(self) -> None:
-        rts = macro.rts(s="S", g=self.tc, env=self.env)
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-    {self.env.eq}_STGTSS(RTP_VINTYR({self.env.r_v_t},P),{rts}{self.env.swt})$(RPS_STG(R,P,S)$RP_STG(R,P))..
+        g = self.tc
+        (
+            RtpVintyr,
+            p,
+            r,
+            v,
+            t,
+            s,
+            RpsStg,
+            allts,
+            rs_stg,
+            RpcsVar,
+            RpcStg,
+            c,
+            ts,
+            TsMap,
+            Top,
+            PrcNstts,
+            RpcStgn,
+            rs_fr,
+            rtcs_fr,
+            prc_actflo,
+            PrcMap,
+            PrcStgtss,
+            PrcTs,
+            RsBelow1,
+            RpSts,
+            stg_loss,
+            stg_chrg,
+            RpStg,
+            tsl,
+            lA,
+            RsBelow,
+            Annual,
+            RpStl,
+            sl,
+            ips,
+            bd,
+            PrcStgips,
+            io,
+            TsGroup,
+            rs_stgprd,
+            stoa,
+            stoal,
+            prc_sgl,
+        ) = (
+            g.RtpVintyr,
+            g.p,
+            g.r,
+            g.v,
+            g.t,
+            g.s,
+            g.RpsStg,
+            g.allts,
+            g.rs_stg,
+            g.RpcsVar,
+            g.RpcStg,
+            g.c,
+            g.ts,
+            g.TsMap,
+            g.Top,
+            g.PrcNstts,
+            g.RpcStgn,
+            g.rs_fr,
+            g.rtcs_fr,
+            g.prc_actflo,
+            g.PrcMap,
+            g.PrcStgtss,
+            g.PrcTs,
+            g.RsBelow1,
+            g.RpSts,
+            g.stg_loss,
+            g.stg_chrg,
+            g.RpStg,
+            g.tsl,
+            g.lA,
+            g.RsBelow,
+            g.Annual,
+            g.RpStl,
+            g.sl,
+            g.ips,
+            g.bd,
+            g.PrcStgips,
+            g.io,
+            g.TsGroup,
+            g.rs_stgprd,
+            g.stoa,
+            g.stoal,
+            g.prc_sgl,
+        )
 
-* storage level in time-slice s
-          {self.env.var}_ACT(R,V,T,P,S {self.env.sow})
+        r_v_t = self.env.r_v_t_GP
+        rts = macro.rts_GP(s=g.s, g=self.tc, env=self.env)
+        swt = self.env.swt_GP
+        sow = self.env.sow_GP
+        swx = self.env.swx_GP
+        swtx = self.env.swtx_GP
+        pgprim = self.env.pgprim
 
-    =E=
+        VAR_ACT = g.get_variable(f"{self.env.var}_ACT")
+        VAR_SIN = g.get_variable(f"{self.env.var}_SIN")
+        VAR_SOUT = g.get_variable(f"{self.env.var}_SOUT")
+        VAR_UDP = g.get_variable(f"{self.env.var}_UDP")
 
-          SUM(RPS_STG(R,P,ALL_TS(S--RS_STG(R,S))),
-* storage level in time-slice s
-               {self.env.var}_ACT(R,V,T,P,ALL_TS{self.env.sow})
-               +
-* for day-night storage; allow flow variable at or above ALL_TS
-               (
-                 SUM((RPCS_VAR(RPC_STG(R,P,C),TS),TS_MAP(R,TS,ALL_TS)),
-                   ({self.env.var}_SIN(R,V,T,P,C,TS{self.env.sow})$(TOP(R,P,C,'IN')$PRC_NSTTS(R,P,TS)) -
-                    {self.env.var}_SOUT(R,V,T,P,C,TS{self.env.sow})$(TOP(R,P,C,'OUT')$(PRC_NSTTS(R,P,TS) EQV RPC_STGN(R,P,C,'OUT')))) *
-                   RS_FR(R,ALL_TS,TS) * (1+RTCS_FR(R,T,C,ALL_TS,TS)) / PRC_ACTFLO(R,V,P,C))
-               )$PRC_MAP(R,'NST',P)
-               +
-* for storage processes without charging restriction
-               SUM(TOP(PRC_STGTSS(R,P,C),'IN'),{self.env.var}_SIN(R,V,T,P,C,ALL_TS{self.env.sow})/PRC_ACTFLO(R,V,P,C)) -
-               SUM(TOP(PRC_STGTSS(R,P,C),'OUT'),{self.env.var}_SOUT(R,V,T,P,C,ALL_TS{self.env.sow})/PRC_ACTFLO(R,V,P,C))
-               -
-* optional balancer flow
-               SUM(PRC_TS(R,P,TS)$RS_BELOW1(R,TS,S),{self.env.var}_SOUT(R,V,T,P,'{self.env.pgprim}',TS{self.env.sow})*RS_FR(R,ALL_TS,TS))$RP_STS(R,P) -
+        eq_stgtss = g.get_equation(f"{self.env.eq}_stgtss")
 
-* storage losses: average storage level per cycle * loss fraction by cycle * cycles
-               {self.env.var}_ACT(R,V,T,P,ALL_TS{self.env.sow}) * MAX(STG_LOSS(R,V,P,ALL_TS)/2,
-* equilibrium loss (STG_LOSS<0): Act0 * (1-Loss/(1/EXP(-Loss)-1))
-                 (1+(STG_LOSS(R,V,P,ALL_TS))/(1/EXP(STG_LOSS(R,V,P,ALL_TS))-1)))$STG_LOSS(R,V,P,ALL_TS) -
-               {self.env.var}_ACT(R,V,T,P,S{self.env.sow}) * MAX(STG_LOSS(R,V,P,ALL_TS)/2,
-* equilibrium loss (STG_LOSS<0): Act1 * (-Loss/(EXP(-Loss)-1)-1)
-                 ((STG_LOSS(R,V,P,ALL_TS))/(EXP(STG_LOSS(R,V,P,ALL_TS))-1)-1))$STG_LOSS(R,V,P,ALL_TS)
-             )
-* storage charge
-    + STG_CHRG(R,T,P,S--RS_STG(R,S));
+        eq_stgtss[RtpVintyr[*r_v_t, p], rts, *swt].where[
+            RpsStg[r, p, s] & RpStg[r, p]
+        ] = (
+            VAR_ACT[r, v, t, p, s, *sow]
+            == Sum(
+                RpsStg[r, p, allts[s.lag(rs_stg[r, s])]],
+                VAR_ACT[r, v, t, p, allts, *sow]
+                + (
+                    Sum(
+                        Domain(RpcsVar[RpcStg[r, p, c], ts], TsMap[r, ts, allts]),
+                        (
+                            VAR_SIN[r, v, t, p, c, ts, *sow].where[
+                                Top[r, p, c, "IN"] & PrcNstts[r, p, ts]
+                            ]
+                            - VAR_SOUT[r, v, t, p, c, ts, *sow].where[
+                                Top[r, p, c, "OUT"].where[
+                                    ~(PrcNstts[r, p, ts] ^ RpcStgn[r, p, c, "OUT"])
+                                ]
+                            ]
+                        )
+                        * rs_fr[r, allts, ts]
+                        * (1 + rtcs_fr[r, t, c, allts, ts])
+                        / prc_actflo[r, v, p, c],
+                    )
+                ).where[PrcMap[r, "NST", p]]
+                + Sum(
+                    Top[PrcStgtss[r, p, c], "IN"],
+                    VAR_SIN[r, v, t, p, c, allts, *sow] / prc_actflo[r, v, p, c],
+                )
+                - Sum(
+                    Top[PrcStgtss[r, p, c], "OUT"],
+                    VAR_SOUT[r, v, t, p, c, allts, *sow] / prc_actflo[r, v, p, c],
+                )
+                - (
+                    Sum(
+                        PrcTs[r, p, ts].where[RsBelow1[r, ts, s]],
+                        VAR_SOUT[r, v, t, p, pgprim, ts, *sow] * rs_fr[r, allts, ts],
+                    )
+                ).where[RpSts[r, p]]
+                - VAR_ACT[r, v, t, p, allts, *sow]
+                * (
+                    Max(
+                        stg_loss[r, v, p, allts] / 2,
+                        1
+                        + stg_loss[r, v, p, allts]
+                        / (1 / exp(stg_loss[r, v, p, allts]) - 1),
+                    )
+                ).where[stg_loss[r, v, p, allts]]
+                - VAR_ACT[r, v, t, p, s, *sow]
+                * (
+                    Max(
+                        stg_loss[r, v, p, allts] / 2,
+                        stg_loss[r, v, p, allts] / (exp(stg_loss[r, v, p, allts]) - 1)
+                        - 1,
+                    )
+                ).where[stg_loss[r, v, p, allts]],
+            )
+            + stg_chrg[r, t, p, s.lag(rs_stg[r, s])]
+        )
 
+        # storage level in time-slice s
+        # storage level in time-slice s
+        # for day-night storage; allow flow variable at or above ALL_TS
+        # for storage processes without charging restriction
+        # optional balancer flow
+        # storage losses: average storage level per cycle * loss fraction by cycle * cycles
+        # equilibrium loss (STG_LOSS<0): Act0 * (1-Loss/(1/EXP(-Loss)-1))
+        # equilibrium loss (STG_LOSS<0): Act1 * (-Loss/(EXP(-Loss)-1)-1)
+        # storage charge
+        # --- Balancer Equation ---
 
-*--- Balancer Equation ---
+        eq_stsbal = g.get_equation(f"{self.env.eq}_stsbal")
 
-    {self.env.eq}_STSBAL(RTP_VINTYR({self.env.r_v_t},P),TSL,{rts},L{self.env.swt})$(TS_GROUP(R,TSL,S)$PRC_TS(R,P,S)$RP_STL(R,P,TSL,L))..
-
-* storage level in time-slice s
-         SUM(RS_BELOW(R,ANNUAL,S),{self.env.var}_ACT(R,V,T,P,S{self.env.sow})+({self.env.var}_SIN(R,V,T,P,'{self.env.pgprim}',S{self.env.sow})+{macro.var_sts.render("R", "V", "T", "P", "S", "'N'")})$RP_STL(R,P,TSL,'UP'))
-
-    =E=
-
-         SUM(RS_BELOW(R,ANNUAL,SL(S--RS_STG(R,S))),
-* storage level in time-slice s
-             {self.env.var}_ACT(R,V,T,P,SL{self.env.sow})$IPS(L) + {self.env.var}_UDP(R,V,T,P,SL,'LO'{self.env.sow})$BD(L) +
-             ({self.env.var}_SIN(R,V,T,P,'{self.env.pgprim}',SL{self.env.sow})+{macro.var_sts.render("R", "V", "T", "P", "SL", "L")})$RP_STL(R,P,TSL,'UP')
-             +
-* balancer flows
-             ({self.env.var}_SOUT(R,V,T,P,'{self.env.pgprim}',SL{self.env.sow}) -
-              SUM(PRC_TS(R,P,TS)$RS_BELOW1(R,TS,S),{self.env.var}_SOUT(R,V,T,P,'{self.env.pgprim}',TS{self.env.sow})*RS_FR(R,SL,TS))
-              -
-* storage losses: average storage level * year fraction * loss fraction
-              ({self.env.var}_ACT(R,V,T,P,SL{self.env.sow})$RS_STG(R,S)) * MAX(STG_LOSS(R,V,P,SL)/2,
-* equilibrium loss (STG_LOSS<0): Act0 * (1-Loss/(1/EXP(-Loss)-1))
-                (1+STG_LOSS(R,V,P,SL)/(1/EXP(STG_LOSS(R,V,P,SL))-1)))$STG_LOSS(R,V,P,SL) -
-              ({self.env.var}_ACT(R,V,T,P,S{self.env.sow})$RS_STG(R,S)+({self.env.var}_SIN(R,V,T,P,'{self.env.pgprim}',S{self.env.sow})-{self.env.var}_SIN(R,V,T,P,'{self.env.pgprim}',SL{self.env.sow}))$RP_STL(R,P,TSL,'UP')) *
-* equilibrium loss (STG_LOSS<0): Act1 * (-Loss/(EXP(-Loss)-1)-1)
-              MAX(STG_LOSS(R,V,P,SL)/2, (STG_LOSS(R,V,P,SL)/(EXP(STG_LOSS(R,V,P,SL))-1)-1))$STG_LOSS(R,V,P,SL)
-            )$IPS(L))
-         +
-         SUM(ANNUAL(S),
-* net charging into IPS
-             SUM(TOP(PRC_STGIPS(R,P,C),IO), 1 / PRC_ACTFLO(R,V,P,C) *
-                {self.env.var}_SIN(R,V,T,P,C,S {self.env.sow})$IPS(IO) - {self.env.var}_SOUT(R,V,T,P,C,S {self.env.sow})$(NOT IPS(IO))) -
-* balancer flow
-             {self.env.var}_SOUT(R,V,T,P,'{self.env.pgprim}',S{self.env.sow}));
-
-
-*--- Levelizer Equation ---
-
-    EQ_STSLEV(RTP_VINTYR({self.env.r_v_t},P),TSL,{rts}{self.env.swx})$({self.env.swtx}(STOAL(R,S)=PRC_SGL(R,P))$TS_GROUP(R,TSL,S)$RP_STL(R,P,TSL,'UP'))..
-
-* Sum of levelizers must be less than average variation over S
-        SUM(TS_MAP(R,TS,S)$STOA(TS),({self.env.var}_SIN(R,V,T,P,'{self.env.pgprim}',TS{self.env.sow})+{self.env.var}_UDP(R,V,T,P,TS,'LO'{self.env.sow})+{macro.var_sts.render("R", "V", "T", "P", "TS", "'N'")})/RS_STGPRD(R,TS))
-        =L=
-        SUM(RS_BELOW1(R,S,TS)$RS_FR(R,TS,S),{self.env.var}_ACT(R,V,T,P,TS{self.env.sow})/RS_STGPRD(R,TS)*RS_FR(R,TS,S));
-""",
+        eq_stsbal[RtpVintyr[*r_v_t, p], tsl, rts, lA, *swt].where[
+            TsGroup[r, tsl, s] & PrcTs[r, p, s] & RpStl[r, p, tsl, lA]
+        ] = Sum(
+            RsBelow[r, Annual, s],
+            VAR_ACT[r, v, t, p, s, *sow]
+            + (
+                VAR_SIN[r, v, t, p, pgprim, s, *sow]
+                + macro.var_sts.render_GP(r, v, t, p, s, "N")
+            ).where[RpStl[r, p, tsl, "UP"]],
+        ) == Sum(
+            RsBelow[r, Annual, sl[s.lag(rs_stg[r, s])]],
+            VAR_ACT[r, v, t, p, sl, *sow].where[ips[lA]]
+            + VAR_UDP[r, v, t, p, sl, "LO", *sow].where[bd[lA]]
+            + (
+                VAR_SIN[r, v, t, p, pgprim, sl, *sow]
+                + macro.var_sts.render_GP(r, v, t, p, sl, lA)
+            ).where[RpStl[r, p, tsl, "UP"]]
+            + (
+                VAR_SOUT[r, v, t, p, pgprim, sl, *sow]
+                - Sum(
+                    PrcTs[r, p, ts].where[RsBelow1[r, ts, s]],
+                    VAR_SOUT[r, v, t, p, pgprim, ts, *sow] * rs_fr[r, sl, ts],
+                )
+                - VAR_ACT[r, v, t, p, sl, *sow].where[rs_stg[r, s]]
+                * (
+                    Max(
+                        stg_loss[r, v, p, sl] / 2,
+                        1
+                        + stg_loss[r, v, p, sl] / (1 / exp(stg_loss[r, v, p, sl]) - 1),
+                    )
+                ).where[stg_loss[r, v, p, sl]]
+                - (
+                    VAR_ACT[r, v, t, p, s, *sow].where[rs_stg[r, s]]
+                    + (
+                        VAR_SIN[r, v, t, p, pgprim, s, *sow]
+                        - VAR_SIN[r, v, t, p, pgprim, sl, *sow]
+                    ).where[RpStl[r, p, tsl, "UP"]]
+                )
+                * (
+                    Max(
+                        stg_loss[r, v, p, sl] / 2,
+                        stg_loss[r, v, p, sl] / (exp(stg_loss[r, v, p, sl]) - 1) - 1,
+                    )
+                ).where[stg_loss[r, v, p, sl]]
+            ).where[ips[lA]],
+        ) + Sum(
+            Annual[s],
+            Sum(
+                Top[PrcStgips[r, p, c], io],
+                1
+                / prc_actflo[r, v, p, c]
+                * VAR_SIN[r, v, t, p, c, s, *sow].where[ips[io]]
+                - VAR_SOUT[r, v, t, p, c, s, *sow].where[~ips[io]],
+            )
+            - VAR_SOUT[r, v, t, p, pgprim, s, *sow],
+        )
+        # storage level in time-slice s
+        # storage level in time-slice s
+        # balancer flows
+        # storage losses: average storage level * year fraction * loss fraction
+        # equilibrium loss (STG_LOSS<0): Act0 * (1-Loss/(1/EXP(-Loss)-1))
+        # equilibrium loss (STG_LOSS<0): Act1 * (-Loss/(EXP(-Loss)-1)-1)
+        # net charging into IPS
+        # balancer flow
+        # --- Levelizer Equation ---
+        g.eq_stslev[RtpVintyr[*r_v_t, p], tsl, rts, *swx].where[
+            swtx.where[stoal[r, s] == prc_sgl[r, p]]
+            & TsGroup[r, tsl, s]
+            & RpStl[r, p, tsl, "UP"]
+        ] = Sum(
+            TsMap[r, ts, s].where[stoa[ts]],
+            (
+                VAR_SIN[r, v, t, p, pgprim, ts, *sow]
+                + VAR_UDP[r, v, t, p, ts, "LO", *sow]
+                + macro.var_sts.render_GP(r, v, t, p, ts, "N")
+            )
+            / rs_stgprd[r, ts],
+        ) <= Sum(
+            RsBelow1[r, s, ts].where[rs_fr[r, ts, s]],
+            VAR_ACT[r, v, t, p, ts, *sow] / rs_stgprd[r, ts] * rs_fr[r, ts, s],
         )
