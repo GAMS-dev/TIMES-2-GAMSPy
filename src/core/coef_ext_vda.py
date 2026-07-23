@@ -82,7 +82,9 @@ class CoefExtVda(GamsClass):
             f"-SUM(TS_MAP(R,ALL_TS,S)$RPS_UPS(R,P,ALL_TS),{self.env.var}_UPS(R,V,T,P,ALL_TS,'N'{self.env.sow}))",
         )
 
-        macro.var_sts.activate(var=self.env.var, sow=self.env.sow)
+        macro.var_sts.activate(
+            g=self.tc, var=self.env.var, sow=self.env.sow, sow_GP=self.env.sow_GP
+        )
 
         self.tc.enqueue(
             self.exec2,

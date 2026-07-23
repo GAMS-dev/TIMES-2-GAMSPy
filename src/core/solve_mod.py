@@ -239,6 +239,7 @@ def solve_mod_GP(
 
 def solve_mod(
     *,
+    g: TimesModelClass,
     model_name: str,
     solve_now: str,
     damage: str,
@@ -252,6 +253,11 @@ def solve_mod(
     nonlp: str = "",
     gams_cgi: str = "",
 ) -> str:
+    # g.container.writeSolverOptions(solver='convert', solver_options={
+    #             "DumpGDX": g.output_convert,
+    #             "dict": "GAMSPY_dict.txt"
+    #         },)
+
     uses_nlp = damage == "NLP" or micro == "YES" or macro == "YES"
 
     uses_mip = etl == "YES" or solmip == "YES"
@@ -279,6 +285,11 @@ def solve_mod(
 * set the model solver status
 {model_name}.MODELSTAT = 0;
 {model_name}.TOLPROJ= 1e-8;
+
+
+* {model_name}.optfile = 1;
+* {model_name}.dictfile = 1;
+* option lp=convert, mip=convert;
 
 * MACRO: Loading solution from GDX file replaced by activating the SPOINT utility
 {

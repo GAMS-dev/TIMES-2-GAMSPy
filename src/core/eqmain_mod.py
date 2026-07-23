@@ -33,7 +33,7 @@ from core.eqactflo_mod import EqactfloMod
 from core.eqblnd_mod import EqblndMod
 from core.eqbndcom_mod import EqbndcomMod, EqbndcomModConfig
 from core.eqbndcst_mod import EqbndcstMod
-from core.eqcapact_mod import EqcapactMod
+from core.eqcapact_mod import EqcapactMod, EqcapactModConfig
 from core.eqcombal_mod import EqcombalMod
 from core.eqcpt_mod import EqcptMod, EqcptModConfig
 from core.eqcumcom_mod import EqcumcomMod
@@ -160,15 +160,13 @@ class EqmainMod(GamsClass):
             self.include(EqbndcomMod(tc=self.tc, env=self.env, config=config))
 
         # Utilization equation ensure activity <= or = capacity
-        eqcapact_batincludes: list[tuple[str, str, str]] = [
-            ("E", "FX", self.env.mx),
-            ("L", "UP", self.env.mx),
-            ("G", "LO", ""),
+        eqcapact_batincludes: list[EqcapactModConfig] = [
+            EqcapactModConfig(sense="E", bound_type="FX", arg3=self.env.mx_GP),
+            EqcapactModConfig(sense="L", bound_type="UP", arg3=self.env.mx_GP),
+            EqcapactModConfig(sense="G", bound_type="LO", arg3=()),
         ]
-        for arg1, arg2, arg3 in eqcapact_batincludes:
-            self.include(
-                EqcapactMod(tc=self.tc, env=self.env, arg1=arg1, arg2=arg2, arg3=arg3)
-            )
+        for eqcapact_config in eqcapact_batincludes:
+            self.include(EqcapactMod(tc=self.tc, env=self.env, config=eqcapact_config))
 
         if self.tc.defined("PRC_SIMV"):
             self.include(CoefCsvMod(tc=self.tc, env=self.env))

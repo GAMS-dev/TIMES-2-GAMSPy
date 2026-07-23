@@ -374,6 +374,7 @@ class SolveStc(GamsClass):
             }
 {
                 solve_mod(
+                    g=self.tc,
                     model_name=self.model_name,
                     solve_now=solve_now,
                     damage=damage,
@@ -468,6 +469,7 @@ class SolveStc(GamsClass):
             }
 {
                 solve_mod(
+                    g=self.tc,
                     model_name=self.model_name,
                     solve_now=solve_now,
                     damage=damage,
@@ -500,6 +502,7 @@ class SolveStc(GamsClass):
        OPTION SOLVEOPT=REPLACE;
 {
                 solve_mod(
+                    g=self.tc,
                     model_name=self.model_name,
                     solve_now=solve_now,
                     damage=damage,
