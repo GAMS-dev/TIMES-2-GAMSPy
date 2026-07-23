@@ -15,6 +15,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Domain, Sum
+from gamspy.math import power
+
 from core.base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -42,44 +45,121 @@ class EqstgipsMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-*$ONLISTING
+        g = self.tc
+        (
+            RtpVintyr,
+            p,
+            ips,
+            r,
+            v,
+            t,
+            lim,
+            io,
+            Modlyear,
+            Miyr1,
+            ll,
+            lead,
+            tt,
+            PrcVint,
+            stg_loss,
+            d,
+            Top,
+            PrcStgips,
+            c,
+            Periodyr,
+            YEoh,
+            e,
+            yearval,
+            prc_actflo,
+            stg_chrg,
+            PrcMap,
+        ) = (
+            g.RtpVintyr,
+            g.p,
+            g.ips,
+            g.r,
+            g.v,
+            g.t,
+            g.lim,
+            g.io,
+            g.Modlyear,
+            g.Miyr1,
+            g.ll,
+            g.lead,
+            g.tt,
+            g.PrcVint,
+            g.stg_loss,
+            g.d,
+            g.Top,
+            g.PrcStgips,
+            g.c,
+            g.Periodyr,
+            g.YEoh,
+            g.e,
+            g.yearval,
+            g.prc_actflo,
+            g.stg_chrg,
+            g.PrcMap,
+        )
 
-  {self.env.eq}_STGIPS(RTP_VINTYR({self.env.r_v_t},P),IPS {self.env.swt})$(((MIYR_1(V)*MIYR_1(T)+LIM(IPS))*SUM(PRC_STGIPS(R,P,C),1))$PRC_MAP(R,'STK',P)) ..
+        r_v_t = self.env.r_v_t_GP
+        sow = self.env.sow_GP
+        sws = self.env.sws_GP
+        swt = self.env.swt_GP
+        var = self.env.var
+        vartt_id, vartt_set = self.env.vartt_GP
 
-* storage level in the end of period T
-     {self.env.var}_ACT(R,V,T,P,'ANNUAL' {self.env.sow})$LIM(IPS) +
-     SUM((IO(IPS),MODLYEAR,MIYR_1(LL))$RTP_VINTYR(R,MODLYEAR,T,P),
-       {self.env.var}_ACT(R,MODLYEAR,LL-LEAD(LL),P,'ANNUAL' {self.env.sow}))
+        VAR_ACT = g.get_variable(f"{var}_ACT")
+        VARTT_ACT = g.get_variable(f"{vartt_id}_ACT")
+        VAR_SIN = g.get_variable(f"{var}_SIN")
+        VAR_SOUT = g.get_variable(f"{var}_SOUT")
 
-    =E=
+        shared_vartt_v = VARTT_ACT[r, v, tt, p, "ANNUAL", *sws]
+        VARTT_ACT_V = (
+            shared_vartt_v if vartt_set is None else Sum(vartt_set, shared_vartt_v)
+        )
 
-     (
-* storage level in the end of period T-1
-         (SUM(TT(T-1),
-           ({self.env.vartt}_ACT(R,V,TT,P,'ANNUAL'{self.env.sws})$RTP_VINTYR(R,V,TT,P))$PRC_VINT(R,P) +
-           ({self.env.vartt}_ACT(R,TT,TT,P,'ANNUAL'{self.env.sws})$RTP_VINTYR(R,TT,TT,P))$(NOT PRC_VINT(R,P))) +
-* [AL] In the first period VAR_ACT is not available, but exogenous charge can be used
-          SUM(MIYR_1(LL),{self.env.var}_ACT(R,V,LL-LEAD(LL),P,'ANNUAL' {self.env.sow}))$MIYR_1(T)) *
-* storage losses
-* [AL] Initial storage level/charge is reduced to (1-LOSS)**D(T) during the period
-         POWER(1-STG_LOSS(R,V,P,'ANNUAL'),D(T)) +
+        shared_vartt_tt = VARTT_ACT[r, tt, tt, p, "ANNUAL", *sws]
+        VARTT_ACT_TT = (
+            shared_vartt_tt if vartt_set is None else Sum(vartt_set, shared_vartt_tt)
+        )
 
-* in- and output flows to/from storage
-* [AL] Added summing over PERIODYR, as the storage operates during the whole period
-         SUM(TOP(PRC_STGIPS(R,P,C),IO),
-          ({self.env.var}_SIN(R,V,T,P,C,'ANNUAL' {self.env.sow})$IPS(IO) - {self.env.var}_SOUT(R,V,T,P,C,'ANNUAL' {self.env.sow})$(NOT IPS(IO))) *
-* storage losses
-* [AL] Inflows and outflows occur, on average, at the mid-point of each year
-          SUM(PERIODYR(T,Y_EOH),((1-STG_LOSS(R,V,P,'ANNUAL'))**(E(T)-YEARVAL(Y_EOH)+0.5))) / PRC_ACTFLO(R,V,P,C)
-         )
-       )$LIM(IPS) +
-* Exogenous charge at BOH
-     SUM((IO(IPS),MIYR_1(LL)),STG_CHRG(R,LL-LEAD(LL),P,'ANNUAL'))
-;
-$OFFLISTING
-""",
+        eq_stgips = g.get_equation(f"{self.env.eq}_STGIPS")
+
+        eq_stgips[RtpVintyr[*r_v_t, p], ips, *swt].where[
+            ((Miyr1[v] * Miyr1[t] + lim[ips]) * Sum(PrcStgips[r, p, c], 1)).where[
+                PrcMap[r, "STK", p]
+            ]
+        ] = VAR_ACT[r, v, t, p, "ANNUAL", *sow].where[lim[ips]] + Sum(
+            Domain(io[ips], Modlyear, Miyr1[ll]).where[RtpVintyr[r, Modlyear, t, p]],
+            VAR_ACT[r, Modlyear, ll - lead[ll], p, "ANNUAL", *sow],
+        ) == (
+            (
+                Sum(
+                    tt[t - 1],
+                    (VARTT_ACT_V.where[RtpVintyr[r, v, tt, p] & PrcVint[r, p]])
+                    + (VARTT_ACT_TT.where[RtpVintyr[r, tt, tt, p] & (~PrcVint[r, p])]),
+                )
+                + (
+                    Sum(
+                        Miyr1[ll],
+                        VAR_ACT[r, v, ll - lead[ll], p, "ANNUAL", *sow],
+                    )
+                ).where[Miyr1[t]]
+            )
+            * power(1 - stg_loss[r, v, p, "ANNUAL"], d[t])
+            + Sum(
+                Top[PrcStgips[r, p, c], io],
+                (
+                    VAR_SIN[r, v, t, p, c, "ANNUAL", *sow].where[ips[io]]
+                    - VAR_SOUT[r, v, t, p, c, "ANNUAL", *sow].where[~ips[io]]
+                )
+                * Sum(
+                    Periodyr[t, YEoh],
+                    (1 - stg_loss[r, v, p, "ANNUAL"]) ** (e[t] - yearval[YEoh] + 0.5),
+                )
+                / prc_actflo[r, v, p, c],
+            )
+        ).where[lim[ips]] + Sum(
+            (io[ips], Miyr1[ll]), stg_chrg[r, ll - lead[ll], p, "ANNUAL"]
         )
