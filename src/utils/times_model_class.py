@@ -1356,6 +1356,9 @@ class TimesModelClass:
     Sysinv: Set = None  # type: ignore[assignment] # [sysuc] SYSINV:
     Sucmap: Set = None  # type: ignore[assignment] # [j,sysuc] SUCMAP:
     Rngmap: Set = None  # type: ignore[assignment] # [sysuc,bd] RNGMAP:
+    vdisc: Parameter = None  # type: ignore[assignment] # VDISC:
+    obj_sumik: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc, cur] OBJ_SUMIK
+    ykagep: Parameter = None  # type: ignore[assignment] # [allyear, allyear, age] YKAGEP
     objval_1: Parameter = None  # type: ignore[assignment] # OBJVAL_1:
     objval_2: Parameter = None  # type: ignore[assignment] # OBJVAL_2:
     sysone: Parameter = None  # type: ignore[assignment] # [sysuc] SYSONE:
@@ -1670,6 +1673,7 @@ class TimesModelClass:
     eq_sdind_1: Equation = None  # type: ignore[assignment]  # eq_sdind_1
     eq_sdind_0: Equation = None  # type: ignore[assignment]  # eq_sdind_0
     eq_objbal: Equation = None  # type: ignore[assignment]  # [r, cur, allsow] eq_objbal
+    VAR_IC: Variable = None  # type: ignore[assignment] # [r, year, Rpc] # VAR_IC
     VAR_GRIDIO: Variable = None  # type: ignore[assignment]  # [r, year, c, c, s, io, *swd] VAR_GRIDIO
     VAR_XCAP: Variable = None  # type: ignore[assignment]  # [r, year, item, *swd] VAR_XCAP
     VAR_COMAUX: Variable = None  # type: ignore[assignment]  # [r, t, c, s, *swd] VAR_COMAUX

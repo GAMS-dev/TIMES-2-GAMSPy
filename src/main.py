@@ -17,6 +17,7 @@ from core.read_dd import read_dd_file
 from core.utils import EscapeStack
 from utils.compile_environment import CompileEnvironment
 from utils.config import RunConfig, UserConfig
+from utils.macros import macro_config as macro
 from utils.run_registry import REGISTRY
 from utils.times_model_class import TimesModelClass
 
@@ -68,6 +69,9 @@ def run_times(
         solve_options=solve_options,
         config=config,
     )
+
+    # Add Times Model Class to macros
+    macro._g = model
 
     # Dynamically apply non default %<key>% Environment Variables
     validated_config = UserConfig.model_validate(config.env_vars)

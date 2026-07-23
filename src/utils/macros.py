@@ -110,6 +110,7 @@ class VarStsContext:
 
 class Macros:
     def __init__(self) -> None:
+        self._g: TimesModelClass
         self._active: dict[str, bool] = {}
         self.var_sift = VarSiftContext()
         self.var_sts = VarStsContext()
@@ -128,6 +129,13 @@ class Macros:
             return f"OB_ICOST({r},{p},{m},{y})"
         return f"OBJ_ICOST({r},{y},{p},{m})"
 
+    def obj_icost_GP(
+        self, r: Set | Alias, y: Set | Alias, p: Set | Alias, m: Set | Alias
+    ) -> ImplicitParameter:
+        if self.obj_icost_active:
+            return self._g.ob_icost[r, p, m, y]
+        return self._g.obj_icost[r, y, p, m]
+
     # ISUB
     @property
     def obj_isub_active(self) -> bool:
@@ -142,6 +150,13 @@ class Macros:
             return f"OB_ISUB({r},{p},{m},{y})"
         return f"OBJ_ISUB({r},{y},{p},{m})"
 
+    def obj_isub_GP(
+        self, r: Set | Alias, y: Set | Alias, p: Set | Alias, m: Set | Alias
+    ) -> ImplicitParameter:
+        if self.obj_isub_active:
+            return self._g.ob_isub[r, p, m, y]
+        return self._g.obj_isub[r, y, p, m]
+
     # ITAX
     @property
     def obj_itax_active(self) -> bool:
@@ -155,6 +170,13 @@ class Macros:
         if self.obj_itax_active:
             return f"OB_ITAX({r},{p},{m},{y})"
         return f"OBJ_ITAX({r},{y},{p},{m})"
+
+    def obj_itax_GP(
+        self, r: Set | Alias, y: Set | Alias, p: Set | Alias, m: Set | Alias
+    ) -> ImplicitParameter:
+        if self.obj_itax_active:
+            return self._g.ob_itax[r, p, m, y]
+        return self._g.obj_itax[r, y, p, m]
 
     # FOM
     @property
@@ -211,6 +233,13 @@ class Macros:
         if self.obj_dcost_active:
             return f"OB_DCC({r},{p},{m},{y})"
         return f"OBJ_DCOST({r},{y},{p},{m})"
+
+    def obj_dcost_GP(
+        self, r: Set | Alias, y: Set | Alias, p: Set | Alias, m: Set | Alias
+    ) -> ImplicitParameter:
+        if self.obj_dcost_active:
+            return self._g.ob_dcc[r, p, m, y]
+        return self._g.obj_dcost[r, y, p, m]
 
     # DLAGC
     @property
