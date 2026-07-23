@@ -17,15 +17,26 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal
+
+from gamspy import Expression, Number, Sum
 
 from core.base_class import GamsClass
+from core.utils import generate_equation
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class EqactbndModConfig:
+    sense: Literal["G", "E", "L"]
+    arg2: Literal["LO", "FX", "UP"]
+    arg3: Expression | Number
 
 
 class EqactbndMod(GamsClass):
@@ -36,42 +47,70 @@ class EqactbndMod(GamsClass):
     gams_source: str = "eqactbnd.mod"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str,
-        arg2: str,
-        arg3: str,
+        self, tc: TimesModelClass, env: CompileEnvironment, config: EqactbndModConfig
     ):
         self.env = env.fork()
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
+        self.config = config
         self._sub_modules = {}
         self.compile()
 
     def compile(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-*V0.5b 980902 - avoid equations if LO=0/UP=INF
-*$ONLISTING
-* [UR] 21.07.2003 tightended control for generation of equation to RTP_VARA
-  {self.env.eq}{self.arg1}_ACTBND(RTP_VARA({self.env.r_t},P),S {self.env.swt})$((RPS_PRCTS(R,P,S)*(PRC_VINT(R,P)+(NOT PRC_TS(R,P,S)))${self.arg3})$ACT_BND(R,T,P,S,'{self.arg2}'))..
+        g = self.tc
+        cc = self.config
+        (
+            RtpVara,
+            p,
+            s,
+            PrcTs,
+            r,
+            ts,
+            RtpVintyr,
+            v,
+            t,
+            TsMap,
+            act_bnd,
+            RpsPrcts,
+            PrcVint,
+        ) = (
+            g.RtpVara,
+            g.p,
+            g.s,
+            g.PrcTs,
+            g.r,
+            g.ts,
+            g.RtpVintyr,
+            g.v,
+            g.t,
+            g.TsMap,
+            g.act_bnd,
+            g.RpsPrcts,
+            g.PrcVint,
+        )
 
-* sum over all possible at process TS-level
-       SUM(PRC_TS(R,P,TS)$TS_MAP(R,S,TS),
-* sum all the existing activities
-           SUM(RTP_VINTYR(R,V,T,P), {self.env.var}_ACT(R,V,T,P,TS{self.env.sow}))
-       )
+        swt = self.env.swt_GP
+        sow = self.env.sow_GP
+        r_t = self.env.r_t_GP
 
-  ={self.arg1}=
+        VAR_ACT = g.get_variable(f"{self.env.var}_ACT")
 
-       ACT_BND(R,T,P,S,'{self.arg2}')
-  ;
-*$OFFLISTING
+        # V0.5b 980902 - avoid equations if LO=0/UP=INF
+        # $ONLISTING
+        # [UR] 21.07.2003 tightended control for generation of equation to RTP_VARA
 
-""",
+        eqe_actbnd = g.get_equation(f"{self.env.eq}{cc.sense}_ACTBND")
+
+        eqe_actbnd[RtpVara[*r_t, p], s, *swt].where[
+            (
+                RpsPrcts[r, p, s] * (PrcVint[r, p] + (~PrcTs[r, p, s])).where[cc.arg3]
+            ).where[act_bnd[r, t, p, s, cc.arg2]]
+        ] = generate_equation(
+            # sum over all possible at process TS-level
+            Sum(
+                PrcTs[r, p, ts].where[TsMap[r, s, ts]],
+                # sum all the existing activities
+                Sum(RtpVintyr[r, v, t, p], VAR_ACT[r, v, t, p, ts, *sow]),
+            ),
+            cc.sense,
+            act_bnd[r, t, p, s, cc.arg2],
         )
