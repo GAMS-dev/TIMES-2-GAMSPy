@@ -1,5 +1,5 @@
 # config.py
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Literal
 
@@ -225,10 +225,10 @@ class EnvironmentVariableSchema(BaseModel):
     src: str = Field(
         description="Source data location lookup parameters tracking raw dictionary inputs."
     )
-    shp1: str = Field(
+    shp1: str | Expression = Field(
         description="Dynamic load shape mapping variable utilized for seasonal load curves."
     )
-    shg: str = Field(
+    shg: str | Sequence[Set | Alias | str] = Field(
         description="Text replacement parameter mapping the baseline global optimization coordinates."
     )
     upscap0: str = Field(
