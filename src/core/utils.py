@@ -125,6 +125,7 @@ def apply_sw_notags(env: CompileEnvironment) -> None:
         env.set_scoped("swtd", "")
         env.set_scoped("swtd_GP", tuple())
         env.set_scoped("swsw", "")
+        env.set_scoped("swsw_GP", tuple())
         env.set_scoped("vart", "VAR")
         env.set_scoped("vart_GP", ("VAR", None))
         env.set_scoped("varv", "VAR")
@@ -161,6 +162,7 @@ def apply_sw_stvars(
         env.set_scoped("vartt", "SUM(SW_TSW(SOW,TT,W),VAS")
         env.set_scoped("vartt_GP", ("VAS", g.SwTsw[g.Sow, g.tt, g.w]))
         env.set_scoped("swsw", "SW_TSW(SOW,T,WW),")
+        env.set_scoped("swsw_GP", (g.SwTsw[g.Sow, g.t, g.ww],))
     else:
         raise ValueError(f"Unknown value in sw_stvars: {env.sw_stvars}")
 

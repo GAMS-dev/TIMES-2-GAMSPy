@@ -128,7 +128,9 @@ class EqactupsVda(GamsClass):
         )
 
         if self.env.obmac.upper() == "YES":
-            macro.var_sift.activate(var=self.env.var, sow=self.env.sow)
+            macro.var_sift.activate(
+                g=self.tc, var=self.env.var, sow=self.env.sow, sow_GP=self.env.sow_GP
+            )
 
         self.equation_slsift(
             eq=self.env.eq,

@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
+
+from gamspy import Sum
 
 if TYPE_CHECKING:
+    from gamspy import Alias, Expression, Set
+    from gamspy._symbols.implicits.implicit_parameter import ImplicitParameter
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -16,10 +21,18 @@ class VarSiftContext:
     var: str = ""
     sow: str = ""
 
-    def activate(self, var: str, sow: str) -> None:
+    def activate(
+        self,
+        g: TimesModelClass,
+        var: str,
+        sow: str,
+        sow_GP: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
+    ) -> None:
+        self.g = g
         self.active = True
         self.var = var
         self.sow = sow
+        self.sow_GP = sow_GP
 
     def deactivate(self) -> None:
         self.active = False
@@ -31,6 +44,20 @@ class VarSiftContext:
             return f"{self.var}_udp(r,{v},t,p,{s},{lA}{self.sow})*prc_capact(r,p)*rs_stgprd(r,{s})/8760"
         return f"VAR_SIFT({v},{s},{lA})"
 
+    def render_GP(
+        self, v: Set | Alias, s: Set | Alias, lA: Set | Alias
+    ) -> Expression | ImplicitParameter | Any:
+        g = self.g
+        if self.active:
+            var_udp = g.get_variable(f"{self.var}_udp")
+            return (
+                var_udp[g.r, v, g.t, g.p, s, lA, *self.sow_GP]
+                * g.prc_capact[g.r, g.p]
+                * g.rs_stgprd[g.r, s]
+                / 8760
+            )
+        return g.var_sift[v, s, lA]
+
 
 @dataclass
 class VarStsContext:
@@ -38,20 +65,47 @@ class VarStsContext:
     var: str = ""
     sow: str = ""
 
-    def activate(self, var: str, sow: str) -> None:
+    def activate(
+        self,
+        g: TimesModelClass,
+        var: str,
+        sow: str,
+        sow_GP: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
+    ) -> None:
+        self.g = g
         self.active = True
         self.var = var
         self.sow = sow
+        self.sow_GP = sow_GP
 
     def deactivate(self) -> None:
         self.active = False
         self.var = ""
         self.sow = ""
+        self.sow_GP = ()
 
     def render(self, r: str, v: str, t: str, p: str, ts: str, bd: str) -> str:
         if self.active:
             return f"sum(rp_stl({r},{p},tsl,{bd})$ts_group({r},tsl,{ts}),{self.var}_udp({r},{v},{t},{p},{ts},{bd}{self.sow}))"
         return f"VAR_STS({r},{v},{t},{p},{ts},{bd})"
+
+    def render_GP(
+        self,
+        r: Set | Alias,
+        v: Set | Alias,
+        t: Set | Alias,
+        p: Set | Alias,
+        ts: Set | Alias,
+        bd: Set | Alias,
+    ) -> Sum | ImplicitParameter:
+        g = self.g
+        if self.active:
+            var_udp = g.get_variable(f"{self.var}_udp")
+            return Sum(
+                g.RpStl[r, p, g.tsl, bd].where[g.TsGroup[r, g.tsl, ts]],
+                var_udp[r, v, t, p, ts, bd, *self.sow_GP],
+            )
+        return g.var_sts[r, v, t, p, ts, bd]
 
 
 class Macros:

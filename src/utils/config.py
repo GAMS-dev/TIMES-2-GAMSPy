@@ -211,15 +211,10 @@ class EnvironmentVariableSchema(BaseModel):
     mx: str = Field(
         description="Macro tracking name string identifier mapping specialized model equations."
     )
-    mx_GP: (
-        Sum
-        | Expression
-        | Condition
-        | tuple[Set | Alias | str | None, ...]
-        | tuple[()]
-        | str
-    ) = Field(
-        description="Macro tracking name string identifier mapping specialized model equations."
+    mx_GP: Sum | Condition | Expression | tuple[Set | Alias | str, ...] | tuple[()] = (
+        Field(
+            description="Macro tracking name string identifier mapping specialized model equations."
+        )
     )
     path: str = Field(
         description="Absolute system directory path targeting core operational include subroutines."
@@ -282,6 +277,9 @@ class EnvironmentVariableSchema(BaseModel):
     swsw: str = Field(
         description="Nested operational matrix state control flag identifier."
     )
+    swsw_GP: tuple[ImplicitSet] | tuple[()] = Field(
+        description="Nested operational matrix state control flag identifier."
+    )
     swtd: str = Field(
         description="Time-step differentiation switch expression string mapped to parameters."
     )
@@ -297,7 +295,7 @@ class EnvironmentVariableSchema(BaseModel):
     zhalf: str = Field(
         description="Discount factor lookback coefficient string mapping half-period parameters."
     )
-    pass_: str = Field(
+    pass_: Expression | None = Field(
         alias="pass",
         description="Execution tracking code handling iterative loop counts.",
     )
