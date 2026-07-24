@@ -1,13 +1,13 @@
 # eqire_mod.py
 # *++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# * Copyright (C) 2000-2024 Energy Technology Systems Analysis Programme (ETSAP)
+# * Copyright (c) 2000-2024 Energy Technology Systems Analysis Programme (ETSAP)
 # * This file is part of the IEA-ETSAP TIMES model generator, licensed
 # * under the GNU General Public License v3.0 (see file NOTICE-GPLv3.txt).
 # *=============================================================================*
 # * EQIRE ensure that inter-regional imports/exports match up                   *
 # *=============================================================================*
 # * Questions/Comments:
-# * UR 08/24/01: import flows have to be at PRC_TS(REG,P,S), alternative would be to allow RTPCS_VARF
+# * UR 08/24/01: import flows have to be at PRC_TS(Reg,p,s), alternative would be to allow RtpcsVarf
 # *              to be at a different level using RTCS_TSFR to bring it to the right TSLVL
 # *-----------------------------------------------------------------------------
 
@@ -15,6 +15,9 @@ from __future__ import annotations
 
 import logging
 from typing import TYPE_CHECKING
+
+from gamspy import Domain, Sum
+from gamspy.math import same_as
 
 from core.base_class import GamsClass
 
@@ -43,53 +46,132 @@ class EqireMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-*$ONLISTING
+        g = self.tc
+        eq_ire = g.get_equation(f"{self.env.eq}_IRE")
+        VAR_IRE = g.get_variable(f"{self.env.var}_IRE")
+        VAR_ACT = g.get_variable(f"{self.env.var}_ACT")
+        RtpSym = g.get_set(f"Rtp{self.env.rtpx}")
+        Reg, Com, ie, s, RpcsVar, RpcEqire, p, t, v, r, c = (
+            g.Reg,
+            g.Com,
+            g.ie,
+            g.s,
+            g.RpcsVar,
+            g.RpcEqire,
+            g.p,
+            g.t,
+            g.v,
+            g.r,
+            g.c,
+        )
+        RtpVntbyr, RtpcsVarf, RpcAire, prc_actflo = (
+            g.RtpVntbyr,
+            g.RtpcsVarf,
+            g.RpcAire,
+            g.prc_actflo,
+        )
+        xpt, TopIre, com1, RpcMarket = g.xpt, g.TopIre, g.com1, g.RpcMarket
+        ts, RsTree, allts, ire_tscvt, ire_ccvt, imp = (
+            g.ts,
+            g.RsTree,
+            g.allts,
+            g.ire_tscvt,
+            g.ire_ccvt,
+            g.imp,
+        )
+        ire_flo, rs_fr, rtcs_fr = g.ire_flo, g.rs_fr, g.rtcs_fr
 
-   {self.env.eq}_IRE(RTP{self.env.rtpx}(REG,{self.env.tx},P),COM,IE,S {self.env.swt})$(RPCS_VAR(REG,P,COM,S)$RPC_EQIRE(REG,P,COM,IE)) ..
+        tx = self.env.tx_GP
+        swt = self.env.swt_GP
+        sow = self.env.sow_GP
 
-
-* the imports/exports of commodity COM into REG at timeslice S
-      SUM(RTP_VNTBYR(REG,T,P,V)$RTPCS_VARF(REG,T,P,COM,S),
-          {self.env.var}_IRE(REG,V,T,P,COM,S,IE{self.env.sow})$(NOT RPC_AIRE(REG,P,COM))+({self.env.var}_ACT(REG,V,T,P,S{self.env.sow})*PRC_ACTFLO(REG,V,P,COM))$RPC_AIRE(REG,P,COM)
-         ) * (1-2*XPT(IE))
-      +
-* sum also the imports in other regions in case of market-based equation
-      SUM(TOP_IRE(REG,COM1,R,C,P)$((NOT SAMEAS(REG,R))$RPC_MARKET(REG,P,COM1,'EXP')),
-        SUM((RTP_VNTBYR(R,T,P,V),RTPCS_VARF(R,T,P,C,TS),RS_TREE(R,ALL_TS,TS))$IRE_TSCVT(R,ALL_TS,REG,S),
-            ({self.env.var}_IRE(R,V,T,P,C,TS,'IMP'{self.env.sow})$(NOT RPC_AIRE(R,P,C))+({self.env.var}_ACT(R,V,T,P,TS{self.env.sow})*PRC_ACTFLO(R,V,P,C))$RPC_AIRE(R,P,C))
-             * IRE_CCVT(R,C,REG,COM1) * IRE_TSCVT(R,ALL_TS,REG,S)
-             * RS_FR(R,ALL_TS,TS)*(1+RTCS_FR(R,T,C,ALL_TS,TS))
-           ) * IRE_CCVT(REG,COM1,REG,COM)
-         )$RPC_MARKET(REG,P,COM,'IMP')
-      +
-* sum also the imports in other regions in case of market-based equation: EXP case
-      SUM(TOP_IRE(REG,COM,R,C,P),
-        SUM((RTP_VNTBYR(R,T,P,V),RTPCS_VARF(R,T,P,C,TS),RS_TREE(R,ALL_TS,TS))$IRE_TSCVT(R,ALL_TS,REG,S),
-            ({self.env.var}_IRE(R,V,T,P,C,TS,'IMP'{self.env.sow})$(NOT RPC_AIRE(R,P,C))+({self.env.var}_ACT(R,V,T,P,TS{self.env.sow})*PRC_ACTFLO(R,V,P,C))$RPC_AIRE(R,P,C))
-             / IRE_FLO(REG,V,P,COM,R,C,TS) * IRE_TSCVT(R,ALL_TS,REG,S)
-             * RS_FR(R,ALL_TS,TS)*(1+RTCS_FR(R,T,C,ALL_TS,TS))
-           ) * IRE_CCVT(R,C,REG,COM)
-         )$XPT(IE)
-
-    =E=
-
-* sum the associated exports
-      SUM((TOP_IRE(R,C,REG,COM,P),ALL_TS)$IRE_TSCVT(R,ALL_TS,REG,S),
-        SUM((RTP_VNTBYR(R,T,P,V),RTPCS_VARF(R,T,P,C,TS))$RS_FR(R,ALL_TS,TS),
-            ({self.env.var}_IRE(R,V,T,P,C,TS,'EXP'{self.env.sow})$(NOT RPC_AIRE(R,P,C))+({self.env.var}_ACT(R,V,T,P,TS{self.env.sow})*PRC_ACTFLO(R,V,P,C))$RPC_AIRE(R,P,C))
-* [AL] IRE_TSCVT converts from ALL_TS to S, and RTCS_TSFR from TS to ALL_TS:
-             * IRE_FLO(R,V,P,C,REG,COM,S) * IRE_TSCVT(R,ALL_TS,REG,S)
-             * RS_FR(R,ALL_TS,TS)*(1+RTCS_FR(R,T,C,ALL_TS,TS))
-           ) * IRE_CCVT(R,C,REG,COM)
-         )$IMP(IE)
-
-    ;
-
-*$OFFLISTING
-
-""",
+        eq_ire[RtpSym[Reg, *tx, p], Com, ie, s, *swt].where[
+            RpcsVar[Reg, p, Com, s].where[RpcEqire[Reg, p, Com, ie]]
+        ] = (
+            Sum(  # the imports/exports of commodity Com into Reg at timeslice s
+                RtpVntbyr[Reg, t, p, v].where[RtpcsVarf[Reg, t, p, Com, s]],
+                VAR_IRE[Reg, v, t, p, Com, s, ie, *sow].where[~RpcAire[Reg, p, Com]]
+                + (VAR_ACT[Reg, v, t, p, s, *sow] * prc_actflo[Reg, v, p, Com]).where[
+                    RpcAire[Reg, p, Com]
+                ],
+            )
+            * (1 - 2 * xpt[ie])
+            + (
+                Sum(  # sum also the imports in other regions in case of market-based equation
+                    TopIre[Reg, com1, r, c, p].where[
+                        (~same_as(Reg, r)).where[RpcMarket[Reg, p, com1, "EXP"]]
+                    ],
+                    Sum(
+                        Domain(
+                            RtpVntbyr[r, t, p, v],
+                            RtpcsVarf[r, t, p, c, ts],
+                            RsTree[r, allts, ts],
+                        ).where[ire_tscvt[r, allts, Reg, s]],
+                        (
+                            VAR_IRE[r, v, t, p, c, ts, "imp", *sow].where[
+                                ~RpcAire[r, p, c]
+                            ]
+                            + (
+                                VAR_ACT[r, v, t, p, ts, *sow] * prc_actflo[r, v, p, c]
+                            ).where[RpcAire[r, p, c]]
+                        )
+                        * ire_ccvt[r, c, Reg, com1]
+                        * ire_tscvt[r, allts, Reg, s]
+                        * rs_fr[r, allts, ts]
+                        * (1 + rtcs_fr[r, t, c, allts, ts]),
+                    )
+                    * ire_ccvt[Reg, com1, Reg, Com],
+                )
+            ).where[RpcMarket[Reg, p, Com, "imp"]]
+            + (
+                Sum(  # sum also the imports in other regions in case of market-based equation: EXP case
+                    TopIre[Reg, Com, r, c, p],
+                    Sum(
+                        Domain(
+                            RtpVntbyr[r, t, p, v],
+                            RtpcsVarf[r, t, p, c, ts],
+                            RsTree[r, allts, ts],
+                        ).where[ire_tscvt[r, allts, Reg, s]],
+                        (
+                            VAR_IRE[r, v, t, p, c, ts, "imp", *sow].where[
+                                ~RpcAire[r, p, c]
+                            ]
+                            + (
+                                VAR_ACT[r, v, t, p, ts, *sow] * prc_actflo[r, v, p, c]
+                            ).where[RpcAire[r, p, c]]
+                        )
+                        / ire_flo[Reg, v, p, Com, r, c, ts]
+                        * ire_tscvt[r, allts, Reg, s]
+                        * rs_fr[r, allts, ts]
+                        * (1 + rtcs_fr[r, t, c, allts, ts]),
+                    )
+                    * ire_ccvt[r, c, Reg, Com],
+                )
+            ).where[xpt[ie]]
+            == (
+                Sum(  # sum the associated exports
+                    Domain(TopIre[r, c, Reg, Com, p], allts).where[
+                        ire_tscvt[r, allts, Reg, s]
+                    ],
+                    Sum(
+                        Domain(RtpVntbyr[r, t, p, v], RtpcsVarf[r, t, p, c, ts]).where[
+                            rs_fr[r, allts, ts]
+                        ],
+                        (
+                            VAR_IRE[r, v, t, p, c, ts, "EXP", *sow].where[
+                                ~RpcAire[r, p, c]
+                            ]
+                            + (
+                                VAR_ACT[r, v, t, p, ts, *sow] * prc_actflo[r, v, p, c]
+                            ).where[RpcAire[r, p, c]]
+                        )
+                        # [AL] IRE_TSCVT converts from ALL_TS to S, and RTCS_TSFR from TS to ALL_TS:
+                        * ire_flo[r, v, p, c, Reg, Com, s]
+                        * ire_tscvt[r, allts, Reg, s]
+                        * rs_fr[r, allts, ts]
+                        * (1 + rtcs_fr[r, t, c, allts, ts]),
+                    )
+                    * ire_ccvt[r, c, Reg, Com],
+                )
+            ).where[imp[ie]]
         )
