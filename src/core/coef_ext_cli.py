@@ -14,6 +14,22 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import (
+    Card,
+    Domain,
+    Else,
+    For,
+    If,
+    Loop,
+    Number,
+    Ord,
+    Smax,
+    Smin,
+    SpecialValues,
+    Sum,
+)
+from gamspy.math import Max, Min, Round, diag, exp, log, mod, power, project, same_as
+
 from core.base_class import GamsClass
 from core.fillsow_stc import FillsowStc, exec_fillsow_stc
 
@@ -240,176 +256,244 @@ class CoefExtCli(GamsClass):
         )
 
     def exec_slope(self: CoefExtCli) -> None:
-        self.tc.add_gams_code(module=self, phase="run", code=coef_ext_cli_slope())
+        coef_ext_cli_slope_GP(self.tc)
+        # self.tc.add_gams_code(module=self, phase="run", code=coef_ext_cli_slope())
 
     def exec1(self: CoefExtCli) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-*-----------------------------------------------------------------------------
-* Set up the history calibration values
-
-* If calibration values are not provided by user, use the defaults:
-CM_CONST(CM_HISTS) = 0;
-LOOP((LL,CM_HISTS)$CM_HISTORY(LL,CM_HISTS),CM_CONST(CM_HISTS) = EPS);
-CM_HISTORY(LL,CM_HISTS)$(NOT CM_CONST(CM_HISTS)) $= CM_DEFAULT(LL,CM_HISTS);
-
-* Pick up the appropriate calibration values for the calibration year;
-CM_CALIB=1;
-
-""",
+        g = self.tc
+        # * Set up the history calibration values
+        # * If calibration values are not provided by user, use the defaults:
+        g.cm_const[g.CmHists] = 0.0
+        with Loop(Domain(g.ll, g.CmHists).where[g.cm_history[g.ll, g.CmHists]]):
+            g.cm_const[g.CmHists] = SpecialValues.EPS
+        sparseExpr = g.cm_default[g.ll, g.CmHists]
+        g.cm_history[g.ll, g.CmHists].where[~(g.cm_const[g.CmHists]) & sparseExpr] = (
+            sparseExpr
         )
+        # * Pick up the appropriate calibration values for the calibration year;
+        g.cm_calib[...] = 1.0
 
     def exec2(self: CoefExtCli) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-CM_CALIB = SUM(MIYR_1(T),M(T)-B(T))+1;
-""",
-        )
+        g = self.tc
+        g.cm_calib[...] = Sum(g.Miyr1[g.t], g.m[g.t] - g.b[g.t]) + 1.0
 
     def exec3(self: CoefExtCli) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-CM_CALIB = EPS;
-""",
-        )
+        self.tc.cm_calib[...] = SpecialValues.EPS
 
     def exec4(self: CoefExtCli) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Inter-/extrapolate calibration values
-OPTION CLEAR=FIL; LOOP(MIYR_1(LL),FIL(LL-CM_CALIB) = YES);
-""",
-        )
+        g = self.tc
+        # * Inter-/extrapolate calibration values
+        g.Fil.setRecords(None)
+        with Loop(g.Miyr1[g.ll]):
+            g.Fil[g.ll - g.cm_calib] = True
 
     def exec4_2(self: CoefExtCli) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
- CM_STAT0(CM_HISTS,CM_BOX) = 0;
- CM_USUBS(CM_HISTS)=CM_EMIS(CM_HISTS)$(NOT SAMEAS(CM_HISTS,'CO2-GTC'));
- LOOP((CM_HISTS,LL,CM_BOX)$CM_STATS(CM_HISTS,LL,CM_BOX),CM_STAT0(CM_HISTS,CM_BOX) = EPS);
- LOOP(CM_BOXMAP(CM_HISTS,CM_VAR,CM_BOX(CM_Q))$(NOT CM_STAT0(CM_HISTS,CM_Q)),
-   CM_STATS(CM_HISTS,LL,CM_Q)$CM_HISTORY(LL,CM_VAR) = CM_HISTORY(LL,CM_VAR)*POWER(CM_PPM(CM_HISTS),-1$CM_USUBS(CM_HISTS)));
-""",
-        )
+        g = self.tc
+        g.cm_stat0[g.CmHists, g.CmBox] = 0.0
+        g.CmUsubs[g.CmHists] = g.CmEmis[g.CmHists].where[~(g.CmHists.sameAs("CO2-GTC"))]
+        with Loop(
+            Domain(g.CmHists, g.ll, g.CmBox).where[g.cm_stats[g.CmHists, g.ll, g.CmBox]]
+        ):
+            g.cm_stat0[g.CmHists, g.CmBox] = SpecialValues.EPS
+        with Loop(
+            g.CmBoxmap[g.CmHists, g.CmVar, g.CmBox[g.cmq]].where[
+                ~(g.cm_stat0[g.CmHists, g.cmq])
+            ]
+        ):
+            g.cm_stats[g.CmHists, g.ll, g.cmq].where[g.cm_history[g.ll, g.CmVar]] = (
+                g.cm_history[g.ll, g.CmVar]
+                * power(g.cm_ppm[g.CmHists], -Number(1.0).where[g.CmUsubs[g.CmHists]])
+            )
 
     def exec5(self: CoefExtCli) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Pick the history values
- LOOP((MIYR_1(LL),YEAR(LL-CM_CALIB)),
-   CM_STAT0(CM_HISTS,CM_BOX) = CM_STATS(CM_HISTS,YEAR,CM_BOX)*POWER(CM_PPM(CM_HISTS),1$CM_USUBS(CM_HISTS)));
- CM_STAT0(CM_HISTS,'N') = 0;
-*-----------------------------------------------------------------------------
-* Preprocess concentration decays
- CM_DECAY('CH4-MT','ATM') = CM_CONST('PHI-CH4');
- CM_DECAY('N2O-MT','ATM') = CM_CONST('PHI-N2O');
- CM_DECAY(CM_EMIS,'ATM') $= CM_DECAY(CM_EMIS,'N');
- CM_DECAY(CM_EMIS,CM_Q(L)) = 0;
- CM_DECAY(CM_EMIS,CM_BOX)$CM_STAT0(CM_EMIS,CM_BOX) = CM_DECAY(CM_EMIS,CM_BOX)+EPS;
- CM_ATMAP(CM_EMIS,CM_EMIS)$(NOT SUM(CM_ATMAP(CM_EMIS,CM_VAR),1)) = YES;
- LOOP(CM_EMIS$(NOT SUM(CM_BOXMAP(CM_EMIS,CM_VAR,CM_BOX),1)),CM_BOXMAP(CM_ATMAP(CM_EMIS,CM_VAR),CM_BOX)$CM_DECAY(CM_EMIS,CM_BOX)=YES);
-* Coupled concentrations
- LOOP(CM_COUPMAP(CM_VAR,CM_EMIS,'ATM')$CM_STAT0(CM_EMIS,'UP'),
-   CM_DECAY(CM_EMIS,'N')=CM_DECAY(CM_EMIS,'ATM'); CM_BOXMAP(CM_EMIS,CM_EMIS,'N')=YES);
-* Reference concentration
- CM_COUPLE(CM_VAR,T,CM_EMIS,'FX')$((CM_COUPLE(CM_VAR,T,CM_EMIS,'FX')<=0)$CM_COUPLE(CM_VAR,T,CM_EMIS,'ATM')) =
-   CM_STAT0(CM_EMIS,'ATM')*CM_DECAY(CM_EMIS,'ATM');
-* Reference life and final unit life coefficient
- CM_COUPLE(CM_VAR,T,CM_EMIS,'N')$CM_COUPLE(CM_VAR,T,CM_EMIS,'ATM') =
-   (CM_COUPLE(CM_VAR,T,CM_EMIS,'FX')+CM_STAT0(CM_EMIS,'UP')/CM_STAT0(CM_EMIS,'LIFE'))*CM_DECAY(CM_EMIS,'ATM')/CM_PPM(CM_VAR);
- OPTION CM_COUPMAP < CM_COUPLE;
-*-----------------------------------------------------------------------------
-* Set up the 3x3 PHI matrix for emissions
-IF(NOT SUM((CM_BOX,CM_BUCK),CM_PHI('CO2-GTC',CM_BOX,CM_BUCK)),
-* Set up the 3x3 PHI matrix
-  CM_PHI('CO2-GTC','ATM','UP') = CM_CONST('PHI-UP-AT');
-  CM_PHI('CO2-GTC','UP','ATM') = CM_CONST('PHI-AT-UP');
-  CM_PHI('CO2-GTC','UP','LO') = CM_CONST('PHI-LO-UP');
-  CM_PHI('CO2-GTC','LO','UP') = CM_CONST('PHI-UP-LO');
-);
-* Default first-order decay models for CH4 and N2O
-LOOP(CM_USUBS(CM_EMIS),
-IF(NOT SUM((CM_BOX,CM_BUCK),CM_PHI(CM_EMIS,CM_BOX,CM_BUCK)),
-  CM_PHI(CM_EMIS,CM_BOX,CM_BOX)$CM_DECAY(CM_EMIS,CM_BOX) = 1-CM_DECAY(CM_EMIS,CM_BOX)+EPS;
-  CM_PHI(CM_EMIS,'UP',CM_EMIS) = EPS$CM_STAT0(CM_EMIS,'UP'));
-);
-*-----------------------------------------------------------------------------
-* Set emission kinds and FORCING to CM_KIND when active
- CM_KIND(CM_VAR)$(SUM((CM_BOX,CM_BUCK)$CM_PHI(CM_VAR,CM_BOX,CM_BUCK),1)$CM_EMIS(CM_VAR)) = YES;
- CM_EMIS(CM_VAR) = CM_KIND(CM_VAR)$CM_PPM(CM_VAR);
- CM_KIND('FORCING') = YES$(SUM(LL$CM_MAXC(LL,'DELTA-ATM'),1)+(CARD(CM_EMIS) GT 1));
- IF(CARD(UC_CLI),CM_KIND('FORCING') = YES);
- CM_TKIND(CM_KIND) = YES; LOOP(CM_FORCMAP(CM_VAR,CM_HISTS)$SUM(LL$CM_MAXC(LL,CM_VAR),1),CM_TKIND(CM_VAR)=YES);
- CM_FORCMAP('FORC-KYO',CM_VAR)$(NOT CM_FORCMAP(CM_VAR,CM_VAR)) $= CM_PPM(CM_VAR);
- CM_FORCMAP('FORCING',CM_VAR) $= CM_PPM(CM_VAR);
- CM_FORCMAP(CM_HISTS,CM_VAR)$(SUM(CM_EMIS$CM_FORCMAP(CM_VAR,CM_EMIS),1)$(NOT CM_EMIS(CM_VAR))) = NO;
-""",
+        g = self.tc
+        # * Pick the history values
+        with Loop(Domain(g.Miyr1[g.ll], g.year[g.ll - g.cm_calib])):
+            g.cm_stat0[g.CmHists, g.CmBox] = g.cm_stats[
+                g.CmHists, g.year, g.CmBox
+            ] * power(g.cm_ppm[g.CmHists], Number(1.0).where[g.CmUsubs[g.CmHists]])
+        g.cm_stat0[g.CmHists, "N"] = 0.0
+        # *-----------------------------------------------------------------------------
+        # * Preprocess concentration decays
+        g.cm_decay["CH4-MT", "ATM"] = g.cm_const["PHI-CH4"]
+        g.cm_decay["N2O-MT", "ATM"] = g.cm_const["PHI-N2O"]
+        sparseExpr = g.cm_decay[g.CmEmis, "N"]
+        g.cm_decay[g.CmEmis, "ATM"].where[sparseExpr] = sparseExpr
+        g.cm_decay[g.CmEmis, g.cmq[g.lA]] = 0.0
+        g.cm_decay[g.CmEmis, g.CmBox].where[g.cm_stat0[g.CmEmis, g.CmBox]] = (
+            g.cm_decay[g.CmEmis, g.CmBox] + SpecialValues.EPS
         )
+        g.CmAtmap[g.CmEmis, g.CmEmis].where[~(Sum(g.CmAtmap[g.CmEmis, g.CmVar], 1))] = (
+            True
+        )
+        with Loop(g.CmEmis.where[~(Sum(g.CmBoxmap[g.CmEmis, g.CmVar, g.CmBox], 1))]):
+            g.CmBoxmap[g.CmAtmap[g.CmEmis, g.CmVar], g.CmBox].where[
+                g.cm_decay[g.CmEmis, g.CmBox]
+            ] = True
+        # * Coupled concentrations
+        with Loop(
+            g.CmCoupmap[g.CmVar, g.CmEmis, "ATM"].where[g.cm_stat0[g.CmEmis, "UP"]]
+        ):
+            g.cm_decay[g.CmEmis, "N"] = g.cm_decay[g.CmEmis, "ATM"]
+            g.CmBoxmap[g.CmEmis, g.CmEmis, "N"] = True
+        # * Reference concentration
+        g.cm_couple[g.CmVar, g.t, g.CmEmis, "FX"].where[
+            (
+                (g.cm_couple[g.CmVar, g.t, g.CmEmis, "FX"] <= 0.0).where[
+                    g.cm_couple[g.CmVar, g.t, g.CmEmis, "ATM"]
+                ]
+            )
+        ] = g.cm_stat0[g.CmEmis, "ATM"] * g.cm_decay[g.CmEmis, "ATM"]
+        # * Reference life and final unit life coefficient
+        g.cm_couple[g.CmVar, g.t, g.CmEmis, "N"].where[
+            g.cm_couple[g.CmVar, g.t, g.CmEmis, "ATM"]
+        ] = (
+            (
+                g.cm_couple[g.CmVar, g.t, g.CmEmis, "FX"]
+                + g.cm_stat0[g.CmEmis, "UP"] / g.cm_stat0[g.CmEmis, "LIFE"]
+            )
+            * g.cm_decay[g.CmEmis, "ATM"]
+            / g.cm_ppm[g.CmVar]
+        )
+        project(source=g.cm_couple, target=g.CmCoupmap)
+        # *-----------------------------------------------------------------------------
+        # * Set up the 3x3 PHI matrix for emissions
+        if (
+            Sum([g.CmBox, g.CmBuck], g.cm_phi["CO2-GTC", g.CmBox, g.CmBuck]).toValue()
+            == 0
+        ):
+            # * Set up the 3x3 PHI matrix
+            g.cm_phi["CO2-GTC", "ATM", "UP"] = g.cm_const["PHI-UP-AT"]
+            g.cm_phi["CO2-GTC", "UP", "ATM"] = g.cm_const["PHI-AT-UP"]
+            g.cm_phi["CO2-GTC", "UP", "LO"] = g.cm_const["PHI-LO-UP"]
+            g.cm_phi["CO2-GTC", "LO", "UP"] = g.cm_const["PHI-UP-LO"]
+
+        # * Default first-order decay models for CH4 and N2O
+        with Loop(g.CmUsubs[g.CmEmis]):  # noqa: SIM117
+            with If(~(Sum([g.CmBox, g.CmBuck], g.cm_phi[g.CmEmis, g.CmBox, g.CmBuck]))):
+                g.cm_phi[g.CmEmis, g.CmBox, g.CmBox].where[
+                    g.cm_decay[g.CmEmis, g.CmBox]
+                ] = 1.0 - g.cm_decay[g.CmEmis, g.CmBox] + SpecialValues.EPS
+                g.cm_phi[g.CmEmis, "UP", g.CmEmis] = Number(SpecialValues.EPS).where[
+                    g.cm_stat0[g.CmEmis, "UP"]
+                ]
+        # *-----------------------------------------------------------------------------
+        # * Set emission kinds and FORCING to CM_KIND when active
+        g.CmKind[g.CmVar].where[
+            (
+                Sum(
+                    Domain(g.CmBox, g.CmBuck).where[
+                        g.cm_phi[g.CmVar, g.CmBox, g.CmBuck]
+                    ],
+                    1,
+                ).where[g.CmEmis[g.CmVar]]
+            )
+        ] = True
+        g.CmEmis[g.CmVar] = g.CmKind[g.CmVar].where[g.cm_ppm[g.CmVar]]
+        g.CmKind["FORCING"] = Number(1).where[
+            (Sum(g.ll.where[g.cm_maxc[g.ll, "DELTA-ATM"]], 1) + (Card(g.CmEmis) > 1))
+        ]
+        # since Card is not zero if records exist
+        if g.uc_cli.records:
+            g.CmKind["FORCING"] = True
+        g.CmTkind[g.CmKind] = True
+        with Loop(
+            g.CmForcmap[g.CmVar, g.CmHists].where[
+                Sum(g.ll.where[g.cm_maxc[g.ll, g.CmVar]], 1)
+            ]
+        ):
+            g.CmTkind[g.CmVar] = True
+        g.CmForcmap["FORC-KYO", g.CmVar].where[
+            ~(g.CmForcmap[g.CmVar, g.CmVar]) & g.cm_ppm[g.CmVar]
+        ] = g.cm_ppm[g.CmVar]
+        g.CmForcmap["FORCING", g.CmVar].where[g.cm_ppm[g.CmVar]] = g.cm_ppm[g.CmVar]
+        g.CmForcmap[g.CmHists, g.CmVar].where[
+            (
+                Sum(g.CmEmis.where[g.CmForcmap[g.CmVar, g.CmEmis]], 1).where[
+                    ~(g.CmEmis[g.CmVar])
+                ]
+            )
+        ] = False
 
     def exec6(self: CoefExtCli) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-CM_KIND('FORCING')$SUM((LL,J,W)$S_CM_MAXC(LL,'DELTA-ATM',J,W),1) = YES;
-""",
-        )
+        g = self.tc
+        g.CmKind["FORCING"].where[
+            Sum(
+                Domain(g.ll, g.j, g.w).where[g.s_cm_maxc[g.ll, "DELTA-ATM", g.j, g.w]],
+                1,
+            )
+        ] = True
 
     def exec7(self: CoefExtCli) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-DAM_COST CM_KIND('FORCING')$SUM(R$(DAM_BQTY(R,'FORCING')+DAM_BQTY(R,'DELTA-ATM')),1) = YES;
-""",
-        )
+        g = self.tc
+        g.CmKind["FORCING"].where[
+            Sum(
+                g.r.where[(g.dam_bqty[g.r, "FORCING"] + g.dam_bqty[g.r, "DELTA-ATM"])],
+                1,
+            )
+        ] = True
 
     def exec8(self: CoefExtCli, stages: bool) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-*-----------------------------------------------------------------------------
-* Establish set of years beyond EOH
-* Set extended EOH (EXT-EOH) year into FIL; -1 deactivates EOH extension
-  OPTION CLEAR=FIL; YR_VL = 0; FIRST_VAL = CM_CONST('EXT-EOH');
-  IF(FIRST_VAL GT 0, FIRST_VAL = ROUND(MAX(MIYR_VL,FIRST_VAL));
-    LOOP(MIYR_1(LL), F = FIRST_VAL-YEARVAL(LL); FIL(LL+F) = YES);
-    CM_BEMI(CM_EMIS,FIL) = EPS; CM_EVAR(CM_EMIS,FIL) = 1;
-* Set all MAXC year beyond EOH into FIL
-{"OPTION CM_MAXC_M < S_CM_MAXC;" if stages else ""}
-    F = SMAX(T(LL),ORD(LL)); CM_MAXC_M(CM_VAR,LL)$CM_MAXC(LL,CM_VAR)=EPS;
-    LOOP((LL,CM_VAR(CG))$((ORD(LL) GT F)$CM_MAXC_M(CG,LL)),
-      IF((YEARVAL(LL) GT FIRST_VAL OR NOT(CM_EMIS(CM_VAR)))$YEARVAL(LL), YR_VL = ORD(LL); FIL(LL) = YES));
-    FIL(LL)$(ORD(LL) GT YR_VL) = NO;
-* Set BEMI to MAXC emissions for years beyond EXT-EOH and zero at EXT-EOH
-    CM_BEMI(CM_EMIS(CM_HISTS(CG)),FIL(LL))$(YEARVAL(LL) GT FIRST_VAL) = CM_MAXC(LL,CG);
-    CM_EVAR(CM_EMIS,FIL(LL))$(YEARVAL(LL) GT FIRST_VAL) = EPS$CM_BEMI(CM_EMIS,LL);
-* Set EOH contribution to zero at final year (deactivated for now)
-*   LOOP(MIYR_1(YEAR), CM_EVAR(CM_EMIS,YEAR+(YR_VL-ORD(YEAR))) = EPS);
-* Set all years Modulo BEOHMOD to FIL
-    MY_F = ROUND(MAX(1,CM_CONST('BEOHMOD')));
-    FIL(LL)$((ORD(LL) LT YR_VL)$(MOD(YEARVAL(LL),MY_F) = 0)) = YES$(ORD(LL) GT F);
-  );
-  CM_MAXC(LL,CM_EMIS(CM_HISTS(CG)))$(YEARVAL(LL) GT MIYR_VL) = 0;
-* Complete CM_LED
-  LOOP(FIL(LL), Z = ORD(LL); CM_LED(LL) = Z-F; F = Z);
-  CM_LED(T) = LEAD(T); CM_LED(MIYR_1) = CM_CALIB;
-  PRET(T,T-1)=YES;
-""",
-        )
+        g = self.tc
+        # *-----------------------------------------------------------------------------
+        # * Establish set of years beyond EOH
+        # * Set extended EOH (EXT-EOH) year into FIL; -1 deactivates EOH extension
+        g.Fil.setRecords(None)
+        g.yr_vl[...] = 0.0
+        g.first_val[...] = g.cm_const["EXT-EOH"]
+        if g.first_val.toValue() > 0.0:
+            g.first_val[...] = Round(Max(g.miyr_vl, g.first_val))
+            with Loop(g.Miyr1[g.ll]):
+                g.f[...] = g.first_val - g.yearval[g.ll]
+                g.Fil[g.ll + g.f] = True
+            g.cm_bemi[g.CmEmis, g.Fil] = SpecialValues.EPS
+            g.cm_evar[g.CmEmis, g.Fil] = 1.0
+            # * Set all MAXC year beyond EOH into FIL
+            if stages:
+                project(source=g.s_cm_maxc, target=g.cm_maxc_m)
+            g.f[...] = Smax(g.t[g.ll], Ord(g.ll))
+            g.cm_maxc_m[g.CmVar, g.ll].where[g.cm_maxc[g.ll, g.CmVar]] = (
+                SpecialValues.EPS
+            )
+            with Loop(  # noqa: SIM117
+                Domain(g.ll, g.CmVar[g.cg]).where[
+                    ((Ord(g.ll) > g.f).where[g.cm_maxc_m[g.cg, g.ll]])
+                ]
+            ):
+                with If(
+                    (g.yearval[g.ll] > g.first_val | ~(g.CmEmis[g.CmVar])).where[
+                        g.yearval[g.ll]
+                    ]
+                ):
+                    g.yr_vl[...] = Ord(g.ll)  # type: ignore [assignment]
+                    g.Fil[g.ll] = True
+            g.Fil[g.ll].where[(Ord(g.ll) > g.yr_vl)] = False
+            # * Set BEMI to MAXC emissions for years beyond EXT-EOH and zero at EXT-EOH
+            g.cm_bemi[g.CmEmis[g.CmHists[g.cg]], g.Fil[g.ll]].where[
+                (g.yearval[g.ll] > g.first_val)
+            ] = g.cm_maxc[g.ll, g.cg]
+            g.cm_evar[g.CmEmis, g.Fil[g.ll]].where[(g.yearval[g.ll] > g.first_val)] = (
+                Number(SpecialValues.EPS).where[g.cm_bemi[g.CmEmis, g.ll]]
+            )
+            # * Set EOH contribution to zero at final year (deactivated for now)
+            # *   LOOP(MIYR_1(YEAR), CM_EVAR(CM_EMIS,YEAR+(YR_VL-ORD(YEAR))) = EPS);
+            # * Set all years Modulo BEOHMOD to FIL
+            g.my_f[...] = Round(Max(1.0, g.cm_const["BEOHMOD"]))
+            g.Fil[g.ll].where[
+                ((Ord(g.ll) < g.yr_vl).where[(mod(g.yearval[g.ll], g.my_f) == 0.0)])
+            ] = Number(1).where[(Ord(g.ll) > g.f)]
+
+        g.cm_maxc[g.ll, g.CmEmis[g.CmHists[g.cg]]].where[
+            (g.yearval[g.ll] > g.miyr_vl)
+        ] = 0.0
+        # * Complete CM_LED
+        with Loop(g.Fil[g.ll]):
+            g.z[...] = Ord(g.ll)  # type: ignore [assignment]
+            g.cm_led[g.ll] = g.z - g.f
+            g.f[...] = g.z
+        g.cm_led[g.t] = g.lead[g.t]
+        g.cm_led[g.Miyr1] = g.cm_calib
+        g.Pret[g.t, g.t - 1] = True
 
     def exec11(self: CoefExtCli, stages: str) -> None:
         g = self.tc
@@ -419,13 +503,7 @@ DAM_COST CM_KIND('FORCING')$SUM(R$(DAM_BQTY(R,'FORCING')+DAM_BQTY(R,'DELTA-ATM')
         # -----------------------------------------------------------------------------
 
         if "FORCING" in g.CmKind.toList():
-            self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code=r"""
-    CM_SIG1(SOW) = CM_CONST('SIGMA1');
-    """,
-            )
+            g.cm_sig1[g.Sow] = g.cm_const["SIGMA1"]
 
             # * Set up the 2x2 SIG matrix for forcing
             if stages.upper() == "YES":
@@ -446,112 +524,226 @@ DAM_COST CM_KIND('FORCING')$SUM(R$(DAM_BQTY(R,'FORCING')+DAM_BQTY(R,'DELTA-ATM')
                         arg6=arg[5],
                         arg7=arg[6],
                     )
-
-            self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code=rf"""
-{"CM_SIG1(SOW)=S_CM_CONST('SIGMA1','1',SOW);" if stages.upper() == "YES" else ""}
-{"CM_SIG(SOW,'ATM','ATM') = 1-CM_SIG1(SOW)*(CM_CONST('GAMMA')/S_CM_CONST('CS','1',SOW)+CM_CONST('SIGMA2'));" if stages.upper() == "YES" else ""}
-{"CM_SIG('1','ATM','ATM') = 1-CM_SIG1('1')*(CM_CONST('LAMBDA')+CM_CONST('SIGMA2'));" if stages.upper() != "YES" else ""}
-CM_SIG(SOW,'ATM','LO') = CM_SIG1(SOW)*CM_CONST('SIGMA2');
-CM_SIG(SOW,'LO','ATM') = CM_CONST('SIGMA3');
-CM_SIG(SOW,'LO','LO') = 1-CM_CONST('SIGMA3');
-CM_PHI('FORCING','ATM','FORCING') = 1;
-* Intialize CM_AA to the identity matrix, CM_BB to zero
-CM_AA('FORCING',LL,SOW,CM_BUCK,CM_BOX)$CM_LED(LL) = DIAG(CM_BUCK,CM_BOX);
-CM_BB('FORCING',LL,SOW,CM_BUCK)$CM_LED(LL) = 0; CNT=0;
-* Assume linear evolution of forcing between milestone years
-LOOP((CM_VAR('FORCING'),LL)$CM_LED(LL),
-IF(CNT, CNT=1; Z = CM_LED(LL); ELSE CNT=EPS; Z=CM_CALIB);
-    FOR(F = 0 TO Z-1, MY_F = F/Z*CNT;
-    CM_BB(CM_VAR,LL,SOW,CM_BOX) = CM_BB(CM_VAR,LL,SOW,CM_BOX) + CM_SIG1(SOW)*(1-MY_F)*CM_AA(CM_VAR,LL,SOW,CM_BOX,'ATM');
-    CM_CC(CM_VAR,LL,SOW,CM_BOX) = CM_CC(CM_VAR,LL,SOW,CM_BOX) + CM_SIG1(SOW)*   MY_F *CM_AA(CM_VAR,LL,SOW,CM_BOX,'ATM');
-    CM_AA(CM_VAR,LL,SOW,CM_BUCK,CM_BOX) = SUM(CM_Q$CM_BOX(CM_Q),CM_AA(CM_VAR,LL,SOW,CM_BUCK,CM_Q)*CM_SIG(SOW,CM_Q,CM_BOX));
-));
-""",
+            if stages.upper() == "YES":
+                g.cm_sig1[g.Sow] = g.s_cm_const["SIGMA1", "1", g.Sow]
+                g.cm_sig[g.Sow, "ATM", "ATM"] = 1.0 - g.cm_sig1[g.Sow] * (
+                    g.cm_const["GAMMA"] / g.s_cm_const["CS", "1", g.Sow]
+                    + g.cm_const["SIGMA2"]
+                )
+            else:
+                g.cm_sig["1", "ATM", "ATM"] = 1.0 - g.cm_sig1["1"] * (
+                    g.cm_const["LAMBDA"] + g.cm_const["SIGMA2"]
+                )
+            g.cm_sig[g.Sow, "ATM", "LO"] = g.cm_sig1[g.Sow] * g.cm_const["SIGMA2"]
+            g.cm_sig[g.Sow, "LO", "ATM"] = g.cm_const["SIGMA3"]
+            g.cm_sig[g.Sow, "LO", "LO"] = 1.0 - g.cm_const["SIGMA3"]
+            g.cm_phi["FORCING", "ATM", "FORCING"] = 1.0
+            # * Intialize CM_AA to the identity matrix, CM_BB to zero
+            g.cm_aa["FORCING", g.ll, g.Sow, g.CmBuck, g.CmBox].where[g.cm_led[g.ll]] = (
+                diag(g.CmBuck, g.CmBox)
             )
+            g.cm_bb["FORCING", g.ll, g.Sow, g.CmBuck].where[g.cm_led[g.ll]] = 0.0
+            g.cnt[...] = 0.0
+            # * Assume linear evolution of forcing between milestone years
+            with Loop(Domain(g.CmVar["FORCING"], g.ll).where[g.cm_led[g.ll]]):
+                with If(g.cnt):
+                    g.cnt[...] = 1.0
+                    g.z[...] = g.cm_led[g.ll]
+                with Else():  # type: ignore
+                    g.cnt[...] = SpecialValues.EPS
+                    g.z[...] = g.cm_calib
+                with For(g.f, 0.0, g.z - 1.0):  # type: ignore
+                    g.my_f[...] = g.f / g.z * g.cnt
+                    g.cm_bb[g.CmVar, g.ll, g.Sow, g.CmBox] = (
+                        g.cm_bb[g.CmVar, g.ll, g.Sow, g.CmBox]
+                        + g.cm_sig1[g.Sow]
+                        * (1.0 - g.my_f)
+                        * g.cm_aa[g.CmVar, g.ll, g.Sow, g.CmBox, "ATM"]
+                    )
+                    g.cm_cc[g.CmVar, g.ll, g.Sow, g.CmBox] = (
+                        g.cm_cc[g.CmVar, g.ll, g.Sow, g.CmBox]
+                        + g.cm_sig1[g.Sow]
+                        * g.my_f
+                        * g.cm_aa[g.CmVar, g.ll, g.Sow, g.CmBox, "ATM"]
+                    )
+                    g.cm_aa[g.CmVar, g.ll, g.Sow, g.CmBuck, g.CmBox] = Sum(
+                        g.cmq.where[g.CmBox[g.cmq]],
+                        g.cm_aa[g.CmVar, g.ll, g.Sow, g.CmBuck, g.cmq]
+                        * g.cm_sig[g.Sow, g.cmq, g.CmBox],
+                    )
 
     def exec12(self: CoefExtCli) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-*-----------------------------------------------------------------------------
-* Set up control set CM_CONC for the BOX equations; complete PHI
-  OPTION CM_CONC <= CM_BOXMAP;
-  CM_PHI(CM_KIND,CM_BOX,CM_BOX)$(NOT CM_PHI(CM_KIND,CM_BOX,CM_BOX)) = 1$CM_STAT0(CM_KIND,CM_BOX)-SUM(CM_BUCK$(NOT SAMEAS(CM_BOX,CM_BUCK)),CM_PHI(CM_KIND,CM_BUCK,CM_BOX));
-*-----------------------------------------------------------------------------
-* Calculate the ith powers of PHI, i=1...Z, where Z = LEAD(T)
-* First intialize CM_AA to the identity matrix, and CM_BB(T,1) to 0:
-LOOP(CM_EMIS(CM_VAR),
- CM_PHI(CM_VAR,'ATM',CM_VAR)$(NOT SUM(CM_BOX$CM_PHI(CM_VAR,'ATM',CM_VAR),1)) = 1;
- CM_AA(CM_VAR,LL,'1',CM_BUCK,CM_BOX)$CM_LED(LL) = DIAG(CM_BUCK,CM_BOX);
- CM_BB(CM_VAR,LL,'1',CM_BUCK)$CM_LED(LL) = 0; CNT = (ALTOBJ NE 3);
-* Loop over MILESTONYR and calculate rest of the powers of PHI
- LOOP(T$(ALTOBJ NE 3),
-  IF(ORD(T) GT 1, MY_F = M(T)-B(T)+1; Z = LEAD(T); ELSE MY_F=CM_CALIB; Z=MY_F);
-   FOR(F = 1 TO Z,
-     IF(F LE MY_F, CM_BB(CM_VAR,T,'1',CM_BOX) = CM_BB(CM_VAR,T,'1',CM_BOX) + SUM(CM_BUCK,CM_PHI(CM_VAR,CM_BUCK,CM_VAR)*CM_AA(CM_VAR,T,'1',CM_BOX,CM_BUCK));
-     ELSE          CM_CC(CM_VAR,T,'1',CM_BOX) = CM_CC(CM_VAR,T,'1',CM_BOX) + SUM(CM_BUCK,CM_PHI(CM_VAR,CM_BUCK,CM_VAR)*CM_AA(CM_VAR,T,'1',CM_BOX,CM_BUCK)));
-     CM_AA(CM_VAR,T,'1',CM_BUCK,CM_BOX) = SUM(CM_Q$CM_BOX(CM_Q),CM_AA(CM_VAR,T,'1',CM_BUCK,CM_Q)*CM_PHI(CM_VAR,CM_Q,CM_BOX));
- ));
-* If linear evolution formulation, assume linear evolution of emissions
- LOOP(LL$(((ALTOBJ EQ 3) OR NOT T(LL))$CM_LED(LL)),
-  IF(CNT, CNT=1; Z = CM_LED(LL); ELSE CNT=EPS; Z=CM_CALIB);
-   FOR(F = 0 TO Z-1, MY_F = F/Z*CNT;
-     CM_BB(CM_VAR,LL,'1',CM_BOX) = CM_BB(CM_VAR,LL,'1',CM_BOX) + (1-MY_F)*SUM(CM_BUCK,CM_PHI(CM_VAR,CM_BUCK,CM_VAR)*CM_AA(CM_VAR,LL,'1',CM_BOX,CM_BUCK));
-     CM_CC(CM_VAR,LL,'1',CM_BOX) = CM_CC(CM_VAR,LL,'1',CM_BOX) +    MY_F *SUM(CM_BUCK,CM_PHI(CM_VAR,CM_BUCK,CM_VAR)*CM_AA(CM_VAR,LL,'1',CM_BOX,CM_BUCK));
-     CM_AA(CM_VAR,LL,'1',CM_BUCK,CM_BOX) = SUM(CM_Q$CM_BOX(CM_Q),CM_AA(CM_VAR,LL,'1',CM_BUCK,CM_Q)*CM_PHI(CM_VAR,CM_Q,CM_BOX));
- ));
-);
-*-----------------------------------------------------------------------------
-* Prepare commodity variables for emissions:
-  CM_GHGMAP(R,C,'CO2-GTC') $= CM_CO2GTC(R,C);
-  LOOP((R,C,CM_KIND(CM_VAR(CG)))$CM_GHGMAP(R,C,CG),
-    RHS_COMBAL(RTCS_VARC(R,T,C,S)) = YES;
-    RCS_COMBAL(RTCS_VARC(R,T,C,S),'FX') = YES);
-*-----------------------------------------------------------------------------
-* Construct SUPERYR (needed in MAX constraints)
-  SUPERYR(PERIODYR(T,LL))$(YEARVAL(LL) LE YEARVAL(T)) = YES;
-  SUPERYR(T+1,LL)$((YEARVAL(LL) GT YEARVAL(T))$PERIODYR(T,LL)) = YES;
-  LOOP(MIYR_1(T++1),SUPERYR(T,LL)$(YEARVAL(LL) GT M(T)) = YES);
-  OPTION FIL < CM_LED, MY_FIL < Y;
-  MY_FIL(LL)$((YEARVAL(LL)>MIYR_VL)$(ORD(LL) LE YR_VL)) = YES;
-*=============================================================================
-""",
+        g = self.tc
+        # *-----------------------------------------------------------------------------
+        # * Set up control set CM_CONC for the BOX equations; complete PHI
+        project(source=g.CmBoxmap, target=g.CmConc, direction="left")
+        g.cm_phi[g.CmKind, g.CmBox, g.CmBox].where[
+            ~(g.cm_phi[g.CmKind, g.CmBox, g.CmBox])
+        ] = Number(1.0).where[g.cm_stat0[g.CmKind, g.CmBox]] - Sum(
+            g.CmBuck.where[~(same_as(g.CmBox, g.CmBuck))],
+            g.cm_phi[g.CmKind, g.CmBuck, g.CmBox],
         )
+        # *-----------------------------------------------------------------------------
+        # * Calculate the ith powers of PHI, i=1...Z, where Z = LEAD(T)
+        # * First intialize CM_AA to the identity matrix, and CM_BB(T,1) to 0:
+        with Loop(g.CmEmis[g.CmVar]):
+            g.cm_phi[g.CmVar, "ATM", g.CmVar].where[
+                ~(Sum(g.CmBox.where[g.cm_phi[g.CmVar, "ATM", g.CmVar]], 1))
+            ] = 1.0
+            g.cm_aa[g.CmVar, g.ll, "1", g.CmBuck, g.CmBox].where[g.cm_led[g.ll]] = diag(
+                g.CmBuck, g.CmBox
+            )
+            g.cm_bb[g.CmVar, g.ll, "1", g.CmBuck].where[g.cm_led[g.ll]] = 0.0
+            g.cnt[...] = g.altobj != 3.0
+            # * Loop over MILESTONYR and calculate rest of the powers of PHI
+            with Loop(g.t.where[(g.altobj != 3.0)]):
+                with If(Ord(g.t) > 1.0):
+                    g.my_f[...] = g.m[g.t] - g.b[g.t] + 1.0
+                    g.z[...] = g.lead[g.t]
+                with Else():  # type: ignore
+                    g.my_f[...] = g.cm_calib
+                    g.z[...] = g.my_f
+                with For(g.f, 1.0, g.z):
+                    with If(g.f <= g.my_f):
+                        g.cm_bb[g.CmVar, g.t, "1", g.CmBox] = g.cm_bb[
+                            g.CmVar, g.t, "1", g.CmBox
+                        ] + Sum(
+                            g.CmBuck,
+                            g.cm_phi[g.CmVar, g.CmBuck, g.CmVar]
+                            * g.cm_aa[g.CmVar, g.t, "1", g.CmBox, g.CmBuck],
+                        )
+                    with Else():  # type: ignore
+                        g.cm_cc[g.CmVar, g.t, "1", g.CmBox] = g.cm_cc[
+                            g.CmVar, g.t, "1", g.CmBox
+                        ] + Sum(
+                            g.CmBuck,
+                            g.cm_phi[g.CmVar, g.CmBuck, g.CmVar]
+                            * g.cm_aa[g.CmVar, g.t, "1", g.CmBox, g.CmBuck],
+                        )
+                    g.cm_aa[g.CmVar, g.t, "1", g.CmBuck, g.CmBox] = Sum(
+                        g.cmq.where[g.CmBox[g.cmq]],
+                        g.cm_aa[g.CmVar, g.t, "1", g.CmBuck, g.cmq]
+                        * g.cm_phi[g.CmVar, g.cmq, g.CmBox],
+                    )
+            # * If linear evolution formulation, assume linear evolution of emissions
+            with Loop(
+                g.ll.where[(((g.altobj == 3.0) | ~(g.t[g.ll])).where[g.cm_led[g.ll]])]
+            ):
+                with If(g.cnt):
+                    g.cnt[...] = 1.0
+                    g.z[...] = g.cm_led[g.ll]
+                with Else():  # type: ignore
+                    g.cnt[...] = SpecialValues.EPS
+                    g.z[...] = g.cm_calib
+                with For(g.f, 0.0, g.z - 1.0):  # type: ignore
+                    g.my_f[...] = g.f / g.z * g.cnt
+                    g.cm_bb[g.CmVar, g.ll, "1", g.CmBox] = g.cm_bb[
+                        g.CmVar, g.ll, "1", g.CmBox
+                    ] + (1.0 - g.my_f) * Sum(
+                        g.CmBuck,
+                        g.cm_phi[g.CmVar, g.CmBuck, g.CmVar]
+                        * g.cm_aa[g.CmVar, g.ll, "1", g.CmBox, g.CmBuck],
+                    )
+                    g.cm_cc[g.CmVar, g.ll, "1", g.CmBox] = g.cm_cc[
+                        g.CmVar, g.ll, "1", g.CmBox
+                    ] + g.my_f * Sum(
+                        g.CmBuck,
+                        g.cm_phi[g.CmVar, g.CmBuck, g.CmVar]
+                        * g.cm_aa[g.CmVar, g.ll, "1", g.CmBox, g.CmBuck],
+                    )
+                    g.cm_aa[g.CmVar, g.ll, "1", g.CmBuck, g.CmBox] = Sum(
+                        g.cmq.where[g.CmBox[g.cmq]],
+                        g.cm_aa[g.CmVar, g.ll, "1", g.CmBuck, g.cmq]
+                        * g.cm_phi[g.CmVar, g.cmq, g.CmBox],
+                    )
+        # *-----------------------------------------------------------------------------
+        # * Prepare commodity variables for emissions:
+        g.cm_ghgmap[g.r, g.c, "CO2-GTC"].where[g.cm_co2gtc[g.r, g.c]] = g.cm_co2gtc[
+            g.r, g.c
+        ]
+        with Loop(
+            Domain(g.r, g.c, g.CmKind[g.CmVar[g.cg]]).where[g.cm_ghgmap[g.r, g.c, g.cg]]
+        ):
+            g.RhsCombal[g.RtcsVarc[g.r, g.t, g.c, g.s]] = True
+            g.RcsCombal[g.RtcsVarc[g.r, g.t, g.c, g.s], "FX"] = True
+        # *-----------------------------------------------------------------------------
+        # * Construct SUPERYR (needed in MAX constraints)
+        g.Superyr[g.Periodyr[g.t, g.ll]].where[(g.yearval[g.ll] <= g.yearval[g.t])] = (
+            True
+        )
+        g.Superyr[g.t + 1, g.ll].where[
+            ((g.yearval[g.ll] > g.yearval[g.t]).where[g.Periodyr[g.t, g.ll]])
+        ] = True
+        with Loop(g.Miyr1[g.t + +1]):
+            g.Superyr[g.t, g.ll].where[(g.yearval[g.ll] > g.m[g.t])] = True
+        project(source=g.cm_led, target=g.Fil)
+        project(source=g.Y, target=g.MyFil)
+        g.MyFil[g.ll].where[
+            ((g.yearval[g.ll] > g.miyr_vl).where[(Ord(g.ll) <= g.yr_vl)])
+        ] = True
 
     def exec15(self: CoefExtCli) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-*-----------------------------------------------------------------------------
-* Convert all concentration bounds to PPM basis
-  CM_MAXC(LL,CG('CO2-PPM'))$CM_MAXCO2C(LL) = MIN(CM_MAXC(LL,CG)+INF$(NOT CM_MAXC(LL,CG)),CM_MAXCO2C(LL)/CM_PPM('CO2-GTC'));
-  CM_MAXC(LL,CG('CO2-PPM'))$CM_MAXC(LL,'CO2-ATM') = MIN(CM_MAXC(LL,CG)+INF$(NOT CM_MAXC(LL,CG)),CM_MAXC(LL,'CO2-ATM')*CM_CONST('CO2-PREIND')/CM_PPM('CO2-GTC'));
-  CM_MAXC(LL,CG('CO2-PPM'))$(CM_MAXC(LL,'FORCING')*(NOT CM_KIND('FORCING'))) =
-     MIN(CM_MAXC(LL,CG)+INF$(NOT CM_MAXC(LL,CG)),CM_CONST('CO2-PREIND')/CM_PPM('CO2-GTC')*
-         EXP((CM_MAXC(LL,'FORCING')-CM_EXOFORC(LL))*LOG(2)/CM_CONST('GAMMA')));
-* Remove bounds from years with undefined concentration
-  F = SMIN(T,YEARVAL(T));  CM_MAXC(LL,CG)$(YEARVAL(LL) LT F) = 0;
-  """,
+        g = self.tc
+        # * Convert all concentration bounds to PPM basis
+        g.cm_maxc[g.ll, g.cg["CO2-PPM"]].where[g.cm_maxco2c[g.ll]] = Min(
+            g.cm_maxc[g.ll, g.cg]
+            + Number(SpecialValues.POSINF).where[~(g.cm_maxc[g.ll, g.cg])],
+            g.cm_maxco2c[g.ll] / g.cm_ppm["CO2-GTC"],
         )
+        g.cm_maxc[g.ll, g.cg["CO2-PPM"]].where[g.cm_maxc[g.ll, "CO2-ATM"]] = Min(
+            g.cm_maxc[g.ll, g.cg]
+            + Number(SpecialValues.POSINF).where[~(g.cm_maxc[g.ll, g.cg])],
+            g.cm_maxc[g.ll, "CO2-ATM"] * g.cm_const["CO2-PREIND"] / g.cm_ppm["CO2-GTC"],
+        )
+        g.cm_maxc[g.ll, g.cg["CO2-PPM"]].where[
+            (g.cm_maxc[g.ll, "FORCING"] * ~(g.CmKind["FORCING"]))
+        ] = Min(
+            g.cm_maxc[g.ll, g.cg]
+            + Number(SpecialValues.POSINF).where[~(g.cm_maxc[g.ll, g.cg])],
+            g.cm_const["CO2-PREIND"]
+            / g.cm_ppm["CO2-GTC"]
+            * exp(
+                (g.cm_maxc[g.ll, "FORCING"] - g.cm_exoforc[g.ll])
+                * log(2.0)
+                / g.cm_const["GAMMA"]
+            ),
+        )
+        # * Remove bounds from years with undefined concentration
+        g.f[...] = Smin(g.t, g.yearval[g.t])
+        g.cm_maxc[g.ll, g.cg].where[(g.yearval[g.ll] < g.f)] = 0.0
 
     def exec16(self: CoefExtCli) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-  S_CM_MAXC(LL,CG('CO2-PPM'),J,W)$S_CM_MAXCO2C(LL,J,W) = MIN(S_CM_MAXC(LL,CG,J,W)+INF$(NOT S_CM_MAXC(LL,CG,J,W)),S_CM_MAXCO2C(LL,J,W)/CM_PPM('CO2-GTC'));
-  S_CM_MAXC(LL,CG('CO2-PPM'),J,W)$S_CM_MAXC(LL,'CO2-ATM',J,W) = MIN(S_CM_MAXC(LL,CG,J,W)+INF$(NOT S_CM_MAXC(LL,CG,J,W)),S_CM_MAXC(LL,'CO2-ATM',J,W)*CM_CONST('CO2-PREIND')/CM_PPM('CO2-GTC'));
-  S_CM_MAXC(LL,CG('CO2-PPM'),J,W)$(S_CM_MAXC(LL,'FORCING',J,W)*(NOT CM_KIND('FORCING'))) =
-     MIN(S_CM_MAXC(LL,CG,J,W)+INF$(NOT S_CM_MAXC(LL,CG,J,W)),CM_CONST('CO2-PREIND')/CM_PPM('CO2-GTC')*
-         EXP((S_CM_MAXC(LL,'FORCING',J,W)-CM_EXOFORC(LL))*LOG(2)/CM_CONST('GAMMA')));
-  S_CM_MAXC(LL,CG,J,W)$(YEARVAL(LL) LT F) = 0;
-  """,
+        g = self.tc
+        g.s_cm_maxc[g.ll, g.cg["CO2-PPM"], g.j, g.w].where[
+            g.s_cm_maxco2c[g.ll, g.j, g.w]
+        ] = Min(
+            g.s_cm_maxc[g.ll, g.cg, g.j, g.w]
+            + Number(SpecialValues.POSINF).where[~(g.s_cm_maxc[g.ll, g.cg, g.j, g.w])],
+            g.s_cm_maxco2c[g.ll, g.j, g.w] / g.cm_ppm["CO2-GTC"],
         )
+        g.s_cm_maxc[g.ll, g.cg["CO2-PPM"], g.j, g.w].where[
+            g.s_cm_maxc[g.ll, "CO2-ATM", g.j, g.w]
+        ] = Min(
+            g.s_cm_maxc[g.ll, g.cg, g.j, g.w]
+            + Number(SpecialValues.POSINF).where[~(g.s_cm_maxc[g.ll, g.cg, g.j, g.w])],
+            g.s_cm_maxc[g.ll, "CO2-ATM", g.j, g.w]
+            * g.cm_const["CO2-PREIND"]
+            / g.cm_ppm["CO2-GTC"],
+        )
+        g.s_cm_maxc[g.ll, g.cg["CO2-PPM"], g.j, g.w].where[
+            (g.s_cm_maxc[g.ll, "FORCING", g.j, g.w] * ~(g.CmKind["FORCING"]))
+        ] = Min(
+            g.s_cm_maxc[g.ll, g.cg, g.j, g.w]
+            + Number(SpecialValues.POSINF).where[~(g.s_cm_maxc[g.ll, g.cg, g.j, g.w])],
+            g.cm_const["CO2-PREIND"]
+            / g.cm_ppm["CO2-GTC"]
+            * exp(
+                (g.s_cm_maxc[g.ll, "FORCING", g.j, g.w] - g.cm_exoforc[g.ll])
+                * log(2.0)
+                / g.cm_const["GAMMA"]
+            ),
+        )
+        g.s_cm_maxc[g.ll, g.cg, g.j, g.w].where[(g.yearval[g.ll] < g.f)] = 0.0
 
 
 def coef_ext_cli_slope() -> str:
@@ -573,3 +765,54 @@ CM_LINFOR(FIL(LL),'CO2-GTC','FX')$MY_ARRAY(LL) =
 * If EXOFORCING is not provided by the user, use default values
 IF(NOT SUM(T,CM_EXOFORC(T)),CM_EXOFORC(MY_FIL(LL)) = MIN(1.15, -0.1965 + 0.013465 * (YEARVAL(LL)-1995)));
 """
+
+
+def coef_ext_cli_slope_GP(g: TimesModelClass) -> None:
+    # * Calculate linear slope for FORCING from CO2
+    if g.CmKind["FORCING"].records is not None:
+        project(source=g.cm_led, target=g.Fil)
+        with Loop(g.CmAtmap[g.CmEmis, g.CmVar]):
+            sparseExpr = g.cm_linfor[g.ll, g.CmVar, g.lA]
+            g.cm_linfor[g.Fil[g.ll], g.CmEmis, g.lA].where[sparseExpr] = sparseExpr
+        sparseExpr = (
+            g.cm_linfor[g.ll, "CO2-ATM", g.Bdneq]  # type: ignore
+            * g.cm_const["CO2-PREIND"]
+            * (1.0 / g.cm_ppm["CO2-GTC"])
+        )
+        g.cm_linfor[g.Fil[g.ll], "CO2-GTC", g.Bdneq].where[sparseExpr] = sparseExpr
+        g.my_array[g.Fil[g.ll]] = Max(
+            g.cm_linfor[g.ll, "CO2-GTC", "LO"],
+            (
+                (
+                    g.cm_linfor[g.ll, "CO2-GTC", "UP"]
+                    - g.cm_linfor[g.ll, "CO2-GTC", "LO"]
+                )
+                / log(
+                    Max(
+                        1.001,
+                        g.cm_linfor[g.ll, "CO2-GTC", "UP"]
+                        / g.cm_linfor[g.ll, "CO2-GTC", "LO"],
+                    )
+                )
+            ),
+        ).where[(g.cm_linfor[g.ll, "CO2-GTC", "LO"] > 0.0)]
+        g.cm_linfor[g.Fil[g.ll], "CO2-GTC", "N"].where[g.my_array[g.ll]] = (
+            g.cm_const["GAMMA"] / g.my_array[g.ll] / log(2.0)
+        )
+        g.cm_linfor[g.Fil[g.ll], "CO2-GTC", "FX"].where[g.my_array[g.ll]] = (
+            g.cm_const["GAMMA"]
+            / log(2.0)
+            * log(
+                g.my_array[g.ll]
+                * g.cm_linfor[g.ll, "CO2-GTC", "LO"]
+                / power(g.cm_const["CO2-PREIND"] / g.cm_ppm["CO2-GTC"], 2.0)
+            )
+            - g.cm_linfor[g.ll, "CO2-GTC", "N"]
+            * (g.my_array[g.ll] + g.cm_linfor[g.ll, "CO2-GTC", "LO"])
+        ) / 2.0
+    # *-----------------------------------------------------------------------------
+    # * If EXOFORCING is not provided by the user, use default values
+    if (Sum(g.t, g.cm_exoforc[g.t])).toValue() == 0:
+        g.cm_exoforc[g.MyFil[g.ll]] = Min(
+            1.15, -0.1965 + 0.013465 * (g.yearval[g.ll] - 1995.0)
+        )
