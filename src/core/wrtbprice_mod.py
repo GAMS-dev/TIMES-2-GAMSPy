@@ -13,6 +13,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Domain, Loop, Parameter, Set, SpecialValues, Sum
+
 from core.base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -35,15 +37,38 @@ class WrtbpriceMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  PARAMETER DINV(R,YEAR,CUR) //;
-  PARAMETER SOL_BPRICE(REG,ALLYEAR,COM,ALL_TS,CUR) //;
-  PARAMETER SOL_ACFR(R,UC_COST,YEAR) //;
-  SET ANCAT(UC_COST,ITEM) / COST.(INV, FIX, VAR, DAM), TAX.(INVX, FIXX, VARX) /;
-""",
+        g = self.tc
+        m = g.container
+        r, year, cur, Reg, allyear, Com, allts, UcCost, item = (
+            g.r,
+            g.year,
+            g.cur,
+            g.Reg,
+            g.allyear,
+            g.Com,
+            g.allts,
+            g.UcCost,
+            g.item,
+        )
+
+        g.dinv = Parameter(m, name="DINV", domain=[r, year, cur])
+        g.sol_bprice = Parameter(
+            m, name="SOL_BPRICE", domain=[Reg, allyear, Com, allts, cur]
+        )
+        g.sol_acfr = Parameter(m, name="SOL_ACFR", domain=[r, UcCost, year])
+        g.Ancat = Set(
+            m,
+            name="ANCAT",
+            domain=[UcCost, item],
+            records=[
+                ("COST", "INV"),
+                ("COST", "FIX"),
+                ("COST", "VAR"),
+                ("COST", "DAM"),
+                ("TAX", "INVX"),
+                ("TAX", "FIXX"),
+                ("TAX", "VARX"),
+            ],
         )
 
         self.tc.enqueue(
@@ -65,31 +90,133 @@ class WrtbpriceMod(GamsClass):
         dam_elast_defined: bool,
         dam_cost_defined: bool,
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-*------------------------------------------------------------------------------
-* Undiscounting via matrix inversion currently disabled; using direct method
-  DINV(R,T,CUR)$G_RCUR(R,CUR) = 1/COEF_PVT(R,T);
+        g = self.tc
+        m = g.container
+        (
+            r,
+            t,
+            cur,
+            GRcur,
+            coef_pvt,
+            c,
+            s,
+            RcsCombal,
+            Dem,
+            eqg_combal,
+            eqe_combal,
+            dinv,
+            sol_bprice,
+        ) = (
+            g.r,
+            g.t,
+            g.cur,
+            g.GRcur,
+            g.coef_pvt,
+            g.c,
+            g.s,
+            g.RcsCombal,
+            g.Dem,
+            g.eqg_combal,
+            g.eqe_combal,
+            g.dinv,
+            g.sol_bprice,
+        )
 
-  SOL_BPRICE(R,T,C,S,CUR)$(RCS_COMBAL(R,T,C,S,'LO')$DEM(R,C)) = DINV(R,T,CUR)*EQG_COMBAL.M(R,T,C,S);
-  SOL_BPRICE(R,T,C,S,CUR)$(RCS_COMBAL(R,T,C,S,'FX')$DEM(R,C)) = DINV(R,T,CUR)*EQE_COMBAL.M(R,T,C,S);
+        (
+            dam_coef,
+            dam_tvoc,
+            RtcsVarc,
+            Trackc,
+            eqe_comprd,
+            Rtc,
+            VAR_COMPRD,
+            rb,
+            ComTs,
+            Rdcur,
+            com_fr,
+            com_proj,
+        ) = (
+            g.dam_coef,
+            g.dam_tvoc,
+            g.RtcsVarc,
+            g.Trackc,
+            g.eqe_comprd,
+            g.Rtc,
+            g.VAR_COMPRD,
+            g.rb,
+            g.ComTs,
+            g.Rdcur,
+            g.com_fr,
+            g.com_proj,
+        )
 
-* Check elastic supply curve requests
-{"  TRACKC(RC)$((NOT DAM_BQTY(RC))$DAM_ELAST(RC,'N')) = YES;" if dam_elast_defined else ""}
-{"  LOOP((R,T,C,CUR)$DAM_COST(R,T,C,CUR), TRACKC(R,C) = NO);" if dam_cost_defined else ""}
-  OPTION CLEAR=DAM_COEF,CLEAR=DAM_TVOC;
-  DAM_COEF(RTCS_VARC(R,T,C,S))$TRACKC(R,C) = EQE_COMPRD.M(R,T,C,S)/COEF_PVT(R,T)+EPS;
-  DAM_TVOC(RTC(R,T,C),'N')$TRACKC(R,C) = SUM(RTCS_VARC(RTC,S),DAM_COEF(RTC,S)*VAR_COMPRD.L(RTC,S));
+        # Undiscounting via matrix inversion currently disabled; using direct method
+        dinv[r, t, cur].where[GRcur[r, cur]] = 1 / coef_pvt[r, t]
+        sol_bprice[r, t, c, s, cur].where[RcsCombal[r, t, c, s, "LO"] & Dem[r, c]] = (
+            dinv[r, t, cur] * eqg_combal[r, t, c, s].m
+        )
+        sol_bprice[r, t, c, s, cur].where[RcsCombal[r, t, c, s, "FX"] & Dem[r, c]] = (
+            dinv[r, t, cur] * eqe_combal[r, t, c, s].m
+        )
 
-* Save also annual cost to expenditure ratios for TIMES CGE calibration
-  RB(R,T) = SUM((COM_TS(DEM(R,C),S),RDCUR(R,CUR)),SOL_BPRICE(R,T,C,S,CUR)*COM_FR(R,T,C,S)*COM_PROJ(R,T,C))+1-1;
-{"  SOL_ACFR(R,UC_COST,T)$RB(R,T)=SUM(SYSUCMAP(SYSUC,ITEM)$ANCAT(UC_COST,ITEM),REG_ACOST(R,T,SYSUC)) / RB(R,T);" if stages.upper() != "YES" and anncost.upper() == "LEV" else ""}
-  OPTION CLEAR=RB,CLEAR=TRACKC;
+        # Check elastic supply curve requests
+        if dam_elast_defined:
+            Trackc, Rc, dam_bqty, dam_elast = g.Trackc, g.Rc, g.dam_bqty, g.dam_elast
+            Trackc[Rc].where[~dam_bqty[Rc] & dam_elast[Rc, "N"]] = True
 
-  EXECUTE_UNLOAD 'com_bprice',sol_bprice,DAM_COEF,DAM_TVOC,SOL_ACFR;
-  EXECUTE_UNLOAD '{gdxpath}{run_name}_DP',sol_bprice,DAM_COEF,DAM_TVOC,SOL_ACFR;
-*------------------------------------------------------------------------------
-""",
+        if dam_cost_defined:
+            r, t, c, cur, dam_cost, Trackc = g.r, g.t, g.c, g.cur, g.dam_cost, g.Trackc
+            with Loop(Domain(r, t, c, cur).where[dam_cost[r, t, c, cur]]):
+                Trackc[r, c] = False
+
+        dam_coef.setRecords(None)
+        dam_tvoc.setRecords(None)
+        dam_coef[RtcsVarc[r, t, c, s]].where[Trackc[r, c]] = (
+            eqe_comprd[r, t, c, s].m / coef_pvt[r, t] + SpecialValues.EPS
+        )
+        dam_tvoc[Rtc[r, t, c], "N"].where[Trackc[r, c]] = Sum(
+            RtcsVarc[Rtc, s], dam_coef[Rtc, s] * VAR_COMPRD[Rtc, s].l
+        )
+
+        # Save also annual cost to expenditure ratios for TIMES CGE calibration
+        rb[r, t] = (
+            Sum(
+                Domain(ComTs[Dem[r, c], s], Rdcur[r, cur]),
+                sol_bprice[r, t, c, s, cur] * com_fr[r, t, c, s] * com_proj[r, t, c],
+            )
+            + 1
+            - 1
+        )
+
+        if stages.upper() != "YES" and anncost.upper() == "LEV":
+            r, UcCost, t, rb, Sysucmap, sysuc, item, reg_acost, Ancat, sol_acfr = (
+                g.r,
+                g.UcCost,
+                g.t,
+                g.rb,
+                g.Sysucmap,
+                g.sysuc,
+                g.item,
+                g.reg_acost,
+                g.Ancat,
+                g.sol_acfr,
+            )
+            sol_acfr[r, UcCost, t].where[rb[r, t]] = (
+                Sum(
+                    Sysucmap[sysuc, item].where[Ancat[UcCost, item]],
+                    reg_acost[r, t, sysuc],
+                )
+                / rb[r, t]
+            )
+
+        rb.setRecords(None)
+        Trackc.setRecords(None)
+
+        m.write(
+            "com_bprice",
+            symbol_names=["SOL_BPRICE", "DAM_COEF", "DAM_TVOC", "SOL_ACFR"],
+        )
+        m.write(
+            f"{gdxpath}{run_name}_DP",
+            symbol_names=["SOL_BPRICE", "DAM_COEF", "DAM_TVOC", "SOL_ACFR"],
         )
