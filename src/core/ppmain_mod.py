@@ -123,7 +123,7 @@ class PpmainMod(GamsClass):
         self.tc.enqueue(self.phase_three, condition=self.env.oblong.upper() == "YES")
 
         # Initialize MINYR already here (was in COEF_OBJ.mod)
-        self.tc.add_gams_code(module=self, phase=phase, code="SCALAR MINYR;")
+        g.minyr = Parameter(m, name="MINYR")
 
         self.tc.enqueue(self.phase_four)
 
