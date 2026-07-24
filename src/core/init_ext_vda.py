@@ -222,12 +222,12 @@ $GDXIN
         pgprim: str,
     ) -> None:
         g = self.tc
-        ucn, side, r, ll, CmVar, tsl = g.ucn, g.side, g.r, g.ll, g.CmVar, g.tsl
+        ucn, side, r, ll, cmvar, tsl = g.ucn, g.side, g.r, g.ll, g.CmVar, g.tsl
         allr, ucgrptype, year, p = g.allr, g.ucgrptype, g.year, g.p
 
         if cli:
             with Loop(
-                Domain(ucn, side, r, ll, CmVar).where[g.uc_cli[ucn, side, r, ll, CmVar]]
+                Domain(ucn, side, r, ll, cmvar).where[g.uc_cli[ucn, side, r, ll, cmvar]]
             ):
                 g.UcAttr[r, ucn, "RHS", "CLI", "YES"] = True
 
