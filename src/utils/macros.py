@@ -192,6 +192,13 @@ class Macros:
             return f"OB_FOM({r},{p},{m},{y})"
         return f"OBJ_FOM({r},{y},{p},{m})"
 
+    def obj_fom_GP(
+        self, r: Set | Alias, y: Set | Alias, p: Set | Alias, m: Set | Alias
+    ) -> ImplicitParameter:
+        if self.obj_fom_active:
+            return self._g.ob_fom[r, p, m, y]
+        return self._g.obj_fom[r, y, p, m]
+
     # FSB
     @property
     def obj_fsb_active(self) -> bool:
@@ -269,6 +276,13 @@ class Macros:
             return f"OB_ACT({r},{p},{m},{y})"
         return f"OBJ_ACOST({r},{y},{p},{m})"
 
+    def obj_acost_GP(
+        self, r: Set | Alias, y: Set | Alias, p: Set | Alias, m: Set | Alias
+    ) -> ImplicitParameter:
+        if self.obj_acost_active:
+            return self._g.ob_act[r, p, m, y]
+        return self._g.obj_acost[r, y, p, m]
+
     # FCOST
     @property
     def obj_fcost_active(self) -> bool:
@@ -283,6 +297,19 @@ class Macros:
             return f"OB_FCOS({r},{p},{c},{s},{m},{y})"
         return f"OBJ_FCOST({r},{y},{p},{c},{s},{m})"
 
+    def obj_fcost_GP(
+        self,
+        r: Set | Alias,
+        y: Set | Alias,
+        p: Set | Alias,
+        c: Set | Alias,
+        s: Set | Alias,
+        m: Set | Alias,
+    ) -> ImplicitParameter:
+        if self.obj_fcost_active:
+            return self._g.ob_fcos[r, p, c, s, m, y]
+        return self._g.obj_fcost[r, y, p, c, s, m]
+
     # FDELV
     @property
     def obj_fdelv_active(self) -> bool:
@@ -296,6 +323,19 @@ class Macros:
         if self.obj_fdelv_active:
             return f"OB_FDEL({r},{p},{c},{s},{m},{y})"
         return f"OBJ_FDELV({r},{y},{p},{c},{s},{m})"
+
+    def obj_fdelv_GP(
+        self,
+        r: Set | Alias,
+        y: Set | Alias,
+        p: Set | Alias,
+        c: Set | Alias,
+        s: Set | Alias,
+        m: Set | Alias,
+    ) -> ImplicitParameter:
+        if self.obj_fdelv_active:
+            return self._g.ob_fdel[r, p, c, s, m, y]
+        return self._g.obj_fdelv[r, y, p, c, s, m]
 
     # FTAX
     @property
