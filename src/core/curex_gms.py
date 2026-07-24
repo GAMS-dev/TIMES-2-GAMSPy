@@ -16,8 +16,8 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from gamspy import Alias, Number, Parameter, Set, Sum
-from gamspy.math import power
+from gamspy import Alias, Domain, Else, If, Loop, Number, Parameter, Set, Sum
+from gamspy.math import power, same_as
 
 from core.base_class import GamsClass
 
@@ -189,28 +189,45 @@ class CurexGms(GamsClass):
                 self.tc.enqueue(self.exec2, prf=self.env.prf)
 
     def initialization(self: CurexGms) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-OPTION CLEAR=CURMAP,PROFILE=0;
-R_CUREX(R,CUR,CUR) = 0;
-*--------------------------------------------------------------------------
-* Convert only if unambiguous single target RDCUR
-LOOP((R,CURR),
- IF((SUM(RDCUR(R,CUR)$R_CUREX(R,CURR,CUR),1) EQ 1),
-      CURMAP(RDCUR(R,CUR),CURR)$R_CUREX(R,CURR,CUR) = YES;
- ELSE CURMAP(RDCUR(R,CURR),CURR) = YES));
-LOOP(CURMAP(R,CUR,CURR)$(NOT SAMEAS(CUR,CURR)), RDCUR(R,CURR) = NO);
-R_CUREX(RDCUR(R,CUR),CUR) = 1;
-
-* Resolve two-step chained conversion
-OPTION CLEAR=RXX;
-LOOP((CURMAP(RDCUR(R,CUR),CURR),CRU)$((NOT RDCUR(R,CURR))$CURMAP(R,CURR,CRU)),RXX(R,CURR,CRU)$(NOT R_CUREX(R,CRU,CUR))=YES);
-LOOP(RXX(R,CURR,CRU),R_CUREX(R,CRU,CUR)$CURMAP(R,CUR,CURR)=R_CUREX(R,CRU,CURR)*R_CUREX(R,CURR,CUR));
-LOOP(RXX(R,CURR,CRU),CURMAP(R,CURR,CRU)=NO; CURMAP(R,CUR,CRU)$CURMAP(R,CUR,CURR)=YES);
-""",
+        g = self.tc
+        r_curex, r, cur, curr, Rdcur, Rxx, CurMap, cru = (
+            g.r_curex,
+            g.r,
+            g.cur,
+            g.curr,
+            g.Rdcur,
+            g.Rxx,
+            g.CurMap,
+            g.cru,
         )
+        CurMap.setRecords(None)
+        self.tc.container._options.profile = 0
+        r_curex[r, cur, cur] = 0
+        # --------------------------------------------------------------------------
+        # Convert only if unambiguous single target RDCUR
+        with Loop((r, curr)):
+            with If(Sum(Rdcur[r, cur].where[r_curex[r, curr, cur]], 1) == 1):
+                CurMap[Rdcur[r, cur], curr].where[r_curex[r, curr, cur]] = True
+            with Else():  # type: ignore[no-untyped-call]
+                CurMap[Rdcur[r, curr], curr] = True
+        with Loop(CurMap[r, cur, curr].where[~same_as(cur, curr)]):
+            Rdcur[r, curr] = False
+        r_curex[Rdcur[r, cur], cur] = 1
+        # Resolve two-step chained conversion
+        Rxx.setRecords(None)
+        with Loop(
+            Domain(CurMap[Rdcur[r, cur], curr], cru).where[
+                ~Rdcur[r, curr] & CurMap[r, curr, cru]
+            ]
+        ):
+            Rxx[r, curr, cru].where[~r_curex[r, cru, cur]] = True
+        with Loop(Rxx[r, curr, cru]):
+            r_curex[r, cru, cur].where[CurMap[r, cur, curr]] = (
+                r_curex[r, cru, curr] * r_curex[r, curr, cur]
+            )
+        with Loop(Rxx[r, curr, cru]):
+            CurMap[r, curr, cru] = False
+            CurMap[r, cur, cru].where[CurMap[r, cur, curr]] = True
 
     def exec1(self: CurexGms, condition: bool, mx: Any) -> None:
         g = self.tc
@@ -247,13 +264,13 @@ LOOP(RXX(R,CURR,CRU),CURMAP(R,CURR,CRU)=NO; CURMAP(R,CUR,CRU)$CURMAP(R,CUR,CURR)
             param_1[*cc.arg3, cur, *cc.arg5].where[~g.Rdcur[r, cur]] = 0
 
     def exec2(self: CurexGms, prf: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-OPTION PRO{prf},CLEAR=RYPM,CLEAR=RYPCSM,CLEAR=RYPCSRXM,CLEAR=RYCSM;
-""",
-        )
+        g = self.tc
+        g.container._options.profile = 1  # TODO: handle this prf stuff at some point
+
+        g.rypm.setRecords(None)
+        g.rypcsm.setRecords(None)
+        g.rypcsrxm.setRecords(None)
+        g.rycsm.setRecords(None)
 
     def comp1(self: CurexGms) -> None:
         g = self.tc
