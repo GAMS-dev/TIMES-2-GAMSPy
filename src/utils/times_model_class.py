@@ -833,6 +833,7 @@ class TimesModelClass:
     x_rusl: Parameter = None  # type: ignore[assignment] # [allr,ucn,ts,l,allyear] X_RUSL:
     x_rpgs: Parameter = None  # type: ignore[assignment] # [r,p,cg,ts,allyear] X_RPGS:
     x_rpgcs: Parameter = None  # type: ignore[assignment] # [r,p,cg,Com,s,allyear] X_RPGCS:
+    Ancat: Set = None  # type: ignore[assignment] # [UcCost, item] ANCAT:
     Subt: Set = None  # type: ignore[assignment] # [t] SUBT:
     Rtpgig: Set = None  # type: ignore[assignment] # [r,allyear,p,cg,io,cg] RTPGIG:
     RtpCg: Set = None  # type: ignore[assignment] # [r,allyear,p,cg,io] RTP_CG:
@@ -863,6 +864,7 @@ class TimesModelClass:
     BleInp: Set = None  # type: ignore[assignment] # [r,Com,Com] BLE_INP:
     BleSpeinp: Set = None  # type: ignore[assignment] # [r,Com,spe,Com] BLE_SPEINP:
     BleEnv: Set = None  # type: ignore[assignment] # [r,Com,Com,Opr] BLE_ENV:
+    dinv: Parameter = None  # type: ignore[assignment] # [r,year,cur] DINV:
     ble_bal: Parameter = None  # type: ignore[assignment] # [r,year,c,c] BLE_BAL:
     opr2: Alias = None  # type: ignore[assignment] # [*] OPR2: Aliased with OPR
     micro: Parameter = None  # type: ignore[assignment] # MICRO:
@@ -877,6 +879,8 @@ class TimesModelClass:
     YEoh: Set = None  # type: ignore[assignment] # [allyear] Y_EOH:
     Yk: Set = None  # type: ignore[assignment] # [allyear,allyear] YK:
     TsAnn: Set = None  # type: ignore[assignment] # [s,s] TS_ANN:
+    sol_bprice: Parameter = None  # type: ignore[assignment] # [Reg, allyear, Com, allts, cur] SOL_BPRICE
+    sol_acfr: Parameter = None  # type: ignore[assignment] # [r, UcCost, year] SOL_ACFR
     yr_v1: Parameter = None  # type: ignore[assignment] # YR_V1:
     yr_vl: Parameter = None  # type: ignore[assignment] # YR_VL:
     acl: Parameter = None  # type: ignore[assignment] # ACL:
