@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 from gamspy import Alias, Parameter, Set
 
 from core.base_class import GamsClass
+from core.utils import expand_set
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -35,8 +36,6 @@ class InitmtyStc(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
     ):
         self.env = env.fork()
         self.tc = tc
@@ -54,20 +53,16 @@ class InitmtyStc(GamsClass):
         self.reporting()
 
     def input_control_parameters(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-$onMulti
-PARAMETER SW_START(J) //;
-PARAMETER SW_SUBS(J,ALLSOW) //;
-PARAMETER SW_SPROB(J,ALLSOW) //;
-PARAMETER SW_PROB(ALLSOW) //;
-PARAMETER SW_LAMBDA / 0 /;
-* Predefined UC names for tradeoff analysis
-SET UC_N / OBJZ, OBJ1 /;
-""",
-        )
+        g = self.tc
+        m = self.tc.container
+
+        g.sw_start = Parameter(m, name="SW_START", domain=[g.j])
+        g.sw_subs = Parameter(m, name="SW_SUBS", domain=[g.j, g.allsow])
+        g.sw_sprob = Parameter(m, name="SW_SPROB", domain=[g.j, g.allsow])
+        g.sw_prob = Parameter(m, name="SW_PROB", domain=[g.allsow])
+        g.sw_lambda = Parameter(m, name="SW_LAMBDA", records=0)
+        # * Predefined UC names for tradeoff analysis
+        expand_set(g.ucn, elements=["OBJZ", "OBJ1"])
 
     def internal_sets_and_parameters(self) -> None:
         g = self.tc
@@ -293,33 +288,90 @@ SET UC_N / OBJZ, OBJ1 /;
         )
 
     def internal_work_sets_and_parameters(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-PARAMETER S_COM_CUM(R,COM_VAR,ALLYEAR,ALLYEAR,C,BD,J,ALLSOW) 'Cumulative limit on COMPRD' //;
-SET T0(LL) 'Augmented periods';
-SET SW_T2W(WW,T,WW,LL) 'Augmented map for SOWs by period';
-SET RTCSW(R,T,C,S,WW) 'Indicator for uncertain timeslice fractions';
-SET RTPW(R,ALLYEAR,P,ALLSOW) 'Uncertain SOW by vintage';
-SET RP_FFSGG(R,P,CG,CG) 'Uncertain transformation groups';
-SET RP_FFSGGM(R,P,CG,CG,COM_GRP,COM_GRP) 'Map of transformation groups';
-PARAMETER OBJ_SIC(R,T,P,ALLSOW) 'Uncertainty in investments';
-PARAMETER SUC_L(ALL_R,UC_N) 'Dynamic type LHS' //;
-PARAMETER RTP_SAFS(R,T,P,S,WW) 'Uncertain availability factors';
-PARAMETER RTCS_SFR(R,LL,C,S,WW,TS) 'Uncertain COM_FR multipliers';
-PARAMETER RCS_SSFR(R,C,S,TS,WW,LL) 'Uncertain COM_FR multipliers';
+        g = self.tc
+        m = self.tc.container
 
-""",
+        g.s_com_cum = Parameter(
+            m,
+            name="S_COM_CUM",
+            domain=[g.r, g.comvar, g.allyear, g.allyear, g.c, g.bd, g.j, g.allsow],
+            description="Cumulative limit on COMPRD",
+        )
+        g.T0 = Set(m, name="T0", domain=[g.ll], description="Augmented periods")
+        g.SwT2w = Set(
+            m,
+            name="SW_T2W",
+            domain=[g.ww, g.t, g.ww, g.ll],
+            description="Augmented map for SOWs by period",
+        )
+        g.Rtcsw = Set(
+            m,
+            name="RTCSW",
+            domain=[g.r, g.t, g.c, g.s, g.ww],
+            description="Indicator for uncertain timeslice fractions",
+        )
+        g.Rtpw = Set(
+            m,
+            name="RTPW",
+            domain=[g.r, g.allyear, g.p, g.allsow],
+            description="Uncertain SOW by vintage",
+        )
+        g.RpFfsgg = Set(
+            m,
+            name="RP_FFSGG",
+            domain=[g.r, g.p, g.cg, g.cg],
+            description="Uncertain transformation groups",
+        )
+        g.RpFfsggm = Set(
+            m,
+            name="RP_FFSGGM",
+            domain=[g.r, g.p, g.cg, g.cg, g.comgrp, g.comgrp],
+            description="Map of transformation groups",
+        )
+        g.obj_sic = Parameter(
+            m,
+            name="OBJ_SIC",
+            domain=[g.r, g.t, g.p, g.allsow],
+            description="Uncertainty in investments",
+        )
+        g.suc_l = Parameter(
+            m, name="SUC_L", domain=[g.allr, g.ucn], description="Dynamic type LHS"
+        )
+        g.rtp_safs = Parameter(
+            m,
+            name="RTP_SAFS",
+            domain=[g.r, g.t, g.p, g.s, g.ww],
+            description="Uncertain availability factors",
+        )
+        g.rtcs_sfr = Parameter(
+            m,
+            name="RTCS_SFR",
+            domain=[g.r, g.ll, g.c, g.s, g.ww, g.ts],
+            description="Uncertain COM_FR multipliers",
+        )
+        g.rcs_ssfr = Parameter(
+            m,
+            name="RCS_SSFR",
+            domain=[g.r, g.c, g.s, g.ts, g.ww, g.ll],
+            description="Uncertain COM_FR multipliers",
         )
 
     def reporting(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-PARAMETER SPAR_UCSL(WW,UC_N,*,*,*) //;
-PARAMETER CM_SRESULT(ALLSOW,ITEM,ITEM,ALLYEAR) 'Climate Module basic results' //;
-PARAMETER CM_SMAXC_M(ALLSOW,ITEM,ALLYEAR) 'Marginals for max constraints' //;
-""",
+        g = self.tc
+        m = self.tc.container
+
+        ww, allsow, item, allyear, ucn = g.ww, g.allsow, g.item, g.allyear, g.ucn
+
+        g.spar_ucsl = Parameter(m, name="SPAR_UCSL", domain=[ww, ucn, "*", "*", "*"])
+        g.cm_sresult = Parameter(
+            m,
+            name="CM_SRESULT",
+            domain=[allsow, item, item, allyear],
+            description="Climate Module basic results",
+        )
+        g.cm_smaxc_m = Parameter(
+            m,
+            name="CM_SMAXC_M",
+            domain=[allsow, item, allyear],
+            description="Marginals for max constraints",
         )
