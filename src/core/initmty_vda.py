@@ -335,7 +335,7 @@ class InitmtyVda(GamsClass):
             (f"{self.env.sysprefix}SOLVE_STATUS", "Model solution status code")
         ]
         if g.ucn is None:
-            g.ucn = Set(m, name="UCN", records=ucn_records)
+            g.ucn = Set(m, name="UC_N", records=ucn_records)
         else:
             expand_set(g.ucn, ucn_records)
         # -----------------------------------------------------------------------------

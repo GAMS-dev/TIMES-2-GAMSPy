@@ -1704,6 +1704,23 @@ class TimesModelClass:
     Auxsow: Set = None  # type: ignore[assignment] # AUXSOW
     SwStage: Set = None  # type: ignore[assignment] # SW_TSW
     SwUct: Set = None  # type: ignore[assignment] # SW_STAGE
+    sw_start: Parameter = None  # type: ignore[assignment] # SW_START
+    sw_subs: Parameter = None  # type: ignore[assignment] # SW_SUBS
+    sw_sprob: Parameter = None  # type: ignore[assignment] # SW_SPROB
+    sw_prob: Parameter = None  # type: ignore[assignment] # SW_PROB
+    sw_lambda: Parameter = None  # type: ignore[assignment] # SW_LAMBDA
+    s_com_cum: Parameter = None  # type: ignore[assignment] # S_COM_CUM
+    T0: Set = None  # type: ignore[assignment] # T0
+    SwT2w: Set = None  # type: ignore[assignment] # SW_T2W
+    Rtcsw: Set = None  # type: ignore[assignment] # RTCSW
+    Rtpw: Set = None  # type: ignore[assignment] # RTPW
+    RpFfsgg: Set = None  # type: ignore[assignment] # RP_FFSGG
+    RpFfsggm: Set = None  # type: ignore[assignment] # RP_FFSGGM
+    obj_sic: Parameter = None  # type: ignore[assignment] # OBJ_SIC
+    suc_l: Parameter = None  # type: ignore[assignment] # SUC_L
+    rtp_safs: Parameter = None  # type: ignore[assignment] # RTP_SAFS
+    rtcs_sfr: Parameter = None  # type: ignore[assignment] # RTCS_SFR
+    rcs_ssfr: Parameter = None  # type: ignore[assignment] # RCS_SSFR
 
     # endregion
 
