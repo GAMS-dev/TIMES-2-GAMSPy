@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 class EqcptModConfig:
     """Strongly typed data contract replacing legacy positional batch-include loops."""
 
-    arg1: Literal["E", "L", "G"]
+    sense: Literal["E", "L", "G"]
     arg2: Literal["E", "L", "G"]
     arg3: Condition | Expression | Number | ImplicitSet
     arg4: ImplicitVariable | ImplicitParameter | Number
@@ -82,20 +82,21 @@ class EqcptMod(GamsClass):
         VARV_NCAP = g.get_variable(f"{varv_id}_NCAP")
         eq = g.get_equation(f"{self.env.eq}{cc.arg2}_CPT")
 
-        shared_expr = (
-            VARV_NCAP[r, v, p, *sws].where[g.Milestonyr[v]]
-            + g.ncap_pasti[r, v, p].where[g.Pastyear[v]]
-            + rcapsub
-        )
-
-        inner_expr = shared_expr if varv_set is None else Sum(varv_set, shared_expr)
+        shared_expr = VARV_NCAP[r, v, p, *sws]
+        VARV_NCAP_expr = shared_expr if varv_set is None else Sum(varv_set, shared_expr)
 
         # GG V0.6a_3+ check whether used in UserConstraint
         eq[g.Rtp[r, t, p], *swt].where[cc.arg3] = generate_equation(
             # VAR_CAP(r,t,p {self.env.sow}) or CAP_BND(r,t,p,bd):
             lhs=cc.arg4,
-            type=cc.arg1,
+            type=cc.sense,
             rhs=Sum(
-                v.where[g.coef_cpt[r, v, t, p]], g.coef_cpt[r, v, t, p] * inner_expr
+                v.where[g.coef_cpt[r, v, t, p]],
+                g.coef_cpt[r, v, t, p]
+                * (
+                    VARV_NCAP_expr.where[g.Milestonyr[v]]
+                    + g.ncap_pasti[r, v, p].where[g.Pastyear[v]]
+                    + rcapsub
+                ),
             ),
         )

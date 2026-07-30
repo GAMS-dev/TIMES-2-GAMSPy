@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Variable
+from gamspy import Alias, Set, Variable
 from gamspy.math import Max
 
 from core.base_class import GamsClass
@@ -55,21 +55,39 @@ class ModVarsDsc(GamsClass):
 
         self.env.set_global("semicont", "SEMICONT")
 
+        var = self.env.var
+        swd = self.env.swd_GP
+
         # Investments
-        g.VAR_DNCAP = Variable(
-            m, "VAR_DNCAP", domain=[g.r, g.allyear, g.p, g.unit], type="SOS1"
+        g.set_variable(
+            name=f"{var}_DNCAP",
+            var=Variable(
+                m,
+                name=f"{var}_DNCAP",
+                domain=[g.r, g.allyear, g.p, *swd, g.unit],
+                type="SOS1",
+            ),
         )
-        g.VAR_SNCAP = Variable(
-            m, "VAR_SNCAP", domain=[g.r, g.allyear, g.p], type="SEMICONT"
+        g.set_variable(
+            name=f"{var}_SNCAP",
+            var=Variable(
+                m,
+                name=f"{var}_SNCAP",
+                domain=[g.r, g.allyear, g.p, *swd],
+                type="SEMICONT",
+            ),
         )
 
-        self.tc.enqueue(self.mod_vars_dsc_exec)
+        self.tc.enqueue(self.mod_vars_dsc_exec, var=var, sow=self.env.sow_GP)
 
-    def mod_vars_dsc_exec(self) -> None:
+    def mod_vars_dsc_exec(self, var: str, sow: tuple[Set | Alias, ...]) -> None:
         g = self.tc
         r, t, p = g.r, g.t, g.p
 
-        g.VAR_SNCAP.lo[r, t, p].where[g.ncap_semi[r, t, p]] = g.ncap_semi[r, t, p]
-        g.VAR_SNCAP.up[r, t, p].where[g.ncap_semi[r, t, p]] = Max(
+        VAR_SNCAP = g.get_variable(f"{var}_SNCAP")
+
+        # Bounds for semicont
+        VAR_SNCAP.lo[r, t, p, *sow].where[g.ncap_semi[r, t, p]] = g.ncap_semi[r, t, p]
+        VAR_SNCAP.up[r, t, p, *sow].where[g.ncap_semi[r, t, p]] = Max(
             g.ncap_semi[r, t, p], g.ncap_bnd[r, t, p, "UP"]
         )

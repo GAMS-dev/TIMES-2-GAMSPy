@@ -434,19 +434,19 @@ class EqmainMod(GamsClass):
 
         batincludes: list[EqcptModConfig] = [
             EqcptModConfig(
-                arg1="E",
+                sense="E",
                 arg2="E",
                 arg3=~g.PrcMap[g.r, "DMD", g.p],
                 arg4=VAR_CAP[g.r, g.t, g.p, *self.env.sow_GP],
             ),
             EqcptModConfig(
-                arg1="L",
+                sense="L",
                 arg2="L",
                 arg3=g.PrcMap[g.r, "DMD", g.p],
                 arg4=VAR_CAP[g.r, g.t, g.p, *self.env.sow_GP],
             ),
             EqcptModConfig(
-                arg1="G",
+                sense="G",
                 arg2="G",
                 arg3=Number(0),
                 arg4=Number(0),
@@ -464,19 +464,19 @@ class EqmainMod(GamsClass):
 
         batincludes: list[EqcptModConfig] = [
             EqcptModConfig(
-                arg1="E",
+                sense="E",
                 arg2="E",
-                arg3=g.RtpVarp[g.r, g.t, g.p] | g.cap_bnd[g.r, g.t, g.p, "FX"],
+                arg3=(g.RtpVarp[g.r, g.t, g.p] | g.cap_bnd[g.r, g.t, g.p, "FX"]),
                 arg4=VAR_CAP[g.r, g.t, g.p, *self.env.sow_GP],
             ),
             EqcptModConfig(
-                arg1="L",
+                sense="L",
                 arg2="L",
                 arg3=(~g.RtpVarp[g.r, g.t, g.p]).where[g.cap_bnd[g.r, g.t, g.p, "LO"]],
                 arg4=g.cap_bnd[g.r, g.t, g.p, "LO"],
             ),
             EqcptModConfig(
-                arg1="G",
+                sense="G",
                 arg2="G",
                 arg3=(~g.RtpVarp[g.r, g.t, g.p]).where[g.cap_bnd[g.r, g.t, g.p, "UP"]],
                 arg4=g.cap_bnd[g.r, g.t, g.p, "UP"],

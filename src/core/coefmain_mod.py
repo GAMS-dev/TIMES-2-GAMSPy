@@ -56,7 +56,7 @@ class CoefmainMod(GamsClass):
         self.include(CoefNioMod(tc=self.tc, env=self.env))
         self.include(CoefPtrMod(tc=self.tc, env=self.env))
         self.include(CoefObjMod(tc=self.tc, env=self.env, arg1=self.arg1))
-        self.include(CoefAltLin(tc=self.tc, env=self.env, arg1=f"VAR{self.env.csts}"))
+        self.include(CoefAltLin(tc=self.tc, env=self.env, arg1=f"VAR{self.env.ctst}"))
         self.include(CoefShpMod(tc=self.tc, env=self.env))
 
     def exec(self) -> None:
