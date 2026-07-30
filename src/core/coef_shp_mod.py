@@ -196,17 +196,19 @@ class CoefShpMod(GamsClass):
                 g.prc_ymax[g.Trackp[r, p]] = g.prc_ymin[r, p] + g.ncap_tlife[r, v, p]
                 # Calculate weighted average SHAPE for plants still operating in each period:
                 with Loop(g.GRcur[r, cur]):
-                    g.coef_cap[g.RtpCptyr[r, v, t, p]].where[g.ncap_cpx[r, v, p]] = Sum(
-                        g.Periodyr[t, g.YEoh].where[
-                            g.yearval[g.YEoh] < g.prc_ymax[r, p]
-                        ],
-                        Min(1, g.prc_ymax[r, p] - g.yearval[g.YEoh])
-                        * g.obj_disc[r, g.YEoh, cur]
-                        * g.shape[
-                            j + (g.ncap_cpx[r, v, p] - 1),
-                            age + (g.yearval[g.YEoh] - g.prc_ymin[r, p]),
-                        ]
-                        / g.coef_pvt[r, t],
+                    g.coef_cap[g.RtpCptyr[r, v, t, p]].where[g.ncap_cpx[r, v, p]] = (
+                        Sum(
+                            g.Periodyr[t, g.YEoh].where[
+                                g.yearval[g.YEoh] < g.prc_ymax[r, p]
+                            ],
+                            Min(1, g.prc_ymax[r, p] - g.yearval[g.YEoh])
+                            * g.obj_disc[r, g.YEoh, cur]
+                            * g.shape[
+                                j + (g.ncap_cpx[r, v, p] - 1),
+                                age + (g.yearval[g.YEoh] - g.prc_ymin[r, p]),
+                            ],
+                        )
+                        / g.coef_pvt[r, t]
                     )
 
             # For repeated investments, use the average SHAPE over lifetime:
@@ -219,7 +221,7 @@ class CoefShpMod(GamsClass):
             ) / (g.rvprl[r, v, p] + 1)
             g.coef_cap[g.RtpCptyr[r, v, t, p]].where[g.ncap_cpx[r, v, p]] = (
                 1 / Max(1, g.coef_cpt[r, v, t, p] / g.coef_cap[r, v, t, p])
-            ).where[g.coef_cap[r, v, t, p] - 1]
+            ).where[g.coef_cap[r, v, t, p]] - 1
 
         g.coef_cpt[r, v, t, p].where[g.coef_cap[r, v, t, p]] = g.coef_cpt[
             r, v, t, p

@@ -273,26 +273,35 @@ class PrepretDsc(GamsClass):
         g = self.tc
         r, t, p, v, Modlyear = g.r, g.t, g.p, g.v, g.Modlyear
 
+        vart_id, vart_set = self.env.vart_GP
         sws = self.env.sws_GP
-        vart_scap = g.get_variable(name=f"{self.env.vart}_SCAP")
+        VART_SCAP = g.get_variable(name=f"{vart_id}_SCAP")
 
         self.env.set_global(
             "rcapsub",
             rf"-SUM(VNRET(V,T),{self.env.vart}_SCAP(R,V,T,P{self.env.sws}))$PRC_RCAP(R,P)",
         )
+
+        shared_vart_scap = VART_SCAP[r, v, t, p, *sws]
+        VART_SCAP_expr = (
+            shared_vart_scap if vart_set is None else Sum(vart_set, shared_vart_scap)
+        )
         self.env.set_global(
             "rcapsub_GP",
-            -Sum(g.Vnret[v, t], vart_scap[r, v, t, p, *sws]).where[g.PrcRcap[r, p]],
+            -Sum(g.Vnret[v, t], VART_SCAP_expr).where[g.PrcRcap[r, p]],
         )
         self.env.set_global(
             "rcapsbm",
             rf"-SUM(VNRET(MODLYEAR,T),{self.env.vart}_SCAP(R,MODLYEAR,T,P{self.env.sws}))$PRC_RCAP(R,P)",
         )
+
+        shared_vart_scap = VART_SCAP[r, Modlyear, t, p, *sws]
+        VART_SCAP_expr = (
+            shared_vart_scap if vart_set is None else Sum(vart_set, shared_vart_scap)
+        )
         self.env.set_global(
             "rcapsbm_GP",
-            -Sum(g.Vnret[Modlyear, t], vart_scap[r, Modlyear, t, p, *sws]).where[
-                g.PrcRcap[r, p]
-            ],
+            -Sum(g.Vnret[Modlyear, t], VART_SCAP_expr).where[g.PrcRcap[r, p]],
         )
 
         # Equations

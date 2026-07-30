@@ -60,6 +60,13 @@ class BndmainMod(GamsClass):
     def compile(self) -> None:
         var = self.env.var
 
+        if self.arg2 == "0":
+            self.tc.add_gams_code(
+                module=self,
+                phase="init",
+                code=f"$CLEAR {var}_IRE {var}_UPS {var}_UDP {var}_UPT {var}_SCAP",
+            )
+
         self.tc.enqueue(
             self.exec_bndmain_mod,
             arg1=self.arg1,
@@ -182,9 +189,8 @@ def bndmain_mod(
     # is tranlated multiple times within the calls to other functions
     # this should be pulled into an assignment to swt when translating to GAMSPy
     # to have less code duplication and be more consistent with the original code
-    return rf"""
-{rf"$CLEAR {var}_IRE {var}_UPS {var}_UDP {var}_UPT {var}_SCAP" if arg2 == "0" else ""}
 
+    return rf"""
 *-----------------------------------------------------------------------------
 * elastic demands step curve
 *-----------------------------------------------------------------------------
