@@ -2713,5 +2713,9 @@ REGISTRY.update(
         "demos_012e_objann": derive_from(
             "demos_012e", run_name="demos_012e_objann", objann="YES"
         ),
+        # reaches: eqstgips.lin, eqstgaux.lin (eqmain.mod).
+        "demos_012e_objlin": derive_from(
+            "demos_012e", run_name="demos_012e_objlin", obj="LIN"
+        ),
     }
 )
