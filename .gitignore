@@ -3,6 +3,7 @@ __pycache__
 .coverage
 *.gsp
 *.log*
+*.LOG
 *.lst
 *.ref
 *.lxi

@@ -1,5 +1,6 @@
 # run_registry.py
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -2689,3 +2690,24 @@ REGISTRY: dict[str, RunConfig] = {
         ],
     ),
 }
+
+
+def derive_from(base: str, run_name: str, **env_overrides: Any) -> RunConfig:
+    """Build a config-variant instance from an existing one.
+
+    Shares the base instance's data directory and module list verbatim and only
+    flips compile-time switches.
+    """
+    source = REGISTRY[base]
+    env = source.env_vars.model_copy(update=env_overrides, deep=True)
+    return source.model_copy(update={"run_name": run_name, "env_vars": env}, deep=True)
+
+
+REGISTRY.update(
+    {
+        # reaches: dumpsol.mod, dumpsol1.mod, dumpsolv.mod
+        "demos_012e_dumpsol": derive_from(
+            "demos_012e", run_name="demos_012e_dumpsol", dumpsol="YES"
+        )
+    }
+)

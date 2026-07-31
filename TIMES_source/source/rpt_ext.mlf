@@ -16,7 +16,7 @@ $ IFI %NONLP%==NL $SET METHOD NLP
   DOITER=1-INF$(DOITER=NA);
 
 *sol_flo and sol_ire don't use timesed
-  $   SET TIMESED NO
+$   SET TIMESED NO
   LOOP(NITER$DOITER,
 *   Perform Negishi iterations with tax rebate
 *-----------------------------------------------------------------------
