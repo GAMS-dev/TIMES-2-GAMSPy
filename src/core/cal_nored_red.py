@@ -16,6 +16,113 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal
+
+from gamspy import Domain, Number, Sum
+
+if TYPE_CHECKING:
+    from gamspy import Alias, Set, Variable
+    from gamspy._algebra.condition import Condition
+    from gamspy._algebra.expression import Expression
+    from gamspy._symbols.implicits import (
+        ImplicitParameter,
+        ImplicitSet,
+        ImplicitVariable,
+    )
+    from gamspy.math import MathOp
+
+    from utils.times_model_class import TimesModelClass
+
+
+@dataclass
+class CalNoredRedConfig:
+    """Strongly typed data contract for cal_red_red."""
+
+    var: str
+    sow: tuple[Literal["0", "1"] | Set | Alias, ...] | tuple[()]
+    pgprim: str
+    def_rtp_ffcs: bool
+    arg1: Set | Alias
+    arg2: Set | Alias
+    arg3: Set | Alias
+    arg4: Set | Alias
+    arg5: Set | Alias
+    is_output: bool = False  # old arg6
+    arg7: Literal["T", "V", ""] = ""
+    # arg8 not needed anymore since it conatint the "SUM" corresponding to the domain in arg9
+    index_set: ImplicitSet | None = None  # old arg9
+    arg10: Condition | Expression | ImplicitParameter | MathOp | None = (
+        None  # multiplier or empty
+    )
+
+
+def cal_nored_red_GP(
+    g: TimesModelClass, config: CalNoredRedConfig
+) -> Condition | Expression | ImplicitSet | Sum:
+    """GAMSPy counterpart of cal_nored_red().
+
+    arg6 selects the '.L' suffix, arg9 the optional SUM domain (arg8 of the string
+    version) and arg10 the optional multiplier.
+    """
+    cc = config
+
+    r, v, allts, cg3, com2 = g.r, g.v, g.allts, g.cg3, g.com2
+
+    shp3: Expression | Number = Number(1)
+    vnt: Set | Alias = cc.arg5 if cc.arg7 == "T" else v
+    shg = (cc.arg4, cg3, cc.arg1)
+    tst: ImplicitSet | Number = g.PrcVint[r, cc.arg4]
+
+    if cc.arg7 == "V":
+        tst = Number(1)
+
+    if cc.arg7 != "T":
+        vnt = v
+
+    if cc.def_rtp_ffcs:
+        shp3 = 1 + g.rtp_ffcs[r, vnt, *shg, *cc.sow]
+
+    if vnt is v:
+        shp3 = (1 + g.rtp_ffcx[r, v, cc.arg5, *shg].where[tst]) * shp3
+
+    def mul(
+        expr: Expression | ImplicitParameter | ImplicitVariable,
+        factor: Condition | Expression | ImplicitParameter | MathOp | Number | None,
+    ) -> Expression | ImplicitParameter | ImplicitVariable:
+        return expr if factor is None else expr * factor
+
+    def total(
+        expr: Condition | Expression | ImplicitSet,
+    ) -> Condition | Expression | ImplicitSet | Sum:
+        """arg8/arg9 of the string version: SUM(arg9, expr) or just expr."""
+        # NB: gamspy's Sum() type hint omits Condition, which GAMS accepts
+        return expr if cc.index_set is None else Sum(cc.index_set, expr)  # type: ignore[arg-type]
+
+    VAR_FLO: Variable = g.get_variable(f"{cc.var}_FLO")
+    flo = VAR_FLO.l if cc.is_output else VAR_FLO
+
+    return total(
+        # *  flow variable cannot be replaced
+        flo[r, vnt, cc.arg5, cc.arg4, cc.arg1, cc.arg3, *cc.sow].where[
+            ~g.RpcEmis[r, cc.arg4, cc.arg1]
+        ]
+        # *   emission flow = flow variable * emission factor
+        + Sum(
+            Domain(g.FsEmit[r, cc.arg4, cc.arg1, cg3, com2], allts).where[
+                g.rs_fr[r, cc.arg3, allts]
+                * g.RtpcsVarf[r, cc.arg5, cc.arg4, com2, allts]
+            ],
+            mul(
+                flo[r, vnt, cc.arg5, cc.arg4, com2, allts, *cc.sow]
+                * g.coef_ptran[r, vnt, cc.arg4, cg3, com2, cc.arg1, allts],
+                shp3,
+            )
+            * g.rs_fr[r, cc.arg3, allts]
+            * (1 + g.rtcs_fr[r, cc.arg5, com2, cc.arg3, allts]),
+        ).where[g.RpcEmis[r, cc.arg4, cc.arg1]]
+    )
+
 
 def cal_nored_red(
     var: str,
