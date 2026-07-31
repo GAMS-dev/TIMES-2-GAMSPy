@@ -130,12 +130,17 @@ if __name__ == "__main__":
         choices=REGISTRY.keys(),
         help="Name of the run instance to execute",
     )
+    parser.add_argument(
+        "--skip-solve",
+        action="store_false",
+        help="Skip solve and use savepoint file.",
+    )
     args = parser.parse_args()
 
     run_config: RunConfig = REGISTRY[args.run]
 
     start = time.time()
-    result = run_times(config=run_config)
+    result = run_times(config=run_config, solve=args.skip_solve)
     gamspy_time = time.time() - start
 
     print(f"GAMSPy Performance: {gamspy_time}s")

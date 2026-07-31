@@ -269,11 +269,28 @@ def solve_mod(
     if method == "P":
         method = "LP"
 
-    solve_stmt = (
-        "SOLVE " + model_name + " MAXIMIZING VAR_UTIL USING " + method + ";"
-        if macro.upper() == "YES"
-        else f"* solve TIMES as an LP/MIP\nSOLVE {model_name} MINIMIZING objZ USING {method};"
-    )
+    if macro.upper() == "YES":
+        solve_stmt = (
+            "SOLVE " + model_name + " MAXIMIZING VAR_UTIL USING " + method + ";"
+        )
+
+    else:
+        if g.solve:
+            solve_stmt = f"""
+* solve TIMES as an LP/MIP
+SOLVE {model_name} MINIMIZING objZ USING {method};
+"""
+        else:
+            savepoint_path = Path(g.config.data_dir, "times_p2.gdx").absolute()
+            modelstat_path = Path(g.config.data_dir, "times_modelstat.inc").absolute()
+            solve_stmt = f"""
+* generate model but do not pass it to the solver
+  {model_name}.JustScrDir=1;
+  SOLVE {model_name} MINIMIZING objZ USING {method};
+* load solution file and fake modelstatus from "real" solve
+  execute_loadpoint '{savepoint_path}';
+  $$include {modelstat_path}
+"""
 
     return rf"""
 * Release some memory
