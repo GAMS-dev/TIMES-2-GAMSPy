@@ -49,7 +49,7 @@ class DumpsolMod(GamsClass):
         # TODO: we need a new phase after solving the model for reporting
         self.tc.enqueue(self.exec_begin_dump)
 
-        self.env.set_scoped("no_empty", self.arg2)
+        self.env.set_scoped("no_emty", self.arg2)
 
         self.include(
             Dumpsol1Mod(

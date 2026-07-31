@@ -572,6 +572,10 @@ class EnvironmentVariableSchema(BaseModel):
     lpoint: str = Field(
         description="GAMS control variable used to pass the scenario reference path for loadpoint features."
     )
+    no_emty: str = Field(
+        default="%no_emty%",
+        description="Suppresses dump headers when a row is empty; passed to dumpsol.mod as %2.",
+    )
 
     swo: str
     send: str

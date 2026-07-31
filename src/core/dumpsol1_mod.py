@@ -118,22 +118,37 @@ def _symbol_text(symbol: Any) -> str:
     return getattr(symbol, "description", "")
 
 
+_SUFFIX_COLUMNS = {
+    "L": "level",
+    "M": "marginal",
+    "LO": "lower",
+    "UP": "upper",
+    "S": "scale",
+}
+
+
 def _value_column(symbol: Any, whtype: str | None = None) -> str:
-    if hasattr(symbol, "value") and not hasattr(symbol, "level"):
+    """Pick the records column holding the values to dump.
+
+    Decided from the columns actually present rather than by sniffing attributes
+    on the symbol: a Parameter's records carry ``value`` while a Variable's carry
+    ``level``/``marginal``, and ``hasattr(symbol, "value")`` does not reliably
+    tell the two apart. It also handles the whtypes that name no suffix at all --
+    dumpsol.mod calls ``dumpsol1.mod 'T' VARACT`` on a Parameter, which used to
+    map to "level" and raise KeyError.
+    """
+    records = getattr(symbol, "records", None)
+    columns = set(records.columns) if records is not None else set()
+
+    if whtype:
+        suffix = _SUFFIX_COLUMNS.get(whtype.upper())
+        if suffix is not None and suffix in columns:
+            return suffix
+
+    if "value" in columns:
         return "value"
 
-    if not whtype:
-        return "value"
-
-    mapping = {
-        "L": "level",
-        "M": "marginal",
-        "LO": "lower",
-        "UP": "upper",
-        "S": "scale",
-    }
-
-    return mapping.get(whtype.upper(), "level")
+    return _SUFFIX_COLUMNS.get((whtype or "").upper(), "level")
 
 
 def _format_value(value: Any) -> str:
@@ -178,8 +193,10 @@ def _write_parameter_1d(out: TextIO, symbol_name: str, symbol: Any) -> None:
         return
 
     out.write(f"\n{' ':9}PARAMETER{symbol_name:>10}'{_symbol_text(symbol):40}' /\n")
-    for _, row in rows.iterrows():
-        out.write(f"{' ':15}{row[row_col]!s:<29}{_format_value(row[value_col])}\n")
+    out.writelines(
+        f"{' ':15}{row[row_col]!s:<29}{_format_value(row[value_col])}\n"
+        for _, row in rows.iterrows()
+    )
     out.write(f"{'':69}/\n\n")
 
 
@@ -227,10 +244,10 @@ def _write_table(
         return
 
     cols = list(dict.fromkeys(active_records[col_col].astype(str).tolist()))
-    active_keys = set(
+    active_keys = {
         tuple(row[col] for col in [reg_col, *row_cols])
         for _, row in active_records.iterrows()
-    )
+    }
 
     if whtype in ("L", "M"):
         title = f"{whtype}: Solution Reference "
@@ -269,8 +286,7 @@ def _write_table(
 
 def _write_column_header(out: TextIO, cols: list[str], at: int) -> None:
     out.write(" " * at)
-    for col in cols[:19]:
-        out.write(f"{col:<11}")
+    out.writelines(f"{col:<11}" for col in cols[:19])
     out.write("\n")
 
 
