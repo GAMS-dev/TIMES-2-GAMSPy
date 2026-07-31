@@ -19,6 +19,180 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal
+
+from gamspy import Domain, Number, Sum
+
+if TYPE_CHECKING:
+    from gamspy import Alias, Set, Variable
+    from gamspy._algebra.condition import Condition
+    from gamspy._algebra.expression import Expression
+    from gamspy._symbols.implicits import (
+        ImplicitParameter,
+        ImplicitSet,
+        ImplicitVariable,
+    )
+    from gamspy.math import MathOp
+
+    from utils.times_model_class import TimesModelClass
+
+
+@dataclass
+class CalRedRedConfig:
+    """Strongly typed data contract for cal_red_red."""
+
+    var: str
+    sow: tuple[Literal["0", "1"] | Set | Alias, ...] | tuple[()]
+    pgprim: str
+    def_rtp_ffcs: bool
+    arg1: Set | Alias
+    arg2: Set | Alias
+    arg3: Set | Alias
+    arg4: Set | Alias
+    arg5: Set | Alias
+    is_output: bool = False  # old arg6
+    arg7: Literal["T", "V", ""] = ""
+    # arg8 not needed anymore since it conatint the "SUM" corresponding to the domain in arg9
+    index_set: ImplicitSet | None = None  # old arg9
+    arg10: Condition | Expression | ImplicitParameter | MathOp | None = (
+        None  # multiplier or empty
+    )
+
+
+def cal_red_red_GP(
+    g: TimesModelClass, config: CalRedRedConfig
+) -> Condition | Expression | ImplicitSet | Sum:
+    """GAMSPy counterpart of cal_red_red().
+
+    arg6 selects the '.L' suffix, arg9 the optional SUM domain (arg8 of the string
+    version) and arg10 the optional multiplier.
+    """
+    cc = config
+
+    r, v, allts, s2, cg1, com2 = g.r, g.v, g.allts, g.s2, g.cg1, g.com2
+
+    # shp needs to be multiplied later!
+    shp1: Number | Expression = Number(1)
+    shp2: Number | Expression = Number(1)
+    shp3: Number | Expression = Number(1)
+
+    vnt: Set | Alias = cc.arg5 if cc.arg7 == "T" else v
+
+    # needs to be used in .where[] !!
+    tst: Number | ImplicitSet = g.PrcVint[r, cc.arg4]
+
+    shg1 = (cc.arg4, cc.pgprim, com2)
+    shg2 = (cc.arg4, cc.pgprim, cc.arg1)
+    shg = (cc.arg4, cg1, cc.arg1)
+
+    if cc.def_rtp_ffcs:
+        shp1 = 1 + g.rtp_ffcs[r, vnt, *shg1, *cc.sow]
+        shp2 = 1 + g.rtp_ffcs[r, vnt, *shg2, *cc.sow]
+        shp3 = 1 + g.rtp_ffcs[r, vnt, *shg, *cc.sow]
+
+    if cc.arg7 == "V":
+        tst = Number(1)
+
+    if cc.arg7 != "T":
+        shp1 = (1 + g.rtp_ffcx[r, v, cc.arg5, *shg1].where[tst]) * shp1
+        shp2 = (1 + g.rtp_ffcx[r, v, cc.arg5, *shg2].where[tst]) * shp2
+        shp3 = (1 + g.rtp_ffcx[r, v, cc.arg5, *shg].where[tst]) * shp3
+
+    def mul(
+        expr: Expression | ImplicitParameter | ImplicitVariable,
+        factor: Condition | Expression | ImplicitParameter | MathOp | Number | None,
+    ) -> Expression | ImplicitParameter | ImplicitVariable:
+        return expr if factor is None else expr * factor
+
+    def total(
+        expr: Expression | ImplicitParameter | ImplicitVariable,
+    ) -> Expression | ImplicitParameter | ImplicitVariable | Sum:
+        """arg8/arg9 of the string version: SUM(arg9, expr) or just expr."""
+        return expr if cc.index_set is None else Sum(cc.index_set, expr)
+
+    VAR_FLO: Variable = g.get_variable(f"{cc.var}_FLO")
+    VAR_ACT: Variable = g.get_variable(f"{cc.var}_ACT")
+    flo = VAR_FLO.l if cc.is_output else VAR_FLO
+    act = VAR_ACT.l if cc.is_output else VAR_ACT
+
+    # *  flow variable cannot be replaced
+    flow_term = total(
+        mul(flo[r, vnt, cc.arg5, cc.arg4, cc.arg1, cc.arg3, *cc.sow], cc.arg10)
+    ).where[~g.RpcEmis[r, cc.arg4, cc.arg1]]
+
+    # *   emission flow = flow variable * emission factor
+    traded = (
+        flo[r, vnt, cc.arg5, cc.arg4, com2, allts, *cc.sow].where[
+            # NB: in GAMS `not` binds looser than `+`, so NOT A+B means NOT (A+B)
+            ~(g.RpcAct[r, cc.arg4, com2] + g.RpcFfunc[r, cc.arg4, com2])
+        ]
+        + (
+            act[r, vnt, cc.arg5, cc.arg4, allts, *cc.sow]
+            * g.prc_actflo[r, vnt, cc.arg4, com2]
+        ).where[g.RpcAct[r, cc.arg4, com2]]
+        + Sum(
+            Domain(g.RpcAct[r, cc.arg4, cc.arg2], g.PrcTs2[r, cc.arg4, s2]).where[
+                g.rs_fr[r, allts, s2]
+            ],
+            mul(
+                act[r, vnt, cc.arg5, cc.arg4, s2, *cc.sow]
+                * g.act_flo[r, vnt, cc.arg4, com2, allts],
+                shp1,
+            )
+            * g.rs_fr[r, allts, s2]
+            * (1 + g.rtcs_fr[r, cc.arg5, cc.arg2, allts, s2]),
+        ).where[g.RpcFfunc[r, cc.arg4, com2]]
+    )
+    emis_term = Sum(
+        Domain(g.FsEmit[r, cc.arg4, cc.arg1, cg1, com2], allts).where[
+            g.RtpcsVarf[r, cc.arg5, cc.arg4, com2, allts] & g.rs_fr[r, cc.arg3, allts]
+        ],
+        total(
+            mul(
+                mul(
+                    traded * g.coef_ptran[r, vnt, cc.arg4, cg1, com2, cc.arg1, allts],
+                    shp3,
+                ),
+                cc.arg10,
+            )
+        )
+        * g.rs_fr[r, cc.arg3, allts]
+        * (1 + g.rtcs_fr[r, cc.arg5, com2, cc.arg3, allts]),
+    ).where[g.RpcEmis[r, cc.arg4, cc.arg1]]
+
+    # *  flow variable equals activity variable
+    act_term = total(
+        mul(
+            act[r, vnt, cc.arg5, cc.arg4, cc.arg3, *cc.sow]
+            * g.prc_actflo[r, vnt, cc.arg4, cc.arg1],
+            cc.arg10,
+        )
+    ).where[g.RpcAct[r, cc.arg4, cc.arg1]]
+
+    ffunc_term = Sum(
+        Domain(g.RpcAct[r, cc.arg4, cc.arg2], g.PrcTs2[r, cc.arg4, s2]).where[
+            g.rs_fr[r, cc.arg3, s2]
+        ],
+        total(
+            mul(
+                mul(act[r, vnt, cc.arg5, cc.arg4, s2, *cc.sow], cc.arg10)
+                * g.act_flo[r, vnt, cc.arg4, cc.arg1, cc.arg3],
+                shp2,
+            )
+        )
+        * g.rs_fr[r, cc.arg3, s2]
+        * (1 + g.rtcs_fr[r, cc.arg5, cc.arg2, cc.arg3, s2]),
+    ).where[g.RpcFfunc[r, cc.arg4, cc.arg1]]
+
+    return (
+        (flow_term + emis_term).where[
+            ~(g.RpcAct[r, cc.arg4, cc.arg1] + g.RpcFfunc[r, cc.arg4, cc.arg1])
+        ]
+        + act_term
+        + ffunc_term
+    )
+
 
 def cal_red_red(
     var: str,
