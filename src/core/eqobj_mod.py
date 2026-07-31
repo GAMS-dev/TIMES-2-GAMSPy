@@ -120,7 +120,7 @@ class EqobjMod(GamsClass):
             self.env.set_scoped("varcost", "LIN")
 
         if self.arg1.upper() == "MOD":
-            self.include(EqobjvarMod(self.tc, self.env, arg1=self.arg1))
+            self.include(EqobjvarMod(self.tc, self.env))
         elif self.arg1.upper() == "RPT":
             self.include(EqobjvarRpt(self.tc, self.env, arg1=self.arg1))
 
@@ -132,7 +132,7 @@ class EqobjMod(GamsClass):
 
         # Annualized objective formulation
         if self.env.objann.upper() == "YES":
-            self.include(EqobjannTm(self.tc, self.env, arg1=self.arg1))
+            self.include(EqobjannTm(self.tc, self.env))
 
         # Actual OBJ
         is_stages = self.env.stages.upper() == "YES"

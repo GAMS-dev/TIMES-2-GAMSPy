@@ -198,9 +198,12 @@ class RptliteRpt(GamsClass):
         g.par_objcap = Parameter(m, name="PAR_OBJCAP", domain=[r, allyear, p, cur])
         g.par_xpri = Parameter(m, name="PAR_XPRI", domain=[r, t, p, c, ts, reg, com])
         g.coef_objinv = Parameter(m, name="COEF_OBJINV", domain=[r, allyear, prc])
-        g.coef_obinv = Parameter(m, name="COEF_OBINV", domain=[r, allyear, p, cur])
-        g.coef_obfix = Parameter(m, name="COEF_OBFIX", domain=[r, allyear, p, cur])
-        g.coef_crf = Parameter(m, name="COEF_CRF", domain=[r, allyear, p, cur])
+        if not g.declared(g.coef_obinv):
+            g.coef_obinv = Parameter(m, name="COEF_OBINV", domain=[r, allyear, p, cur])
+        if not g.declared(g.coef_obfix):
+            g.coef_obfix = Parameter(m, name="COEF_OBFIX", domain=[r, allyear, p, cur])
+        if not g.declared(g.coef_crf):
+            g.coef_crf = Parameter(m, name="COEF_CRF", domain=[r, allyear, p, cur])
         g.var_ncaprng = Parameter(m, name="VAR_NCAPRNG", domain=[r, allyear, p, bd])
         g.cstvnt = Parameter(m, name="CSTVNT", domain=[j, r, ll, year, p, sysuc])
         g.cstvpj = Parameter(m, name="CSTVPJ", domain=[r, ll, p, j, sysuc, year])
