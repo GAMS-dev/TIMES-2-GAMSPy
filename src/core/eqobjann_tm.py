@@ -12,6 +12,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter
+
 from core.base_class import GamsClass
 from core.eqobjcst_tm import EqobjcstTm
 from utils.macros import macro_config as macro
@@ -45,19 +47,26 @@ class EqobjannTm(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
+
         if self.tc.defined(f"COEF_OBINV{self.arg1}"):
             self._label_coef()
             return
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-  PARAMETER COEF_OBINV{self.arg1}(R,YEAR,P,CUR) //;
-  PARAMETER COEF_OBFIX{self.arg1}(R,YEAR,P,CUR) //;
-  PARAMETER COEF_CRF(R,ALLYEAR,P,CUR) //;
-""",
+        g.set_parameter(
+            name=f"COEF_OBINV{self.arg1}",
+            parameter=Parameter(
+                m, name=f"COEF_OBINV{self.arg1}", domain=[g.r, g.year, g.p, g.cur]
+            ),
         )
+        g.set_parameter(
+            name=f"COEF_OBFIX{self.arg1}",
+            parameter=Parameter(
+                m, name=f"COEF_OBFIX{self.arg1}", domain=[g.r, g.year, g.p, g.cur]
+            ),
+        )
+        g.coef_crf = Parameter(m, name="COEF_CRF", domain=[g.r, g.allyear, g.p, g.cur])
 
         if self.arg1 == "N":
             self._label_coef()
@@ -86,7 +95,15 @@ SET OBVANN(OBV) / OBJINV, OBJFIX, OBJVAR /;
 """,
         )
 
-        self.tc.enqueue(self.exec2)
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=rf"""
+  EQ_OBJANN(OBVANN,RDCUR(R,CUR))..
+  VAR_OBJ(R,OBVANN,CUR) =E=  SUM(T, OBJ_PVT(R,T,CUR) * VAR_ANNCST(OBVANN,R,T,CUR))
+  {"+ SUM(OBJ_SUMS(R,V,P)$RVPRL(R,V,P),OBJSCC(R,V,P,CUR)*OBJ_DCEOH(R,CUR)*(VAR_NCAP(R,V,P)$T(V)+NCAP_PASTI(R,V,P)-VAR_SCAP(R,V,'0',P)))$DIAG(OBVANN,'OBJINV')" if g.defined(g.Vnret) else ""}
+ ; """,
+        )
 
         self.include(EqobjcstTm(self.tc, self.env))
 
@@ -101,24 +118,12 @@ SUM_OBJ(OBV('OBJSAL'),OBV)  =  0;
 """,
         )
 
-    def exec2(self) -> None:
-        equation = """
-  EQ_OBJANN(OBVANN,RDCUR(R,CUR))..
-  VAR_OBJ(R,OBVANN,CUR) =E=  SUM(T, OBJ_PVT(R,T,CUR) * VAR_ANNCST(OBVANN,R,T,CUR))
-  """
-        if self.tc.defined("VNRET"):
-            equation += """
-  + SUM(OBJ_SUMS(R,V,P)$RVPRL(R,V,P),OBJSCC(R,V,P,CUR)*OBJ_DCEOH(R,CUR)*(VAR_NCAP(R,V,P)$T(V)+NCAP_PASTI(R,V,P)-VAR_SCAP(R,V,'0',P)))$DIAG(OBVANN,'OBJINV')
-"""
-        equation += ";"
-        self.tc.add_gams_code(module=self, phase="run", code=equation)
-
     def exec3(self, arg1: str, capjd: str, arg2: str, anncost: str, capwd: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"""
- Calculate coefficients for annualized costs
+* Calculate coefficients for annualized costs
 * Investment costs: Commissioning years
   OPTION CLEAR=OBJ_SUMSI;
   FIL2(V) = B(V)-YEARVAL(V);

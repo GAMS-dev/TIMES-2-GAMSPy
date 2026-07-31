@@ -2708,6 +2708,10 @@ REGISTRY.update(
         # reaches: dumpsol.mod, dumpsol1.mod, dumpsolv.mod
         "demos_012e_dumpsol": derive_from(
             "demos_012e", run_name="demos_012e_dumpsol", dumpsol="YES"
-        )
+        ),
+        # reaches: eqobjann.tm, eqobjcst.tm
+        "demos_012e_objann": derive_from(
+            "demos_012e", run_name="demos_012e_objann", objann="YES"
+        ),
     }
 )

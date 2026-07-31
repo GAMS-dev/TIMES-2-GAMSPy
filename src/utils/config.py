@@ -618,6 +618,7 @@ class UserConfig(BaseModel):
     obj: Literal["ALT", "MOD", "LIN", "STD", "AUTO"] = "AUTO"
     mid_year: Literal["YES", "%mid_year%"] = "%mid_year%"
     oblong: Literal["YES", "NO", "%oblong%"] = "%oblong%"
+    objann: Literal["YES", "NO", "%objann%"] = "%objann%"
     damage: Literal["LP", "NLP", "NO"] = "LP"
     stages: Literal["YES", "Yes", "NO", "%stages%"] = "%stages%"
     solveda: Literal["YES", "1", "%solveda%"] = "%solveda%"

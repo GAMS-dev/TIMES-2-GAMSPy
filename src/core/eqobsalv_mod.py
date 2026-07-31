@@ -124,7 +124,7 @@ class EqobsalvMod(GamsClass):
         varv: str,
         var: str,
     ) -> None:
-        if arg2 == "EXIT":
+        if arg2.upper() == "EXIT":
             return
 
         self.generate_salvage_equation(eq, sow, vart, validate, etl, sws, varv, var)

@@ -98,7 +98,7 @@ def core_equations(
 
     # MACRO calibration
     if objann.upper() == "YES":
-        equations.extend(["EQ_OBJANN, EQ_ANNFIX, EQ_ANNINV, EQ_ANNVAR"])
+        equations.extend(["EQ_OBJANN", "EQ_ANNFIX", "EQ_ANNINV", "EQ_ANNVAR"])
 
     # Relationship between process activity & individual commodity flows
     equations.append(f"{eq}_ACTFLO")

@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 
 from core.base_class import GamsClass
 from core.eqdamage_mod import eq_damage_mod
-from core.eqobjvar_mod import eqobjvar_mod
+from core.eqobjvar_mod import EqobjvarMod
 from core.prepret_dsc import objfix
 
 if TYPE_CHECKING:
@@ -54,7 +54,7 @@ class EqobjcstTm(GamsClass):
     def investment_equation(self) -> None:
         self.tc.add_gams_code(
             module=self,
-            phase="run",
+            phase="init",
             code="""
 *===============================================================================
 * Generate Investment equation summing over all active indexes by region and currency
@@ -76,7 +76,7 @@ class EqobjcstTm(GamsClass):
     def fixed_cost_equation(self) -> None:
         self.tc.add_gams_code(
             module=self,
-            phase="run",
+            phase="init",
             code=rf"""
 *===============================================================================
 * Generate Fixed Cost equation summing over all active indexes by region and currency
@@ -102,6 +102,7 @@ class EqobjcstTm(GamsClass):
         )
 
     def variable_cost_equation(self: EqobjcstTm) -> None:
+        eq_obj_var_mod = EqobjvarMod(tc=self.tc, env=self.env, included=True)
         equation = rf"""
 *===============================================================================
 * Generate Variable cost equation summing over all active indexes by region and currency
@@ -109,25 +110,7 @@ class EqobjcstTm(GamsClass):
 
    EQ_ANNVAR(R,T,CUR)$RDCUR(R,CUR) ..
 
-{
-            eqobjvar_mod(
-                swtd=self.env.swtd,
-                tpulse=self.env.tpulse,
-                var=self.env.var,
-                sow=self.env.sow,
-                pgprim=self.env.pgprim,
-                vart=self.env.vart,
-                sws=self.env.sws,
-                mx=self.env.mx,
-                condition1=self.env.stages.upper() == "YES",
-                condition2=self.env.stages == "YES",
-                is_vnret_defined=self.tc.defined("VNRET"),
-                is_def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
-                varv=self.env.varv,
-                varm=self.env.varm,
-                cal_red=self.env.cal_red,
-            )
-        }
+{eq_obj_var_mod.compile_result}
 
    OBJ_PVT(R,T,CUR) * VAR_ANNCST('OBJVAR',R,T,CUR)
 """

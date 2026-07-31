@@ -160,6 +160,9 @@ class EqobjinvMod(GamsClass):
         self.tc.enqueue(self._label_clrs)
         # $LABEL EQUA %2
 
+        if self.arg2.upper() == "EXIT":
+            return
+
         self.tc.add_gams_code(
             module=self,
             phase="init",
