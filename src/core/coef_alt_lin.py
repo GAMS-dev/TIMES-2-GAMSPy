@@ -12,6 +12,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter, Set
+
 from core.base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -43,7 +45,27 @@ class CoefAltLin(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
+
         if not self.tc.defined("TPULSE"):
+            g.Perdinv = Set(m, name="PERDINV", domain=[g.allyear, g.allyear])
+            g.Tpulseyr = Set(m, name="TPULSEYR", domain=[g.t, g.allyear])
+            g.tpulse = Parameter(m, name="TPULSE", domain=[g.allyear, g.allyear])
+            g.obj_lint = Parameter(
+                m, name="OBJ_LINT", domain=[g.r, g.t, g.allyear, g.cur]
+            )
+            g.obj_altv = Parameter(m, name="OBJ_ALTV", domain=[g.r, g.t])
+            g.rtp_capvl = Parameter(m, name="RTP_CAPVL", domain=[g.r, g.year, g.p])
+            g.rb = Parameter(m, name="RB", domain=[g.r, g.t])
+            g.r_df = Parameter(m, name="R_DF", domain=[g.r, g.allyear])
+            g.obj_wd = Parameter(
+                m, name="OBJ_WD", domain=[g.Reg, g.cur, g.allyear, g.age, g.allyear]
+            )
+            g.obj_jd = Parameter(
+                m, name="OBJ_JD", domain=[g.Reg, g.cur, g.allyear, g.age]
+            )
+
             self.tc.add_gams_code(
                 module=self,
                 phase="init",
