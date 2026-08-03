@@ -78,11 +78,11 @@ class SolsubtaAns(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.env.set_scoped("sow", "'1'")
-        self.env.set_scoped("sow_GP", "1")
+        self.env.set_scoped("sow", "1")
+        self.env.set_scoped("sow_GP", ("1",))
         if self.env.stages.upper() == "YES":
             self.env.set_scoped("sow", "SOW.TL")
-            # TODO: how to set sow_GP
+            raise NotImplementedError("sow GP not implemented")
 
         self.tc.enqueue(
             self.exec1,

@@ -158,7 +158,8 @@ class EqobjinvMod(GamsClass):
                 ctst=self.env.ctst,
             )
         self.tc.enqueue(self._label_clrs)
-        # $LABEL EQUA %2
+        if self.arg2.upper() == "EXIT":
+            return
 
         if self.arg2.upper() == "EXIT":
             return
