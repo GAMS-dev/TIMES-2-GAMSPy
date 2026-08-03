@@ -15,12 +15,76 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal
+
+from gamspy import Sum
 
 if TYPE_CHECKING:
-    pass
+    from gamspy import Alias, Parameter, Set, Variable
+    from gamspy._algebra.condition import Condition
+    from gamspy._algebra.expression import Expression
+    from gamspy._algebra.number import Number
+    from gamspy._symbols.implicits import ImplicitSet, ImplicitVariable
+
+    from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class CalCapModConfig:
+    """Strongly typed data contract for cal_cap_mod."""
+
+    varv: tuple[str, ImplicitSet | None]
+    sws: tuple[Set | Alias, ...] | tuple[()]
+    rcapsub: Condition | Expression | Number
+    arg1: Literal["IN", "OUT"]
+    arg2: Literal["I", "O"]
+    arg3: Condition | Expression | None = None
+    arg4: str = ""
+
+
+def cal_cap_mod_GP(
+    g: TimesModelClass, config: CalCapModConfig
+) -> Expression | ImplicitSet:
+    """GAMSPy counterpart of cal_cap_mod().
+
+    arg3 is the cost expression for EQOBJVAR and arg4 a suffix of the NCAP variable.
+    """
+    cc = config
+    r, v, t, p, c, s = g.r, g.v, g.t, g.p, g.c, g.s
+    varv_id, varv_set = cc.varv
+    VARV_NCAP: Variable = g.get_variable(f"{varv_id}_NCAP{cc.arg4}")
+    coef_com: Parameter = g.get_parameter(f"COEF_{cc.arg2}COM")
+
+    def mul(
+        expr: Expression | ImplicitSet, factor: Condition | Expression | None
+    ) -> Expression | ImplicitSet:
+        return expr if factor is None else factor * expr
+
+    def capacity(with_rcapsub: bool) -> Expression | ImplicitSet:
+        ncap: ImplicitVariable | Sum = VARV_NCAP[r, v, p, *cc.sws]
+        if varv_set is not None:
+            ncap = Sum(varv_set, ncap)
+        installed = ncap.where[g.t[v]] + g.ncap_pasti[r, v, p].where[g.Pastyear[v]]
+        return installed + cc.rcapsub if with_rcapsub else installed
+
+    return Sum(
+        g.RtpCptyr[r, v, t, p].where[g.ncap_com[r, v, p, c, cc.arg1]],
+        # *V05b 980902 - need to apply seasonal fraction
+        g.coef_cpt[r, v, t, p]
+        * g.ncap_com[r, v, p, c, cc.arg1]
+        * g.g_yrfr[r, s]
+        * mul(capacity(with_rcapsub=True), cc.arg3)
+        # * Adjust for lagged commodity flows
+        * (1 + g.coef_cio[r, v, t, p, c, cc.arg1]),
+        # * CAL_NCOM: the term associated with invest/decommission commodities in the EQ_COMxxx
+    ) + Sum(
+        g.RpcCapflo[r, v, p, c].where[coef_com[r, v, t, p, c]],
+        coef_com[r, v, t, p, c]
+        * mul(g.g_yrfr[r, s] * capacity(with_rcapsub=False), cc.arg3),
+    )
 
 
 def cal_cap_mod(
