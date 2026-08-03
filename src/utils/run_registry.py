@@ -2721,5 +2721,9 @@ REGISTRY.update(
         "demos_007b_micro": derive_from(
             "demos_007b", run_name="demos_007b_micro", micro="YES"
         ),
+        # reaches: solputta.ans, solsubta.ans -- the ANSWER-shell report writer
+        "demos_012e_solans": derive_from(
+            "demos_012e", run_name="demos_012e_solans", solans="YES"
+        ),
     }
 )

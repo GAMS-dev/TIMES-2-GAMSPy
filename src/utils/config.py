@@ -572,10 +572,14 @@ class EnvironmentVariableSchema(BaseModel):
     lpoint: str = Field(
         description="GAMS control variable used to pass the scenario reference path for loadpoint features."
     )
+
     no_emty: str = Field(
         default="%no_emty%",
         description="Suppresses dump headers when a row is empty; passed to dumpsol.mod as %2.",
     )
+    item2: str = "%item2%"  # solputta_ans.py -- secondary ITEM loop token
+    flots: str = "%flots%"  # solputta_ans.py -- flow-level report selector
+    supzero: str = "%supzero%"  # solputta_ans.py -- zero-supply handling
 
     swo: str
     send: str
