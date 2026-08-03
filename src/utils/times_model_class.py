@@ -1721,6 +1721,13 @@ class TimesModelClass:
     rtp_safs: Parameter = None  # type: ignore[assignment] # RTP_SAFS
     rtcs_sfr: Parameter = None  # type: ignore[assignment] # RTCS_SFR
     rcs_ssfr: Parameter = None  # type: ignore[assignment] # RCS_SSFR
+    Rcgrid: Set = None  # type: ignore[assignment] # [r, t, c] RC_GRID:
+    GrAllmap: Set = None  # type: ignore[assignment] # [r, cg, Com] GR_ALLMAP:
+    GrPrcmap: Set = None  # type: ignore[assignment] # [r, p, c, item] GR_PRCMAP:
+    GrDemmap: Set = None  # type: ignore[assignment] # [r, c, Com] GR_DEMMAP:
+    GrAlgmap: Set = None  # type: ignore[assignment] # [r, cg, cg] GR_ALGMAP:
+    GrEndc: Set = None  # type: ignore[assignment] # [r, cg] GR_ENDC:
+    obj_combal: Parameter = None  # type: ignore[assignment] # [r, t, c, s, item, cur] OBJ_COMBAL:
 
     # endregion
 

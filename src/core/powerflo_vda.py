@@ -10,9 +10,9 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
-from gamspy import Equation, Variable
+from gamspy import Equation, Parameter, Sum, Variable
 
 from core.base_class import GamsClass
 from core.cal_red_red import cal_red_red
@@ -23,6 +23,10 @@ from core.pp_lvlfc_mod import PpLvlfcMod
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
+    from gamspy import Alias, Set
+    from gamspy._algebra.expression import Expression
+    from gamspy._symbols.implicits import ImplicitSet
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -809,6 +813,18 @@ $ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,'{pgprim}',s,ie{sow}
 """,
         )
 
+        g = self.tc
+        m = g.container
+        g.Rcgrid = Set(m, name="RC_GRID", domain=[g.r, g.t, g.c])
+        g.GrAllmap = Set(m, name="GR_ALLMAP", domain=[g.r, g.cg, g.Com])
+        g.GrPrcmap = Set(m, name="GR_PRCMAP", domain=[g.r, g.p, g.c, g.item])
+        g.GrDemmap = Set(m, name="GR_DEMMAP", domain=[g.r, g.c, g.Com])
+        g.GrAlgmap = Set(m, name="GR_ALGMAP", domain=[g.r, g.cg, g.cg])
+        g.GrEndc = Set(m, name="GR_ENDC", domain=[g.r, g.cg])
+        g.obj_combal = Parameter(
+            m, name="OBJ_COMBAL", domain=[g.r, g.t, g.c, g.s, g.item, g.cur]
+        )
+
     def exec6(self: PowerfloVda) -> None:
         self.tc.add_gams_code(
             module=self,
@@ -970,6 +986,48 @@ def powerflo_vda_ireaux(
 * For balance of grid node C
     SUM(GR_DEMMAP(R,C,COM), {mx}({var}_GRIDIO(R,T,COM,C,S,'IN'{sow})$GR_ALGMAP(R,'NRG',COM) - {var}_GRIDIO(R,T,COM,C,S,'OUT'{sow}))) +
 """
+
+
+def powerflo_vda_ireaux_GP(
+    g: TimesModelClass,
+    arg1: str = "",
+    arg2: str = "",
+    arg3: str = "",
+    var: str = "",
+    sow: tuple[Literal["0", "1"] | Set | Alias, ...] | tuple[()] = (),
+) -> Expression | ImplicitSet | int:
+    """GAMSPy counterpart of powerflo_vda_ireaux(). Returns 0 outside the two labels."""
+    target_label = f"{arg1}{arg2}{arg3}".strip().upper()
+
+    if target_label not in ["IREAUXIN", "IREAUXOUT-"]:
+        return 0
+
+    r, t, c, s, Com = g.r, g.t, g.c, g.s, g.Com
+    VAR_GRIDIO: Variable = g.get_variable(f"{var}_GRIDIO")
+
+    # arg3 is "-" for IREAUXOUT-, i.e. the terms are negated
+    def mx(expr: Expression | ImplicitSet) -> Expression | ImplicitSet:
+        if target_label == "IREAUXIN":
+            return g.com_ie[r, t, c, s] * expr
+        return -expr
+
+    # * For balance of C (and grid nodes COM)
+    balance_c = Sum(
+        g.GrDemmap[r, Com, c],
+        mx(
+            VAR_GRIDIO[r, t, c, Com, s, "OUT", *sow]
+            - VAR_GRIDIO[r, t, c, Com, s, "IN", *sow].where[g.GrAlgmap[r, "NRG", c]]
+        ),
+    )
+    # * For balance of grid node C
+    balance_node = Sum(
+        g.GrDemmap[r, c, Com],
+        mx(
+            VAR_GRIDIO[r, t, Com, c, s, "IN", *sow].where[g.GrAlgmap[r, "NRG", Com]]
+            - VAR_GRIDIO[r, t, Com, c, s, "OUT", *sow]
+        ),
+    )
+    return balance_c + balance_node
 
 
 def powerflo_vda_rptb(
