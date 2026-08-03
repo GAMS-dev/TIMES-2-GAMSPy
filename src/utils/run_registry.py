@@ -2717,5 +2717,9 @@ REGISTRY.update(
         "demos_012e_objlin": derive_from(
             "demos_012e", run_name="demos_012e_objlin", obj="LIN"
         ),
+        # reaches: pp_micro.mod, eqobjels.mod, readbprice.mod, bnd_elas.mod.
+        "demos_007b_micro": derive_from(
+            "demos_007b", run_name="demos_007b_micro", micro="YES"
+        ),
     }
 )
