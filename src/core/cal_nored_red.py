@@ -16,45 +16,24 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from gamspy import Domain, Number, Sum
+
+from core.cal_red_red import CalRedRedConfig
 
 if TYPE_CHECKING:
     from gamspy import Alias, Set, Variable
     from gamspy._algebra.condition import Condition
     from gamspy._algebra.expression import Expression
-    from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
-    from gamspy.math import MathOp
+    from gamspy._symbols.implicits import ImplicitSet
 
     from utils.times_model_class import TimesModelClass
 
 
-@dataclass
-class CalNoredRedConfig:
-    """Strongly typed data contract for cal_nored_red."""
-
-    var: str
-    sow: tuple[Literal["0", "1"] | Set | Alias, ...] | tuple[()]
-    pgprim: str
-    def_rtp_ffcs: bool
-    arg1: Set | Alias
-    arg2: Set | Alias
-    arg3: Set | Alias
-    arg4: Set | Alias
-    arg5: Set | Alias
-    arg10: (
-        Condition | Expression | ImplicitParameter | MathOp | Number
-    )  # multiplier or empty
-    is_output: bool = False  # old arg6
-    arg7: Literal["T", "V", ""] = ""
-    # arg8 not needed anymore since it conatint the "SUM" corresponding to the domain in arg9
-    index_set: ImplicitSet | None = None  # old arg9
-
-
+# Use same config as in cal_red_red to make it easier to switch
 def cal_nored_red_GP(
-    g: TimesModelClass, config: CalNoredRedConfig
+    g: TimesModelClass, config: CalRedRedConfig
 ) -> Condition | Expression | ImplicitSet | Sum:
     """GAMSPy counterpart of cal_nored_red().
 

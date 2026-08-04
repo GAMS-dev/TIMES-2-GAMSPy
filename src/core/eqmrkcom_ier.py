@@ -18,15 +18,24 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
+
+from gamspy import Number, Sum
 
 from core.base_class import GamsClass
-from core.cal_cap_mod import cal_cap_mod
-from core.cal_fflo_mod import cal_fflo_mod
-from core.cal_ire_mod import cal_ire_mod
-from core.cal_stgn_mod import cal_stgn_mod
+from core.cal_cap_mod import CalCapModConfig, cal_cap_mod_GP
+from core.cal_fflo_mod import CalFfloModConfig, cal_fflo_mod_GP
+from core.cal_ire_mod import CalIreModConfig, cal_ire_mod_GP
+from core.cal_red_red import CalRedRedConfig
+from core.cal_stgn_mod import CalStgnModConfig, cal_stgn_mod_GP
+from core.utils import generate_equation
 
 if TYPE_CHECKING:
+    from gamspy import Equation, Parameter, Variable
+    from gamspy._algebra.condition import Condition
+    from gamspy._algebra.expression import Expression
+    from gamspy._symbols.implicits import ImplicitSet
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -44,8 +53,8 @@ class EqmrkcomIer(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
+        arg2: Literal["E", "N", "L", "G"],
         arg1: str = "",
-        arg2: str = "",
         arg3: str = "",
         arg4: str = "",
         arg5: str = "",
@@ -61,195 +70,215 @@ class EqmrkcomIer(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        include_cal_fflo_1 = cal_fflo_mod(
-            reduce=self.env.reduce,
-            sow=self.env.sow,
-            var=self.env.var,
-            pgprim=self.env.pgprim,
-            is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
-            arg1="OUT",
-            # arg2="O", in cal_fflo_mod stated as no longer used
-        )
+        g = self.tc
+        r, t, v, p, prc, c, s, ts = g.r, g.t, g.v, g.p, g.prc, g.c, g.s, g.ts
+        Com, ble, opr, j, bd = g.Com, g.Ble, g.Opr, g.j, g.bd
 
-        include_cal_ire_1 = cal_ire_mod(
-            var=self.env.var,
-            sow=self.env.sow,
-            is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
-            is_ireauxbal=self.tc.defined("IS_IREAUXBAL"),
-            arg1="IMP",
-            arg2="OUT",
-            arg3="IE",
-        )
+        var = self.env.var
+        sow = self.env.sow_GP
+        sws = self.env.sws_GP
+        varv = self.env.varv_GP
+        rcapsub = self.env.rcapsub_GP
+        reduce = self.env.reduce
+        pgprim = self.env.pgprim
+        is_rtp_ffcs_defined = self.tc.defined("RTP_FFCS")
+        is_ireauxbal = self.tc.defined("IS_IREAUXBAL")
 
-        include_cal_stgn_1 = cal_stgn_mod(
-            var=self.env.var,
-            sow=self.env.sow,
-            arg1="OUT",
-            arg2="IN",
-            arg3="*STG_EFF(R,V,P)",
-            arg4="",
-            arg5="(NOT PRC_NSTTS(R,P,TS))",
-        )
+        eq: Equation = g.get_equation(f"EQ{self.arg2}_MRK{self.arg4}")
+        flo_mrk: Parameter = g.get_parameter(f"FLO_MRK{self.arg4}")
+        VAR_BLND: Variable = g.get_variable(f"{var}_BLND")
+        VAR_ELAST: Variable = g.get_variable(f"{var}_ELAST")
 
-        include_cal_cap_1 = cal_cap_mod(
-            varv=self.env.varv,
-            sws=self.env.sws,
-            rcapsub=self.env.rcapsub,
-            arg1="OUT",
-            arg2="O",
-        )
+        # RS_FR(R,S,'ANNUAL')*(1+RTCS_FR(R,T,C,S,'ANNUAL')), the annual blending spread
+        annual = g.rs_fr[r, s, "ANNUAL"] * (1 + g.rtcs_fr[r, t, c, s, "ANNUAL"])
+        share = flo_mrk[r, t, prc, c, s, self.arg3]
 
-        include_cal_fflo_2 = cal_fflo_mod(
-            reduce=self.env.reduce,
-            sow=self.env.sow,
-            var=self.env.var,
-            pgprim=self.env.pgprim,
-            is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
-            arg1="IN",
-            # arg2="I", in cal_fflo_mod stated as no longer used
-        )
-
-        include_cal_ire_2 = cal_ire_mod(
-            var=self.env.var,
-            sow=self.env.sow,
-            is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
-            is_ireauxbal=self.tc.defined("IS_IREAUXBAL"),
-            arg1="EXP",
-            arg2="IN",
-            arg3="IE",
-        )
-
-        include_cal_stgn_2 = cal_stgn_mod(
-            var=self.env.var,
-            sow=self.env.sow,
-            arg1="IN",
-            arg2="OUT",
-            arg3="",
-            arg4="STG_EFF(R,V,P)*",
-            arg5="((NOT PRC_MAP(R,'NST',P))+PRC_NSTTS(R,P,TS))",
-        )
-
-        include_cal_cap_2 = cal_cap_mod(
-            varv=self.env.varv,
-            sws=self.env.sws,
-            rcapsub=self.env.rcapsub,
-            arg1="IN",
-            arg2="I",
-        )
+        if self.arg4 != "CON":
+            # * production of commodity
+            # * -----------------------
+            terms = (
+                # * individual flows
+                cal_fflo_mod_GP(
+                    g=g,
+                    config=CalFfloModConfig(
+                        reduce=reduce,
+                        sow=sow,
+                        var=var,
+                        pgprim=pgprim,
+                        is_rtp_ffcs_defined=is_rtp_ffcs_defined,
+                        arg1="OUT",
+                        arg3=Number(1),
+                        arg4=Number(1),
+                    ),
+                )
+                # *V07_1b blending flows
+                + Sum(
+                    opr.where[g.BleOpr[r, c, opr]],
+                    annual * g.ble_bal[r, t, c, opr] * VAR_BLND[r, t, c, opr, *sow],
+                )
+                # *V07_1b emissions due to blending operations
+                + Sum(
+                    g.BleEnv[r, c, ble, opr],
+                    g.rs_fr[r, s, "ANNUAL"]
+                    * g.env_bl[r, c, ble, opr, t]
+                    * VAR_BLND[r, t, ble, opr, *sow],
+                )
+                # * inter-regional trade to region
+                + cal_ire_mod_GP(
+                    g=g,
+                    config=CalIreModConfig(
+                        var=var,
+                        sow=sow,
+                        is_rtp_ffcs_defined=is_rtp_ffcs_defined,
+                        is_ireauxbal=is_ireauxbal,
+                        arg1="IMP",
+                        arg2="OUT",
+                        arg3=g.ie,
+                        arg4=Number(1),
+                    ),
+                )
+                # * storage
+                + cal_stgn_mod_GP(
+                    g=g,
+                    config=CalStgnModConfig(
+                        var=var,
+                        sow=sow,
+                        arg1="OUT",
+                        arg2="IN",
+                        arg3=g.stg_eff[r, v, p],
+                        arg4=Number(1),
+                        arg5=~g.PrcNstts[r, p, ts],
+                        arg6=Number(1),
+                    ),
+                )
+                # * capacity related commodity flows
+                + cal_cap_mod_GP(
+                    g=g,
+                    config=CalCapModConfig(
+                        varv=varv,
+                        sws=sws,
+                        rcapsub=rcapsub,
+                        arg1="OUT",
+                        arg2="O",
+                        arg3=Number(1),
+                    ),
+                )
+            )
+        else:
+            # * consumption of commodity
+            # * ------------------------
+            terms = (
+                # * individual flows
+                cal_fflo_mod_GP(
+                    g=g,
+                    config=CalFfloModConfig(
+                        reduce=reduce,
+                        sow=sow,
+                        var=var,
+                        pgprim=pgprim,
+                        is_rtp_ffcs_defined=is_rtp_ffcs_defined,
+                        arg1="IN",
+                        arg3=Number(1),
+                        arg4=Number(1),
+                    ),
+                )
+                # *V07_1a blending flows
+                + Sum(
+                    g.BleTp[r, t, ble].where[g.BleOpr[r, ble, c]],
+                    annual * VAR_BLND[r, t, ble, c, *sow],
+                )
+                + Sum(
+                    g.BleOpr[r, ble, opr].where[
+                        g.BleInp[r, ble, c] * g.BleTp[r, t, ble]
+                    ],
+                    # NB: `+ VAR_BLND` rather than `*` is what eqmrkcom.ier does
+                    annual * g.bl_inp[r, ble, c] + VAR_BLND[r, t, ble, opr, *sow],
+                )
+                # * inter-regional trade from region
+                + cal_ire_mod_GP(
+                    g=g,
+                    config=CalIreModConfig(
+                        var=var,
+                        sow=sow,
+                        is_rtp_ffcs_defined=is_rtp_ffcs_defined,
+                        is_ireauxbal=is_ireauxbal,
+                        arg1="EXP",
+                        arg2="IN",
+                        arg3=g.ie,
+                        arg4=Number(1),
+                    ),
+                )
+                # * storage
+                + cal_stgn_mod_GP(
+                    g=g,
+                    config=CalStgnModConfig(
+                        var=var,
+                        sow=sow,
+                        arg1="IN",
+                        arg2="OUT",
+                        arg3=Number(1),
+                        arg4=g.stg_eff[r, v, p],
+                        arg5=~g.PrcMap[r, "NST", p] + g.PrcNstts[r, p, ts],
+                        arg6=Number(1),
+                    ),
+                )
+                # * capacity related commodity flows
+                + cal_cap_mod_GP(
+                    g=g,
+                    config=CalCapModConfig(
+                        varv=varv,
+                        sws=sws,
+                        rcapsub=rcapsub,
+                        arg1="IN",
+                        arg2="I",
+                        arg3=Number(1),
+                    ),
+                )
+                # * include the elasticity variables
+                - Sum(
+                    g.Rcj[r, c, j, g.Bdneq[bd]].where[g.com_elast[r, t, c, s, bd]],
+                    g.bdsig[bd] * VAR_ELAST[r, t, c, s, j, bd, *sow],
+                )
+            )
 
         cal_red = self.env.cal_red
         if cal_red == "cal_red.red":
-            from core.cal_red_red import cal_red_red as cal_red_func
+            from core.cal_red_red import cal_red_red_GP as cal_red_func_GP
         elif cal_red == "cal_nored.red":
-            from core.cal_nored_red import cal_nored_red as cal_red_func
+            from core.cal_nored_red import cal_nored_red_GP as cal_red_func_GP
         else:
             raise ValueError(f"Unexpected value for cal_red: {cal_red}")
 
-        include_cal_red = cal_red_func(
-            arg1="C",
-            arg2="COM",
-            arg3="S",
-            arg4="PRC",
-            arg5="T",
-            pgprim=self.env.pgprim,
-            def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
-            sow=self.env.sow,
-            var=self.env.var,
+        include_cal_red: Condition | Expression | ImplicitSet | Sum = cal_red_func_GP(
+            g=g,
+            config=CalRedRedConfig(
+                arg1=c,
+                arg2=Com,
+                arg3=ts,
+                arg4=prc,
+                arg5=t,
+                arg10=Number(1),
+                pgprim=pgprim,
+                def_rtp_ffcs=is_rtp_ffcs_defined,
+                sow=sow,
+                var=var,
+            ),
         )
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-  EQ{self.arg2}_MRK{self.arg4}(RTP(R,T,PRC),C,S {self.env.swx})$({
-                self.env.swtx
-            }TOP(R,PRC,C,'{self.arg5}')*FLO_MRK{self.arg4}(R,T,PRC,C,S,'{
-                self.arg3
-            }')) ..
 
-  FLO_MRK{self.arg4}(R,T,PRC,C,S,'{self.arg3}') *
-
-$IF '{self.arg4}'=='CON' $GOTO CONS
-{
-                (
-                    rf'''
-  (
-
-* production of commodity
-* -----------------------
-      (
-* individual flows
-{include_cal_fflo_1}
-
-*V07_1b blending flows
-        SUM(OPR$BLE_OPR(R,C,OPR),
-            RS_FR(R,S,'ANNUAL')*(1+RTCS_FR(R,T,C,S,'ANNUAL')) * BLE_BAL(R,T,C,OPR) * {self.env.var}_BLND(R,T,C,OPR {self.env.sow})
-        ) +
-*V07_1b emissions due to blending operations
-        SUM(BLE_ENV(R,C,BLE,OPR), RS_FR(R,S,'ANNUAL') * ENV_BL(R,C,BLE,OPR,T) * {self.env.var}_BLND(R,T,BLE,OPR {self.env.sow})
-        ) +
-
-* inter-regional trade to region
-{include_cal_ire_1}
-
-* storage
-{include_cal_stgn_1}
-
-* capacity related commodity flows
-{include_cal_cap_1}
-      )
-  )
-
-'''
-                )
-                if self.arg4 != "CON"
-                else (
-                    rf'''
-  (
-* consumption of commodity
-* ------------------------
-
-* individual flows
-{include_cal_fflo_2}
-
-*V07_1a blending flows
-      SUM(BLE_TP(R,T,BLE)$BLE_OPR(R,BLE,C),
-         RS_FR(R,S,'ANNUAL')*(1+RTCS_FR(R,T,C,S,'ANNUAL')) * {
-                        self.env.var
-                    }_BLND(R,T,BLE,C {self.env.sow})
-      ) +
-      SUM(BLE_OPR(R,BLE,OPR)$(BLE_INP(R,BLE,C) * BLE_TP(R,T,BLE)),
-         RS_FR(R,S,'ANNUAL')*(1+RTCS_FR(R,T,C,S,'ANNUAL')) * BL_INP(R,BLE,C) + {
-                        self.env.var
-                    }_BLND(R,T,BLE,OPR {self.env.sow})
-      ) +
-
-* inter-regional trade from region
-{include_cal_ire_2}
-
-* storage
-{include_cal_stgn_2}
-
-* capacity related commodity flows
-{include_cal_cap_2}
-
-* include the elasticity variables
-      - SUM(RCJ(R,C,J,BDNEQ(BD))$COM_ELAST(R,T,C,S,BD),BDSIG(BD)*{
-                        self.env.var
-                    }_ELAST(R,T,C,S,J,BD {self.env.sow}))
-
-  )
-'''
-                )
-            }
-
-  ={self.arg2}=
-
-  SUM(RTPCS_VARF(R,T,PRC,C,TS)$(TOP(R,PRC,C,'{self.arg5}')$RP_FLO(R,PRC)),
-     SUM(RTP_VINTYR(R,V,T,PRC),
-{include_cal_red}
-         *RS_FR(R,S,TS)*(1+RTCS_FR(R,T,C,S,TS))
-     )
-  )
-  ;
-""",
+        eq[g.Rtp[r, t, prc], c, s, *self.env.swx_GP].where[
+            self.env.swtx_GP * g.Top[r, prc, c, self.arg5] * share
+        ] = generate_equation(
+            lhs=share * terms,
+            type=self.arg2,
+            rhs=Sum(
+                g.RtpcsVarf[r, t, prc, c, ts].where[
+                    g.Top[r, prc, c, self.arg5].where[g.RpFlo[r, prc]]
+                ],
+                Sum(
+                    g.RtpVintyr[r, v, t, prc],
+                    include_cal_red
+                    * g.rs_fr[r, s, ts]
+                    * (1 + g.rtcs_fr[r, t, c, s, ts]),
+                ),
+            ),
         )

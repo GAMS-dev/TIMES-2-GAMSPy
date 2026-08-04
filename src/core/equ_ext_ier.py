@@ -13,7 +13,9 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
+
+from gamspy import Equation
 
 from core.base_class import GamsClass
 from core.eqchpelc_ier import EqchpelcIer
@@ -46,20 +48,36 @@ class EquExtIer(GamsClass):  # FilenameExt
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
+
+        # *-----------------------------------------------------------------------------
+        # * Bound on the market share of a flow in the production/consumption of a commodity
+        # *-----------------------------------------------------------------------------
+        for sense, share in [
+            ("E", "PRD"),
+            ("L", "PRD"),
+            ("G", "PRD"),
+            ("E", "CON"),
+            ("L", "CON"),
+            ("G", "CON"),
+        ]:
+            name = f"EQ{sense}_MRK{share}"
+            g.set_equation(
+                name=name,
+                eq=Equation(
+                    m,
+                    name=name,
+                    domain=[g.r, g.t, g.p, g.c, g.s, g.allsow],
+                    description=f"{'Production' if share == 'PRD' else 'Consumption'} share (={sense}=)",
+                ),
+            )
+
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=r"""
   EQUATIONS
-*-----------------------------------------------------------------------------
-* Bound on the market share of a flow in the production/consumption of a commodity
-*-----------------------------------------------------------------------------
-EQE_MRKPRD(R,T,P,C,S,ALLSOW)            'Production share (=E=)'
-EQL_MRKPRD(R,T,P,C,S,ALLSOW)            'Production share (=L=)'
-EQG_MRKPRD(R,T,P,C,S,ALLSOW)            'Production share (=G=)'
-EQE_MRKCON(R,T,P,C,S,ALLSOW)            'Consumption share (=E=)'
-EQL_MRKCON(R,T,P,C,S,ALLSOW)            'Consumption share (=L=)'
-EQG_MRKCON(R,T,P,C,S,ALLSOW)            'Consumption share (=G=)'
 *-----------------------------------------------------------------------------
 * Equation bounding the electricity production of extraction condensing CHP plants
 * by the available condensing resp. backpressure capacity
@@ -80,7 +98,7 @@ EQE_CHPBPT(R,YEAR,YEAR,P,ALLSOW)      'Backpressure capacity constraint (=E=)'
         # *-----------------------------------------------------------------------------
 
         # fmt: off
-        batincludes = [
+        batincludes: list[tuple[str, Literal["E", "N", "L", "G"], str, str, str]] = [
             (f"{self.arg1}", "L", "LO", "PRD", "OUT"),
             (f"{self.arg1}", "E", "FX", "PRD", "OUT"),
             (f"{self.arg1}", "G", "UP", "PRD", "OUT"),

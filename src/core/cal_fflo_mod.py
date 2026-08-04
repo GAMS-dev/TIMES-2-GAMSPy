@@ -46,9 +46,8 @@ class CalFfloModConfig:
     pgprim: str
     is_rtp_ffcs_defined: bool
     arg1: Literal["IN", "OUT"]
-    arg3: (
-        Condition | Expression | ImplicitParameter | MathOp | Number
-    )  # default Number(1)
+    # default Number(1)
+    arg3: Condition | Expression | ImplicitParameter | MathOp | Number
     arg4: Condition | Expression | ImplicitParameter | Number
 
 
