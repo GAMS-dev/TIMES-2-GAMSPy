@@ -51,6 +51,7 @@ class CalRedRedConfig:
     arg3: Set | Alias
     arg4: Set | Alias
     arg5: Set | Alias
+    # multiplier or empty
     arg10: Condition | Expression | ImplicitParameter | MathOp | Number
     is_output: bool = False  # old arg6
     arg7: Literal["T", "V", ""] = ""

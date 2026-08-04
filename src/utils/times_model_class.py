@@ -352,6 +352,8 @@ class TimesModelClass:
     com_pkrsv: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com] COM_PKRSV: Peaking reserve margin
     com_pkflx: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,ts] COM_PKFLX: Peaking flux ratio
     flo_pkcoi: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com,allts] FLO_PKCOI: Factor increasing the average demand
+    flo_mrkprd: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com,ts,bd] FLO_MRKPRD: Bound on the share of a flow in the total production of a commmodity
+    flo_mrkcon: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com,ts,bd] FLO_MRKCON: Bound on the share of a flow in the total consumption of a commmodity
     stg_eff: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] STG_EFF: Storage efficiency
     stg_loss: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,s] STG_LOSS: Annual energy loss from a storage technology
     stg_chrg: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,s] STG_CHRG: Exogeneous charging of a storage technology
@@ -1728,8 +1730,6 @@ class TimesModelClass:
     GrAlgmap: Set = None  # type: ignore[assignment] # [r, cg, cg] GR_ALGMAP:
     GrEndc: Set = None  # type: ignore[assignment] # [r, cg] GR_ENDC:
     obj_combal: Parameter = None  # type: ignore[assignment] # [r, t, c, s, item, cur] OBJ_COMBAL:
-    flo_mrkcon: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc, Com, ts, bd] FLO_MRKCON: Bound on the share of a flow in the total consumption of a commmodity
-    flo_mrkprd: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc, Com, ts, bd] FLO_MRKPRD: Bound on the share of a flow in the total production of a commmodity
     EctChp: Set = None  # type: ignore[assignment] # [Reg, prc] ECT_CHP: Set of extraction condensing CHP plants
     EctElc: Set = None  # type: ignore[assignment] # [Reg, prc, Com] ECT_ELC: Electricity commodity of extraction condensing CHP plants
     EctDht: Set = None  # type: ignore[assignment] # [Reg, prc, Com] ECT_DHT: Heat commodity of extraction condensing CHP plants
