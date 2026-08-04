@@ -50,7 +50,7 @@ class FilparamGmsConfig(NamedTuple):
     arg2: tuple[Set | Alias, ...] | tuple[()]
     tail1: tuple[Set | Alias, ...] | tuple[()]
     arg4: tuple[str, ...]
-    arg5: Set
+    arg5: Set | Alias
     arg6: Set | Alias
     arg7: ImplicitSet | Number = Number(1)
     arg8: ImplicitSet | Number = Number(1)

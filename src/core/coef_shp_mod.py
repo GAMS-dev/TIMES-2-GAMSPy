@@ -139,7 +139,7 @@ class CoefShpMod(GamsClass):
         ] = sparseExpr
 
         g.coef_cio[g.RtpCptyr[r, v, t, p], c, io].where[g.ncap_clag[r, v, p, c, io]] = (
-            sign(g.ncap_clag[r, v, p, c, io])
+            sign(g.ncap_clag[r, v, p, c, io])  # type: ignore
             * (
                 Max(
                     0,

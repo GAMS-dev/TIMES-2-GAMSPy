@@ -1597,7 +1597,7 @@ class TimesModelClass:
     s_cm_maxco2c: Parameter = None  # type: ignore[assignment] # [ALLYEAR,J,ALLSOW] S_CM_MAXCO2C
     s_cm_maxc: Parameter = None  # type: ignore[assignment] # [ALLYEAR,ITEM,J,ALLSOW] S_CM_MAXC
     cmpredef: Set = None  # type: ignore[assignment]
-    cmitem: Set = None  # type: ignore[assignment]
+    cmitem: Alias = None  # type: ignore[assignment]
     cmq: Set = None  # type: ignore[assignment]
     CmOfor: Set = None  # type: ignore[assignment]
     cm_co2gtc: Parameter = None  # type: ignore[assignment]
@@ -1615,7 +1615,7 @@ class TimesModelClass:
     cmstcc: Set = None  # type: ignore[assignment] #
     CmConc: Set = None  # type: ignore[assignment] #
     CmAtmap: Set = None  # type: ignore[assignment] #
-    CmBuck: Set = None  # type: ignore[assignment] #
+    CmBuck: Alias = None  # type: ignore[assignment] #
     CmUsubs: Set = None  # type: ignore[assignment]
     CmRebox: Set = None  # type: ignore[assignment]
     CmCoupmap: Set = None  # type: ignore[assignment]

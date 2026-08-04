@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 class FillcostGmsConfig(NamedTuple):
     arg1: Parameter
     arg2: Alias | Set
-    arg3: tuple[Set, ...]
+    arg3: tuple[Set | Alias, ...]
     arg4: tuple[str, ...]
     arg5: Alias | Set
     arg6: ImplicitSet | Card | Literal[1]
@@ -93,7 +93,7 @@ class FillcostGms(GamsClass):
         src = cc.arg9
         data = param[cc.arg2, *cc.arg3, cc.arg5]
         take = cc.arg6
-        tmp: tuple[Set | str, ...] = (*cc.arg3, *cc.arg4)
+        tmp: tuple[Set | Alias | str, ...] = (*cc.arg3, *cc.arg4)
 
         if len(cc.arg9.domain) == 8:
             tmp = (*cc.arg4,)
@@ -114,7 +114,7 @@ class FillcostGms(GamsClass):
         self: FillcostGms,
         cc: FillcostGmsConfig,
         new_param: Parameter,
-        tmp: tuple[Set | str, ...],
+        tmp: tuple[Set | Alias | str, ...],
         take: ImplicitSet | Card | Literal[1],
         src: Parameter,
         data: ImplicitParameter,

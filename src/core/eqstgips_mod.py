@@ -161,5 +161,5 @@ class EqstgipsMod(GamsClass):
                 / prc_actflo[r, v, p, c],
             )
         ).where[lim[ips]] + Sum(
-            (io[ips], Miyr1[ll]), stg_chrg[r, ll - lead[ll], p, "ANNUAL"]
+            Domain(io[ips], Miyr1[ll]), stg_chrg[r, ll - lead[ll], p, "ANNUAL"]
         )

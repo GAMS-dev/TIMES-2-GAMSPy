@@ -51,13 +51,11 @@ class CalRedRedConfig:
     arg3: Set | Alias
     arg4: Set | Alias
     arg5: Set | Alias
+    arg10: Condition | Expression | ImplicitParameter | MathOp | Number
     is_output: bool = False  # old arg6
     arg7: Literal["T", "V", ""] = ""
     # arg8 not needed anymore since it conatint the "SUM" corresponding to the domain in arg9
     index_set: ImplicitSet | None = None  # old arg9
-    arg10: Condition | Expression | ImplicitParameter | MathOp | None = (
-        None  # multiplier or empty
-    )
 
 
 def cal_red_red_GP(
@@ -99,12 +97,6 @@ def cal_red_red_GP(
         shp2 = (1 + g.rtp_ffcx[r, v, cc.arg5, *shg2].where[tst]) * shp2
         shp3 = (1 + g.rtp_ffcx[r, v, cc.arg5, *shg].where[tst]) * shp3
 
-    def mul(
-        expr: Expression | ImplicitParameter | ImplicitVariable,
-        factor: Condition | Expression | ImplicitParameter | MathOp | Number | None,
-    ) -> Expression | ImplicitParameter | ImplicitVariable:
-        return expr if factor is None else expr * factor
-
     def total(
         expr: Expression | ImplicitParameter | ImplicitVariable,
     ) -> Expression | ImplicitParameter | ImplicitVariable | Sum:
@@ -118,7 +110,7 @@ def cal_red_red_GP(
 
     # *  flow variable cannot be replaced
     flow_term = total(
-        mul(flo[r, vnt, cc.arg5, cc.arg4, cc.arg1, cc.arg3, *cc.sow], cc.arg10)
+        flo[r, vnt, cc.arg5, cc.arg4, cc.arg1, cc.arg3, *cc.sow] * cc.arg10
     ).where[~g.RpcEmis[r, cc.arg4, cc.arg1]]
 
     # *   emission flow = flow variable * emission factor
@@ -135,10 +127,10 @@ def cal_red_red_GP(
             Domain(g.RpcAct[r, cc.arg4, cc.arg2], g.PrcTs2[r, cc.arg4, s2]).where[
                 g.rs_fr[r, allts, s2]
             ],
-            mul(
+            (
                 act[r, vnt, cc.arg5, cc.arg4, s2, *cc.sow]
-                * g.act_flo[r, vnt, cc.arg4, com2, allts],
-                shp1,
+                * g.act_flo[r, vnt, cc.arg4, com2, allts]
+                * shp1
             )
             * g.rs_fr[r, allts, s2]
             * (1 + g.rtcs_fr[r, cc.arg5, cc.arg2, allts, s2]),
@@ -149,13 +141,8 @@ def cal_red_red_GP(
             g.RtpcsVarf[r, cc.arg5, cc.arg4, com2, allts] & g.rs_fr[r, cc.arg3, allts]
         ],
         total(
-            mul(
-                mul(
-                    traded * g.coef_ptran[r, vnt, cc.arg4, cg1, com2, cc.arg1, allts],
-                    shp3,
-                ),
-                cc.arg10,
-            )
+            (traded * g.coef_ptran[r, vnt, cc.arg4, cg1, com2, cc.arg1, allts] * shp3)
+            * cc.arg10
         )
         * g.rs_fr[r, cc.arg3, allts]
         * (1 + g.rtcs_fr[r, cc.arg5, com2, cc.arg3, allts]),
@@ -163,11 +150,9 @@ def cal_red_red_GP(
 
     # *  flow variable equals activity variable
     act_term = total(
-        mul(
-            act[r, vnt, cc.arg5, cc.arg4, cc.arg3, *cc.sow]
-            * g.prc_actflo[r, vnt, cc.arg4, cc.arg1],
-            cc.arg10,
-        )
+        act[r, vnt, cc.arg5, cc.arg4, cc.arg3, *cc.sow]
+        * g.prc_actflo[r, vnt, cc.arg4, cc.arg1]
+        * cc.arg10
     ).where[g.RpcAct[r, cc.arg4, cc.arg1]]
 
     ffunc_term = Sum(
@@ -175,11 +160,9 @@ def cal_red_red_GP(
             g.rs_fr[r, cc.arg3, s2]
         ],
         total(
-            mul(
-                mul(act[r, vnt, cc.arg5, cc.arg4, s2, *cc.sow], cc.arg10)
-                * g.act_flo[r, vnt, cc.arg4, cc.arg1, cc.arg3],
-                shp2,
-            )
+            (act[r, vnt, cc.arg5, cc.arg4, s2, *cc.sow] * cc.arg10)
+            * g.act_flo[r, vnt, cc.arg4, cc.arg1, cc.arg3]
+            * shp2
         )
         * g.rs_fr[r, cc.arg3, s2]
         * (1 + g.rtcs_fr[r, cc.arg5, cc.arg2, cc.arg3, s2]),

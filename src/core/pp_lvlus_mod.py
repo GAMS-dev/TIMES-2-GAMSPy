@@ -46,14 +46,14 @@ logger = logging.getLogger(__name__)
 class PpLvlusConfig(NamedTuple):
     uc_parameter: Parameter
     arg2: tuple[Alias | Set, ...]
-    arg3: Set
+    arg3: Set | Alias
     arg4: tuple[str, ...] | tuple[()]
-    arg5: tuple[Set] | tuple[()]
-    arg6: tuple[Set] | tuple[()]
-    arg7: Set
-    arg8: Set
+    arg5: tuple[Set | Alias] | tuple[()]
+    arg6: tuple[Set | Alias] | tuple[()]
+    arg7: Set | Alias
+    arg8: Set | Alias
     arg9: Parameter | ImplicitParameter | int = 0
-    arg10: tuple[Set] | tuple[()] = ()
+    arg10: tuple[Set | Alias] | tuple[()] = ()
 
 
 class PpLvlusMod(GamsClass):

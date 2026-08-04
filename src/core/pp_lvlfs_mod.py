@@ -132,7 +132,7 @@ class PpLvlfsMod(GamsClass):
         # *-----------------------------------------------------------------------------
         # * Leveling by simultaneous aggregation/inheritance
         # *-----------------------------------------------------------------------------
-        with Loop((Fsck[r, p, cg, c, comgrp], Rtp[r, v, p])):
+        with Loop((Fsck[r, p, cg, c, comgrp], Rtp[r, v, p])):  # type:ignore
             ts_array[allts] = flo_sum[r, v, p, cg, c, comgrp, allts]
             flo_sum[r, v, p, cg, c, comgrp, ts].where[RpcsVar[r, p, c, ts]] = (
                 Sum(

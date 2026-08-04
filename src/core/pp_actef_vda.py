@@ -370,7 +370,7 @@ class PpActefVda(GamsClass):
         ] = RpsS1[r, p, s]
         CgGrp[RpcAce, c] = False
         if len(norts):
-            with Loop((Miyr1[t], Uncd7[j, r, p, cg, item, ts, ts])):
+            with Loop((Miyr1[t], Uncd7[j, r, p, cg, item, ts, ts])):  # type:ignore
                 act_eff[Rtp[r, v, p], cg, s].where[
                     norts[r, v, s] + norts[r, t, s].where[Pastmile[v]]
                 ] = 0

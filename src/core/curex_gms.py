@@ -34,7 +34,7 @@ class CurexGmsConfig:
     arg2: str = ""
     arg3: tuple[Set | Alias, ...] | tuple[()] = ()
     arg4: tuple[str] | tuple[()] = ()
-    arg5: tuple[str | Set, ...] | tuple[()] = ()
+    arg5: tuple[str | Set | Alias, ...] | tuple[()] = ()
     arg6: Number | None = None
 
 

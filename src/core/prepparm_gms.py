@@ -38,6 +38,7 @@ from gamspy import (
     Parameter,
     Set,
     SpecialValues,
+    UniverseAlias,
 )
 from gamspy.math import Max, Min, Round, abs, floor, power
 
@@ -55,7 +56,7 @@ logger = logging.getLogger(__name__)
 class PrepparmGmsConfig(NamedTuple):
     arg1: str
     arg2: tuple[Alias | Set, ...]
-    arg3: tuple[Alias | Set, ...]
+    arg3: tuple[Alias | Set | UniverseAlias, ...]
     arg4: tuple[str, ...] | tuple[()]
     arg5: Alias | Set
     arg6: ImplicitSet | Number

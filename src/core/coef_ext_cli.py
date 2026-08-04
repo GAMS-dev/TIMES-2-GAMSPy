@@ -28,7 +28,19 @@ from gamspy import (
     SpecialValues,
     Sum,
 )
-from gamspy.math import Max, Min, Round, diag, exp, log, mod, power, project, same_as
+from gamspy.math import (
+    Max,
+    Min,
+    Round,
+    aggregate,
+    diag,
+    exp,
+    log,
+    mod,
+    power,
+    project,
+    same_as,
+)
 
 from core.base_class import GamsClass
 from core.fillsow_stc import FillsowStc, exec_fillsow_stc
@@ -450,7 +462,7 @@ class CoefExtCli(GamsClass):
             g.cm_evar[g.CmEmis, g.Fil] = 1.0
             # * Set all MAXC year beyond EOH into FIL
             if stages:
-                project(source=g.s_cm_maxc, target=g.cm_maxc_m)
+                aggregate(source=g.s_cm_maxc, target=g.cm_maxc_m)
             g.f[...] = Smax(g.t[g.ll], Ord(g.ll))
             g.cm_maxc_m[g.CmVar, g.ll].where[g.cm_maxc[g.ll, g.CmVar]] = (
                 SpecialValues.EPS

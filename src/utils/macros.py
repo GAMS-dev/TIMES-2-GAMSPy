@@ -96,7 +96,7 @@ class VarStsContext:
         t: Set | Alias,
         p: Set | Alias,
         ts: Set | Alias,
-        bd: Set | Alias,
+        bd: Set | Alias | str,
     ) -> Sum | ImplicitParameter:
         g = self.g
         if self.active:
