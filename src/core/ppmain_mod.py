@@ -26,7 +26,7 @@ from core.pp_chp_ier import PpChpIer
 from core.pp_chp_mod import PpChpMod
 from core.pp_lvlbd_mod import PpLvlbdMod
 from core.pp_lvlbr_mod import PpLvlbrMod
-from core.pp_lvlfc_mod import PpLvlfcMod
+from core.pp_lvlfc_mod import PpLvlfcMod, PpLvlfcModConfig
 from core.pp_lvlff_mod import PpLvlffMod
 from core.pp_lvlfs_mod import PpLvlfsMod
 from core.pp_lvlif_mod import PpLvlifMod
@@ -265,36 +265,19 @@ class PpmainMod(GamsClass):
 
         self.tc.enqueue(self.activate_rtc_net)
         # fmt: off
-        batincludes = [
-            ("COM_IE",     "C", "COM_TS", '',               ",'0','0','0','0'",     "ALL_TS", "T",        "RTC(R,T,C)"),
-            ("COM_FR",     "C", "COM_TS", '',               ",'0','0','0','0'",     "ALL_TS", "T",        "RTC_NET(R,T,C)", "1"),
-            ("COM_PKFLX",  "C", "COM_TS", '',               ",'0','0','0','0'",     "ALL_TS", "T",        "YES"),
-            ("OBJ_COMNT",  "C", "COM_TS", ',COSTYPE,CUR',   ",'0','0'",             "ALL_TS", "DATAYEAR", "RC(R,C)"),
-            ("OBJ_COMPD",  "C", "COM_TS", ',COSTYPE,CUR',   ",'0','0'",             "ALL_TS", "DATAYEAR", "RC(R,C)"),
-            ("COM_ELAST",  "C", "COM_TS", ',BD',            ",'0','0','0'",         "ALL_TS", "DATAYEAR", "RC(R,C)"),
-            ("COM_BPRICE", "C", "COM_TS", ',CUR',           ",'0','0','0'",         "ALL_TS", "DATAYEAR", "RC(R,C)"),
-            ("COM_BQTY",   "C", "COM_TS", '',               ",'0','0','0','0','0'", "ALL_TS", '',         "RC(R,C)",       "1"),
+        batincludes: list[PpLvlfcModConfig] = [
+            PpLvlfcModConfig(arg1=g.com_ie,     arg2=(g.c,), arg3=g.ComTs, arg4=(),                 arg5=("0",) * 4, arg6=g.allts, arg7=(g.t,),        arg8=g.Rtc[g.r, g.t, g.c]              ),
+            PpLvlfcModConfig(arg1=g.com_fr,     arg2=(g.c,), arg3=g.ComTs, arg4=(),                 arg5=("0",) * 4, arg6=g.allts, arg7=(g.t,),        arg8=g.RtcNet[g.r, g.t, g.c], arg9=True),
+            PpLvlfcModConfig(arg1=g.com_pkflx,  arg2=(g.c,), arg3=g.ComTs, arg4=(),                 arg5=("0",) * 4, arg6=g.allts, arg7=(g.t,),        arg8=Number(1)                         ),
+            PpLvlfcModConfig(arg1=g.obj_comnt,  arg2=(g.c,), arg3=g.ComTs, arg4=(g.costype,g.cur),  arg5=("0",) * 2, arg6=g.allts, arg7=(g.Datayear,), arg8=g.Rc[g.r, g.c]                    ),
+            PpLvlfcModConfig(arg1=g.obj_compd,  arg2=(g.c,), arg3=g.ComTs, arg4=(g.costype,g.cur),  arg5=("0",) * 2, arg6=g.allts, arg7=(g.Datayear,), arg8=g.Rc[g.r, g.c]                    ),
+            PpLvlfcModConfig(arg1=g.com_elast,  arg2=(g.c,), arg3=g.ComTs, arg4=(g.bd,),            arg5=("0",) * 3, arg6=g.allts, arg7=(g.Datayear,), arg8=g.Rc[g.r, g.c]                    ),
+            PpLvlfcModConfig(arg1=g.com_bprice, arg2=(g.c,), arg3=g.ComTs, arg4=(g.cur,),           arg5=("0",) * 3, arg6=g.allts, arg7=(g.Datayear,), arg8=g.Rc[g.r, g.c]                    ),
+            PpLvlfcModConfig(arg1=g.com_bqty,   arg2=(g.c,), arg3=g.ComTs, arg4=(),                 arg5=("0",) * 5, arg6=g.allts, arg7=(),            arg8=g.Rc[g.r, g.c],          arg9=True),
         ]
         # fmt: on
-        for arg in batincludes:
-            self.include(
-                PpLvlfcMod(
-                    tc=self.tc,
-                    env=self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
-                    arg5=arg[4],
-                    arg6=arg[5],
-                    arg7=arg[6],
-                    arg8=arg[7],
-                    arg9=arg[8] if len(arg) > 8 else "",
-                    arg10=arg[9] if len(arg) > 9 else "",
-                    arg11=arg[10] if len(arg) > 10 else "",
-                    arg12=arg[11] if len(arg) > 11 else "",
-                )
-            )
+        for pp_lvlfc_config in batincludes:
+            self.include(PpLvlfcMod(tc=self.tc, env=self.env, config=pp_lvlfc_config))
 
         self.tc.enqueue(self.phase_twelve, rl=self.env.rl, cl=self.env.cl)
 
@@ -334,37 +317,91 @@ class PpmainMod(GamsClass):
         # * flow related attributes
         # *-----------------------------------------------------------------------------
         # * costs, subsidy, taxes, & flow rates
-        # fmt: off
         batincludes = [
-            ("FLO_COST",  'P,C', "RPCS_VAR", ',CUR', ",'0','0'", "ALL_TS", "DATAYEAR", "RPC(R,P,C)", '', '', "N"),
-            ("FLO_DELIV", 'P,C', "RPCS_VAR", ',CUR', ",'0','0'", "ALL_TS", "DATAYEAR", "RPC(R,P,C)", '', '', "N"),
-            ("FLO_SUB",   'P,C', "RPCS_VAR", ',CUR', ",'0','0'", "ALL_TS", "DATAYEAR", "RPC(R,P,C)", '', '', "N"),
-            ("FLO_TAX",   'P,C', "RPCS_VAR", ',CUR', ",'0','0'", "ALL_TS", "DATAYEAR", "RPC(R,P,C)", '', '', "N"),
-            ("FLO_PKCOI", 'P,C', "RPCS_VAR", '', ",'0','0','0'", "ALL_TS", "T", "RTP(R,T,P)"),
-            ("FLO_BDLVL", 'P',   "PRC_TS",   ',BD', ",'0','0'",  "ALL_TS", "T", "RTP(R,T,P)", "0", ',CG', "1", "$(C(CG)->ACTCG(CG))"),
-            ("FLO_BDLVL", 'P,C', "RPCS_VAR", ',BD', ",'0','0'",  "ALL_TS", "T", "RTP(R,T,P)", "0", '',    "1", "$RPC(R,P,C)"),
-            ("ACT_FLO",   'P',   "RPS_S1",   '', ",'0','0','0'", "ALL_TS", "V", "RTP(R,V,P)", "0", ',C',  "0", "$STOA(S)"),
+            PpLvlfcModConfig(
+                arg1=g.flo_cost,
+                arg2=(g.p, g.c),
+                arg3=g.RpcsVar,
+                arg4=(g.cur,),
+                arg5=("0",) * 2,
+                arg6=g.allts,
+                arg7=(g.Datayear,),
+                arg8=g.Rpc[g.r, g.p, g.c],
+                arg11="N",
+            ),
+            PpLvlfcModConfig(
+                arg1=g.flo_sub,
+                arg2=(g.p, g.c),
+                arg3=g.RpcsVar,
+                arg4=(g.cur,),
+                arg5=("0",) * 2,
+                arg6=g.allts,
+                arg7=(g.Datayear,),
+                arg8=g.Rpc[g.r, g.p, g.c],
+                arg11="N",
+            ),
+            PpLvlfcModConfig(
+                arg1=g.flo_tax,
+                arg2=(g.p, g.c),
+                arg3=g.RpcsVar,
+                arg4=(g.cur,),
+                arg5=("0",) * 2,
+                arg6=g.allts,
+                arg7=(g.Datayear,),
+                arg8=g.Rpc[g.r, g.p, g.c],
+                arg11="N",
+            ),
+            PpLvlfcModConfig(
+                arg1=g.flo_pkcoi,
+                arg2=(g.p, g.c),
+                arg3=g.RpcsVar,
+                arg4=(),
+                arg5=("0",) * 3,
+                arg6=g.allts,
+                arg7=(g.t,),
+                arg8=g.Rtp[g.r, g.t, g.p],
+            ),
+            PpLvlfcModConfig(
+                arg1=g.flo_bdlvl,
+                arg2=(g.p,),
+                arg3=g.PrcTs,
+                arg4=(g.bd,),
+                arg5=("0",) * 2,
+                arg6=g.allts,
+                arg7=(g.t,),
+                arg8=g.Rtp[g.r, g.t, g.p],
+                arg10=(g.cg,),
+                arg11=Number(1),
+                arg12=(~g.c[g.cg]) | g.Actcg[g.cg],
+            ),
+            PpLvlfcModConfig(
+                arg1=g.flo_bdlvl,
+                arg2=(g.p, g.c),
+                arg3=g.RpcsVar,
+                arg4=(g.bd,),
+                arg5=("0",) * 2,
+                arg6=g.allts,
+                arg7=(g.t,),
+                arg8=g.Rtp[g.r, g.t, g.p],
+                arg11=Number(1),
+                arg12=g.Rpc[g.r, g.p, g.c],
+            ),
+            PpLvlfcModConfig(
+                arg1=g.act_flo,
+                arg2=(g.p,),
+                arg3=g.RpsS1,
+                arg4=(),
+                arg5=("0",) * 3,
+                arg6=g.allts,
+                arg7=(g.v,),
+                arg8=g.Rtp[g.r, g.v, g.p],
+                arg10=(g.c,),
+                arg11=Number(0),
+                arg12=g.stoa[g.s],
+            ),
         ]
-        # fmt: on
-        for arg in batincludes:
-            self.include(
-                PpLvlfcMod(
-                    tc=self.tc,
-                    env=self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
-                    arg5=arg[4],
-                    arg6=arg[5],
-                    arg7=arg[6],
-                    arg8=arg[7],
-                    arg9=arg[8] if len(arg) > 8 else "",
-                    arg10=arg[9] if len(arg) > 9 else "",
-                    arg11=arg[10] if len(arg) > 10 else "",
-                    arg12=arg[11] if len(arg) > 11 else "",
-                )
-            )
+        for pp_lvlfc_config in batincludes:
+            self.include(PpLvlfcMod(tc=self.tc, env=self.env, config=pp_lvlfc_config))
 
         self.tc.enqueue(self.phase_sixteen)
 
@@ -411,30 +448,33 @@ class PpmainMod(GamsClass):
             PpLvlfcMod(
                 tc=self.tc,
                 env=self.env,
-                arg1="IRE_PRICE",
-                arg2="P,C",
-                arg3="RPCS_VAR",
-                arg4=",ALL_REG,IE,CUR",
-                arg5="",
-                arg6="ALL_TS",
-                arg7="DATAYEAR",
-                arg8="RPC_IRE(R,P,C,IE)",
+                config=PpLvlfcModConfig(
+                    arg1=g.ire_price,
+                    arg2=(g.p, g.c),
+                    arg3=g.RpcsVar,
+                    arg4=(g.allreg, g.ie, g.cur),
+                    arg5=(),
+                    arg6=g.allts,
+                    arg7=(g.Datayear,),
+                    arg8=g.RpcIre[g.r, g.p, g.c, g.ie],
+                ),
             )
         )
         self.include(
             PpLvlfcMod(
                 tc=self.tc,
                 env=self.env,
-                arg1="IRE_FLOSUM",
-                arg2="P",
-                arg3="PRC_TS",
-                arg4=",IE,COM,IO",
-                arg5="",
-                arg6="ALL_TS",
-                arg7="T",
-                arg8="RTP(R,T,P)",
-                arg9="0",
-                arg10=",C",
+                config=PpLvlfcModConfig(
+                    arg1=g.ire_flosum,
+                    arg2=(g.p,),
+                    arg3=g.PrcTs,
+                    arg4=(g.ie, g.Com, g.io),
+                    arg5=(),
+                    arg6=g.allts,
+                    arg7=(g.t,),
+                    arg8=g.Rtp[g.r, g.t, g.p],
+                    arg10=(g.c,),
+                ),
             )
         )
         # this routine only handles IRE_FLO
@@ -450,7 +490,7 @@ class PpmainMod(GamsClass):
 
         # process bounds to see if aggregation is necessary
         # fmt: off
-        batincludes = [
+        pplvlbd_batincludes = [
             ("ACT_BND",    "P", '', '', '',          "PRC_TS", "RPS_PRCTS", "RTPS_BD", "EPS"),
             ("FLO_FR",     "P", "C,", '', ",''",     "RPCS_VAR", "RPCS_VAR", "UNCD7", "0"),
             ("COM_BNDNET", "C", '', '', ",'',''",    "COM_TS", "RCS_COMTS", "UNCD7"),
@@ -459,20 +499,20 @@ class PpmainMod(GamsClass):
 
         ]
         # fmt: on
-        for arg in batincludes:
+        for arg in pplvlbd_batincludes:
             self.include(
                 PpLvlbdMod(
                     tc=self.tc,
                     env=self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
-                    arg5=arg[4],
-                    arg6=arg[5],
-                    arg7=arg[6],
-                    arg8=arg[7],
-                    arg9=arg[8] if len(arg) > 8 else "",
+                    arg1=arg[0],  # type: ignore[arg-type]
+                    arg2=arg[1],  # type: ignore[arg-type]
+                    arg3=arg[2],  # type: ignore[arg-type]
+                    arg4=arg[3],  # type: ignore[arg-type]
+                    arg5=arg[4],  # type: ignore[arg-type]
+                    arg6=arg[5],  # type: ignore[arg-type]
+                    arg7=arg[6],  # type: ignore[arg-type]
+                    arg8=arg[7],  # type: ignore[arg-type]
+                    arg9=arg[8] if len(arg) > 8 else "",  # type: ignore[arg-type]
                 )
             )
 
@@ -492,28 +532,34 @@ class PpmainMod(GamsClass):
             PpLvlfcMod(
                 tc=self.tc,
                 env=self.env,
-                arg1="STG_LOSS",
-                arg2="P",
-                arg3="PRC_TS",
-                arg4="",
-                arg5=",'0','0','0','0'",
-                arg6="S2",
-                arg7="V",
-                arg8="RTP(R,V,P)$(NOT RPS_STG(R,P,S)$TRACKP(R,P))",
+                config=PpLvlfcModConfig(
+                    arg1=g.stg_loss,
+                    arg2=(g.p,),
+                    arg3=g.PrcTs,
+                    arg4=(),
+                    arg5=("0",) * 4,
+                    arg6=g.s2,
+                    arg7=(g.v,),
+                    arg8=g.Rtp[g.r, g.v, g.p].where[
+                        ~g.RpsStg[g.r, g.p, g.s].where[g.Trackp[g.r, g.p]]
+                    ],
+                ),
             )
         )
         self.include(
             PpLvlfcMod(
                 tc=self.tc,
                 env=self.env,
-                arg1="STG_SIFT",
-                arg2="P,C",
-                arg3="RPCS_VAR",
-                arg4="",
-                arg5=",'0','0','0'",
-                arg6="ALL_TS",
-                arg7="T",
-                arg8="RTP(R,T,P)",
+                config=PpLvlfcModConfig(
+                    arg1=g.stg_sift,
+                    arg2=(g.p, g.c),
+                    arg3=g.RpcsVar,
+                    arg4=(),
+                    arg5=("0",) * 3,
+                    arg6=g.allts,
+                    arg7=(g.t,),
+                    arg8=g.Rtp[g.r, g.t, g.p],
+                ),
             )
         )
 

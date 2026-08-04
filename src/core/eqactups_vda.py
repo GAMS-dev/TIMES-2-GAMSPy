@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 from gamspy import Sum
 
 from core.base_class import GamsClass
-from core.pp_lvlfc_mod import pp_lvlfc_mod
+from core.pp_lvlfc_mod import PpLvlfcModConfig, pp_lvlfc_mod
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
@@ -171,6 +171,7 @@ class EqactupsVda(GamsClass):
         self.env.set_scoped("mx_GP", mx_GP)
 
     def set_indicators(self: EqactupsVda, pgprim: str) -> None:
+        g = self.tc
         m = self.tc.container
         RpUpl = m["RP_UPL"]
         RpPl = m["RP_PL"]
@@ -205,18 +206,17 @@ class EqactupsVda(GamsClass):
 
             pp_lvlfc_mod(
                 module=self,
-                arg1="ACT_UPS",
-                arg2="P",
-                arg3="PRC_TS",
-                arg4=",BD",
-                arg5=",'','',''",
-                arg6="ALL_TS",
-                arg7="V",
-                arg8="RTP(R,V,P)",
-                arg9="0",
-                arg10="",
-                arg11="N",
-                arg12="",
+                cc=PpLvlfcModConfig(
+                    arg1=g.act_ups,
+                    arg2=(g.p,),
+                    arg3=g.PrcTs,
+                    arg4=(g.bd,),
+                    arg5=("", "", ""),
+                    arg6=g.allts,
+                    arg7=(g.v,),
+                    arg8=g.Rtp[g.r, g.v, g.p],
+                    arg11="N",
+                ),
             )
 
             self.tc.add_gams_code(
