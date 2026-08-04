@@ -13,13 +13,13 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from gamspy import Equation
 
 from core.base_class import GamsClass
 from core.eqchpelc_ier import EqchpelcIer
-from core.eqmrkcom_ier import EqmrkcomIer
+from core.eqmrkcom_ier import EqmrkcomIer, EqmrkcomIerConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -100,27 +100,17 @@ EQE_CHPBPT(R,YEAR,YEAR,P,ALLSOW)      'Backpressure capacity constraint (=E=)'
         # *-----------------------------------------------------------------------------
 
         # fmt: off
-        batincludes: list[tuple[str, Literal["E", "N", "L", "G"], str, str, str]] = [
-            (f"{self.arg1}", "L", "LO", "PRD", "OUT"),
-            (f"{self.arg1}", "E", "FX", "PRD", "OUT"),
-            (f"{self.arg1}", "G", "UP", "PRD", "OUT"),
-            (f"{self.arg1}", "L", "LO", "CON", "IN"),
-            (f"{self.arg1}", "E", "FX", "CON", "IN"),
-            (f"{self.arg1}", "G", "UP", "CON", "IN"),
+        batincludes: list[EqmrkcomIerConfig] = [
+            EqmrkcomIerConfig(arg1=f"{self.arg1}", arg2="L", arg3="LO", arg4="PRD", arg5="OUT"),
+            EqmrkcomIerConfig(arg1=f"{self.arg1}", arg2="E", arg3="FX", arg4="PRD", arg5="OUT"),
+            EqmrkcomIerConfig(arg1=f"{self.arg1}", arg2="G", arg3="UP", arg4="PRD", arg5="OUT"),
+            EqmrkcomIerConfig(arg1=f"{self.arg1}", arg2="L", arg3="LO", arg4="CON", arg5="IN"),
+            EqmrkcomIerConfig(arg1=f"{self.arg1}", arg2="E", arg3="FX", arg4="CON", arg5="IN"),
+            EqmrkcomIerConfig(arg1=f"{self.arg1}", arg2="G", arg3="UP", arg4="CON", arg5="IN"),
         ]
         # fmt: on
-        for arg in batincludes:
-            self.include(
-                EqmrkcomIer(
-                    self.tc,
-                    self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
-                    arg5=arg[4],
-                )
-            )
+        for config in batincludes:
+            self.include(EqmrkcomIer(self.tc, self.env, config=config))
 
         # *-----------------------------------------------------------------------------
         # * Equation bounding the electricity production of extraction condensing CHP plants

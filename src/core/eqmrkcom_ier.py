@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from gamspy import Number, Sum
@@ -31,7 +32,6 @@ from core.cal_stgn_mod import CalStgnModConfig, cal_stgn_mod_GP
 from core.utils import generate_equation
 
 if TYPE_CHECKING:
-    from gamspy import Equation, Parameter, Variable
     from gamspy._algebra.condition import Condition
     from gamspy._algebra.expression import Expression
     from gamspy._symbols.implicits import ImplicitSet
@@ -42,6 +42,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class EqmrkcomIerConfig:
+    arg2: Literal["E", "N", "L", "G"]
+    arg1: str = ""
+    arg3: str = ""
+    arg4: str = ""
+    arg5: str = ""
+
+
 class EqmrkcomIer(GamsClass):
     """Translation unit for eqmrkcom.ier."""
 
@@ -50,27 +59,18 @@ class EqmrkcomIer(GamsClass):
     gams_source: str = "eqmrkcom.ier"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg2: Literal["E", "N", "L", "G"],
-        arg1: str = "",
-        arg3: str = "",
-        arg4: str = "",
-        arg5: str = "",
+        self, tc: TimesModelClass, env: CompileEnvironment, config: EqmrkcomIerConfig
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
-        self.arg4 = arg4
-        self.arg5 = arg5
+        self.config = config
         self.compile()
 
     def compile(self) -> None:
         g = self.tc
+        cc = self.config
+
         r, t, v, p, prc, c, s, ts = g.r, g.t, g.v, g.p, g.prc, g.c, g.s, g.ts
         Com, ble, opr, j, bd = g.Com, g.Ble, g.Opr, g.j, g.bd
 
@@ -84,16 +84,16 @@ class EqmrkcomIer(GamsClass):
         is_rtp_ffcs_defined = self.tc.defined("RTP_FFCS")
         is_ireauxbal = self.tc.defined("IS_IREAUXBAL")
 
-        eq: Equation = g.get_equation(f"EQ{self.arg2}_MRK{self.arg4}")
-        flo_mrk: Parameter = g.get_parameter(f"FLO_MRK{self.arg4}")
-        VAR_BLND: Variable = g.get_variable(f"{var}_BLND")
-        VAR_ELAST: Variable = g.get_variable(f"{var}_ELAST")
+        eq = g.get_equation(f"EQ{cc.arg2}_MRK{cc.arg4}")
+        flo_mrk = g.get_parameter(f"FLO_MRK{cc.arg4}")
+        VAR_BLND = g.get_variable(f"{var}_BLND")
+        VAR_ELAST = g.get_variable(f"{var}_ELAST")
 
         # RS_FR(R,S,'ANNUAL')*(1+RTCS_FR(R,T,C,S,'ANNUAL')), the annual blending spread
         annual = g.rs_fr[r, s, "ANNUAL"] * (1 + g.rtcs_fr[r, t, c, s, "ANNUAL"])
-        share = flo_mrk[r, t, prc, c, s, self.arg3]
+        share = flo_mrk[r, t, prc, c, s, cc.arg3]
 
-        if self.arg4 != "CON":
+        if cc.arg4 != "CON":
             # * production of commodity
             # * -----------------------
             terms = (
@@ -266,13 +266,13 @@ class EqmrkcomIer(GamsClass):
         )
 
         eq[g.Rtp[r, t, prc], c, s, *self.env.swx_GP].where[
-            self.env.swtx_GP * g.Top[r, prc, c, self.arg5] * share
+            self.env.swtx_GP * g.Top[r, prc, c, cc.arg5] * share
         ] = generate_equation(
             lhs=share * terms,
-            type=self.arg2,
+            type=cc.arg2,
             rhs=Sum(
                 g.RtpcsVarf[r, t, prc, c, ts].where[
-                    g.Top[r, prc, c, self.arg5].where[g.RpFlo[r, prc]]
+                    g.Top[r, prc, c, cc.arg5].where[g.RpFlo[r, prc]]
                 ],
                 Sum(
                     g.RtpVintyr[r, v, t, prc],
