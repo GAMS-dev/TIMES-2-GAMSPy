@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Card, For, Loop, Set, Sum
+from gamspy import Card, For, Loop, Set, Sum, sparse
 from gamspy.math import project, same_as
 
 from core.base_class import GamsClass
@@ -118,13 +118,15 @@ class PpLvlfsMod(GamsClass):
         )
 
         # check all commodities in the groups of a process at other than PRC_TS level
-        sparse_exp = flo_sum[r, ll, p, cg, c, comgrp, s].where[~RpcsVar[r, p, c, s]]
-        coef_ptran[r, ll, p, cg, c, comgrp, s].where[sparse_exp] = sparse_exp
+        coef_ptran[r, ll, p, cg, c, comgrp, s] = sparse(
+            flo_sum[r, ll, p, cg, c, comgrp, s].where[~RpcsVar[r, p, c, s]]
+        )
 
         project(source=coef_ptran, target=Fscks, direction="left")
 
-        sparse_exp2 = Sum(Fscks[r, p, cg, c, comgrp, s].where[~RpsPrcts[r, p, s]], 1)
-        Fsck[r, p, cg, c, comgrp].where[sparse_exp2] = sparse_exp2
+        Fsck[r, p, cg, c, comgrp] = sparse(
+            Sum(Fscks[r, p, cg, c, comgrp, s].where[~RpsPrcts[r, p, s]], 1)
+        )
 
         with Loop(Annual[ts[tslvl]]):
             Fstsl[tslvl + stoal[r, s], Fscks[r, p, cg, c, comgrp, s]] = True
@@ -132,7 +134,7 @@ class PpLvlfsMod(GamsClass):
         # *-----------------------------------------------------------------------------
         # * Leveling by simultaneous aggregation/inheritance
         # *-----------------------------------------------------------------------------
-        with Loop((Fsck[r, p, cg, c, comgrp], Rtp[r, v, p])):  # type:ignore
+        with Loop((Fsck[r, p, cg, c, comgrp], Rtp[r, v, p])):  # type: ignore[arg-type]
             ts_array[allts] = flo_sum[r, v, p, cg, c, comgrp, allts]
             flo_sum[r, v, p, cg, c, comgrp, ts].where[RpcsVar[r, p, c, ts]] = (
                 Sum(
@@ -167,15 +169,12 @@ class PpLvlfsMod(GamsClass):
         with For(z, Card(tslvl) - 2, 0, direction="downto"):  # type: ignore # noqa: SIM117
             with Loop(same_as(tslvl - z, "Annual")):
                 flo_sum[Rtp[r, v, p], cg, c, comgrp, ts].where[
-                    (~flo_sum[r, v, p, cg, c, comgrp, ts])
-                    & g.RpcsVar[r, p, c, ts]
-                    & Sum(
+                    (~flo_sum[r, v, p, cg, c, comgrp, ts]) & g.RpcsVar[r, p, c, ts]
+                ] = sparse(
+                    Sum(
                         Fstsl[tslvl, r, p, cg, c, comgrp, s].where[RsBelow[r, s, ts]],
                         coef_ptran[r, v, p, cg, c, comgrp, s],
                     )
-                ] = Sum(
-                    Fstsl[tslvl, r, p, cg, c, comgrp, s].where[RsBelow[r, s, ts]],
-                    coef_ptran[r, v, p, cg, c, comgrp, s],
                 )
 
         coef_ptran.setRecords(None)

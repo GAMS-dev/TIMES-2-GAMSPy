@@ -15,7 +15,20 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Literal
 
-from gamspy import Alias, Domain, If, Loop, Number, Ord, Parameter, Set, Smax, Smin, Sum
+from gamspy import (
+    Alias,
+    Domain,
+    If,
+    Loop,
+    Number,
+    Ord,
+    Parameter,
+    Set,
+    Smax,
+    Smin,
+    Sum,
+    sparse,
+)
 from gamspy.math import Max, Min, abs, aggregate, ceil, project
 
 from core.base_class import GamsClass
@@ -460,8 +473,8 @@ class CoefObjMod(GamsClass):
             Periodyr[t, YEoh], obj_disc[r, YEoh, cur]
         )
         coef_pvt[r, t] = Sum(GRcur[r, cur], obj_pvt[r, t, cur])
-        obj_rfr[r, v, cur].where[g_drate[r, v, cur]] = g_drate[r, v, cur]
-        obj_rfr[r, v, cur].where[Rdcur[r, cur] & g_rfrir[r, v]] = g_rfrir[r, v]
+        obj_rfr[r, v, cur] = sparse(g_drate[r, v, cur])
+        obj_rfr[r, v, cur].where[Rdcur[r, cur]] = sparse(g_rfrir[r, v])
         # -----------------------------------------------------------------------------
         # move original data from input to annual value arrays
         # commodity costs
@@ -473,21 +486,15 @@ class CoefObjMod(GamsClass):
         with Loop(allr.where[~Reg[allr]]):
             obj_ipric[r, Datayear, p, c, s, ie, cur].where[
                 RpcIreio[r, p, c, ie, "OUT"]
-                & (
-                    ire_price[r, Datayear, p, c, s, allr, ie, cur]
-                    * (1 - (Number(2)).where[xpt[ie]])
-                )
-            ] = ire_price[r, Datayear, p, c, s, allr, ie, cur] * (
-                1 - (Number(2)).where[xpt[ie]]
+            ] = sparse(
+                ire_price[r, Datayear, p, c, s, allr, ie, cur]
+                * (1 - (Number(2)).where[xpt[ie]])
             )
-        obj_ipric[r, Datayear, p, c, s, ie, cur].where[
-            RpcIreio[r, p, c, ie, "OUT"]
-            & (
+        obj_ipric[r, Datayear, p, c, s, ie, cur].where[RpcIreio[r, p, c, ie, "OUT"]] = (
+            sparse(
                 ire_price[r, Datayear, p, c, s, r, ie, cur]
                 * (1 - (Number(2)).where[xpt[ie]])
             )
-        ] = ire_price[r, Datayear, p, c, s, r, ie, cur] * (
-            1 - (Number(2)).where[xpt[ie]]
         )
         # flow costs; remove invalid costs on storage flows
         flo_cost[r, ll, p, c, s, cur].where[
@@ -496,9 +503,7 @@ class CoefObjMod(GamsClass):
         flo_deliv[r, ll, p, c, s, cur].where[
             (~Top[r, p, c, "OUT"]).where[RpcStg[r, p, c]]
         ] = 0
-        obj_fsub[r, ll, p, c, s, cur].where[flo_tax[r, ll, p, c, s, cur]] = flo_tax[
-            r, ll, p, c, s, cur
-        ]
+        obj_fsub[r, ll, p, c, s, cur] = sparse(flo_tax[r, ll, p, c, s, cur])
         obj_fsub[r, ll, p, c, s, cur].where[flo_sub[r, ll, p, c, s, cur]] = (
             obj_fsub[r, ll, p, c, s, cur] - flo_sub[r, ll, p, c, s, cur]
         )
@@ -609,9 +614,9 @@ class CoefObjMod(GamsClass):
             g.ob_icost,
         )
         if len(x_rp):
-            ob_isub[Rp, cur, year].where[
-                x_rp[Rp, year] & (ob_icost[Rp, cur, year] * x_rp[Rp, year])
-            ] = ob_icost[Rp, cur, year] * x_rp[Rp, year]
+            ob_isub[Rp, cur, year].where[x_rp[Rp, year]] = sparse(
+                ob_icost[Rp, cur, year] * x_rp[Rp, year]
+            )
             x_rp.setRecords(None)
 
     def exec3(self: CoefObjMod, condition1: bool, condition2: bool) -> None:
@@ -685,9 +690,7 @@ class CoefObjMod(GamsClass):
         )
         # Calculate coefficients for shaped demand elasticises
         # Collect all tuples (J,BD) from COM_ELASTX to SHEDJ(BD,J)
-        Shedj[bd, j].where[Sum(RtcShed[r, t, c, bd, j], 1)] = Sum(
-            RtcShed[r, t, c, bd, j], 1
-        )
+        Shedj[bd, j] = sparse(Sum(RtcShed[r, t, c, bd, j], 1))
         Shedj[Bdneq, "1"] = True
         # Calculate price changes by percent, and cumulate
         bdsig[Bdneq] = ceil(
@@ -734,29 +737,29 @@ class CoefObjMod(GamsClass):
             Fil[Fil] = False
             Fil[k].where[Periodyr[v, k]] = True
 
-            macro.obj_icost_GP(r, Fil, p, cur).where[
+            macro.obj_icost_GP(r, Fil, p, cur)[...] = sparse(
                 macro.obj_icost_GP(r, v, p, cur)
-            ] = macro.obj_icost_GP(r, v, p, cur)
+            )
 
-            macro.obj_fom_GP(r, Fil, p, cur).where[macro.obj_fom_GP(r, v, p, cur)] = (
+            macro.obj_fom_GP(r, Fil, p, cur)[...] = sparse(
                 macro.obj_fom_GP(r, v, p, cur)
             )
 
-            macro.obj_acost_GP(r, Fil, p, cur).where[
+            macro.obj_acost_GP(r, Fil, p, cur)[...] = sparse(
                 macro.obj_acost_GP(r, v, p, cur)
-            ] = macro.obj_acost_GP(r, v, p, cur)
+            )
 
-            obj_ipric[r, Fil, p, c, s, r, ie, cur].where[
+            obj_ipric[r, Fil, p, c, s, r, ie, cur] = sparse(
                 obj_ipric[r, v, p, c, s, r, ie, cur]
-            ] = obj_ipric[r, v, p, c, s, r, ie, cur]
+            )
 
-            macro.obj_fcost_GP(r, Fil, p, c, s, cur).where[
+            macro.obj_fcost_GP(r, Fil, p, c, s, cur)[...] = sparse(
                 macro.obj_fcost_GP(r, v, p, c, s, cur)
-            ] = macro.obj_fcost_GP(r, v, p, c, s, cur)
+            )
 
-            macro.obj_fdelv_GP(r, Fil, p, c, s, cur).where[
+            macro.obj_fdelv_GP(r, Fil, p, c, s, cur)[...] = sparse(
                 macro.obj_fdelv_GP(r, v, p, c, s, cur)
-            ] = macro.obj_fdelv_GP(r, v, p, c, s, cur)
+            )
 
         # print(obj_icost.records)
         # print(obj_fom.records)

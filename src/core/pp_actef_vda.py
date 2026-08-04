@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Literal
 
-from gamspy import Alias, Domain, Expression, If, Loop, Ord, Parameter, Set, Sum
+from gamspy import Alias, Domain, Expression, If, Loop, Ord, Parameter, Set, Sum, sparse
 from gamspy._symbols.implicits import ImplicitSet
 from gamspy.math import abs, project, sqrt
 
@@ -272,6 +272,7 @@ class PpActefVda(GamsClass):
             sl,
             Fscks,
             Ffcks,
+            stoal,
         ) = (
             g.Uncd7,
             g.CgGrp,
@@ -323,6 +324,7 @@ class PpActefVda(GamsClass):
             g.sl,
             g.Fscks,
             g.Ffcks,
+            g.stoal,
         )
         Uncd7.setRecords(None)
 
@@ -357,20 +359,20 @@ class PpActefVda(GamsClass):
         RpgAce[RpGrp, io] = False
 
         # Inherit values to target timeslices when possible
-        vda_flop[r, ll.lag(Ord(ll)), p, cg, s.lag(Ord(s))].where[
+        vda_flop[r, ll.lag(Ord(ll)), p, cg, s.lag(Ord(s))].where[stoal[r, s]] = sparse(
             act_eff[r, ll, p, cg, s]
-        ] = act_eff[r, ll, p, cg, s]
+        )
         project(source=vda_flop, target=RpcAce)
         vda_flop.setRecords(None)
         Uncd7["1", CgGrp[RpcAce[r, p, cg], c], tsl, s + stoa[s]].where[
-            RpcsVar[r, p, c, s]
-        ] = RpcsVar[r, p, c, s]
-        Uncd7["2", RpgAce[RpcAce[r, p, cg], io], tsl, s + stoa[s]].where[
+            TsGroup[r, tsl, s]
+        ] = sparse(RpcsVar[r, p, c, s])
+        Uncd7["2", RpgAce[RpcAce[r, p, cg], io], tsl, s + stoa[s]] = sparse(
             RpsS1[r, p, s]
-        ] = RpsS1[r, p, s]
+        )
         CgGrp[RpcAce, c] = False
         if len(norts):
-            with Loop((Miyr1[t], Uncd7[j, r, p, cg, item, ts, ts])):  # type:ignore
+            with Loop((Miyr1[t], Uncd7[j, r, p, cg, item, ts, ts])):  # type: ignore[arg-type]
                 act_eff[Rtp[r, v, p], cg, s].where[
                     norts[r, v, s] + norts[r, t, s].where[Pastmile[v]]
                 ] = 0
@@ -413,9 +415,9 @@ class PpActefVda(GamsClass):
         act_eff[Rtp[r, v, p], cg, s + stoa[s]].where[
             RpsS1[r, p, s] & stoa[s] & act_eff[Rtp, cg, s]
         ] = 0
-        act_eff[Rtp[r, v, p], cg, s].where[
+        act_eff[Rtp[r, v, p], cg, s].where[~act_eff[Rtp, cg, s]] = sparse(
             Sum(Ffcks[r, p, cg, cg, s], act_eff[r, v, p, cg, "ANNUAL"])
-        ] = Sum(Ffcks[r, p, cg, cg, s], act_eff[r, v, p, cg, "ANNUAL"])
+        )
         Ffcks.setRecords(None)
         Fscks.setRecords(None)
         CgGrp.setRecords(None)

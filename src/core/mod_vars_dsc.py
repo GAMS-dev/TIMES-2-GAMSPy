@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Alias, Set, Variable
+from gamspy import Alias, Set, Variable, sparse
 from gamspy.math import Max
 
 from core.base_class import GamsClass
@@ -87,7 +87,7 @@ class ModVarsDsc(GamsClass):
         VAR_SNCAP = g.get_variable(f"{var}_SNCAP")
 
         # Bounds for semicont
-        VAR_SNCAP.lo[r, t, p, *sow].where[g.ncap_semi[r, t, p]] = g.ncap_semi[r, t, p]
+        VAR_SNCAP.lo[r, t, p, *sow] = sparse(g.ncap_semi[r, t, p])
         VAR_SNCAP.up[r, t, p, *sow].where[g.ncap_semi[r, t, p]] = Max(
             g.ncap_semi[r, t, p], g.ncap_bnd[r, t, p, "UP"]
         )

@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Literal
 
-from gamspy import Loop, Number, Ord, SpecialValues, Sum
+from gamspy import Loop, Number, Ord, SpecialValues, Sum, sparse
 from gamspy.math import Max, Min, project
 
 from core.base_class import GamsClass
@@ -152,18 +152,16 @@ class CoefCptMod(GamsClass):
         # * -- If P is NOT Vintaged nor NCAP_AFX is specified, then neither is vintage-dependent (except AFS(ANNUAL));
         # * -- NCAP_AFA is always non-vintage-dependent, but NCAP_AFS(ANNUAL) overrides it and is always vintaged.
 
-        g.ncap_afx[r, ll.lag(Ord(ll), "circular"), p].where[g.ncap_afm[r, ll, p]] = (
-            g.ncap_afm[r, ll, p]
-        )
+        g.ncap_afx[r, ll.lag(Ord(ll), "circular"), p] = sparse(g.ncap_afm[r, ll, p])
 
         project(source=g.ncap_afx, target=g.Trackp)
 
         g.Trackp[g.Rp].where[~g.PrcCap[g.Rp]] = False
         g.Trackp[g.Rp].where[g.RpUpl[g.Rp, "FX"]] = False
         g.Trackp[g.PrcCap[g.PrcVint]] = True
-        g.ncap_afbx[Rtp[r, v, p], bd].where[
-            (g.rp_afb[r, p, bd] > 0).where[g.ncap_afx[Rtp]]
-        ] = g.ncap_afx[Rtp]
+        g.ncap_afbx[Rtp[r, v, p], bd].where[g.rp_afb[r, p, bd] > 0] = sparse(
+            g.ncap_afx[Rtp]
+        )
 
     def exec_copy_non_shaped_af(self: CoefCptMod) -> None:
         g = self.tc
@@ -173,18 +171,16 @@ class CoefCptMod(GamsClass):
 
         g.Trackp[g.PrcCap[r, p]] = ~g.Trackp[r, p]
         g.coef_af[g.RtpCptyr[r, v, t, p], s, bd].where[
-            g.PrcTs[r, p, s].where[g.Trackp[r, p].where[g.ncap_af[r, t, p, s, bd]]]
-        ] = g.ncap_af[r, t, p, s, bd]
-        g.coef_af[g.RtpCptyr[r, v, t, p], Annual, bd].where[
-            g.PrcCap[r, p].where[g.ncap_afa[r, t, p, bd]]
-        ] = g.ncap_afa[r, t, p, bd]
+            g.PrcTs[r, p, s].where[g.Trackp[r, p]]
+        ] = sparse(g.ncap_af[r, t, p, s, bd])
+        g.coef_af[g.RtpCptyr[r, v, t, p], Annual, bd].where[g.PrcCap[r, p]] = sparse(
+            g.ncap_afa[r, t, p, bd]
+        )
 
         # V07_2 add seasonal AF in addition to process tslvl
         project(source=g.ncap_afsm, target=g.RpPrc)
 
-        g.ncap_afsm[r, v, p].where[(~g.RpPrc[r, p]).where[g.ncap_afm[r, v, p]]] = (
-            g.ncap_afm[r, v, p]
-        )
+        g.ncap_afsm[r, v, p].where[~g.RpPrc[r, p]] = sparse(g.ncap_afm[r, v, p])
         g.ncap_afsx[Rtp, bd].where[g.ncap_afsm[Rtp]] = (
             g.ncap_afsx[Rtp, bd] + SpecialValues.EPS
         )
@@ -195,20 +191,18 @@ class CoefCptMod(GamsClass):
 
         project(source=g.ncap_afsx, target=g.RpPrc)
 
-        sparseExpression = g.ncap_afx[r, v, p].where[~g.RpPrc[r, p]]
-        g.ncap_afsx[r, v, p, bd].where[
-            Sum(g.RtpsBd[r, v, p, s, bd], 1).where[sparseExpression]
-        ] = sparseExpression
+        g.ncap_afsx[r, v, p, bd].where[Sum(g.RtpsBd[r, v, p, s, bd], 1)] = sparse(
+            g.ncap_afx[r, v, p].where[~g.RpPrc[r, p]]
+        )
 
     def exec_finalize(self: CoefCptMod) -> None:
         g = self.tc
         r, v, t, p, s, bd = g.r, g.v, g.t, g.p, g.s, g.bd
 
         # Assignments
-        sparseExpression = g.ncap_afs[r, t, p, s, bd].where[g.PrcCap[r, p]]
-        g.coef_af[g.RtpCptyr[r, v, t, p], s, bd].where[
-            (~g.RtpsBd[r, v, p, s, bd]).where[sparseExpression]
-        ] = sparseExpression
+        g.coef_af[g.RtpCptyr[r, v, t, p], s, bd].where[~g.RtpsBd[r, v, p, s, bd]] = (
+            sparse(g.ncap_afs[r, t, p, s, bd].where[g.PrcCap[r, p]])
+        )
         g.coef_af[g.RtpCptyr[r, v, t, p], g.Annual, g.Bdneq].where[
             g.ncap_afa[r, t, p, "FX"]
         ] = 0

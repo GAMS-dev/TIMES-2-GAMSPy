@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Else, If, Loop, Number, Ord, SpecialValues, Sum
+from gamspy import Else, If, Loop, Number, Ord, SpecialValues, Sum, sparse
 from gamspy.math import Max, Round, abs, map_value, project
 
 from core.base_class import GamsClass
@@ -141,13 +141,11 @@ class PrepExtVda(GamsClass):
         g.ncap_afc[r, g.Datayear, p, cg, "ANNUAL"].where[g.RpGrp[r, p, cg]] = (
             g.ncap_afac[r, g.Datayear, p, cg]
         )
-        sparseExpr = g.ncap_afcs[r, ll, p, cg, s]
-        g.ncap_afc[r, ll, p, cg, g.stl[s]].where[sparseExpr] = sparseExpr
+        g.ncap_afc[r, ll, p, cg, g.stl[s]] = sparse(g.ncap_afcs[r, ll, p, cg, s])
         g.ncap_afcs.setRecords(None)
         # Collect ACT_EFF groups
         project(g.act_eff, g.RpGrp)
         g.Uncd7.setRecords(None)
-        sparseExpr2 = (g.act_eff[r, ll, p, cg, s] > 0).where[g.act_eff[r, ll, p, cg, s]]
         g.Uncd7[
             r,
             ll.lag(Ord(g.ll), "circular"),
@@ -156,15 +154,16 @@ class PrepExtVda(GamsClass):
             g.s.lag(Ord(g.s), "circular"),
             "",
             "",
-        ].where[g.bohyear[g.ll] & sparseExpr2] = sparseExpr2
+        ].where[g.bohyear[g.ll]] = sparse(
+            (g.act_eff[r, ll, p, cg, s] > 0).where[g.act_eff[r, ll, p, cg, s]]
+        )
         with Loop(g.Uncd7[r, ll, p, cg, s, "", ""]):
             g.RpcAce[r, p, cg] = True
         g.Rpg1ace[g.RpGrp[g.Rpc[r, p, c]], c].where[~g.RpcAce[g.Rpc]] = True
         g.RpGrp.setRecords(None)
-        sparseExpr3 = g.vda_flop[r, ll, p, c, s]
-        g.act_flo[r, ll.lag(Ord(g.ll), "circular"), p, c, s].where[
-            g.stoa[s] & sparseExpr3
-        ] = sparseExpr3
+        g.act_flo[r, ll.lag(Ord(g.ll), "circular"), p, c, s].where[g.stoa[s]] = sparse(
+            g.vda_flop[r, ll, p, c, s]
+        )
 
     def tailored_interpolation(self: PrepExtVda, waver: bool) -> None:
         g = self.tc
@@ -175,8 +174,7 @@ class PrepExtVda(GamsClass):
         #  Tailored interpolation of PRC_RESID
         g.prc_ymax.setRecords(None)
         g.my_array.setRecords(None)
-        sparseExpr = g.prc_resid[r, "0", p]
-        g.Trackp[r, p].where[sparseExpr] = sparseExpr
+        g.Trackp[r, p] = sparse(g.prc_resid[r, "0", p])
         g.prc_ymax[g.Trackp[r, p]] = Round(g.prc_resid[r, "0", p])
 
         with Loop(g.PyrS[g.pyr[ll]]):
@@ -240,19 +238,20 @@ class PrepExtVda(GamsClass):
         g.ifq[...].where[Sum(g.ComType[g.cg[g.r]], 1)] = 0.0
         g.ComLim[g.Rc, g.Bdneq].where[g.ComLim[g.Rc, "FX"]] = False
         # -----------------------------------------------------------------------------
-        sparseExpr2 = g.act_ups[g.Rtp, "ANNUAL", "FX"]
-        g.act_minld[g.Rtp].where[sparseExpr2] = sparseExpr2
+        g.act_minld[g.Rtp] = sparse(g.act_ups[g.Rtp, "ANNUAL", "FX"])
         # Move non-standard share parameters to dedicated parameter
-        sparseExpr3 = g.flo_shar[r, g.DmYear, p, c, cg, s, g.bd].where[
-            ~(g.ComGmap[r, cg, c] * g.Rpc[r, p, c])
-        ]
-        g.flo_ashar[r, g.DmYear, p, c, cg, s, g.bd].where[sparseExpr3] = sparseExpr3
-        # Process cost-neutral ILEDs
-        sparseExpr4 = Sum(
-            g.Periodyr[t, g.year].where[g.ncap_bnd[r, g.year, p, "N"]],
-            g.ncap_bnd[r, g.year, p, "N"],
+        g.flo_ashar[r, g.DmYear, p, c, cg, s, g.bd] = sparse(
+            g.flo_shar[r, g.DmYear, p, c, cg, s, g.bd].where[
+                ~(g.ComGmap[r, cg, c] * g.Rpc[r, p, c])
+            ]
         )
-        g.rvprl[g.Rtp[r, t, p]].where[sparseExpr4] = sparseExpr4
+        # Process cost-neutral ILEDs
+        g.rvprl[g.Rtp[r, t, p]] = sparse(
+            Sum(
+                g.Periodyr[t, g.year].where[g.ncap_bnd[r, g.year, p, "N"]],
+                g.ncap_bnd[r, g.year, p, "N"],
+            )
+        )
 
         if g.rvprl.number_records:
             with Loop(g.Rtp[r, t, p].where[g.rvprl[g.Rtp]]):

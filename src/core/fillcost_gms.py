@@ -34,6 +34,7 @@ from gamspy import (
     Parameter,
     Set,
     set_options,
+    sparse,
 )
 
 from core.base_class import GamsClass
@@ -132,19 +133,17 @@ class FillcostGms(GamsClass):
         )
 
         if condition1:
-            sparse_expression = cc.arg9[cc.arg2, Datayear, *cc.arg3].where[
-                take_condition  # type: ignore[index]
-            ]
-            cc.arg1[cc.arg2, Datayear, *cc.arg3].where[sparse_expression] = (
-                sparse_expression
+            cc.arg1[cc.arg2, Datayear, *cc.arg3] = sparse(
+                cc.arg9[cc.arg2, Datayear, *cc.arg3].where[
+                    take_condition  # type: ignore[index]
+                ]
             )
             take_condition = Number(1)
             src = cc.arg1
 
-        sparse_expression_2 = src[cc.arg2, ll, *cc.arg3]
-        Uncd7[cc.arg2, ll.lag(Ord(ll), "circular"), *tmp].where[
-            take_condition.where[sparse_expression_2]
-        ] = sparse_expression_2
+        Uncd7[cc.arg2, ll.lag(Ord(ll), "circular"), *tmp].where[take_condition] = (  # type: ignore[index]
+            sparse(src[cc.arg2, ll, *cc.arg3])
+        )
 
         with Loop(Uncd7[cc.arg2, year, *tmp]):
             g.f[...] = 0
@@ -172,22 +171,21 @@ class FillcostGms(GamsClass):
 
             # Do back/forward extrapolate
             if condition2:
-                g.my_fil2[cc.arg5].where[g.my_array[cc.arg5]] = g.my_array[cc.arg5]
+                g.my_fil2[cc.arg5] = sparse(g.my_array[cc.arg5])
 
             cond1 = cc.bext & (g.yearval[cc.arg5] < g.f[...])
             cond2 = cc.fext & (g.yearval[cc.arg5] > g.z[...])
 
-            sparse_expression = (
-                g.first_val[...].where[cond1]  # type: ignore[assignment]
-                + g.my_fil2[cc.arg5]  # type: ignore[assignment]
-                + g.last_val[...].where[cond2]  # type: ignore[assignment]
+            new_param[cc.arg2, *cc.arg3, cc.arg5] = sparse(
+                g.first_val[...].where[cond1]
+                + g.my_fil2[cc.arg5]
+                + g.last_val[...].where[cond2]
             )
-            data.where[sparse_expression] = sparse_expression
 
         if condition2:
             set_options({"VALIDATION": 0})  # TODO: Remove in future GAMSPY version
             new_param["EMPTY", *cc.arg3, "EMPTY"] = 0
             set_options({"VALIDATION": 1})  # TODO: Remove in future GAMSPY version
         else:
-            cc.arg1[cc.arg2, cc.arg5, *cc.arg3].where[data] = data
+            cc.arg1[cc.arg2, cc.arg5, *cc.arg3] = sparse(data)
             new_param.setRecords(None)

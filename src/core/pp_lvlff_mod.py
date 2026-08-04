@@ -17,7 +17,7 @@ import logging
 from typing import TYPE_CHECKING
 
 import gamspy.math as gmath
-from gamspy import Domain, Loop, Set, Sum
+from gamspy import Domain, Loop, Set, Sum, sparse
 
 from core.base_class import GamsClass
 
@@ -124,13 +124,14 @@ class PpLvlffMod(GamsClass):  # FilenameExt
         # *-----------------------------------------------------------------------------
         # * Leveling by direct inheritance
         # *-----------------------------------------------------------------------------
-        sparseExpression = Sum(
-            Ffcks[r, p, cg, comgrp, Annual].where[PrcTs[r, p, ts]],
-            flo_func[r, v, p, cg, comgrp, Annual],
-        )
         flo_func[r, v, p, cg, comgrp, ts].where[
-            ~(flo_func[r, v, p, cg, comgrp, ts]) & sparseExpression
-        ] = sparseExpression
+            ~(flo_func[r, v, p, cg, comgrp, ts])
+        ] = sparse(
+            Sum(
+                Ffcks[r, p, cg, comgrp, Annual].where[PrcTs[r, p, ts]],
+                flo_func[r, v, p, cg, comgrp, Annual],
+            )
+        )
 
         # *-----------------------------------------------------------------------------
         # *UR* after inheritance aggregation delete all data that are not specified for elements of PRC_TS

@@ -16,7 +16,18 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Else, If, Loop, Number, Parameter, Set, Smax, SpecialValues, Sum
+from gamspy import (
+    Else,
+    If,
+    Loop,
+    Number,
+    Parameter,
+    Set,
+    Smax,
+    SpecialValues,
+    Sum,
+    sparse,
+)
 from gamspy.math import project
 
 from core.base_class import GamsClass
@@ -167,7 +178,7 @@ class PpLvlpkMod(GamsClass):
         )
         with Loop(ComPkts[r, cg, s]):
             Rcs[ComTs[r, c, ts]].where[RsTree[r, s, ts] & ComGmap[r, cg, c]] = True
-        Trackc[r, c].where[Sum(Rcs[r, c, s], 1)] = Sum(Rcs[r, c, s], 1)
+        Trackc[r, c] = sparse(Sum(Rcs[r, c, s], 1))
         project(source=ncap_pkcnt, target=RtpIshpr)
         flo_pkcoi[Rtp[r, t, p], c, s].where[Trackc[r, c] & PrcPkno[r, p]] = 0
         Trackpc[Rpc[r, p, c]].where[
@@ -186,7 +197,7 @@ class PpLvlpkMod(GamsClass):
                 with If(~f):
                     ts_array[Annual] = arg1
                 with Loop(Rcs[r, c, ts].where[~ts_array[ts]]):
-                    ncap_pkcnt[r, v, p, ts].where[
+                    ncap_pkcnt[r, v, p, ts] = sparse(
                         Sum(
                             TsMap[r, ts, s].where[Finest[r, s]],
                             g_yrfr[r, s]
@@ -205,23 +216,6 @@ class PpLvlpkMod(GamsClass):
                                 )
                             ),
                         )
-                    ] = Sum(
-                        TsMap[r, ts, s].where[Finest[r, s]],
-                        g_yrfr[r, s]
-                        / g_yrfr[r, ts]
-                        * (
-                            ts_array[s]
-                            + Sum(
-                                RsBelow[r, allts, s].where[
-                                    ~Sum(
-                                        sl.where[RsBelow[r, allts, sl]],
-                                        TsMap[r, sl, s] * ts_array[sl],
-                                    )
-                                    & ts_array[allts]
-                                ],
-                                ts_array[allts],
-                            )
-                        ),
                     )
         Trackp[PrcPkaf[Rp]] = ~PrcPkno[Rp]
         Trackpc[PrcPkno[Rp], c] = False

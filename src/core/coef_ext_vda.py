@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Else, If, Loop, Number, Parameter, Smax, SpecialValues, Sum
+from gamspy import Else, If, Loop, Number, Parameter, Smax, SpecialValues, Sum, sparse
 from gamspy.math import Max, Min, Round, mod, power, project
 
 from core.base_class import GamsClass
@@ -320,12 +320,12 @@ class CoefExtVda(GamsClass):
             RpStl[RpSts, tsl, bd] = 0  # type: ignore[assignment]
         # -----------------------------------------------------------------------------
         # Get AF-UPs for processes having storage level constrained
-        coef_afups[Rtp[r, v, p], s].where[
-            (~RpsCaflac[r, p, s, "UP"]).where[ncap_af[Rtp, s, "UP"] & RpsStg[r, p, s]]
-        ] = ncap_af[Rtp, s, "UP"].where[RpsStg[r, p, s]]
-        coef_afups[Rtp[r, v, p], s[stl]].where[
-            RpsStg[r, p, s] & ncap_afc[Rtp, pgprim, stl]
-        ] = ncap_afc[Rtp, pgprim, stl]
+        coef_afups[Rtp[r, v, p], s].where[~RpsCaflac[r, p, s, "UP"]] = sparse(
+            ncap_af[Rtp, s, "UP"].where[RpsStg[r, p, s]]
+        )
+        coef_afups[Rtp[r, v, p], s[stl]].where[RpsStg[r, p, s]] = sparse(
+            ncap_afc[Rtp, pgprim, stl]
+        )
         coef_afups[r, v, p, s].where[~PrcCap[r, p]] = False
         # Cycling cost annuity
         act_cstup[Rtp[r, v, p], tsl[s], cur].where[Rdcur[r, cur] & stg_maxcyc[Rtp]] = (
@@ -340,14 +340,10 @@ class CoefExtVda(GamsClass):
         project(source=ire_flosum, target=Rcs)
         with Loop(Trackp[r, p]):
             Trackc[r, c].where[Top[r, p, c, "IN"]] = True
-        Trackc[r, c].where[Sum(RpcIre[Trackp[r, p], c, "EXP"], 1)] = Sum(
-            RpcIre[Trackp[r, p], c, "EXP"], 1
-        )
-        Trackc[Rc].where[Sum(Rcs[Rc, s], 1)] = Sum(Rcs[Rc, s], 1)
+        Trackc[r, c] = sparse(Sum(RpcIre[Trackp[r, p], c, "EXP"], 1))
+        Trackc[Rc] = sparse(Sum(Rcs[Rc, s], 1))
         Trackc[Dem] = True
-        Trackc[r, c].where[Sum(RpcNoflo[Trackp[r, p], c], 1)] = Sum(
-            RpcNoflo[Trackp[r, p], c], 1
-        )
+        Trackc[r, c] = sparse(Sum(RpcNoflo[Trackp[r, p], c], 1))
         RcsCombal[RtcsVarc[r, t, c, s], lA].where[~Trackc[r, c]] = False
         # Reduce overhead from UCU trades
         Trackc[Rc] = ComUnit[Rc, "UCU"].where[~Trackc[Rc]]
@@ -391,21 +387,15 @@ class CoefExtVda(GamsClass):
             with Else():  # type: ignore[no-untyped-call]
                 RpDcgg[Rp, Com, cg, cg2, "LO"] = True
         RpDcgg[Trackpc[Rp, Com], cg, c, "UP"].where[
-            RpCgc[Rp, cg, Com] & RpcAct[Rp, c] & CgGrp[Rp, cg, c]
-        ] = CgGrp[Rp, cg, c]
-        rtp_ffcx[RtpCapyr[r, v, t, p], Actcg, c].where[
-            RpcFfunc[r, p, c]
-            & Sum(
+            RpCgc[Rp, cg, Com] & RpcAct[Rp, c]
+        ] = sparse(CgGrp[Rp, cg, c])
+        rtp_ffcx[RtpCapyr[r, v, t, p], Actcg, c].where[RpcFfunc[r, p, c]] = sparse(
+            Sum(
                 RpDcgg[r, p, c, cg, cg2, lA],
                 (power(rtp_ffcx[r, v, t, p, cg, cg2] + 1, bdsig[lA]) - 1).where[  # type: ignore[arg-type]
                     rtp_ffcx[r, v, t, p, cg, cg2] - Min(0, bdsig[lA])
                 ],
             )
-        ] = Sum(
-            RpDcgg[r, p, c, cg, cg2, lA],
-            (power(rtp_ffcx[r, v, t, p, cg, cg2] + 1, bdsig[lA]) - 1).where[  # type: ignore[arg-type]
-                rtp_ffcx[r, v, t, p, cg, cg2] - Min(0, bdsig[lA])
-            ],
         )
         with Loop(RpDcgg[r, p, c, cg, cg2, lA]):
             rtp_ffcx[r, v, t, p, cg, cg2] = 0
@@ -447,7 +437,7 @@ class CoefExtVda(GamsClass):
             g.ncap_iled,
         )
         coef_pvt[r, t].where[~coef_pvt[r, t]] = fpd[t]
-        vda_disc[r, t].where[coef_pvt[r, t]] = coef_pvt[r, t]
+        vda_disc[r, t] = sparse(coef_pvt[r, t])
         coef_iled[Rtp[r, t, p]].where[ncap_bnd[Rtp, "N"]] = (
             mod(coef_iled[Rtp], 1000) + Number(SpecialValues.EPS).where[ncap_iled[Rtp]]
         )

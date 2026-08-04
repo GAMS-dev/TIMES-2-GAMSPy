@@ -18,7 +18,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
-from gamspy import Alias, Domain, Loop, Number, Ord, Set, SpecialValues, Sum
+from gamspy import Alias, Domain, Loop, Number, Ord, Set, SpecialValues, Sum, sparse
 from gamspy.math import power, same_as
 
 from core.base_class import GamsClass
@@ -132,21 +132,21 @@ class EqucrtpVda(GamsClass):
             with Loop(UcDynbnd[ucnA, bd]):
                 uncd1[ucnA] = True
 
-            prc_dynuc[ucn, side, r, ll, p, "CAP", bd].where[
-                UcDynbnd[ucn, bd] & uc_cap[ucn, side, r, ll, p]
-            ] = uc_cap[ucn, side, r, ll, p]
-            prc_dynuc[ucn, side, r, ll, p, "NCAP", bd].where[
-                UcDynbnd[ucn, bd] & uc_ncap[ucn, side, r, ll, p]
-            ] = uc_ncap[ucn, side, r, ll, p]
-            prc_dynuc[ucn, side, r, ll, p, "ACT", bd].where[
-                UcDynbnd[ucn, bd] & uc_act[ucn, side, r, ll, p, "ANNUAL"]
-            ] = uc_act[ucn, side, r, ll, p, "ANNUAL"]
-            uc_com[ucn[uncd1], "NET", side, r, ll, c, Annual[s], "UCN"].where[
+            prc_dynuc[ucn, side, r, ll, p, "CAP", bd].where[UcDynbnd[ucn, bd]] = sparse(
+                uc_cap[ucn, side, r, ll, p]
+            )
+            prc_dynuc[ucn, side, r, ll, p, "NCAP", bd].where[UcDynbnd[ucn, bd]] = (
+                sparse(uc_ncap[ucn, side, r, ll, p])
+            )
+            prc_dynuc[ucn, side, r, ll, p, "ACT", bd].where[UcDynbnd[ucn, bd]] = sparse(
+                uc_act[ucn, side, r, ll, p, "ANNUAL"]
+            )
+            uc_com[ucn[uncd1], "NET", side, r, ll, c, Annual[s], "UCN"] = sparse(
                 uc_comnet[ucn, side, r, ll, c, s]
-            ] = uc_comnet[ucn, side, r, ll, c, s]
-            uc_com[ucn[uncd1], "PRD", side, r, ll, c, Annual[s], "UCN"].where[
+            )
+            uc_com[ucn[uncd1], "PRD", side, r, ll, c, Annual[s], "UCN"] = sparse(
                 uc_comprd[ucn, side, r, ll, c, s]
-            ] = uc_comprd[ucn, side, r, ll, c, s]
+            )
             uc_cap[ucn[uncd1], side, r, ll, p] = 0
             uc_ncap[ucn[uncd1], side, r, ll, p] = 0
             uc_act[ucn[uncd1], side, r, ll, p, s] = 0

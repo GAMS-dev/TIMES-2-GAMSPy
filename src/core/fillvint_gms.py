@@ -15,7 +15,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from gamspy import Alias, Loop, Parameter, Set
+from gamspy import Alias, Loop, Parameter, Set, sparse
 from gamspy.math import Max, Min
 
 from core.base_class import GamsClass
@@ -113,7 +113,7 @@ class FillvintGms(GamsClass):
             ] = True
 
         if prc_simv_defined:
-            Rtp[Rvp[r, v, p]].where[PrcSimv[r, p]] = PrcSimv[r, p]
+            Rtp[Rvp[r, v, p]] = sparse(PrcSimv[r, p])
 
     def fill(
         self: FillvintGms,
@@ -155,12 +155,12 @@ class FillvintGms(GamsClass):
         # Weighted average of vintages t and t-1
         ll, v = g.ll, g.v
 
-        with Loop((t[ll], v[ll - lead[ll]])):  # type:ignore
+        with Loop((t[ll], v[ll - lead[ll]])):  # type: ignore[arg-type]
             arg4[arg2, *arg3, t].where[arg1[arg2, t, *arg3].where[Trackp[r, p]]] = arg1[
                 arg2, t, *arg3
             ] * pastsum[r, t, p] + arg1[arg2, v, *arg3] * (1 - pastsum[r, t, p])
 
-        arg1[arg2, t, *arg3].where[arg4[arg2, *arg3, t]] = arg4[arg2, *arg3, t]
+        arg1[arg2, t, *arg3] = sparse(arg4[arg2, *arg3, t])
 
         arg4.setRecords(None)
         Trackp.setRecords(None)
