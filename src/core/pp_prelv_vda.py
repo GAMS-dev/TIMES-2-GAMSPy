@@ -17,9 +17,8 @@ from typing import TYPE_CHECKING
 from core.base_class import GamsClass
 from core.dynslite_vda import DynsliteVda
 from core.powerflo_vda import PowerfloVda
-from core.pp_lvlfc_mod import PpLvlfcMod
-
-from .pp_qaput_mod import pp_qaput
+from core.pp_lvlfc_mod import PpLvlfcMod, PpLvlfcModConfig
+from core.pp_qaput_mod import pp_qaput
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -45,7 +44,8 @@ class PpPrelvVda(GamsClass):
         self.arg2 = arg2
         self.compile()
 
-    def compile(self) -> None:
+    def compile(self: PpPrelvVda) -> None:
+        g = self.tc
         self.tc.enqueue(self.restore_ncap_tlife, dflbl=self.env.dflbl)
         self.tc.enqueue(self.filter_vda_flop, pgprim=self.env.pgprim)
         self.tc.add_gams_code(
@@ -78,14 +78,16 @@ class PpPrelvVda(GamsClass):
             PpLvlfcMod(
                 self.tc,
                 self.env,
-                arg1="FLO_FR",
-                arg2="P,C",
-                arg3="RPCS_VAR",
-                arg4=",BD",
-                arg5=",'0','0'",
-                arg6="ALL_TS",
-                arg7="T",
-                arg8=" RPC_CONLY(R,T,P,C)",
+                config=PpLvlfcModConfig(
+                    arg1=g.flo_fr,
+                    arg2=(g.p, g.c),
+                    arg3=g.RpcsVar,
+                    arg4=(g.bd,),
+                    arg5=("0", "0"),
+                    arg6=g.allts,
+                    arg7=(g.t,),
+                    arg8=g.RpcConly[g.r, g.t, g.p, g.c],
+                ),
             )
         )
 

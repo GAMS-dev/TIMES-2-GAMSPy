@@ -19,7 +19,7 @@ from core.cal_red_red import cal_red_red
 from core.fillparm_gms import FillparmGms
 from core.filparam_gms import FilparamGms, FilparamGmsConfig
 from core.gasgrids_vda import GasgridsVda
-from core.pp_lvlfc_mod import PpLvlfcMod
+from core.pp_lvlfc_mod import PpLvlfcMod, PpLvlfcModConfig
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
@@ -82,14 +82,16 @@ class PowerfloVda(GamsClass):
                 PpLvlfcMod(
                     self.tc,
                     self.env,
-                    arg1="GR_DEMFR",
-                    arg2="C",
-                    arg3="COM_TS",
-                    arg4="",
-                    arg5=",'0','0','0','0'",
-                    arg6="ALL_TS",
-                    arg7="T",
-                    arg8="RTC(R,T,C)",
+                    config=PpLvlfcModConfig(
+                        arg1=g.gr_demfr,
+                        arg2=(g.c,),
+                        arg3=g.ComTs,
+                        arg4=(),
+                        arg5=("0", "0", "0", "0"),
+                        arg6=g.allts,
+                        arg7=(g.t,),
+                        arg8=g.Rtc[g.r, g.t, g.c],
+                    ),
                 )
             )
             self.tc.enqueue(self.exec2)
@@ -268,17 +270,17 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
                     PpLvlfcMod(
                         self.tc,
                         self.env,
-                        arg1="COM_CSTBAL",
-                        arg2="C",
-                        arg3="COM_TS",
-                        arg4=",ITEM,CUR",
-                        arg5=",'0','0'",
-                        arg6="ALL_TS",
-                        arg7="T",
-                        arg8="RTC(R,T,C)",
-                        arg9="",
-                        arg10="",
-                        arg11="N",
+                        config=PpLvlfcModConfig(
+                            arg1=g.com_cstbal,
+                            arg2=(g.c,),
+                            arg3=g.ComTs,
+                            arg4=(g.item, g.cur),
+                            arg5=("0", "0"),
+                            arg6=g.allts,
+                            arg7=(g.t,),
+                            arg8=g.Rtc[g.r, g.t, g.c],
+                            arg11="N",
+                        ),
                     )
                 )
                 self.tc.enqueue(self.exec7)

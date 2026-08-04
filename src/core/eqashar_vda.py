@@ -18,8 +18,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core import cal_nored_red, cal_red_red, pp_lvlfc_mod
+from gamspy import Number
+
 from core.base_class import GamsClass
+from core.cal_nored_red import cal_nored_red
+from core.cal_red_red import cal_red_red
+from core.pp_lvlfc_mod import PpLvlfcMod, PpLvlfcModConfig
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
@@ -51,6 +55,7 @@ class EqasharVda(GamsClass):
         self.compile()
 
     def compile(self: EqasharVda) -> None:
+        g = self.tc
         if len(self.arg1):
             self.label_eqdef(
                 no_red=self.env.cal_red == "cal_nored.red",
@@ -63,20 +68,21 @@ class EqasharVda(GamsClass):
         else:
             self.tc.enqueue(self.collect_all_flo_ashar_groups)
             self.include(
-                pp_lvlfc_mod.PpLvlfcMod(
+                PpLvlfcMod(
                     tc=self.tc,
                     env=self.env,
-                    arg1="FLO_ASHAR",
-                    arg2="P",
-                    arg3="RPS_S2",
-                    arg4=",BD",
-                    arg5=",''",
-                    arg6="ALL_TS",
-                    arg7="V",
-                    arg8="1",
-                    arg9="0",
-                    arg10=",C,CG",
-                    arg11="N",
+                    config=PpLvlfcModConfig(
+                        arg1=g.flo_ashar,
+                        arg2=(g.p,),
+                        arg3=g.RpsS2,
+                        arg4=(g.bd,),
+                        arg5=("",),
+                        arg6=g.allts,
+                        arg7=(g.v,),
+                        arg8=Number(1),
+                        arg10=(g.c, g.cg),
+                        arg11="N",
+                    ),
                 )
             )
 
@@ -115,7 +121,7 @@ class EqasharVda(GamsClass):
         var: str,
     ) -> None:
         if no_red:
-            cal_red_code = cal_nored_red.cal_nored_red(
+            cal_red_code = cal_nored_red(
                 arg1="COM",
                 arg2="COM1",
                 arg3="TS",
@@ -127,7 +133,7 @@ class EqasharVda(GamsClass):
                 pgprim=self.env.pgprim,
             )
         else:
-            cal_red_code = cal_red_red.cal_red_red(
+            cal_red_code = cal_red_red(
                 arg1="COM",
                 arg2="COM1",
                 arg3="TS",

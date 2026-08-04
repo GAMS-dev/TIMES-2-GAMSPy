@@ -22,7 +22,25 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal
+
+from gamspy import (
+    Alias,
+    Domain,
+    Else,
+    Expression,
+    If,
+    Loop,
+    Number,
+    Ord,
+    Parameter,
+    Set,
+    Sum,
+    UniverseAlias,
+)
+from gamspy._algebra.condition import Condition
+from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
 
 from core.base_class import GamsClass
 
@@ -31,6 +49,22 @@ if TYPE_CHECKING:
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PpLvlfcModConfig:
+    arg1: Parameter
+    arg2: tuple[Set | Alias, ...]
+    arg3: Set
+    arg4: tuple[Set | Alias | UniverseAlias, ...]
+    arg5: tuple[str, ...]
+    arg6: Set | Alias
+    arg7: tuple[Set | Alias, ...]
+    arg8: ImplicitSet | Number | Condition
+    arg9: bool = False
+    arg10: tuple[Set | Alias, ...] = ()
+    arg11: Literal["N"] | Number | None = None
+    arg12: Expression | ImplicitParameter | ImplicitSet | Number = Number(1)  # noqa: RUF009
 
 
 class PpLvlfcMod(GamsClass):
@@ -44,191 +78,132 @@ class PpLvlfcMod(GamsClass):
         self: PpLvlfcMod,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
-        arg4: str = "",
-        arg5: str = "",
-        arg6: str = "",
-        arg7: str = "",
-        arg8: str = "",
-        arg9: str = "",
-        arg10: str = "",
-        arg11: str = "",
-        arg12: str = "",
+        config: PpLvlfcModConfig,
     ):
         self.env = env.fork()
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
-        self.arg4 = arg4
-        self.arg5 = arg5
-        self.arg6 = arg6
-        self.arg7 = arg7
-        self.arg8 = arg8
-        self.arg9 = arg9
-        self.arg10 = arg10
-        self.arg11 = arg11
-        self.arg12 = arg12
+        self.config = config
         self._sub_modules = {}
         self.compile()
 
     def compile(self: PpLvlfcMod) -> None:
-        self.tc.enqueue(clear_uncd7, module=self)
-        self.env.set_local("take", self.arg12)
-        self.env.set_local("regy", f"R,{self.arg7}")
-        self.env.set_local("ts", f"(NOT {self.arg3}(R,{self.arg2},S))$")
-        self.env.set_local("awgt", "G_YRFR(R,S)/G_YRFR(R,TS)")
-        self.env.set_local("iwgt", "")
-        if not len(self.arg7):
-            self.env.set_local("regy", "R")
-        if self.arg6 == "S2":
-            self.env.set_local("ts", "")
-        if self.arg9 == "1":
-            self.env.set_local("awgt", "1")
-            self.env.set_local("iwgt", f"*G_YRFR(R,S)/G_YRFR(R,{self.arg6})")
-        if self.arg11 == "N":
-            self.env.set_local(
-                "take",
-                f"${self.arg1}(R,'0',{self.arg2}{self.arg10},'ANNUAL'{self.arg4})",
-            )
-
-        self.tc.enqueue(
-            all_exec,
-            module=self,
-            take=self.env.take,
-            regy=self.env.regy,
-            ts=self.env.ts,
-            awgt=self.env.awgt,
-            iwgt=self.env.iwgt,
-            arg1=self.arg1,
-            arg2=self.arg2,
-            arg3=self.arg3,
-            arg4=self.arg4,
-            arg5=self.arg5,
-            arg6=self.arg6,
-            arg8=self.arg8,
-            arg10=self.arg10,
-            arg11=self.arg11,
-        )
+        self.tc.enqueue(pp_lvlfc_mod, module=self, cc=self.config)
 
 
 def clear_uncd7(module: GamsClass) -> None:
-    module.tc.add_gams_code(module=module, phase="run", code=r"OPTION CLEAR=UNCD7;")
+    g = module.tc
+    g.Uncd7.setRecords(None)
 
 
 def all_exec(
     module: GamsClass,
-    take: str,
-    regy: str,
-    ts: str,
-    awgt: str,
-    iwgt: str,
-    arg1: str,
-    arg2: str,
-    arg3: str,
-    arg4: str,
-    arg5: str,
-    arg6: str,
-    arg8: str,
-    arg10: str,
-    arg11: str,
+    take: Expression | Number | ImplicitSet | ImplicitParameter,
+    regy: tuple[Set | Alias, ...],
+    ts: Expression | Number,
+    awgt: Expression | Number,
+    iwgt: Expression | Number,
+    cc: PpLvlfcModConfig,
 ) -> None:
-    if arg11 == "N":
-        module.tc.add_gams_code(
-            module=module,
-            phase="run",
-            code=rf"""
-{arg1}(R,LL--ORD(LL),{arg2}{arg10},S+STOA(S){arg4})$(STOAL(R,S)${arg1}(R,LL,{arg2}{arg10},S{arg4})) = 1;
-""",
-        )
-    module.tc.add_gams_code(
-        module=module,
-        phase="run",
-        code=rf"""
-* Mark to be levelized if inheritance is allowed or S is not ANNUAL:
-LOOP(({regy},{arg2}{arg10},S{arg4})$({ts}{arg1}({regy},{arg2}{arg10},S{arg4})), UNCD7({regy},{arg2}{arg10}{arg4}{arg5})$({arg8}{take}) = YES);
-*-----------------------------------------------------------------------------
-* Aggregation/inheritance to target timeslices
-*-----------------------------------------------------------------------------
-LOOP(UNCD7({regy},{arg2}{arg10}{arg4}{arg5}), TS_ARRAY(S) = {arg1}({regy},{arg2}{arg10},S{arg4});
- IF((NOT SUM(RS_BELOW(R,'ANNUAL',S)$TS_ARRAY(S),1))$TS_ARRAY('ANNUAL'),
-   {arg1}({regy},{arg2}{arg10},S{arg4})${arg3}(R,{arg2},S) = SUM(ANNUAL({arg6}),TS_ARRAY({arg6}){iwgt});
- ELSE
-* Leveling by simultaneous aggregation/inheritance; but only if target level value is not present
-   LOOP({arg3}(R,{arg2},TS)$(NOT TS_ARRAY(TS)),
-    {arg1}({regy},{arg2}{arg10},TS{arg4}) $=
-     SUM(TS_MAP(R,TS,S)$FINEST(R,S), {awgt} * (TS_ARRAY(S) +
-            SUM(RS_BELOW(R,{arg6},S)$(TS_ARRAY({arg6}) AND NOT SUM(SL$RS_BELOW(R,{arg6},SL),TS_MAP(R,SL,S)*TS_ARRAY(SL))),
-                       TS_ARRAY({arg6}){iwgt})));)));
-*-----------------------------------------------------------------------------
-""",
+    g = module.tc
+    r, ll, stoa, s, stoal = g.r, g.ll, g.stoa, g.s, g.stoal
+    Uncd7 = g.Uncd7
+    ts_array, RsBelow, Annual, TsMap, sl, Finest = (
+        g.ts_array,
+        g.RsBelow,
+        g.Annual,
+        g.TsMap,
+        g.sl,
+        g.Finest,
     )
-    if arg11 == "0":
-        module.tc.add_gams_code(
-            module=module,
-            phase="run",
-            code=rf"""
-{arg1}({regy},{arg2}{arg10},S{arg4})$((NOT {arg1}({regy},{arg2}{arg10},S{arg4}))${arg3}(R,{arg2},S)) $= {arg1}({regy},{arg2}{arg10},'ANNUAL'{arg4});
-""",
-        )
-    if len(arg11):
-        module.tc.add_gams_code(
-            module=module,
-            phase="run",
-            code=rf"""
-{arg1}(R,LL,{arg2}{arg10},S{arg4})$((NOT {arg3}(R,{arg2},S)){take}) = 0;
-""",
+
+    if isinstance(cc.arg11, str) and cc.arg11 == "N":
+        cc.arg1[
+            r,
+            ll.lag(Ord(ll), type="circular"),
+            *cc.arg2,
+            *cc.arg10,
+            s + stoa[s],
+            *cc.arg4,
+        ].where[stoal[r, s].where[cc.arg1[r, ll, *cc.arg2, *cc.arg10, s, *cc.arg4]]] = 1
+
+    # Mark to be levelized if inheritance is allowed or S is not ANNUAL:
+    with Loop(
+        Domain(*regy, *cc.arg2, *cc.arg10, s, *cc.arg4).where[  # type: ignore[arg-type]
+            ts.where[cc.arg1[*regy, *cc.arg2, *cc.arg10, s, *cc.arg4]]
+        ]
+    ):
+        Uncd7[*regy, *cc.arg2, *cc.arg10, *cc.arg4, *cc.arg5].where[cc.arg8 & take] = (
+            True
         )
 
+    # Aggregation/inheritance to target timeslices
+    with Loop(Uncd7[*regy, *cc.arg2, *cc.arg10, *cc.arg4, *cc.arg5]):
+        ts_array[s] = cc.arg1[*regy, *cc.arg2, *cc.arg10, s, *cc.arg4]
+        with If(
+            (~Sum(RsBelow[r, "ANNUAL", s].where[ts_array[s]], 1)).where[
+                ts_array["ANNUAL"]
+            ]
+        ):
+            cc.arg1[*regy, *cc.arg2, *cc.arg10, s, *cc.arg4].where[
+                cc.arg3[r, *cc.arg2, s]
+            ] = Sum(Annual[cc.arg6], ts_array[cc.arg6] * iwgt)
 
-def pp_lvlfc_mod(
-    module: GamsClass,
-    arg1: str,
-    arg2: str,
-    arg3: str,
-    arg4: str,
-    arg5: str,
-    arg6: str,
-    arg7: str,
-    arg8: str,
-    arg9: str,
-    arg10: str,
-    arg11: str,
-    arg12: str,
-) -> None:
+        with Else():  # type: ignore[no-untyped-call] # noqa: SIM117
+            # Leveling by simultaneous aggregation/inheritance; but only if target level value is not present
+            with Loop(cc.arg3[r, *cc.arg2, g.ts].where[~ts_array[g.ts]]):
+                sparse_expr = Sum(
+                    TsMap[r, g.ts, s].where[Finest[r, s]],
+                    awgt
+                    * (
+                        ts_array[s]
+                        + Sum(
+                            RsBelow[r, cc.arg6, s].where[
+                                ts_array[cc.arg6]
+                                & (
+                                    ~Sum(
+                                        sl.where[RsBelow[r, cc.arg6, sl]],
+                                        TsMap[r, sl, s] * ts_array[sl],
+                                    )
+                                )
+                            ],
+                            ts_array[cc.arg6] * iwgt,
+                        )
+                    ),
+                )
+                cc.arg1[*regy, *cc.arg2, *cc.arg10, g.ts, *cc.arg4].where[
+                    sparse_expr
+                ] = sparse_expr
+
+    if isinstance(cc.arg11, Number) and cc.arg11._value == 0:
+        expr = cc.arg1[*regy, *cc.arg2, *cc.arg10, "ANNUAL", *cc.arg4]
+        cc.arg1[*regy, *cc.arg2, *cc.arg10, s, *cc.arg4].where[
+            (~cc.arg1[*regy, *cc.arg2, *cc.arg10, s, *cc.arg4]).where[
+                cc.arg3[r, *cc.arg2, s]
+            ]
+            & expr
+        ] = expr
+
+    if cc.arg11:
+        cc.arg1[r, ll, *cc.arg2, *cc.arg10, s, *cc.arg4].where[
+            (~cc.arg3[r, *cc.arg2, s]).where[take]
+        ] = 0
+
+
+def pp_lvlfc_mod(module: GamsClass, cc: PpLvlfcModConfig) -> None:
+    g = module.tc
     clear_uncd7(module=module)
 
-    take = arg12
-    regy = f"R,{arg7}"
-    ts = f"(NOT {arg3}(R,{arg2},S))$"
-    awgt = "G_YRFR(R,S)/G_YRFR(R,TS)"
-    iwgt = ""
-    if not len(arg7):
-        regy = "R"
-    if arg6 == "S2":
-        ts = ""
-    if arg9 == "1":
-        awgt = "1"
-        iwgt = f"*G_YRFR(R,S)/G_YRFR(R,{arg6})"
-    if arg11 == "N":
-        take = f"${arg1}(R,'0',{arg2}{arg10},'ANNUAL'{arg4})"
+    take = cc.arg12
+    regy = (g.r, *cc.arg7)
+    ts = Number(1) if cc.arg6.name == "S2" else ~cc.arg3[g.r, *cc.arg2, g.s]
+    awgt: Number | Expression = g.g_yrfr[g.r, g.s] / g.g_yrfr[g.r, g.ts]
+    iwgt: Number | Expression = Number(1)
 
-    all_exec(
-        module=module,
-        take=take,
-        regy=regy,
-        ts=ts,
-        awgt=awgt,
-        iwgt=iwgt,
-        arg1=arg1,
-        arg2=arg2,
-        arg3=arg3,
-        arg4=arg4,
-        arg5=arg5,
-        arg6=arg6,
-        arg8=arg8,
-        arg10=arg10,
-        arg11=arg11,
-    )
+    if cc.arg9:
+        awgt = Number(1)
+        iwgt = g.g_yrfr[g.r, g.s] / g.g_yrfr[g.r, cc.arg6]
+
+    if isinstance(cc.arg11, str) and cc.arg11 == "N":
+        take = cc.arg1[g.r, "0", *cc.arg2, *cc.arg10, "ANNUAL", *cc.arg4]
+
+    all_exec(module=module, take=take, regy=regy, ts=ts, awgt=awgt, iwgt=iwgt, cc=cc)

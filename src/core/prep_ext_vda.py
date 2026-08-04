@@ -164,6 +164,30 @@ class PrepExtVda(GamsClass):
         g.act_flo[r, ll.lag(Ord(g.ll), "circular"), p, c, s].where[g.stoa[s]] = sparse(
             g.vda_flop[r, ll, p, c, s]
         )
+        sparseExpr = g.ncap_afcs[r, ll, p, cg, s]
+        g.ncap_afc[r, ll, p, cg, g.stl[s]].where[sparseExpr] = sparseExpr
+        g.ncap_afcs.setRecords(None)
+        # Collect ACT_EFF groups
+        project(g.act_eff, g.RpGrp)
+        g.Uncd7.setRecords(None)
+        sparseExpr2 = (g.act_eff[r, ll, p, cg, s] > 0).where[g.act_eff[r, ll, p, cg, s]]
+        g.Uncd7[
+            r,
+            ll.lag(Ord(g.ll), "circular"),
+            p,
+            cg,
+            g.s.lag(Ord(g.s), "circular"),
+            "",
+            "",
+        ].where[g.bohyear[g.ll] & sparseExpr2] = sparseExpr2
+        with Loop(g.Uncd7[r, ll, p, cg, s, "", ""]):
+            g.RpcAce[r, p, cg] = True
+        g.Rpg1ace[g.RpGrp[g.Rpc[r, p, c]], c].where[~g.RpcAce[g.Rpc]] = True
+        g.RpGrp.setRecords(None)
+        sparseExpr3 = g.vda_flop[r, ll, p, c, s]
+        g.act_flo[r, ll.lag(Ord(g.ll), "circular"), p, c, s].where[
+            g.stoa[s] & sparseExpr3
+        ] = sparseExpr3
 
     def tailored_interpolation(self: PrepExtVda, waver: bool) -> None:
         g = self.tc

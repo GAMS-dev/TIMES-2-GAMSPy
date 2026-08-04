@@ -13,11 +13,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Set
+from gamspy import Ord, Set
 
 from core.base_class import GamsClass
 from core.fillsow_stc import FillsowStc
-from core.pp_lvlfc_mod import PpLvlfcMod
+from core.pp_lvlfc_mod import PpLvlfcMod, PpLvlfcModConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -73,7 +73,7 @@ class StagesStc(GamsClass):
                 self.env.set_global("swtx_GP", g.SwT[g.t, g.Sow])
             if self.env.sensis == "YES":
                 self.env.set_global("swd", "")
-                self.env.set_global("swd_GP", tuple())
+                self.env.set_global("swd_GP", ())
 
             g.Auxsow = Set(m, name="AUXSOW", domain=[g.allsow], records=["1"])
 
@@ -257,32 +257,26 @@ DISPLAY SW_START,SW_SUBS,SW_CHILD,SW_TREE,SW_MAP,SW_STAGE,SW_T,SW_TSW,SW_TPROB,S
         self.tc.add_gams_code(module=self, phase="run", code="OPTION CLEAR=SUPERYR;")
 
     def post(self: StagesStc) -> None:
-        # fmt: off
-        pp_lvlfc_mod_bat_include_params = [
-            ("S_COM_TAX","C","COM_TS",",COM_VAR,CUR,J,WW","","ALL_TS","T","RC(R,C)$(ORD(J)=1)","","","","")
-        ]
-        # fmt: on
+        g = self.tc
+
         # LABLE POST
         # * Levelize & merge
-        for arg in pp_lvlfc_mod_bat_include_params:
-            self.include(
-                PpLvlfcMod(
-                    self.tc,
-                    self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
-                    arg5=arg[4],
-                    arg6=arg[5],
-                    arg7=arg[6],
-                    arg8=arg[7],
-                    arg9=arg[8],
-                    arg10=arg[9],
-                    arg11=arg[10],
-                    arg12=arg[11],
-                )
+        self.include(
+            PpLvlfcMod(
+                self.tc,
+                self.env,
+                config=PpLvlfcModConfig(
+                    arg1=g.s_com_tax,
+                    arg2=(g.c,),
+                    arg3=g.ComTs,
+                    arg4=(g.comvar, g.cur, g.j, g.ww),
+                    arg5=(),
+                    arg6=g.allts,
+                    arg7=(g.t,),
+                    arg8=g.Rc[g.r, g.c].where[Ord(g.j) == 1],
+                ),
             )
+        )
 
     def didfunc(self: StagesStc) -> None:
         self.tc.add_gams_code(
