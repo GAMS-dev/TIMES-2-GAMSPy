@@ -18,15 +18,23 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
+
+from gamspy import Number, Product, Sum
 
 from core.base_class import GamsClass
-from core.cal_cap_mod import cal_cap_mod
-from core.cal_fflo_mod import cal_fflo_mod
-from core.cal_ire_mod import cal_ire_mod
-from core.cal_stgn_mod import cal_stgn_mod
+from core.cal_cap_mod import CalCapModConfig, cal_cap_mod_GP
+from core.cal_fflo_mod import CalFfloModConfig, cal_fflo_mod_GP
+from core.cal_ire_mod import CalIreModConfig, cal_ire_mod_GP
+from core.cal_stgn_mod import CalStgnModConfig, cal_stgn_mod_GP
+from core.utils import generate_equation
 
 if TYPE_CHECKING:
+    from gamspy import Alias, Equation, Parameter, Set, Variable
+    from gamspy._algebra.condition import Condition
+    from gamspy._algebra.expression import Expression
+    from gamspy._symbols.implicits import ImplicitSet
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -44,11 +52,12 @@ class EqcombalMod(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
+        arg2: Literal["E", "N", "L", "G"],
+        arg5: ImplicitSet | Number,  # default Number(1)
+        # arg1 is always "mod"
         arg1: str = "",
-        arg2: str = "",
         arg3: str = "",
         arg4: str = "",
-        arg5: str = "",
     ):
         self.env = env.fork()
         self._sub_modules = {}
@@ -61,10 +70,16 @@ class EqcombalMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+
+        sws_local: Product | Number = Number(1)
         if self.arg4 == "BAL" and self.env.stages.upper() == "YES":
-            sws_local = "PROD(SW_MAP(T,SOW,J,WW)$S_COM_PROJ(R,T,C,J,WW),S_COM_PROJ(R,T,C,J,WW))*"
-        else:
-            sws_local = self.env.sws
+            sws_local = Product(
+                g.SwMap[g.t, *self.env.sow_GP, g.j, g.ww].where[
+                    g.s_com_proj[g.r, g.t, g.c, g.j, g.ww]
+                ],
+                g.s_com_proj[g.r, g.t, g.c, g.j, g.ww],
+            )
 
         self.define_equation(
             arg2=self.arg2,
@@ -72,10 +87,10 @@ class EqcombalMod(GamsClass):
             arg4=self.arg4,
             arg5=self.arg5,
             eq=self.env.eq,
-            r_t=self.env.r_t,
-            swt=self.env.swt,
+            r_t=self.env.r_t_GP,
+            swt=self.env.swt_GP,
             var=self.env.var,
-            sow=self.env.sow,
+            sow=self.env.sow_GP,
             sws_local=sws_local,
             mx=self.env.mx,
             condition1=self.arg4 == "BAL",
@@ -86,219 +101,283 @@ class EqcombalMod(GamsClass):
 
     def define_equation(
         self: EqcombalMod,
-        arg2: str,
+        arg2: Literal["E", "N", "L", "G"],
         arg3: str,
         arg4: str,
-        arg5: str,
+        arg5: Condition | Expression | ImplicitSet | Number,
         eq: str,
-        r_t: str,
-        swt: str,
+        r_t: tuple[Set | Alias | ImplicitSet, Set | Alias | ImplicitSet],
+        swt: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
         var: str,
-        sow: str,
-        sws_local: str,
+        sow: tuple[Literal["0", "1"] | Set | Alias, ...] | tuple[()],
+        sws_local: Product | Number,
         mx: str,
         condition1: bool,
         condition2: bool,
         condition3: bool,
         condition4: bool,
     ) -> None:
-        include_cal_fflo_1 = cal_fflo_mod(
-            reduce=self.env.reduce,
-            sow=self.env.sow,
-            var=self.env.var,
-            pgprim=self.env.pgprim,
-            is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
-            arg1="OUT",
-            arg3="",
-            arg4="",
-        )
-        include_cal_ire_1 = cal_ire_mod(
-            var=self.env.var,
-            sow=self.env.sow,
-            is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
-            is_ireauxbal=self.env.is_set("ireauxbal"),
-            arg1="IMP",
-            arg2="OUT",
-            arg3="IE",
-            arg4="",
-            arg5="",
-            arg6="",
-            arg7="",
-        )
-        include_cal_stgn_1 = cal_stgn_mod(
-            var=self.env.var,
-            sow=self.env.sow,
-            arg1="OUT",
-            arg2="IN",
-            arg3="*STG_EFF(R,V,P)",
-            arg4="",
-            arg5="(NOT PRC_NSTTS(R,P,TS))",
-        )
-        include_cal_cap_1 = cal_cap_mod(
-            varv=self.env.varv,
-            sws=self.env.sws,
-            rcapsub=self.env.rcapsub,
-            arg1="OUT",
-            arg2="O",
-        )
-        include_cal_fflo_2 = cal_fflo_mod(
-            reduce=self.env.reduce,
-            sow=self.env.sow,
-            var=self.env.var,
-            pgprim=self.env.pgprim,
-            is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
-            arg1="IN",
-            arg3="",
-            arg4="",
-        )
-        include_cal_ire_2 = cal_ire_mod(
-            var=self.env.var,
-            sow=self.env.sow,
-            is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
-            is_ireauxbal=self.env.is_set("ireauxbal"),
-            arg1="EXP",
-            arg2="IN",
-            arg3="IE",
-            arg4="",
-            arg5="",
-            arg6="",
-            arg7="",
-        )
-        include_cal_stgn_2 = cal_stgn_mod(
-            var=self.env.var,
-            sow=self.env.sow,
-            arg1="IN",
-            arg2="OUT",
-            arg3="",
-            arg4="STG_EFF(R,V,P)*",
-            arg5="((NOT PRC_MAP(R,'NST',P))+PRC_NSTTS(R,P,TS))",
-        )
-        include_cal_cap_2 = cal_cap_mod(
-            varv=self.env.varv,
-            sws=self.env.sws,
-            rcapsub=self.env.rcapsub,
-            arg1="IN",
-            arg2="I",
+        g = self.tc
+        r, v, t, p, c, s, ts = g.r, g.v, g.t, g.p, g.c, g.s, g.ts
+        Com, ble, opr, j, bd = g.Com, g.Ble, g.Opr, g.j, g.bd
+
+        eq_combal: Equation = g.get_equation(f"{eq}{arg2}_COM{arg4}")
+        RcsCom: Set = g.get_set(f"RCS_COM{arg4}")
+        varv = self.env.varv_GP
+        sws = self.env.sws_GP
+        rcapsub = self.env.rcapsub_GP
+        reduce = self.env.reduce
+        pgprim = self.env.pgprim
+        is_rtp_ffcs_defined = self.tc.defined("RTP_FFCS")
+        is_ireauxbal = self.env.is_set("ireauxbal")
+        VAR_BLND: Variable = g.get_variable(f"{var}_BLND")
+        VAR_COMNET: Variable = g.get_variable(f"{var}_COMNET")
+        VAR_COMPRD: Variable = g.get_variable(f"{var}_COMPRD")
+        VAR_DEM: Variable = g.get_variable(f"{var}_DEM")
+        VAR_ELAST: Variable = g.get_variable(f"{var}_ELAST")
+        com_fr: Parameter = g.get_parameter(f"COM_FR{mx}")
+
+        # RS_FR(R,S,'ANNUAL')*(1+RTCS_FR(R,T,C,S,'ANNUAL')), the annual blending spread
+        annual = g.rs_fr[r, s, "ANNUAL"] * (1 + g.rtcs_fr[r, t, c, s, "ANNUAL"])
+        # * include the elasticity variables
+        elast = Sum(
+            g.Rcj[r, c, j, g.Bdneq[bd]].where[g.com_elast[r, t, c, s, bd]],
+            g.bdsig[bd] * VAR_ELAST[r, t, c, s, j, bd, *sow],
         )
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-    {eq}{arg2}_COM{arg4}({r_t},C,S {swt})$(RCS_COM{arg4}(R,T,C,S,'{arg3}') {arg5}) ..
-*
-* production
-*
-   (
-      (
+        # *
+        # * production
+        # *
+        production: Expression | ImplicitSet = (
+            # * individual flows
+            cal_fflo_mod_GP(
+                g=g,
+                config=CalFfloModConfig(
+                    reduce=reduce,
+                    sow=sow,
+                    var=var,
+                    pgprim=pgprim,
+                    is_rtp_ffcs_defined=is_rtp_ffcs_defined,
+                    arg1="OUT",
+                    arg3=Number(1),
+                    arg4=Number(1),
+                ),
+            )
+            # *V07_1b blending flows
+            + Sum(
+                g.BleOpr[r, c, opr],
+                annual * g.ble_bal[r, t, c, opr] * VAR_BLND[r, t, c, opr, *sow],
+            )
+            # *V07_1b emissions due to blending operations
+            + Sum(
+                g.BleEnv[r, c, ble, opr],
+                g.rs_fr[r, s, "ANNUAL"]
+                * g.env_bl[r, c, ble, opr, t]
+                * VAR_BLND[r, t, ble, opr, *sow],
+            )
+            # *   inter-regional trade to region
+            # *V0.9 022100 - exports could also produce aux
+            + cal_ire_mod_GP(
+                g=g,
+                config=CalIreModConfig(
+                    var=var,
+                    sow=sow,
+                    is_rtp_ffcs_defined=is_rtp_ffcs_defined,
+                    is_ireauxbal=is_ireauxbal,
+                    arg1="IMP",
+                    arg2="OUT",
+                    arg3=g.ie,
+                    arg4=Number(1),
+                ),
+            )
+            # *   storage
+            + cal_stgn_mod_GP(
+                g=g,
+                config=CalStgnModConfig(
+                    var=var,
+                    sow=sow,
+                    arg1="OUT",
+                    arg2="IN",
+                    arg3=g.stg_eff[r, v, p],
+                    arg4=Number(1),
+                    arg5=~g.PrcNstts[r, p, ts],
+                    arg6=Number(1),
+                ),
+            )
+            # * (+25-May-2005) Add commodity aggregation to production side
+            + Sum(
+                Com.where[g.com_agg[r, t, Com, c]],
+                g.com_agg[r, t, Com, c]
+                * Sum(
+                    g.RtcsVarc[r, t, Com, ts].where[g.RsTree[r, s, ts]],
+                    g.rs_fr[r, s, ts]
+                    * (1 + g.rtcs_fr[r, t, Com, s, ts])
+                    * (
+                        VAR_COMNET[r, t, Com, ts, *sow].where[g.RcAgp[r, Com, "LO"]]
+                        + VAR_COMPRD[r, t, Com, ts, *sow].where[g.RcAgp[r, Com, "FX"]]
+                    ),
+                ),
+            )
+            # * capacity related commodity flows
+            # * fixed commodity associated with installed capacity or retirement
+            + cal_cap_mod_GP(
+                g=g,
+                config=CalCapModConfig(
+                    varv=varv,
+                    sws=sws,
+                    rcapsub=rcapsub,
+                    arg1="OUT",
+                    arg2="O",
+                    arg3=Number(1),
+                ),
+            )
+            # * apply commodity infastructure efficiency
+        ) * g.com_ie[r, t, c, s]
 
-* individual flows
-{include_cal_fflo_1}
+        # * If production is summed into variable, use it directly
+        if condition1:
+            production = (
+                production.where[~g.RhsComprd[r, t, c, s]]
+                + VAR_COMPRD[r, t, c, s, *sow].where[g.RhsComprd[r, t, c, s]]
+            )
 
-*V07_1b blending flows
-  SUM(BLE_OPR(R,C,OPR),
-    RS_FR(R,S,'ANNUAL')*(1+RTCS_FR(R,T,C,S,'ANNUAL')) * BLE_BAL(R,T,C,OPR) * {
-                var
-            }_BLND(R,T,C,OPR {sow})
-  ) +
-*V07_1b emissions due to blending operations
-  SUM(BLE_ENV(R,C,BLE,OPR), RS_FR(R,S,'ANNUAL') * ENV_BL(R,C,BLE,OPR,T) * {
-                var
-            }_BLND(R,T,BLE,OPR {sow})
-  ) +
-
-*   inter-regional trade to region
-*V0.9 022100 - exports could also produce aux
-{include_cal_ire_1}
-
-*   storage
-{include_cal_stgn_1}
-
-* (+25-May-2005) Add commodity aggregation to production side
-  SUM(COM$COM_AGG(R,T,COM,C), COM_AGG(R,T,COM,C) *
-    SUM(RTCS_VARC(R,T,COM,TS)$RS_TREE(R,S,TS),RS_FR(R,S,TS)*(1+RTCS_FR(R,T,COM,S,TS))*
-      ({var}_COMNET(R,T,COM,TS {sow})$RC_AGP(R,COM,'LO') + {var}_COMPRD(R,T,COM,TS {
-                sow
-            })$RC_AGP(R,COM,'FX')))) +
-
-* capacity related commodity flows
-* fixed commodity associated with installed capacity or retirement
-{include_cal_cap_1}
-
-* apply commodity infastructure efficiency
-      )  *  COM_IE(R,T,C,S)
-
-* If production is summed into variable, use it directly
-{
-                f")$(NOT RHS_COMPRD(R,T,C,S)) + {var}_COMPRD(R,T,C,S {sow})$(RHS_COMPRD(R,T,C,S)"
-                if condition1
-                else ""
-            }
-   )
-
-*
-* consumption
-*
-* when doing FLO then need NET otherwise only want production component
-{
-                (
-                    rf'''
-* include the elasticity variables (moved to consumption side)
-{f"+ SUM(RCJ(R,C,J,BDNEQ(BD))$COM_ELAST(R,T,C,S,BD),BDSIG(BD)*{var}_ELAST(R,T,C,S,J,BD {sow}))" if condition3 else ""}
-
-    - (
-
-* individual flows
-{include_cal_fflo_2}
-
-*V07_1a blending flows
-  SUM(BLE_TP(R,T,BLE)$BLE_OPR(R,BLE,C),
-    RS_FR(R,S,'ANNUAL')*(1+RTCS_FR(R,T,C,S,'ANNUAL')) * {var}_BLND(R,T,BLE,C {sow})
-  ) +
-  SUM(BLE_OPR(R,BLE,OPR)$(BLE_INP(R,BLE,C) * BLE_TP(R,T,BLE)),
-    RS_FR(R,S,'ANNUAL')*(1+RTCS_FR(R,T,C,S,'ANNUAL')) * BL_INP(R,BLE,C) * {var}_BLND(R,T,BLE,OPR {sow})
-  ) +
-
-*   inter-regional trade from region
-*V0.9 022100 - imports could also require aux
-{include_cal_ire_2}
-
-*   storage
-{include_cal_stgn_2}
-
-* capacity related commodity flows
-* fixed commodity associated with installed capacity or investment
-{include_cal_cap_2}
-
-      )
-'''
+        lhs: Expression | ImplicitSet = production
+        # *
+        # * consumption
+        # *
+        # * when doing FLO then need NET otherwise only want production component
+        if not condition2:
+            # * include the elasticity variables (moved to consumption side)
+            if condition3:
+                lhs = lhs + elast
+            lhs = lhs - (
+                # * individual flows
+                cal_fflo_mod_GP(
+                    g=g,
+                    config=CalFfloModConfig(
+                        reduce=reduce,
+                        sow=sow,
+                        var=var,
+                        pgprim=pgprim,
+                        is_rtp_ffcs_defined=is_rtp_ffcs_defined,
+                        arg1="IN",
+                        arg3=Number(1),
+                        arg4=Number(1),
+                    ),
                 )
-                if not condition2
-                else ""
-            }
-
-      ={arg2}=
-
-{
-                (
-                    rf'''
-*    production bound/cost/tax/sub/cum
-          {var}_COMPRD(R,T,C,S {sow})$RHS_COMPRD(R,T,C,S)
-{f"+(SUM(RCJ(R,COM,J,BD)$MI_DMAS(R,C,COM),(DDF_PREF(R,T,COM)*(MI_AGC(R,T,C,COM,J,BD)-1)+RD_SHAR(R,T,COM,C))*BDSIG(BD)*SUM(RTCS_VARC(R,T,COM,TS),{var}_ELAST(R,T,COM,TS,J,BD{sow})))-{var}_COMPRD(R,T,C,S {sow}))$(COM_ELAST(R,T,C,S,'N')>0)$RD_AGG(R,C)" if condition3 else ""}
-'''
+                # *V07_1a blending flows
+                + Sum(
+                    g.BleTp[r, t, ble].where[g.BleOpr[r, ble, c]],
+                    annual * VAR_BLND[r, t, ble, c, *sow],
                 )
-                if not condition1
-                else (
-                    rf'''
-*    set the RHS according to the type of equation and/or commodity net bound/cost/tax/sub/cum
-{f"{var}_COMNET(R,T,C,S {sow})$RHS_COMBAL(R,T,C,S) +" if condition4 else ""}
-
-*    demand projection
-      (({sws_local} COM_PROJ(R,T,C)$(NOT RD_NLP(R,C)) +{var}_DEM(R,T,C{sow})$RD_NLP(R,C) +SUM(MI_DMAS(RD_AGG(R,COM),C),RD_SHAR(R,T,COM,C)*{var}_COMPRD(R,T,COM,'ANNUAL'{sow}))) * COM_FR{mx}(R,T,C,S))$DEM(R,C)
-
-'''
+                + Sum(
+                    g.BleOpr[r, ble, opr].where[
+                        g.BleInp[r, ble, c] * g.BleTp[r, t, ble]
+                    ],
+                    annual * g.bl_inp[r, ble, c] * VAR_BLND[r, t, ble, opr, *sow],
                 )
-            }
-     ;
-""",
+                # *   inter-regional trade from region
+                # *V0.9 022100 - imports could also require aux
+                + cal_ire_mod_GP(
+                    g=g,
+                    config=CalIreModConfig(
+                        var=var,
+                        sow=sow,
+                        is_rtp_ffcs_defined=is_rtp_ffcs_defined,
+                        is_ireauxbal=is_ireauxbal,
+                        arg1="EXP",
+                        arg2="IN",
+                        arg3=g.ie,
+                        arg4=Number(1),
+                    ),
+                )
+                # *   storage
+                + cal_stgn_mod_GP(
+                    g=g,
+                    config=CalStgnModConfig(
+                        var=var,
+                        sow=sow,
+                        arg1="IN",
+                        arg2="OUT",
+                        arg3=Number(1),
+                        arg4=g.stg_eff[r, v, p],
+                        arg5=~g.PrcMap[r, "NST", p] + g.PrcNstts[r, p, ts],
+                        arg6=Number(1),
+                    ),
+                )
+                # * capacity related commodity flows
+                # * fixed commodity associated with installed capacity or investment
+                + cal_cap_mod_GP(
+                    g=g,
+                    config=CalCapModConfig(
+                        varv=varv,
+                        sws=sws,
+                        rcapsub=rcapsub,
+                        arg1="IN",
+                        arg2="I",
+                        arg3=Number(1),
+                    ),
+                )
+            )
+
+        if not condition1:
+            # *    production bound/cost/tax/sub/cum
+            rhs: Condition | Expression | ImplicitSet | int = VAR_COMPRD[
+                r, t, c, s, *sow
+            ].where[g.RhsComprd[r, t, c, s]]
+            if condition3:
+                # DDF_PREF / MI_AGC come with the elastic demand extension
+                ddf_pref: Parameter = g.container["DDF_PREF"]  # type: ignore[assignment]
+                mi_agc: Parameter = g.container["MI_AGC"]  # type: ignore[assignment]
+                rhs = (
+                    rhs
+                    + (
+                        Sum(
+                            g.Rcj[r, Com, j, bd].where[g.MiDmas[r, c, Com]],
+                            (
+                                ddf_pref[r, t, Com] * (mi_agc[r, t, c, Com, j, bd] - 1)
+                                + g.rd_shar[r, t, Com, c]
+                            )
+                            * g.bdsig[bd]
+                            * Sum(
+                                g.RtcsVarc[r, t, Com, ts],
+                                VAR_ELAST[r, t, Com, ts, j, bd, *sow],
+                            ),
+                        )
+                        - VAR_COMPRD[r, t, c, s, *sow]
+                    ).where[(g.com_elast[r, t, c, s, "N"] > 0).where[g.RdAgg[r, c]]]
+                )
+        else:
+            # *    set the RHS according to the type of equation and/or commodity
+            # *    net bound/cost/tax/sub/cum
+            rhs = 0
+            if condition4:
+                rhs = VAR_COMNET[r, t, c, s, *sow].where[g.RhsCombal[r, t, c, s]]
+            # *    demand projection
+            projection: Condition | Expression = g.com_proj[r, t, c].where[
+                ~g.rd_nlp[r, c]
+            ]
+
+            rhs = (
+                rhs
+                + (
+                    (
+                        sws_local * projection
+                        + VAR_DEM[r, t, c, *sow].where[g.rd_nlp[r, c]]
+                        + Sum(
+                            g.MiDmas[g.RdAgg[r, Com], c],
+                            g.rd_shar[r, t, Com, c]
+                            * VAR_COMPRD[r, t, Com, "ANNUAL", *sow],
+                        )
+                    )
+                    * com_fr[r, t, c, s]
+                ).where[g.Dem[r, c]]
+            )
+
+        eq_combal[*r_t, c, s, *swt].where[RcsCom[r, t, c, s, arg3] * arg5] = (
+            generate_equation(
+                lhs=lhs,
+                type=arg2,
+                rhs=rhs,
+            )
         )
