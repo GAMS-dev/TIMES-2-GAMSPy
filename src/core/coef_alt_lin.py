@@ -92,7 +92,6 @@ class CoefAltLin(GamsClass):
             return
         elif arg1 == "INV":
             self._label_doinv()
-            self._label_dofix()
             return
         elif arg1 == "STP":
             self.tc.enqueue(self.exec1)
@@ -160,6 +159,9 @@ INVSPRED(KAGE(LL,JOT),LL+FLOOR(ORD(JOT)/2),K)$INVSTEP(LL,JOT,K,JOT) = YES;
 OBJ_JD(RDCUR(R,CUR),KAGE(LL,JOT)) = ORD(JOT)/SUM(INVSPRED(LL,JOT,YEAR,K),OBJ_DISC(R,K,CUR)/OBJ_DISC(R,YEAR,CUR));
 """,
         )
+
+    def exec3(self) -> None:
+        self.tc.add_gams_code(module=self, phase="run", code="OPTION CLEAR=INVSTEP;")
 
     def exec4(self) -> None:
         self.tc.add_gams_code(
@@ -357,9 +359,7 @@ LOOP(G_RCUR(R,CUR),
         self.tc.enqueue(self.exec2)
 
         if not self.arg2:
-            self.tc.add_gams_code(
-                module=self, phase="run", code="OPTION CLEAR=INVSTEP;"
-            )
+            self.tc.enqueue(self.exec3)
             return
 
         self.tc.enqueue(self.exec4)

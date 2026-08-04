@@ -2734,5 +2734,9 @@ REGISTRY.update(
         "demos_012e_ier": derive_from(
             "demos_012e", run_name="demos_012e_ier", ier="YES"
         ),
+        # reaches: coef_alt.lin/coef_alt_lin.py
+        "demos_012e_oblongno": derive_from(
+            "demos_012e", run_name="demos_012e_oblongno", oblong="NO"
+        ),
     }
 )
