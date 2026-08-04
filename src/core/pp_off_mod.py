@@ -1,4 +1,4 @@
-# ppoff_mod.py
+# pp_off_mod.py
 # *++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # * Copyright (C) 2000-2023 Energy Technology Systems Analysis Programme (ETSAP)
 # * This file is part of the IEA-ETSAP TIMES model generator, licensed
@@ -15,6 +15,43 @@
 # *-----------------------------------------------------------------------------
 
 from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from gamspy import Alias, Expression, Number, Set
+    from gamspy._symbols.implicits import ImplicitSet
+
+from gamspy import Loop, Ord, Sum
+
+from utils.times_model_class import TimesModelClass
+
+
+def pp_off_GP(
+    g: TimesModelClass,
+    arg1: Set | Alias,
+    arg2: tuple[Set | Alias, ...] | tuple[()],
+    arg3: ImplicitSet | Expression | Number,  # expect Number(1) for ""
+    arg4: ImplicitSet,
+    arg5: int,  # 1 or 0
+) -> None:
+    # * Cope with multiple OFF-ranges
+    g.Fil.setRecords(None)
+    with Loop(arg1[g.r, *arg2, g.bohyear, g.eohyear].where[arg3]):
+        g.startoff[...] = Ord(g.bohyear) - 2.0
+        g.endoff[...] = Ord(g.eohyear)
+        # * set the flags of the shutoff period
+        g.Fil[g.Eohyears[g.ll]].where[
+            ((Ord(g.ll) > g.startoff).where[(Ord(g.ll) < g.endoff)])
+        ] = True
+    # * open (
+    arg4.where[
+        (
+            (Sum(g.Periodyr[g.t, g.Fil], 1) / g.d[g.t] >= g.g_offthd[g.t]).where[
+                g.Fil[g.t]
+            ]
+        )
+    ] = arg5
 
 
 def pp_off(
