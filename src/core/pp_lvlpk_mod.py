@@ -176,9 +176,13 @@ class PpLvlpkMod(GamsClass):
             g.RpPg,
             g.NrgTmap,
         )
+        # *-----------------------------------------------------------------------------
+        # * Collect PKTS for all COM_PEAK commodities
         with Loop(ComPkts[r, cg, s]):
             Rcs[ComTs[r, c, ts]].where[RsTree[r, s, ts] & ComGmap[r, cg, c]] = True
         Trackc[r, c] = sparse(Sum(Rcs[r, c, s], 1))
+        # *-----------------------------------------------------------------------------
+        # * Levelization of NCAP_PKCNT
         project(source=ncap_pkcnt, target=RtpIshpr)
         flo_pkcoi[Rtp[r, t, p], c, s].where[Trackc[r, c] & PrcPkno[r, p]] = 0
         Trackpc[Rpc[r, p, c]].where[
@@ -188,14 +192,19 @@ class PpLvlpkMod(GamsClass):
         RtpGrp[RtpIshpr[Rtp[r, v, p]], c, io[ips]].where[
             Sum(Rcs[r, c, s].where[~ncap_pkcnt[r, v, p, s]], 1) & Trackpc[r, p, c]
         ] = True
+        # *-----------------------------------------------------------------------------
+        # * Aggregation/inheritance to target timeslices
+        # *-----------------------------------------------------------------------------
         with Loop(RtpGrp[r, v, p, c, io]):
             ts_array[s] = ncap_pkcnt[r, v, p, s]
             f[...] = ts_array["ANNUAL"]
             with If((~Sum(RsBelow[r, Annual, s].where[ts_array[s]], 1)).where[f]):
                 ncap_pkcnt[r, v, p, s].where[Rcs[r, c, s]] = f
             with Else():  # type: ignore[no-untyped-call]
+                # * Set leveling default = %1;
                 with If(~f):
                     ts_array[Annual] = arg1
+                # * Simultaneous inheritance/aggregation; but only if target level value is not present
                 with Loop(Rcs[r, c, ts].where[~ts_array[ts]]):
                     ncap_pkcnt[r, v, p, ts] = sparse(
                         Sum(
@@ -217,11 +226,15 @@ class PpLvlpkMod(GamsClass):
                             ),
                         )
                     )
+        # *-----------------------------------------------------------------------------
+        # * Peak contribution
+        # * If PRC_PKAF, apply PKCNT only for capacity
         Trackp[PrcPkaf[Rp]] = ~PrcPkno[Rp]
         Trackpc[PrcPkno[Rp], c] = False
         rpc_pkf[Rpc[RpFlo[r, p], c]].where[Trackc[r, c]] = (
             SpecialValues.EPS ** (Number(1)).where[Trackp[r, p]]
         )
+        # * If no PKCNT provided, copy NCAP_AF if PRC_PKAF; otherwise set default 1
         with Loop(Trackpc[r, p, c]):
             PrcTs2[r, p, s].where[
                 ~Sum(Rtp[r, v, p], ncap_pkcnt[Rtp, s]) & Rcs[r, c, s]
@@ -236,8 +249,10 @@ class PpLvlpkMod(GamsClass):
                 * (1 + (g_yrfr[r, ts] / g_yrfr[r, s] - 1).where[RsBelow[r, s, ts]]),
             )
         ).where[PrcPkaf[r, p]]
+        # *-----------------------------------------------------------------------------
+        # * RPC_PKC indicator for peak contribution by capacity
         RpcPkc[Trackpc[RpcAct[Trackp[RpStd], c]]] = True
-        Trackpc[Rp, c].where[~RpcPg[Rp, c] * RpFlo[Rp]] = False
+        Trackpc[Rp, c].where[~(RpcPg[Rp, c] * RpFlo[Rp])] = False
         RpcPkc[Trackpc[RpPgact[Rp], c]].where[RpPg[Rp, c] + Trackp[Rp]] = True
         with Loop(NrgTmap[r, "ELC", c].where[Trackc[r, c]]):
             RpcPkc[Trackpc[Trackp[r, p], c]] = True
