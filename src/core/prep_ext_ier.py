@@ -41,13 +41,10 @@ class PrepExtIer(GamsClass):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
         self.compile()
 
     def compile(self) -> None:
         batincludes = [
-            # fmt: off
             # ("FLO_MRKCON", "R", "P,C,TS,BD", ",'0','0'",         "MODLYEAR", "RTP(R,MODLYEAR,P)", "GE 0"),
             # ("FLO_MRKPRD", "R", "P,C,TS,BD", ",'0','0'",         "MODLYEAR", "RTP(R,MODLYEAR,P)", "GE 0"),
             (
@@ -69,7 +66,6 @@ class PrepExtIer(GamsClass):
                 "GE 0",
             ),
         ]
-        # fmt: on
         for arg in batincludes:
             self.include(
                 FillparmGms(
@@ -90,10 +86,5 @@ class PrepExtIer(GamsClass):
         # * Assumption: original PRC_ACTUNT contains the electricity commodity of this process
         # *-----------------------------------------------------------------------------
         if self.env.chp_mode == "YES":
-            self.include(
-                PpChpIer(
-                    self.tc,
-                    self.env,
-                )
-            )
+            self.include(PpChpIer(self.tc, self.env))
         self.env.set_global("peakchp", "eqpk_ect.ier")
