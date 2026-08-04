@@ -12,6 +12,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter, Set
+
 from core.base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -39,26 +41,85 @@ class InitmtyIer(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-* Parameters used in EQx_MRKCON
-PARAMETER FLO_MRKCON(REG,ALLYEAR,PRC,COM,TS,BD)  'Bound on the share of a flow in the total consumption of a commmodity'  //;
-PARAMETER FLO_MRKPRD(REG,ALLYEAR,PRC,COM,TS,BD)  'Bound on the share of a flow in the total production of a commmodity'   //;
-
-* Sets and parameters used for CHP plants
-SET ECT_CHP(REG,PRC)                             'Set of extraction condensing CHP plants'                                  //;
-SET ECT_ELC(REG,PRC,COM)                         'Electricity commodity of extraction condensing CHP plants'                //;
-SET ECT_DHT(REG,PRC,COM)                         'Heat commodity of extraction condensing CHP plants'                       //;
-SET ECT_CGOUT(REG,PRC,COM_GRP)                   'Output commodity group ELC+HEAT of ECT CHP plant'                         //;
-SET ECT_CGIN(REG,PRC,COM_GRP)                    'Fuel input commodity group of ECT CHP plant'                              //;
-PARAMETER ECT_INP2ELC(REG,ALLYEAR,PRC)           'Conversion factor from input capacity to ELC capacity in BPT point'       //;
-PARAMETER ECT_INP2DHT(REG,ALLYEAR,PRC)           'Conversion factor from input capacity to heat capacity in BPT point'      //;
-PARAMETER ECT_INP2CON(REG,ALLYEAR,PRC)           'Conversion factor from input capacity to heat capacity in BPT point'      //;
-PARAMETER ECT_REH(REG,ALLYEAR,PRC)               'Ratio of electricity to heat in brackpressure point'                      //;
-PARAMETER ECT_AFCON(REG,ALLYEAR,PRC,BD)		 'Availability of condensing mode operation of extraction condensing CHP'   //;
-PARAMETER ECT_AFBPT(REG,ALLYEAR,PRC,BD)		 'Availability of backpressure mode operation of extraction condensing CHP' //;
-
-""",
+        g = self.tc
+        m = g.container
+        # * Parameters used in EQx_MRKCON
+        g.flo_mrkcon = Parameter(
+            m,
+            name="FLO_MRKCON",
+            domain=[g.Reg, g.allyear, g.prc, g.Com, g.ts, g.bd],
+            description="Bound on the share of a flow in the total consumption of a commmodity",
+        )
+        g.flo_mrkprd = Parameter(
+            m,
+            name="FLO_MRKPRD",
+            domain=[g.Reg, g.allyear, g.prc, g.Com, g.ts, g.bd],
+            description="Bound on the share of a flow in the total production of a commmodity",
+        )
+        # * Sets and parameters used for CHP plants
+        g.EctChp = Set(
+            m,
+            name="ECT_CHP",
+            domain=[g.Reg, g.prc],
+            description="Set of extraction condensing CHP plants",
+        )
+        g.EctElc = Set(
+            m,
+            name="ECT_ELC",
+            domain=[g.Reg, g.prc, g.Com],
+            description="Electricity commodity of extraction condensing CHP plants",
+        )
+        g.EctDht = Set(
+            m,
+            name="ECT_DHT",
+            domain=[g.Reg, g.prc, g.Com],
+            description="Heat commodity of extraction condensing CHP plants",
+        )
+        g.EctCgout = Set(
+            m,
+            name="ECT_CGOUT",
+            domain=[g.Reg, g.prc, g.comgrp],
+            description="Output commodity group ELC+HEAT of ECT CHP plant",
+        )
+        g.EctCgin = Set(
+            m,
+            name="ECT_CGIN",
+            domain=[g.Reg, g.prc, g.comgrp],
+            description="Fuel input commodity group of ECT CHP plant",
+        )
+        g.ect_inp2elc = Parameter(
+            m,
+            name="ECT_INP2ELC",
+            domain=[g.Reg, g.allyear, g.prc],
+            description="Conversion factor from input capacity to ELC capacity in BPT point",
+        )
+        g.ect_inp2dht = Parameter(
+            m,
+            name="ECT_INP2DHT",
+            domain=[g.Reg, g.allyear, g.prc],
+            description="Conversion factor from input capacity to heat capacity in BPT point",
+        )
+        g.ect_inp2con = Parameter(
+            m,
+            name="ECT_INP2CON",
+            domain=[g.Reg, g.allyear, g.prc],
+            description="Conversion factor from input capacity to heat capacity in BPT point",
+        )
+        g.ect_reh = Parameter(
+            m,
+            name="ECT_REH",
+            domain=[g.Reg, g.allyear, g.prc],
+            description="Ratio of electricity to heat in brackpressure point",
+        )
+        g.ect_afcon = Parameter(
+            m,
+            name="ECT_AFCON",
+            domain=[g.Reg, g.allyear, g.prc, g.bd],
+            description="Availability of condensing mode operation of extraction condensing CHP",
+        )
+        g.ect_afbpt = Parameter(
+            m,
+            name="ECT_AFBPT",
+            domain=[g.Reg, g.allyear, g.prc, g.bd],
+            description="Availability of backpressure mode operation of extraction condensing CHP",
         )

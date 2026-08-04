@@ -380,6 +380,9 @@ class EnvironmentVariableSchema(BaseModel):
     swstmp: str = Field(
         description="Temporary matrix scenario tracker state parameter."
     )
+    swstmp_GP: tuple[Set | Alias, ...] | tuple[()] = Field(
+        description="Temporary copy of the stochastic world index tuple."
+    )
     swd: Literal["", ",WW", ",W", ",SOW", ")"] = Field(
         description="Solution domain tracking token mapped to variable dimensions."
     )

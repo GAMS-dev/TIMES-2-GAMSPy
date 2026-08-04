@@ -15,17 +15,25 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
+
+from gamspy import Domain, Number, Product, Sum
+from gamspy.math import Max
 
 from core.base_class import GamsClass
-from core.cal_cap_mod import cal_cap_mod
-from core.cal_fflo_mod import cal_fflo_mod
-from core.cal_ire_mod import cal_ire_mod
-from core.cal_stgn_mod import cal_stgn_mod
-from core.eqpk_ect_ier import eqpk_ect_ier
+from core.cal_cap_mod import CalCapModConfig, cal_cap_mod_GP
+from core.cal_fflo_mod import CalFfloModConfig, cal_fflo_mod_GP
+from core.cal_ire_mod import CalIreModConfig, cal_ire_mod_GP
+from core.cal_stgn_mod import CalStgnModConfig, cal_stgn_mod_GP
+from core.eqpk_ect_ier import eqpk_ect_ier_GP
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
+    from gamspy import Alias, Equation, Parameter, Set, Variable
+    from gamspy._algebra.condition import Condition
+    from gamspy._algebra.expression import Expression
+    from gamspy._symbols.implicits import ImplicitSet, ImplicitVariable
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -52,23 +60,31 @@ class EqpeakMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+
         self.env.set_scoped("swstmp", self.env.sws)
+        self.env.set_scoped("swstmp_GP", self.env.sws_GP)
+        # sws_local should be set to sws, however this can only be "" here so go with Number(1)
+        sws_local: Product | Number = Number(1)
         if self.env.stages.upper() == "YES":
-            sws_local = "PROD(SW_MAP(T,SOW,J,WW)$S_COM_PROJ(R,T,C,J,WW),S_COM_PROJ(R,T,C,J,WW))*"
-        else:
-            sws_local = self.env.sws
+            sws_local = Product(
+                g.SwMap[g.t, *self.env.sow_GP, g.j, g.ww].where[
+                    g.s_com_proj[g.r, g.t, g.c, g.j, g.ww]
+                ],
+                g.s_com_proj[g.r, g.t, g.c, g.j, g.ww],
+            )
 
         self.comp1(
             eq=self.env.eq,
-            r_t=self.env.r_t,
-            swt=self.env.swt,
-            varv=self.env.varv,
-            swstmp=self.env.swstmp,
-            rcapsub=self.env.rcapsub,
+            r_t=self.env.r_t_GP,
+            swt=self.env.swt_GP,
+            varv=self.env.varv_GP,
+            swstmp=self.env.swstmp_GP,
+            rcapsub=self.env.rcapsub_GP,
             peakchp=self.env.peakchp,
             sws_local=sws_local,
             var=self.env.var,
-            sow=self.env.sow,
+            sow=self.env.sow_GP,
             mx=self.env.mx,
             condition=self.env.timesed == "YES",
             is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
@@ -80,15 +96,15 @@ class EqpeakMod(GamsClass):
     def comp1(
         self: EqpeakMod,
         eq: str,
-        r_t: str,
-        swt: str,
-        varv: str,
-        swstmp: str,
-        rcapsub: str,
+        r_t: tuple[Set | Alias | ImplicitSet, Set | Alias | ImplicitSet],
+        swt: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
+        varv: tuple[str, ImplicitSet | None],
+        swstmp: tuple[Set | Alias, ...] | tuple[()],
+        rcapsub: Condition | Expression | Number,
         peakchp: str,
-        sws_local: str,
+        sws_local: Product | Number,
         var: str,
-        sow: str,
+        sow: tuple[Literal["0", "1"] | Set | Alias, ...] | tuple[()],
         mx: str,
         condition: bool,
         is_rtp_ffcs_defined: bool,
@@ -96,179 +112,250 @@ class EqpeakMod(GamsClass):
         reduce: str,
         pgprim: str,
     ) -> None:
-        include_cal_ire_1 = cal_ire_mod(
-            var=var,
-            sow=sow,
-            is_rtp_ffcs_defined=is_rtp_ffcs_defined,
-            is_ireauxbal=is_ireauxbal,
-            arg1="IMP",
-            arg2="OUT",
-            arg3="IE",
-            arg4="*NCAP_PKCNT(R,V,P,S)",
-            arg5="-",
+        g = self.tc
+        r, v, t, p, c, s, sl, ts = g.r, g.v, g.t, g.p, g.c, g.s, g.sl, g.ts
+        cg2, Com, j, bd, ble, opr = g.cg2, g.Com, g.j, g.bd, g.Ble, g.Opr
+
+        eq_peak: Equation = g.get_equation(f"{eq}_PEAK")
+        varv_id, varv_set = varv
+        VARV_NCAP: Variable = g.get_variable(f"{varv_id}_NCAP")
+        VAR_BLND: Variable = g.get_variable(f"{var}_BLND")
+        VAR_DEM: Variable = g.get_variable(f"{var}_DEM")
+        VAR_COMPRD: Variable = g.get_variable(f"{var}_COMPRD")
+        VAR_ELAST: Variable = g.get_variable(f"{var}_ELAST")
+        com_fr: Parameter = g.get_parameter(f"COM_FR{mx}")
+        rts = macro.rts_GP(s=sl, g=self.tc, env=self.env)
+
+        # NCAP_PKCNT(R,V,P,S)**RPC_PKF(R,P,C), the peak contribution of a process
+        pkcnt_pkf = g.ncap_pkcnt[r, v, p, s] ** g.rpc_pkf[r, p, c]
+
+        # *   inter-regional trade to region; processes with PKNO+PKCNT contribute by net imports
+        cal_ire_1 = cal_ire_mod_GP(
+            g=g,
+            config=CalIreModConfig(
+                var=var,
+                sow=sow,
+                is_rtp_ffcs_defined=is_rtp_ffcs_defined,
+                is_ireauxbal=is_ireauxbal,
+                arg1="IMP",
+                arg2="OUT",
+                arg3=g.ie,
+                arg4=g.ncap_pkcnt[r, v, p, s],
+                arg5="-",
+            ),
         )
-        include_cal_ire_2 = cal_ire_mod(
-            var=var,
-            sow=sow,
-            is_rtp_ffcs_defined=is_rtp_ffcs_defined,
-            is_ireauxbal=is_ireauxbal,
-            arg1="EXP",
-            arg2="IN",
-            arg3="IE",
-            arg4="*(-NCAP_PKCNT(R,V,P,S)/COM_IE(R,T,C,S))$(COM_IE(R,T,C,S)>0)",
-            arg5="-",
-            arg6="PRC_PKNO(",
-            arg7=")",
+        cal_ire_2 = cal_ire_mod_GP(
+            g=g,
+            config=CalIreModConfig(
+                var=var,
+                sow=sow,
+                is_rtp_ffcs_defined=is_rtp_ffcs_defined,
+                is_ireauxbal=is_ireauxbal,
+                arg1="EXP",
+                arg2="IN",
+                arg3=g.ie,
+                arg4=(-g.ncap_pkcnt[r, v, p, s] / g.com_ie[r, t, c, s]).where[
+                    g.com_ie[r, t, c, s] > 0
+                ],
+                arg5="-",
+                arg6=g.PrcPkno,
+            ),
         )
-        include_cal_stgn_1 = cal_stgn_mod(
-            var=var,
-            sow=sow,
-            arg1="OUT",
-            arg2="IN",
-            arg3="*STG_EFF(R,V,P)",
-            arg4="",
-            arg5="(NOT PRC_NSTTS(R,P,TS))",
-            arg6="*(NCAP_PKCNT(R,V,P,S)**RPC_PKF(R,P,C))$RPC_PKF(R,P,C)",
+        # *   storage
+        cal_stgn_1 = cal_stgn_mod_GP(
+            g=g,
+            config=CalStgnModConfig(
+                var=var,
+                sow=sow,
+                arg1="OUT",
+                arg2="IN",
+                arg3=g.stg_eff[r, v, p],
+                arg4=Number(1),
+                arg5=~g.PrcNstts[r, p, ts],
+                arg6=pkcnt_pkf.where[g.rpc_pkf[r, p, c]],
+            ),
         )
-        include_cal_fflo_1 = cal_fflo_mod(
-            reduce=reduce,
-            sow=sow,
-            var=var,
-            pgprim=pgprim,
-            is_rtp_ffcs_defined=is_rtp_ffcs_defined,
-            arg1="OUT",
-            # arg2="O", in cal_fflo_mod stated as no longer used
-            arg3="*(NCAP_PKCNT(R,V,P,S)**RPC_PKF(R,P,C))",
-            arg4="$RPC_PKF(R,P,C)",
+        # *   individual flows
+        cal_fflo_1 = cal_fflo_mod_GP(
+            g=g,
+            config=CalFfloModConfig(
+                reduce=reduce,
+                sow=sow,
+                var=var,
+                pgprim=pgprim,
+                is_rtp_ffcs_defined=is_rtp_ffcs_defined,
+                arg1="OUT",
+                arg3=pkcnt_pkf,
+                arg4=g.rpc_pkf[r, p, c],
+            ),
         )
-        include_eqpk_ect = ""
+        # * [UR]: 04/22/2003: adjustment for extraction condensing CHP plants
+        eqpk_ect: Sum | int = 0
         # from prep_ext.ier
         if peakchp == "eqpk_ect.ier":
-            include_eqpk_ect = eqpk_ect_ier(
+            eqpk_ect = eqpk_ect_ier_GP(
+                g=g,
                 varv=varv,
-                sws=self.env.sws,
+                sws=self.env.sws_GP,
                 reduce=reduce,
                 sow=sow,
                 var=var,
                 pgprim=pgprim,
                 is_rtp_ffcs_defined=is_rtp_ffcs_defined,
             )
-        include_cal_fflo_2 = cal_fflo_mod(
-            reduce=reduce,
-            sow=sow,
-            var=var,
-            pgprim=pgprim,
-            is_rtp_ffcs_defined=is_rtp_ffcs_defined,
-            arg1="IN",
-            # arg2="I", in cal_fflo_mod stated as no longer used
-            arg3="*FLO_PKCOI(R,T,P,C,TS)",
-            arg4="",
+        cal_fflo_2 = cal_fflo_mod_GP(
+            g=g,
+            config=CalFfloModConfig(
+                reduce=reduce,
+                sow=sow,
+                var=var,
+                pgprim=pgprim,
+                is_rtp_ffcs_defined=is_rtp_ffcs_defined,
+                arg1="IN",
+                arg3=g.flo_pkcoi[r, t, p, c, ts],
+                arg4=Number(1),
+            ),
         )
-        include_cal_ire_3 = cal_ire_mod(
-            var=var,
-            sow=sow,
-            is_rtp_ffcs_defined=is_rtp_ffcs_defined,
-            is_ireauxbal=is_ireauxbal,
-            arg1="EXP",
-            arg2="IN",
-            arg3="IE",
-            arg4="*FLO_PKCOI(R,T,P,C,TS)",
-            arg5="-",
+        # *   inter-regional trade from region
+        cal_ire_3 = cal_ire_mod_GP(
+            g=g,
+            config=CalIreModConfig(
+                var=var,
+                sow=sow,
+                is_rtp_ffcs_defined=is_rtp_ffcs_defined,
+                is_ireauxbal=is_ireauxbal,
+                arg1="EXP",
+                arg2="IN",
+                arg3=g.ie,
+                arg4=g.flo_pkcoi[r, t, p, c, ts],
+                arg5="-",
+            ),
         )
-        include_cal_cap = cal_cap_mod(
-            varv=varv,
-            sws=self.env.sws,
-            rcapsub=rcapsub,
-            arg1="IN",
-            arg2="I",
-            arg3="1$(NOT PRC_PKNO(R,P))*",
+        # * capacity related commodity flows
+        # *   fixed commodity associated with installed capacity or investment
+        cal_cap = cal_cap_mod_GP(
+            g=g,
+            config=CalCapModConfig(
+                varv=varv,
+                sws=self.env.sws_GP,
+                rcapsub=rcapsub,
+                arg1="IN",
+                arg2="I",
+                arg3=Number(1).where[~g.PrcPkno[r, p]],
+            ),
         )
-        include_cal_stgn_2 = cal_stgn_mod(
-            var=var,
-            sow=sow,
-            arg1="IN",
-            arg2="OUT",
-            arg3="",
-            arg4="STG_EFF(R,V,P)*(NCAP_PKCNT(R,V,P,S)**RPC_PKF(R,P,C))*",
-            arg5="((NOT PRC_MAP(R,'NST',P))+PRC_NSTTS(R,P,TS))",
-            arg6="$RPC_PKF(R,P,C)",
+        cal_stgn_2 = cal_stgn_mod_GP(
+            g=g,
+            config=CalStgnModConfig(
+                var=var,
+                sow=sow,
+                arg1="IN",
+                arg2="OUT",
+                arg3=Number(1),
+                arg4=g.stg_eff[r, v, p] * pkcnt_pkf,
+                arg5=~g.PrcMap[r, "NST", p] + g.PrcNstts[r, p, ts],
+                arg6=Number(1).where[g.rpc_pkf[r, p, c]],
+            ),
         )
 
-        rts = macro.rts(s="SL", g=self.tc, env=self.env)
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-    {eq}_PEAK({r_t},CG2,{rts}{swt})$(SUM(COM_GMAP(R,CG2,C)$RTC(R,T,C),1)$COM_PKTS(R,CG2,SL)) ..
+        ncap: ImplicitVariable | Sum = VARV_NCAP[r, v, p, *swstmp]
+        if varv_set is not None:
+            ncap = Sum(varv_set, ncap)
+        installed = (
+            ncap.where[g.Milestonyr[v]]
+            + g.ncap_pasti[r, v, p].where[g.Pastyear[v]]
+            + rcapsub
+        )
+        capacity = Sum(
+            g.RpcPkc[r, p, c],
+            g.g_yrfr[r, s]
+            * g.prc_capact[r, p]
+            * Sum(
+                v.where[g.coef_vnt[r, t, p, v]],
+                g.coef_vnt[r, t, p, v]
+                * g.prc_actflo[r, v, p, c]
+                * g.ncap_pkcnt[r, v, p, s]
+                * installed,
+            ),
+        )
 
-     SUM((COM_GMAP(R,CG2,C),COM_TS(R,C,S))$RS_FR(R,SL,S),
-       RS_FR(R,SL,S) *
-* Apply maximum reserve among CG2 and C
-       (1/(1+MAX(SUM(COM(CG2),COM_PKRSV(R,T,COM)),COM_PKRSV(R,T,C))))*COM_IE(R,T,C,S)*
+        # *   blending
+        blending = Sum(
+            g.BleOpr[r, ble, opr].where[g.BleInp[r, ble, c] * g.BleTp[r, t, ble]],
+            g.g_yrfr[r, s]
+            * (1 + g.rtcs_fr[r, t, c, s, "ANNUAL"])
+            * g.bl_inp[r, ble, c]
+            * g.peakda_bl[r, ble, t]
+            * VAR_BLND[r, t, ble, opr, *sow],
+        )
+        # *   demand projection
+        demand = (
+            (
+                sws_local * g.com_proj[r, t, c].where[~g.rd_nlp[r, c]]
+                + VAR_DEM[r, t, c, *sow].where[g.rd_nlp[r, c]]
+                + Sum(
+                    g.RdAgg[r, Com],
+                    g.rd_shar[r, t, Com, c] * VAR_COMPRD[r, t, Com, "ANNUAL", *sow],
+                )
+            )
+            * com_fr[r, t, c, s]
+        ).where[g.Dem[r, c]]
+        # *   include the elasticity variables
+        elast: Sum | int = 0
+        if condition:
+            elast = Sum(
+                g.Rcj[r, c, j, g.Bdneq[bd]].where[g.com_elast[r, t, c, s, bd]],
+                -g.bdsig[bd] * VAR_ELAST[r, t, c, s, j, bd, *sow],
+            )
 
-       (SUM(RPC_PKC(R,P,C), G_YRFR(R,S) * PRC_CAPACT(R,P) *
-           SUM(V$COEF_VNT(R,T,P,V),COEF_VNT(R,T,P,V)*PRC_ACTFLO(R,V,P,C)*NCAP_PKCNT(R,V,P,S)*
-               ({varv}_NCAP(R,V,P {swstmp})$MILESTONYR(V)+NCAP_PASTI(R,V,P)$PASTYEAR(V) {rcapsub}))
-           ) +
-
-*
-* production
-*
-*   inter-regional trade to region; processes with PKNO+PKCNT contribute by net imports
-{include_cal_ire_1}
-{include_cal_ire_2}
-           (
-
-*GG*PK no multiplier
-* [UR] 25.04.2003 added NCAP_PKCNT multiplier to turn off contribution by setting NCAP_PKCNT to zero
-* allow using PKNO to switch process to production-based peak contribution (contributes only if PKCNT set by user)
-
-*   storage
-{include_cal_stgn_1}
-
-*   individual flows
-{include_cal_fflo_1}
-
-           0)
-
-* [UR]: 04/22/2003: adjustment for extraction condensing CHP plants
-{include_eqpk_ect}
-      ))
-
-      =G=
-
-     SUM((COM_GMAP(R,CG2,C),COM_TS(R,C,S))$RS_FR(R,SL,S),
-         RS_FR(R,SL,S) *
-* Apply maximum flexibility among CG2 and C
-         (1+MAX(SUM(COM(CG2),COM_PKFLX(R,T,COM,SL)),COM_PKFLX(R,T,C,S)))*
-         (
-*
-* consumption
-*
-*GG*PK pass TS as timeslice
-
-*   individual flows
-{include_cal_fflo_2}
-
-*   inter-regional trade from region
-{include_cal_ire_3}
-
-* capacity related commodity flows
-*   fixed commodity associated with installed capacity or investment
-{include_cal_cap}
-           +
-*   storage
-{include_cal_stgn_2}
-
-*   blending
-           SUM(BLE_OPR(R,BLE,OPR)$(BLE_INP(R,BLE,C)*BLE_TP(R,T,BLE)),G_YRFR(R,S)*(1+RTCS_FR(R,T,C,S,'ANNUAL'))*BL_INP(R,BLE,C)*PEAKDA_BL(R,BLE,T)*{var}_BLND(R,T,BLE,OPR {sow})) +
-
-*   demand projection
-      (({sws_local} COM_PROJ(R,T,C)$(NOT RD_NLP(R,C)) +{var}_DEM(R,T,C{sow})$RD_NLP(R,C) +SUM(RD_AGG(R,COM),RD_SHAR(R,T,COM,C)*{var}_COMPRD(R,T,COM,'ANNUAL'{sow}))) * COM_FR{mx}(R,T,C,S))$DEM(R,C) +
-
-*   include the elasticity variables
-{f"SUM(RCJ(R,C,J,BDNEQ(BD))$COM_ELAST(R,T,C,S,BD),-BDSIG(BD)*{var}_ELAST(R,T,C,S,J,BD {sow})) +" if condition else ""}
-
-       0)) ;
-""",
+        peak_domain = Domain(g.ComGmap[r, cg2, c], g.ComTs[r, c, s]).where[
+            g.rs_fr[r, sl, s]
+        ]
+        eq_peak[*r_t, cg2, rts, *swt].where[
+            Sum(g.ComGmap[r, cg2, c].where[g.Rtc[r, t, c]], 1).where[
+                g.ComPkts[r, cg2, sl]
+            ]
+        ] = Sum(
+            peak_domain,
+            g.rs_fr[r, sl, s]
+            # * Apply maximum reserve among CG2 and C
+            * (
+                1
+                / (1 + Max(Sum(Com[cg2], g.com_pkrsv[r, t, Com]), g.com_pkrsv[r, t, c]))
+            )
+            * g.com_ie[r, t, c, s]
+            * (
+                capacity
+                # * production
+                + cal_ire_1
+                + cal_ire_2
+                # *GG*PK no multiplier
+                # * [UR] 25.04.2003 added NCAP_PKCNT multiplier to turn off contribution
+                # *      by setting NCAP_PKCNT to zero; allow using PKNO to switch process
+                # *      to production-based peak contribution
+                + (cal_stgn_1 + cal_fflo_1)
+                + eqpk_ect
+            ),
+        ) >= Sum(
+            peak_domain,
+            g.rs_fr[r, sl, s]
+            # * Apply maximum flexibility among CG2 and C
+            * (
+                1
+                + Max(
+                    Sum(Com[cg2], g.com_pkflx[r, t, Com, sl]),
+                    g.com_pkflx[r, t, c, s],
+                )
+            )
+            # * consumption
+            # *GG*PK pass TS as timeslice
+            * (
+                cal_fflo_2
+                + cal_ire_3
+                + cal_cap
+                + cal_stgn_2
+                + blending
+                + demand
+                + elast
+            ),
         )
