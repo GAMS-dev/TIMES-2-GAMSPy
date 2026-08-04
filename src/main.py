@@ -96,7 +96,10 @@ def run_times(
         model.register_module(InitsysMod(tc=model, env=env))
 
         # declare the (system/user) empties
-        model.register_module(InitmtyMod(tc=model, env=env))
+        # IER has no %IER%==YES switch -- it's activated positionally, mirroring
+        # `$BATINCLUDE initmty.mod IER` in the .run file.
+        initmty_arg1 = "IER" if config.env_vars.ier.upper() == "YES" else ""
+        model.register_module(InitmtyMod(tc=model, env=env, arg1=initmty_arg1))
 
         # Central data load (DD files)
         for file in config.data_modules:

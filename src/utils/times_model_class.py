@@ -1758,6 +1758,15 @@ class TimesModelClass:
 
     # endregion
 
+    # region IER extension (equ_ext.ier market-share equations)
+    eqe_mrkprd: Equation = None  # type: ignore[assignment] # [r,t,p,c,s,allsow] EQE_MRKPRD: Production share (=E=)
+    eql_mrkprd: Equation = None  # type: ignore[assignment] # [r,t,p,c,s,allsow] EQL_MRKPRD: Production share (=L=)
+    eqg_mrkprd: Equation = None  # type: ignore[assignment] # [r,t,p,c,s,allsow] EQG_MRKPRD: Production share (=G=)
+    eqe_mrkcon: Equation = None  # type: ignore[assignment] # [r,t,p,c,s,allsow] EQE_MRKCON: Consumption share (=E=)
+    eql_mrkcon: Equation = None  # type: ignore[assignment] # [r,t,p,c,s,allsow] EQL_MRKCON: Consumption share (=L=)
+    eqg_mrkcon: Equation = None  # type: ignore[assignment] # [r,t,p,c,s,allsow] EQG_MRKCON: Consumption share (=G=)
+    # endregion
+
     def __post_init__(self) -> None:
         """
         Runs immediately AFTER the dataclass finishes creating itself.

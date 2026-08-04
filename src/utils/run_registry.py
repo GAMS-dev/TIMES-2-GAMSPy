@@ -2725,5 +2725,14 @@ REGISTRY.update(
         "demos_012e_solans": derive_from(
             "demos_012e", run_name="demos_012e_solans", solans="YES"
         ),
+        # reaches: initmty.ier, equ_ext.ier, prep_ext.ier, eqpk_ect.ier -- the IER
+        # (Institute for the Rational Use of Energy) CHP/market-share extension.
+        # IER has no %IER%==YES switch -- it's activated positionally via
+        # `$BATINCLUDE initmty.mod IER` in the .run file. The ier="YES" override
+        # here is our config-side stand-in for that positional argument (see
+        # main.py, which threads it into InitmtyMod's arg1).
+        "demos_012e_ier": derive_from(
+            "demos_012e", run_name="demos_012e_ier", ier="YES"
+        ),
     }
 )
