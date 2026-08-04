@@ -24,6 +24,9 @@ class EnvironmentVariableSchema(BaseModel):
     abs: Literal["YES", "NO"] = Field(
         description="Option to use the Ancillary Balancing Services extension."
     )
+    ier: Literal["YES", "NO"] = Field(
+        description="Activates the IER (Institute for the Rational Use of Energy) CHP/market-share extension. Unlike most extensions, TIMES has no %IER%==YES switch for it -- it is passed positionally as `IER` to initmty.mod's BATINCLUDE."
+    )
     cli: Literal["YES", "NO", "%cli%"] = Field(
         description="Activates the Climate Module to estimate atmospheric CO2 concentrations, changes in radiative forcing, and induced global mean surface temperature changes."
     )
@@ -305,7 +308,7 @@ class EnvironmentVariableSchema(BaseModel):
     capwd: str = Field(
         description="Capacity width adjustment parameter string mapping operating lifetimes."
     )
-    sow: Literal["", ",SOW", ",WW", ",WW)", ",0", "1", "SOW.TL"] = Field(
+    sow: Literal["", ",SOW", ",WW", ",WW)", ",0", ",'0'", "1", "SOW.TL"] = Field(
         description="Stochastic World (Scenario State) active indexing identifier token."
     )
     sow_GP: tuple[Literal["0", "1"] | Set | Alias] | tuple[()] = Field(
@@ -595,6 +598,7 @@ class EnvironmentVariableSchema(BaseModel):
     ireauxbal: str
     rpt_opt: pd.DataFrame
     stepped: str
+    peakchp: str
     trivint: str
     need: str
     witspine: bool
@@ -616,6 +620,7 @@ class UserConfig(BaseModel):
     debug: Literal["YES", "NO"] = "NO"
     dumpsol: Literal["YES", "NO"] = "NO"
     solans: Literal["YES", "NO"] = "NO"
+    ier: Literal["YES", "NO"] = "NO"
     err_abort: Literal["YES", "NO"] = "YES"
     gams_cgi: Literal["NO", "WWW"] = "NO"
     solve_now: Literal["YES", "NO"] = "YES"

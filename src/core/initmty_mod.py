@@ -31,6 +31,7 @@ from core.initmty_abs import InitmtyAbs
 from core.initmty_cli import InitmtyCli
 from core.initmty_dsc import InitmtyDsc
 from core.initmty_etl import InitmtyEtl
+from core.initmty_ier import InitmtyIer
 from core.initmty_mlf import InitmtyMlf
 from core.initmty_msa import InitmtyMsa
 from core.initmty_stc import InitmtyStc
@@ -1875,6 +1876,7 @@ class InitmtyMod(GamsClass):
                 "CLI": InitmtyCli,
                 "DSC": InitmtyDsc,
                 "ETL": InitmtyEtl,
+                "IER": InitmtyIer,
                 "MLF": InitmtyMlf,
                 "MSA": InitmtyMsa,
                 "STC": InitmtyStc,
