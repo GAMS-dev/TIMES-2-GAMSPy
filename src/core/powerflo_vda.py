@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Literal
 
-from gamspy import Equation, Parameter, Sum, Variable
+from gamspy import Equation, Parameter, Set, Sum, Variable
 
 from core.base_class import GamsClass
 from core.cal_red_red import cal_red_red
@@ -23,7 +23,7 @@ from core.pp_lvlfc_mod import PpLvlfcMod
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
-    from gamspy import Alias, Set
+    from gamspy import Alias
     from gamspy._algebra.expression import Expression
     from gamspy._symbols.implicits import ImplicitSet
 
@@ -323,32 +323,32 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
                 pass  # end of file
 
     def declaration1(self: PowerfloVda) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-* Declarations
-  SET RP_GRID(R,P);
-  SET RC_GRID(R,T,C);
-  SET GR_TOP(ALL_REG,C,ALL_REG,C,P);
-  SET GR_ARC(ALL_REG,C,ALL_REG,C);
-  SET GR_GRID(J,R,COM);
-  SET GR_ALLMAP(R,CG,COM);
-  SET GR_PRCMAP(R,P,C,ITEM);
-  SET GR_DEMMAP(R,C,COM);
-  SET GR_ALGMAP(R,CG,CG);
-  SET GR_ENDC(R,CG);
-  SET GR_GENP(R,P);
-  SET GR_CANDID(R,YEAR,P);
-  SET GR_GNALL(R,T,C);
-  PARAMETER GR_SUS(ALL_REG,T,C,ALL_REG,C);
-  PARAMETER GR_FLOW(R,P,C) //;
-  PARAMETER GR_GID(R,C);
-  PARAMETER GR_ADMIT(ALL_REG,T,C,ALL_REG,C);
-  PARAMETER GR_UNITS(R,T,ITEM);
-  PARAMETER GR_CAPUP(R,YEAR,P);
-""",
+        g = self.tc
+        m = g.container
+        # * Declarations
+        g.RpGrid = Set(m, name="RP_GRID", domain=[g.r, g.p])
+        g.RcGrid = Set(m, name="RC_GRID", domain=[g.r, g.t, g.c])
+        g.GrTop = Set(m, name="GR_TOP", domain=[g.allreg, g.c, g.allreg, g.c, g.p])
+        g.GrArc = Set(m, name="GR_ARC", domain=[g.allreg, g.c, g.allreg, g.c])
+        g.GrGrid = Set(m, name="GR_GRID", domain=[g.j, g.r, g.Com])
+        g.GrAllmap = Set(m, name="GR_ALLMAP", domain=[g.r, g.cg, g.Com])
+        g.GrPrcmap = Set(m, name="GR_PRCMAP", domain=[g.r, g.p, g.c, g.item])
+        g.GrDemmap = Set(m, name="GR_DEMMAP", domain=[g.r, g.c, g.Com])
+        g.GrAlgmap = Set(m, name="GR_ALGMAP", domain=[g.r, g.cg, g.cg])
+        g.GrEndc = Set(m, name="GR_ENDC", domain=[g.r, g.cg])
+        g.GrGenp = Set(m, name="GR_GENP", domain=[g.r, g.p])
+        g.GrCandid = Set(m, name="GR_CANDID", domain=[g.r, g.year, g.p])
+        g.GrGnall = Set(m, name="GR_GNALL", domain=[g.r, g.t, g.c])
+        g.gr_sus = Parameter(
+            m, name="GR_SUS", domain=[g.allreg, g.t, g.c, g.allreg, g.c]
         )
+        g.gr_flow = Parameter(m, name="GR_FLOW", domain=[g.r, g.p, g.c])
+        g.gr_gid = Parameter(m, name="GR_GID", domain=[g.r, g.c])
+        g.gr_admit = Parameter(
+            m, name="GR_ADMIT", domain=[g.allreg, g.t, g.c, g.allreg, g.c]
+        )
+        g.gr_units = Parameter(m, name="GR_UNITS", domain=[g.r, g.t, g.item])
+        g.gr_capup = Parameter(m, name="GR_CAPUP", domain=[g.r, g.year, g.p])
 
     def exec1(self: PowerfloVda) -> None:
         self.tc.add_gams_code(
@@ -807,9 +807,6 @@ $ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,'{pgprim}',s,ie{sow}
 * Preprocess nodal balance costs
   SET OBV / OBJBAL /;
   SET ITEM / CON, NTX, NPG /;
-  SETS RC_GRID(R,T,C), GR_ALLMAP(R,CG,COM), GR_PRCMAP(R,P,C,ITEM);
-  SETS GR_DEMMAP(R,C,COM), GR_ALGMAP(R,CG,CG), GR_ENDC(R,CG);
-  PARAMETER OBJ_COMBAL(R,T,C,S,ITEM,CUR);
 """,
         )
 

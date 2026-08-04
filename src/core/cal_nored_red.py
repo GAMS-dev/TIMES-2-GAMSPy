@@ -25,11 +25,7 @@ if TYPE_CHECKING:
     from gamspy import Alias, Set, Variable
     from gamspy._algebra.condition import Condition
     from gamspy._algebra.expression import Expression
-    from gamspy._symbols.implicits import (
-        ImplicitParameter,
-        ImplicitSet,
-        ImplicitVariable,
-    )
+    from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
     from gamspy.math import MathOp
 
     from utils.times_model_class import TimesModelClass
@@ -37,7 +33,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class CalNoredRedConfig:
-    """Strongly typed data contract for cal_red_red."""
+    """Strongly typed data contract for cal_nored_red."""
 
     var: str
     sow: tuple[Literal["0", "1"] | Set | Alias, ...] | tuple[()]
@@ -48,13 +44,13 @@ class CalNoredRedConfig:
     arg3: Set | Alias
     arg4: Set | Alias
     arg5: Set | Alias
+    arg10: (
+        Condition | Expression | ImplicitParameter | MathOp | Number
+    )  # multiplier or empty
     is_output: bool = False  # old arg6
     arg7: Literal["T", "V", ""] = ""
     # arg8 not needed anymore since it conatint the "SUM" corresponding to the domain in arg9
     index_set: ImplicitSet | None = None  # old arg9
-    arg10: Condition | Expression | ImplicitParameter | MathOp | None = (
-        None  # multiplier or empty
-    )
 
 
 def cal_nored_red_GP(
@@ -86,12 +82,6 @@ def cal_nored_red_GP(
     if vnt is v:
         shp3 = (1 + g.rtp_ffcx[r, v, cc.arg5, *shg].where[tst]) * shp3
 
-    def mul(
-        expr: Expression | ImplicitParameter | ImplicitVariable,
-        factor: Condition | Expression | ImplicitParameter | MathOp | Number | None,
-    ) -> Expression | ImplicitParameter | ImplicitVariable:
-        return expr if factor is None else expr * factor
-
     def total(
         expr: Condition | Expression | ImplicitSet,
     ) -> Condition | Expression | ImplicitSet | Sum:
@@ -113,10 +103,10 @@ def cal_nored_red_GP(
                 g.rs_fr[r, cc.arg3, allts]
                 * g.RtpcsVarf[r, cc.arg5, cc.arg4, com2, allts]
             ],
-            mul(
+            (
                 flo[r, vnt, cc.arg5, cc.arg4, com2, allts, *cc.sow]
-                * g.coef_ptran[r, vnt, cc.arg4, cg3, com2, cc.arg1, allts],
-                shp3,
+                * g.coef_ptran[r, vnt, cc.arg4, cg3, com2, cc.arg1, allts]
+                * shp3
             )
             * g.rs_fr[r, cc.arg3, allts]
             * (1 + g.rtcs_fr[r, cc.arg5, com2, cc.arg3, allts]),

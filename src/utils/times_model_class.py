@@ -1728,6 +1728,33 @@ class TimesModelClass:
     GrAlgmap: Set = None  # type: ignore[assignment] # [r, cg, cg] GR_ALGMAP:
     GrEndc: Set = None  # type: ignore[assignment] # [r, cg] GR_ENDC:
     obj_combal: Parameter = None  # type: ignore[assignment] # [r, t, c, s, item, cur] OBJ_COMBAL:
+    flo_mrkcon: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc, Com, ts, bd] FLO_MRKCON: Bound on the share of a flow in the total consumption of a commmodity
+    flo_mrkprd: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc, Com, ts, bd] FLO_MRKPRD: Bound on the share of a flow in the total production of a commmodity
+    EctChp: Set = None  # type: ignore[assignment] # [Reg, prc] ECT_CHP: Set of extraction condensing CHP plants
+    EctElc: Set = None  # type: ignore[assignment] # [Reg, prc, Com] ECT_ELC: Electricity commodity of extraction condensing CHP plants
+    EctDht: Set = None  # type: ignore[assignment] # [Reg, prc, Com] ECT_DHT: Heat commodity of extraction condensing CHP plants
+    EctCgout: Set = None  # type: ignore[assignment] # [Reg, prc, comgrp] ECT_CGOUT: Output commodity group ELC+HEAT of ECT CHP plant
+    EctCgin: Set = None  # type: ignore[assignment] # [Reg, prc, comgrp] ECT_CGIN: Fuel input commodity group of ECT CHP plant
+    ect_inp2elc: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc] ECT_INP2ELC: Conversion factor from input capacity to ELC capacity in BPT point
+    ect_inp2dht: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc] ECT_INP2DHT: Conversion factor from input capacity to heat capacity in BPT point
+    ect_inp2con: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc] ECT_INP2CON: Conversion factor from input capacity to heat capacity in BPT point
+    ect_reh: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc] ECT_REH: Ratio of electricity to heat in brackpressure point
+    ect_afcon: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc, bd] ECT_AFCON: Availability of condensing mode operation of extraction condensing CHP
+    ect_afbpt: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc, bd] ECT_AFBPT: Availability of backpressure mode operation of extraction condensing CHP
+    RpGrid: Set = None  # type: ignore[assignment] # [r, p] RP_GRID:
+    RcGrid: Set = None  # type: ignore[assignment] # [r, t, c] RC_GRID:
+    GrTop: Set = None  # type: ignore[assignment] # [allreg, c, allreg, c, p] GR_TOP:
+    GrArc: Set = None  # type: ignore[assignment] # [allreg, c, allreg, c] GR_ARC:
+    GrGrid: Set = None  # type: ignore[assignment] # [j, r, Com] GR_GRID:
+    GrGenp: Set = None  # type: ignore[assignment] # [r, p] GR_GENP:
+    GrCandid: Set = None  # type: ignore[assignment] # [r, year, p] GR_CANDID:
+    GrGnall: Set = None  # type: ignore[assignment] # [r, t, c] GR_GNALL:
+    gr_sus: Parameter = None  # type: ignore[assignment] # [allreg, t, c, allreg, c] GR_SUS:
+    gr_flow: Parameter = None  # type: ignore[assignment] # [r, p, c] GR_FLOW:
+    gr_gid: Parameter = None  # type: ignore[assignment] # [r, c] GR_GID:
+    gr_admit: Parameter = None  # type: ignore[assignment] # [allreg, t, c, allreg, c] GR_ADMIT:
+    gr_units: Parameter = None  # type: ignore[assignment] # [r, t, item] GR_UNITS:
+    gr_capup: Parameter = None  # type: ignore[assignment] # [r, year, p] GR_CAPUP:
 
     # endregion
 

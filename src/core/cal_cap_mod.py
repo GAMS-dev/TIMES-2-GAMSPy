@@ -41,7 +41,7 @@ class CalCapModConfig:
     rcapsub: Condition | Expression | Number
     arg1: Literal["IN", "OUT"]
     arg2: Literal["I", "O"]
-    arg3: Condition | Expression | None = None
+    arg3: Condition | Expression | Number  # default Number(1)
     arg4: str = ""
 
 
@@ -58,11 +58,6 @@ def cal_cap_mod_GP(
     VARV_NCAP: Variable = g.get_variable(f"{varv_id}_NCAP{cc.arg4}")
     coef_com: Parameter = g.get_parameter(f"COEF_{cc.arg2}COM")
 
-    def mul(
-        expr: Expression | ImplicitSet, factor: Condition | Expression | None
-    ) -> Expression | ImplicitSet:
-        return expr if factor is None else factor * expr
-
     def capacity(with_rcapsub: bool) -> Expression | ImplicitSet:
         ncap: ImplicitVariable | Sum = VARV_NCAP[r, v, p, *cc.sws]
         if varv_set is not None:
@@ -76,14 +71,17 @@ def cal_cap_mod_GP(
         g.coef_cpt[r, v, t, p]
         * g.ncap_com[r, v, p, c, cc.arg1]
         * g.g_yrfr[r, s]
-        * mul(capacity(with_rcapsub=True), cc.arg3)
+        * capacity(with_rcapsub=True)
+        * cc.arg3
         # * Adjust for lagged commodity flows
         * (1 + g.coef_cio[r, v, t, p, c, cc.arg1]),
         # * CAL_NCOM: the term associated with invest/decommission commodities in the EQ_COMxxx
     ) + Sum(
         g.RpcCapflo[r, v, p, c].where[coef_com[r, v, t, p, c]],
         coef_com[r, v, t, p, c]
-        * mul(g.g_yrfr[r, s] * capacity(with_rcapsub=False), cc.arg3),
+        * g.g_yrfr[r, s]
+        * capacity(with_rcapsub=False)
+        * cc.arg3,
     )
 
 
