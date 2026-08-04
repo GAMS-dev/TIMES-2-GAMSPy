@@ -150,6 +150,7 @@ class EqobjinvMod(GamsClass):
                     arg1="INV",
                 )
             )
+        self.tc.enqueue(self.exec6)
         self.tc.enqueue(self._label_cont_2b)
         if self.env.ctst == "":
             self.tc.enqueue(
@@ -457,6 +458,15 @@ class EqobjinvMod(GamsClass):
 *===============================================================================
   OPTION KAGE < OBJ_SUMII;
   INVSTEP(KAGE(LL,JOT),LL+(ORD(AGE)-1),AGE+(ORD(JOT)-ORD(AGE)))$OPYEAR(JOT,AGE) = YES;
+""",
+        )
+
+    def exec6(self: EqobjinvMod) -> None:
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code="""
+  INVSPRED(LL,JOT,K,K)$INVSTEP(LL,JOT,K,JOT) = YES;
 """,
         )
 
