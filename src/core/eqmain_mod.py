@@ -196,6 +196,7 @@ class EqmainMod(GamsClass):
                 arg2="G",
                 arg3="LO",
                 arg4="BAL",
+                arg5=Number(1),
             )
         )
         self.include(
@@ -206,6 +207,7 @@ class EqmainMod(GamsClass):
                 arg2="E",
                 arg3="FX",
                 arg4="BAL",
+                arg5=Number(1),
             )
         )
         # non-binding equation for FRERENEW/CONSRV commodities
@@ -220,7 +222,7 @@ class EqmainMod(GamsClass):
                 arg2="E",
                 arg3="FX",
                 arg4="PRD",
-                arg5="* RHS_COMPRD(R,T,C,S)",
+                arg5=g.RhsComprd[g.r, g.t, g.c, g.s],
             )
         )
 
