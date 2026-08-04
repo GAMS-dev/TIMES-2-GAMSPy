@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Domain, Else, If, Loop, Ord, Set, Sum, set_options
+from gamspy import Domain, Else, If, Loop, Ord, Set, Sum, set_options, sparse
 from gamspy.math import project
 
 from core.base_class import GamsClass
@@ -138,7 +138,7 @@ class PpmExtCli(GamsClass):
             g.cm_stat0,
         )
         # Add user-defined emissions
-        cm_ghgmap[r, Com, c].where[~cm_ghgmap[r, Com, c] & ire_ccvt[r, Com, r, c]] = (
+        cm_ghgmap[r, Com, c].where[~cm_ghgmap[r, Com, c]] = sparse(
             ire_ccvt[r, Com, r, c]
         )
         CmUsubs[cmitem].where[Sum(Rc[r, Com].where[cm_ghgmap[r, Com, cmitem]], 1)] = (
@@ -158,21 +158,21 @@ class PpmExtCli(GamsClass):
         set_options({"VALIDATION": 0})
         with Loop(Uncd7[cg, ll, cmitem, lA["N"], "", "", ""]):
             with If(CmEmis[cg]):  # type: ignore[arg-type]
-                cm_couple[cg, year, cmitem, "ATM"].where[
+                cm_couple[cg, year, cmitem, "ATM"] = sparse(
                     cm_couple[cg, year, cmitem, lA]
-                ] = cm_couple[cg, year, cmitem, lA]
+                )
             with Else():  # type: ignore[no-untyped-call] # noqa: SIM117
                 with Loop(
                     Domain(Rc[r, c[cg]], CmVar).where[
                         cm_ghgmap[r, c, CmVar] & CmEmis[CmVar]
                     ]
                 ):
-                    cm_couple[CmVar, year, cmitem, "ATM"].where[
+                    cm_couple[CmVar, year, cmitem, "ATM"] = sparse(
                         cm_couple[cg, year, cmitem, lA]
-                    ] = cm_couple[cg, year, cmitem, lA]
-                    cm_couple[CmVar, year, cmitem, cmq].where[
+                    )
+                    cm_couple[CmVar, year, cmitem, cmq] = sparse(
                         cm_couple[cg, year, cmitem, cmq]
-                    ] = cm_couple[cg, year, cmitem, cmq]
+                    )
         set_options({"VALIDATION": 0})
 
         project(source=cm_couple, target=CmCoupmap, direction="left")
@@ -221,12 +221,8 @@ class PpmExtCli(GamsClass):
             g.CmOfor,
         )
         # Statistics mappings
-        cm_stats[CmHists, ll, "ATM"].where[cm_stats[CmHists, ll, "N"]] = cm_stats[
-            CmHists, ll, "N"
-        ]
-        cm_stats["FORCING", ll, CmBox].where[cm_stats["DELTA", ll, CmBox]] = cm_stats[
-            "DELTA", ll, CmBox
-        ]
+        cm_stats[CmHists, ll, "ATM"] = sparse(cm_stats[CmHists, ll, "N"])
+        cm_stats["FORCING", ll, CmBox] = sparse(cm_stats["DELTA", ll, CmBox])
         cm_stat0[CmVar, "LIFE"].where[
             (cm_decay[CmVar, "UP"] > 0) & cm_decay[CmVar, "UP"]
         ] = 1 / cm_decay[CmVar, "UP"]

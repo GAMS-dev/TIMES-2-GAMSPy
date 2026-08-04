@@ -29,6 +29,7 @@ from gamspy import (
     Smax,
     SpecialValues,
     Sum,
+    sparse,
 )
 from gamspy.math import Max
 
@@ -136,7 +137,11 @@ class PpLvlusMod(GamsClass):
                     g.ts_array[s] = cc.uc_parameter[
                         ucn, *cc.arg6, side, r, t, *cc.arg2, s, *cc.arg5
                     ]
-                    sparse_expression = (
+                    cc.uc_parameter[
+                        ucn, *cc.arg6, side, r, t, *cc.arg2, ts, *cc.arg5
+                    ].where[
+                        (~g.ts_array[ts]).where[cc.arg3[r, cc.arg7, *cc.arg10, ts]]
+                    ] = sparse(
                         Sum(
                             g.RsTree[g.Finest[r, s], ts],
                             g.g_yrfr[r, s]
@@ -159,12 +164,6 @@ class PpLvlusMod(GamsClass):
                         )
                         / g.g_yrfr[r, ts]
                     )
-                    cc.uc_parameter[
-                        ucn, *cc.arg6, side, r, t, *cc.arg2, ts, *cc.arg5
-                    ].where[
-                        (~g.ts_array[ts]).where[cc.arg3[r, cc.arg7, *cc.arg10, ts]]
-                        & sparse_expression
-                    ] = sparse_expression
             # ELSEIF
             with If((~g.ips[io]) & (g.f[...] != 0)):  # noqa: SIM117
                 # Inherit all from above
@@ -174,33 +173,26 @@ class PpLvlusMod(GamsClass):
                     ]
                     with Loop(g.Rjlvl[j, r, tsl].where[Ord(tsl) < 4]):
                         with Loop(g.TsGroup[r, tsl, ts]):
-                            sparse_expression = g.ts_array[ts].where[
-                                g.RsBelow[r, ts, s]
-                            ]  # type: ignore[assignment]
-                            g.ts_array[s].where[~g.ts_array[s] & sparse_expression] = (
-                                sparse_expression
+                            g.ts_array[s].where[~g.ts_array[s]] = sparse(
+                                g.ts_array[ts].where[g.RsBelow[r, ts, s]]
                             )
                         cc.uc_parameter[
                             ucn, *cc.arg6, side, r, t, *cc.arg2, s, *cc.arg5
-                        ].where[
-                            cc.arg3[r, cc.arg7, *cc.arg10, s] & g.ts_array[s]
-                        ] = g.ts_array[s]
+                        ].where[cc.arg3[r, cc.arg7, *cc.arg10, s]] = sparse(
+                            g.ts_array[s]
+                        )
             # ELSE
             with If((~g.ips[io]) & (g.f[...] == 0)):
                 g.f[...] = 1
 
         # *-----------------------------------------------------------------------------
 
-        sparse_expression = cc.uc_parameter[
-            ucn, *cc.arg6, side, r, t, *cc.arg2, "ANNUAL", *cc.arg5
-        ]  # type: ignore[assignment]
         cc.uc_parameter[ucn, *cc.arg6, side, r, t, *cc.arg2, s, *cc.arg5].where[
-            (
-                cc.arg3[r, cc.arg7, *cc.arg10, s].where[
-                    ~cc.uc_parameter[ucn, *cc.arg6, side, r, t, *cc.arg2, s, *cc.arg5]
-                ]
-            )
-            & sparse_expression
-        ] = sparse_expression
+            cc.arg3[r, cc.arg7, *cc.arg10, s].where[
+                ~cc.uc_parameter[ucn, *cc.arg6, side, r, t, *cc.arg2, s, *cc.arg5]
+            ]
+        ] = sparse(
+            cc.uc_parameter[ucn, *cc.arg6, side, r, t, *cc.arg2, "ANNUAL", *cc.arg5]
+        )
 
         g.Uncd7.setRecords(None)

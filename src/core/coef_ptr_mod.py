@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Domain, Loop, Number, Set, Sum
+from gamspy import Domain, Loop, Number, Set, Sum, sparse
 from gamspy.math import project
 
 from core.base_class import GamsClass
@@ -156,14 +156,9 @@ class CoefPtrMod(GamsClass):
         # Add forward FLO_FUNCs including all RPC in CG1
         project(source=flo_func, target=CgGrp, direction="left")
         Cgtes2[Rtp[r, v, p], comgrp, c, cg].where[
-            ComGmap[r, comgrp, c].where[
-                Rpc[r, p, c].where[CgGrp[r, p, comgrp, cg]]
-                & Sum(s.where[flo_func[Rtp, comgrp, cg, s]], 1)
-            ]
-        ] = Sum(s.where[flo_func[Rtp, comgrp, cg, s]], 1)
-        Cgtes2[Cgtest[Rtp, c, Com, cg]].where[Cgtes2[Rtp, c, c, cg]] = Cgtes2[
-            Rtp, c, c, cg
-        ]
+            ComGmap[r, comgrp, c].where[Rpc[r, p, c].where[CgGrp[r, p, comgrp, cg]]]
+        ] = sparse(Sum(s.where[flo_func[Rtp, comgrp, cg, s]], 1))
+        Cgtes2[Cgtest[Rtp, c, Com, cg]] = sparse(Cgtes2[Rtp, c, c, cg])
         project(source=Cgtest, target=CgGrp, direction="left")
         coef_ptran[Cgtes2[r, v, p, comgrp, c, cg], s].where[
             (Number(1).where[flo_sum[Cgtes2, s]] + (~CgGrp[r, p, cg, comgrp])).where[
@@ -183,8 +178,8 @@ class CoefPtrMod(GamsClass):
             * ((Number(1)).where[~flo_sum[Cgtes2, s]] + flo_sum[Cgtes2, s]),
         )
         coef_ptran[Cgtest[r, v, p, cg, c, cg2], s].where[
-            (~Cgtes2[Cgtest]).where[RpcsVar[r, p, c, s]] & flo_sum[Cgtest, s]
-        ] = flo_sum[Cgtest, s]
+            (~Cgtes2[Cgtest]).where[RpcsVar[r, p, c, s]]
+        ] = sparse(flo_sum[Cgtest, s])
         KeepFlof[RpcAflo[r, p, c]] = False
         act_flo[Rtp[r, v, p], c, s].where[RpcsVar[r, p, c, s] & KeepFlof[r, p, c]] = (
             Sum(

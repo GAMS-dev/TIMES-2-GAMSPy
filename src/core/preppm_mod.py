@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Loop, Ord, Set
+from gamspy import Loop, Ord, Set, sparse
 from gamspy.math import project
 
 from core.base_class import GamsClass
@@ -711,9 +711,7 @@ class PreppmMod(GamsClass):
         g = self.tc
         r_curex, r, curr, cur, g_curex = g.r_curex, g.r, g.curr, g.cur, g.g_curex
         r_curex[r, curr, cur].where[False] = 0  # type: ignore[index]
-        r_curex[r, curr, cur].where[~r_curex[r, curr, cur] & g_curex[curr, cur]] = (
-            g_curex[curr, cur]
-        )
+        r_curex[r, curr, cur].where[~r_curex[r, curr, cur]] = sparse(g_curex[curr, cur])
 
     def exec3(self) -> None:
         g = self.tc
@@ -784,43 +782,40 @@ class PreppmMod(GamsClass):
             ]
         ] = 0
         # Integration of COM costs
-        obj_comnt[r, Datayear, c, s, "COST", cur].where[
+        obj_comnt[r, Datayear, c, s, "COST", cur] = sparse(
             com_cstnet[r, Datayear, c, s, cur]
-        ] = com_cstnet[r, Datayear, c, s, cur]
-        obj_comnt[r, Datayear, c, s, "TAX", cur].where[
+        )
+        obj_comnt[r, Datayear, c, s, "TAX", cur] = sparse(
             com_taxnet[r, Datayear, c, s, cur]
-        ] = com_taxnet[r, Datayear, c, s, cur]
-        obj_comnt[r, Datayear, c, s, "SUB", cur].where[
+        )
+        obj_comnt[r, Datayear, c, s, "SUB", cur] = sparse(
             com_subnet[r, Datayear, c, s, cur] * -1
-        ] = com_subnet[r, Datayear, c, s, cur] * -1
-        obj_compd[r, Datayear, c, s, "COST", cur].where[
+        )
+        obj_compd[r, Datayear, c, s, "COST", cur] = sparse(
             com_cstprd[r, Datayear, c, s, cur]
-        ] = com_cstprd[r, Datayear, c, s, cur]
-        obj_compd[r, Datayear, c, s, "TAX", cur].where[
+        )
+        obj_compd[r, Datayear, c, s, "TAX", cur] = sparse(
             com_taxprd[r, Datayear, c, s, cur]
-        ] = com_taxprd[r, Datayear, c, s, cur]
-        obj_compd[r, Datayear, c, s, "SUB", cur].where[
+        )
+        obj_compd[r, Datayear, c, s, "SUB", cur] = sparse(
             com_subprd[r, Datayear, c, s, cur] * -1
-        ] = com_subprd[r, Datayear, c, s, cur] * -1
+        )
         # Integration of UC_COMxxx
         uc_com[ucn, "PRD", side, r, Datayear, c, s, "COMPRD"].where[
             ~UcAttr[r, ucn, side, "COMPRD", "NET"]
-            & uc_comprd[ucn, side, r, Datayear, c, s]
-        ] = uc_comprd[ucn, side, r, Datayear, c, s]
+        ] = sparse(uc_comprd[ucn, side, r, Datayear, c, s])
         uc_com[ucn, "PRD", side, r, Datayear, c, s, "COMCON"].where[
             ~UcAttr[r, ucn, side, "COMCON", "NET"]
-            & uc_comcon[ucn, side, r, Datayear, c, s]
-        ] = uc_comcon[ucn, side, r, Datayear, c, s]
+        ] = sparse(uc_comcon[ucn, side, r, Datayear, c, s])
         uc_com[ucn, "NET", side, r, Datayear, c, s, "COMPRD"].where[
             UcAttr[r, ucn, side, "COMPRD", "NET"]
-            & uc_comprd[ucn, side, r, Datayear, c, s]
-        ] = uc_comprd[ucn, side, r, Datayear, c, s]
+        ] = sparse(uc_comprd[ucn, side, r, Datayear, c, s])
         uc_com[ucn, "NET", side, r, Datayear, c, s, "COMCON"].where[
             uc_comcon[ucn, side, r, Datayear, c, s]
         ] = uc_comcon[ucn, side, r, Datayear, c, s] * -1
-        uc_com[ucn, "NET", side, r, Datayear, c, s, "COMNET"].where[
+        uc_com[ucn, "NET", side, r, Datayear, c, s, "COMNET"] = sparse(
             uc_comnet[ucn, side, r, Datayear, c, s]
-        ] = uc_comnet[ucn, side, r, Datayear, c, s]
+        )
 
     def prepare_flags_for_flow_tax_sub(self: PreppmMod, dflbl: str) -> None:
         g = self.tc
@@ -839,7 +834,7 @@ class PreppmMod(GamsClass):
         project(source=flo_tax, target=RpcCur, direction="left")
         ObjVflo[RpcCur, "TAX"] = True
         project(source=flo_sub, target=RpcCur, direction="left")
-        ObjVflo[RpcCur, "SUB"].where[ObjVflo[RpcCur, "TAX"]] = ObjVflo[RpcCur, "TAX"]
+        ObjVflo[RpcCur, "SUB"] = sparse(ObjVflo[RpcCur, "TAX"])
         flo_tax[r, ll.lag(Ord(ll), "circular"), p, c, s, cur].where[
             ~flo_tax[r, dflbl, p, c, s, cur]
             & flo_tax[r, ll, p, c, s, cur]
@@ -880,9 +875,7 @@ class PreppmMod(GamsClass):
         # -----------------------------------------------------------------------------
         # All parameters now processed, but second pass (dense interpolation) still needed for cost parameters
         Uncd7.setRecords(None)
-        prc_mark[r, t, p, p, c, bd].where[flo_mark[r, t, p, c, bd]] = flo_mark[
-            r, t, p, c, bd
-        ]
+        prc_mark[r, t, p, p, c, bd] = sparse(flo_mark[r, t, p, c, bd])
         # -----------------------------------------------------------------------------
         # Augment datayear with MILESTONYR, as they now contain user data.
         # Remove the special year from DATAYEAR, as controls are processed.

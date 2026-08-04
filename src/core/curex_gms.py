@@ -16,7 +16,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from gamspy import Alias, Domain, Else, If, Loop, Number, Parameter, Set, Sum
+from gamspy import Alias, Domain, Else, If, Loop, Number, Parameter, Set, Sum, sparse
 from gamspy.math import power, same_as
 
 from core.base_class import GamsClass
@@ -248,17 +248,18 @@ class CurexGms(GamsClass):
 
         if not condition:
             param_2.setRecords(None)
-            param_2[*cc.arg3, *cc.arg4, cur].where[param_1[*cc.arg3, cur]] = param_1[
-                *cc.arg3, cur
-            ]
+            param_2[*cc.arg3, *cc.arg4, cur] = sparse(param_1[*cc.arg3, cur])
             param_1.setRecords(None)
 
-        sparse_expression = Sum(
-            g.CurMap[r, cur, curr].where[param_2[*cc.arg3, *cc.arg4, curr, *cc.arg5]],
-            param_2[*cc.arg3, *cc.arg4, curr, *cc.arg5]
-            * power(g.r_curex[r, curr, cur], exponent),
+        param_1[*cc.arg3, cur, *cc.arg5] = sparse(
+            Sum(
+                g.CurMap[r, cur, curr].where[
+                    param_2[*cc.arg3, *cc.arg4, curr, *cc.arg5]
+                ],
+                param_2[*cc.arg3, *cc.arg4, curr, *cc.arg5]
+                * power(g.r_curex[r, curr, cur], exponent),
+            )
         )
-        param_1[*cc.arg3, cur, *cc.arg5].where[sparse_expression] = sparse_expression
 
         if condition:
             param_1[*cc.arg3, cur, *cc.arg5].where[~g.Rdcur[r, cur]] = 0

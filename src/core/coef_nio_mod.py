@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Else, For, If, Loop, Number
+from gamspy import Else, For, If, Loop, Number, sparse
 from gamspy.math import Max, Min, abs, ceil
 
 from core.base_class import GamsClass
@@ -152,7 +152,6 @@ class CoefNioMod(GamsClass):
         r, v, p, c, io = g.r, g.v, g.p, g.c, g.io
 
         g.ncap_clag[g.Rtp, c, io].where[
-            ((~g.ncap_icom[g.Rtp, c]).where[g.ncap_com[g.Rtp, c, io]])
-            & g.ncap_cled[g.Rtp, c]
-        ] = g.ncap_cled[g.Rtp, c]
+            (~g.ncap_icom[g.Rtp, c]).where[g.ncap_com[g.Rtp, c, io]]
+        ] = sparse(g.ncap_cled[g.Rtp, c])
         g.ncap_cled[r, v, p, c].where[~g.ncap_icom[r, v, p, c]] = 0

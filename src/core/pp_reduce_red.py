@@ -10,7 +10,18 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Domain, Else, ElseIf, If, Loop, Number, Ord, SpecialValues, Sum
+from gamspy import (
+    Domain,
+    Else,
+    ElseIf,
+    If,
+    Loop,
+    Number,
+    Ord,
+    SpecialValues,
+    Sum,
+    sparse,
+)
 from gamspy.math import aggregate, project
 
 from core.base_class import GamsClass
@@ -123,61 +134,51 @@ class PpReduceRed(GamsClass):
         ):
             g.PrcCap[g.r, g.p] = True
 
-        sparseExpr = g.ncap_cost[g.r, g.ll, g.p, g.cur] != 0.0
         g.ObjIcur[g.r, g.ll.lag(Ord(g.ll), "circular"), g.p, g.cur].where[
-            g.DmYear[g.ll] & sparseExpr
-        ] = sparseExpr
+            g.DmYear[g.ll]
+        ] = sparse(g.ncap_cost[g.r, g.ll, g.p, g.cur] != 0.0)
 
-        sparseExpr = g.ncap_fom[g.r, g.ll, g.p, g.cur] != 0.0
         g.ObjIcur[g.r, g.ll.lag(Ord(g.ll), "circular"), g.p, g.cur].where[
-            g.DmYear[g.ll] & sparseExpr
-        ] = sparseExpr
+            g.DmYear[g.ll]
+        ] = sparse(g.ncap_fom[g.r, g.ll, g.p, g.cur] != 0.0)
 
-        sparseExpr = g.ncap_isub[g.r, g.ll, g.p, g.cur] != 0.0
         g.ObjIcur[g.r, g.ll.lag(Ord(g.ll), "circular"), g.p, g.cur].where[
-            g.DmYear[g.ll] & sparseExpr
-        ] = sparseExpr
+            g.DmYear[g.ll]
+        ] = sparse(g.ncap_isub[g.r, g.ll, g.p, g.cur] != 0.0)
 
-        sparseExpr = g.ncap_itax[g.r, g.ll, g.p, g.cur] != 0.0
         g.ObjIcur[g.r, g.ll.lag(Ord(g.ll), "circular"), g.p, g.cur].where[
-            g.DmYear[g.ll] & sparseExpr
-        ] = sparseExpr
+            g.DmYear[g.ll]
+        ] = sparse(g.ncap_itax[g.r, g.ll, g.p, g.cur] != 0.0)
 
-        sparseExpr = g.ncap_fsub[g.r, g.ll, g.p, g.cur] != 0.0
         g.ObjIcur[g.r, g.ll.lag(Ord(g.ll), "circular"), g.p, g.cur].where[
-            g.DmYear[g.ll] & sparseExpr
-        ] = sparseExpr
+            g.DmYear[g.ll]
+        ] = sparse(g.ncap_fsub[g.r, g.ll, g.p, g.cur] != 0.0)
 
-        sparseExpr = g.ncap_ftax[g.r, g.ll, g.p, g.cur] != 0.0
         g.ObjIcur[g.r, g.ll.lag(Ord(g.ll), "circular"), g.p, g.cur].where[
-            g.DmYear[g.ll] & sparseExpr
-        ] = sparseExpr
+            g.DmYear[g.ll]
+        ] = sparse(g.ncap_ftax[g.r, g.ll, g.p, g.cur] != 0.0)
 
-        sparseExpr = g.ncap_dcost[g.r, g.ll, g.p, g.cur] != 0.0
         g.ObjIcur[g.r, g.ll.lag(Ord(g.ll), "circular"), g.p, g.cur].where[
-            g.DmYear[g.ll] & sparseExpr
-        ] = sparseExpr
+            g.DmYear[g.ll]
+        ] = sparse(g.ncap_dcost[g.r, g.ll, g.p, g.cur] != 0.0)
 
-        sparseExpr = g.ncap_dlagc[g.r, g.ll, g.p, g.cur] != 0.0
         g.ObjIcur[g.r, g.ll.lag(Ord(g.ll), "circular"), g.p, g.cur].where[
-            g.DmYear[g.ll] & sparseExpr
-        ] = sparseExpr
+            g.DmYear[g.ll]
+        ] = sparse(g.ncap_dlagc[g.r, g.ll, g.p, g.cur] != 0.0)
 
         with Loop(g.ObjIcur[g.r, g.ll, g.p, g.cur]):
             g.PrcCap[g.r, g.p] = True
 
         # [UR]: added checks for fixed availabilities
-        g.PrcCap[g.Rp[g.r, g.p]].where[g.rp_afb[g.Rp, "FX"]] = g.rp_afb[g.Rp, "FX"]
+        g.PrcCap[g.Rp[g.r, g.p]] = sparse(g.rp_afb[g.Rp, "FX"])
 
-        sparseExpr = g.ncap_afs[g.r, g.t, g.p, g.s, "FX"]
         g.RtpsBd[
             g.r, g.t.lag(Ord(g.t), "circular"), g.p, g.s.lag(Ord(g.s), "circular"), "FX"
-        ].where[sparseExpr] = sparseExpr
+        ] = sparse(g.ncap_afs[g.r, g.t, g.p, g.s, "FX"])
 
-        sparseExpr = g.ncap_afa[g.r, g.t, g.p, "FX"]
-        g.RtpsBd[g.r, g.t.lag(Ord(g.t), "circular"), g.p, g.Annual, "FX"].where[
-            sparseExpr
-        ] = sparseExpr
+        g.RtpsBd[g.r, g.t.lag(Ord(g.t), "circular"), g.p, g.Annual, "FX"] = sparse(
+            g.ncap_afa[g.r, g.t, g.p, "FX"]
+        )
 
         with Loop(g.RtpsBd[g.r, g.t, g.p, g.s, g.bd]):
             g.PrcCap[g.r, g.p] = True
@@ -458,10 +459,9 @@ class PpReduceRed(GamsClass):
         g.RtpsOff[g.RtpsOff[g.r, g.t, g.p, g.s]].where[g.PrcMap[g.r, "STG", g.p]] = (
             False
         )
-        sparseExpr = Sum(
-            g.RsBelow[g.r, g.s, g.ts].where[g.RtpsOff[g.r, g.t, g.p, g.s]], 1
+        g.RtpsOff[g.r, g.t, g.p, g.ts] = sparse(
+            Sum(g.RsBelow[g.r, g.s, g.ts].where[g.RtpsOff[g.r, g.t, g.p, g.s]], 1)
         )
-        g.RtpsOff[g.r, g.t, g.p, g.ts].where[sparseExpr] = sparseExpr
 
     def set_eps_bounds_prc_ts(self: PpReduceRed) -> None:
         g = self.tc

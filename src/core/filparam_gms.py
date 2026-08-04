@@ -32,6 +32,7 @@ from gamspy import (
     Parameter,
     Set,
     SpecialValues,
+    sparse,
 )
 from gamspy._symbols.implicits import ImplicitSet
 from gamspy.math import Round, mod
@@ -152,12 +153,9 @@ def filparam_gms_gp(g: TimesModelClass, cc: FilparamGmsConfig, dflbl: str) -> No
                     g.f[...] = 0
 
             with If(g.dfunc != 1):
-                sparse_expression = (
+                cc.src[*cc.arg2, cc.arg6, *tail2] = sparse(
                     g.first_val[...].where[cc.arg7.where[yearval[cc.arg6] < g.f]]
                     + g.last_val[...].where[cc.arg8.where[yearval[cc.arg6] > g.z]]
-                )
-                cc.src[*cc.arg2, cc.arg6, *tail2].where[sparse_expression] = (
-                    sparse_expression
                 )
 
 

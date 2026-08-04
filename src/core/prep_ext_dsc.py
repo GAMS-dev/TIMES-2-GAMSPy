@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Sum
+from gamspy import Sum, sparse
 
 from core.base_class import GamsClass
 from core.prepparm_gms import PrepparmGms, PrepparmGmsConfig
@@ -88,4 +88,4 @@ class PrepExtDsc(GamsClass):
         g = self.tc
         r, p = g.r, g.p
 
-        g.PrcDscncap[r, p].where[g.prc_semi[r, p]] = g.prc_semi[r, p]
+        g.PrcDscncap[r, p] = sparse(g.prc_semi[r, p])

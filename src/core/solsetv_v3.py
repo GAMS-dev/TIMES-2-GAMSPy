@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Loop, Ord, Parameter, Product, Set, SpecialValues, Sum
+from gamspy import Loop, Ord, Parameter, Product, Set, SpecialValues, Sum, sparse
 from gamspy.math import abs, project
 
 from core.base_class import GamsClass
@@ -325,42 +325,37 @@ class SolsetvV3(GamsClass):
         g = self.tc
         r, p = g.r, g.p
         # * set the regional memebers of the reporting sets
-        g.Dmd[g.Rp[r, p]].where[g.PrcMap[r, "DMD", p]] = g.PrcMap[r, "DMD", p]
-        g.Pre[g.Rp[r, p]].where[g.PrcMap[r, "PRE", p]] = g.PrcMap[r, "PRE", p]
-        g.Prw[g.Rp[r, p]].where[g.PrcMap[r, "PRW", p]] = g.PrcMap[r, "PRW", p]
-        g.Prv[g.Rp[r, p]].where[g.PrcMap[r, "PRV", p]] = g.PrcMap[r, "PRV", p]
-        g.Ref[g.Rp[r, p]].where[g.PrcMap[r, "REF", p]] = g.PrcMap[r, "REF", p]
-        g.Ele[g.Rp[r, p]].where[g.PrcMap[r, "ELE", p]] = g.PrcMap[r, "ELE", p]
-        g.Chp[g.Rp[r, p]].where[g.PrcMap[r, "CHP", p]] = g.PrcMap[r, "CHP", p]
-        g.Hpl[g.Rp[r, p]].where[g.PrcMap[r, "HPL", p]] = g.PrcMap[r, "HPL", p]
-        g.Distr[g.Rp[r, p]].where[g.PrcMap[r, "DISTR", p]] = g.PrcMap[r, "DISTR", p]
-        g.Renew[g.Rp[r, p]].where[g.PrcMap[r, "RENEW", p]] = g.PrcMap[r, "RENEW", p]
-        g.Xtract[g.Rp[r, p]].where[g.PrcMap[r, "XTRACT", p]] = g.PrcMap[r, "XTRACT", p]
+        g.Dmd[g.Rp[r, p]] = sparse(g.PrcMap[r, "DMD", p])
+        g.Pre[g.Rp[r, p]] = sparse(g.PrcMap[r, "PRE", p])
+        g.Prw[g.Rp[r, p]] = sparse(g.PrcMap[r, "PRW", p])
+        g.Prv[g.Rp[r, p]] = sparse(g.PrcMap[r, "PRV", p])
+        g.Ref[g.Rp[r, p]] = sparse(g.PrcMap[r, "REF", p])
+        g.Ele[g.Rp[r, p]] = sparse(g.PrcMap[r, "ELE", p])
+        g.Chp[g.Rp[r, p]] = sparse(g.PrcMap[r, "CHP", p])
+        g.Hpl[g.Rp[r, p]] = sparse(g.PrcMap[r, "HPL", p])
+        g.Distr[g.Rp[r, p]] = sparse(g.PrcMap[r, "DISTR", p])
+        g.Renew[g.Rp[r, p]] = sparse(g.PrcMap[r, "RENEW", p])
+        g.Xtract[g.Rp[r, p]] = sparse(g.PrcMap[r, "XTRACT", p])
 
     def exec3(self: SolsetvV3) -> None:
         g = self.tc
         r, c, p = g.r, g.c, g.p
         # * set the regional memebers of the reporting sets
-        g.Res[g.Rc[r, c]].where[g.DemSmap[r, "RES", c]] = g.DemSmap[r, "RES", c]
-        g.Comm[g.Rc[r, c]].where[g.DemSmap[r, "COM", c]] = g.DemSmap[r, "COM", c]
-        g.Trn[g.Rc[r, c]].where[g.DemSmap[r, "TRN", c]] = g.DemSmap[r, "TRN", c]
-        g.Agr[g.Rc[r, c]].where[g.DemSmap[r, "AGR", c]] = g.DemSmap[r, "AGR", c]
-        g.Ind[g.Rc[r, c]].where[g.DemSmap[r, "IND", c]] = g.DemSmap[r, "IND", c]
-        g.Othd[g.Rc[r, c]].where[g.DemSmap[r, "OTH", c]] = g.DemSmap[r, "OTH", c]
-        g.Ne[g.Rc[r, c]].where[g.DemSmap[r, "NE", c]] = g.DemSmap[r, "NE", c]
-        g.Nrgelc[g.Nrg[r, c]].where[g.NrgTmap[r, "ELC", c]] = g.NrgTmap[r, "ELC", c]
-        sparseExpr = g.NrgTmap[r, "LTHEAT", c]
-        g.Nrghet[g.Nrg[r, c]].where[sparseExpr] = sparseExpr
-        sparseExpr = g.NrgTmap[r, "HTHEAT", c]
-        g.Nrghet[g.Nrg[r, c]].where[sparseExpr] = sparseExpr
-        sparseExpr = g.NrgTmap[r, "FOSSIL", c]
-        g.Nrgfos[g.Nrg[r, c]].where[sparseExpr] = sparseExpr
-        g.Nrgren[g.Nrg[r, c]].where[g.NrgTmap[r, "RENEN", c]] = g.NrgTmap[r, "RENEN", c]
-        sparseExpr = g.NrgTmap[r, "FRERENEW", c]
-        g.Nrgren[g.Nrg[r, c]].where[sparseExpr] = sparseExpr
-        sparseExpr = g.NrgTmap[r, "LIMRENEW", c]
-        g.Nrgren[g.Nrg[r, c]].where[sparseExpr] = sparseExpr
-        g.Nrgsyn[g.Nrg[r, c]].where[g.NrgTmap[r, "SYNTH", c]] = g.NrgTmap[r, "SYNTH", c]
+        g.Res[g.Rc[r, c]] = sparse(g.DemSmap[r, "RES", c])
+        g.Comm[g.Rc[r, c]] = sparse(g.DemSmap[r, "COM", c])
+        g.Trn[g.Rc[r, c]] = sparse(g.DemSmap[r, "TRN", c])
+        g.Agr[g.Rc[r, c]] = sparse(g.DemSmap[r, "AGR", c])
+        g.Ind[g.Rc[r, c]] = sparse(g.DemSmap[r, "IND", c])
+        g.Othd[g.Rc[r, c]] = sparse(g.DemSmap[r, "OTH", c])
+        g.Ne[g.Rc[r, c]] = sparse(g.DemSmap[r, "NE", c])
+        g.Nrgelc[g.Nrg[r, c]] = sparse(g.NrgTmap[r, "ELC", c])
+        g.Nrghet[g.Nrg[r, c]] = sparse(g.NrgTmap[r, "LTHEAT", c])
+        g.Nrghet[g.Nrg[r, c]] = sparse(g.NrgTmap[r, "HTHEAT", c])
+        g.Nrgfos[g.Nrg[r, c]] = sparse(g.NrgTmap[r, "FOSSIL", c])
+        g.Nrgren[g.Nrg[r, c]] = sparse(g.NrgTmap[r, "RENEN", c])
+        g.Nrgren[g.Nrg[r, c]] = sparse(g.NrgTmap[r, "FRERENEW", c])
+        g.Nrgren[g.Nrg[r, c]] = sparse(g.NrgTmap[r, "LIMRENEW", c])
+        g.Nrgsyn[g.Nrg[r, c]] = sparse(g.NrgTmap[r, "SYNTH", c])
         # *GG* set the REGional descriptions if not provided
         # * Use the RC / RP masks
         g.ComDesc[g.Rc[r, c]].where[~(g.ComDesc[r, c])] = g.comgrp[c]
@@ -378,10 +373,8 @@ class SolsetvV3(GamsClass):
             g.UcMarks[r, g.item] = True
         g.RegAct[g.allr, pgprim] = g.allreg[g.allr]
         g.RegAct[g.nonset, pgprim] = True
-        sparseExpr = Sum(g.ComPeak[r, g.cg], 1)
-        g.Othcom[g.cg].where[sparseExpr] = sparseExpr
-        sparseExpr = Sum(g.Rdcur[r, g.cur], 1)
-        g.Othcom[g.cur].where[sparseExpr] = sparseExpr
+        g.Othcom[g.cg] = sparse(Sum(g.ComPeak[r, g.cg], 1))
+        g.Othcom[g.cur] = sparse(Sum(g.Rdcur[r, g.cur], 1))
 
     def exec6(self: SolsetvV3) -> None:
         # * Add default capacity unit and conversion if missing
@@ -423,11 +416,9 @@ class SolsetvV3(GamsClass):
         r, p, c, ie = g.r, g.p, g.c, g.ie
         g.RpUx.setRecords(None)
         project(source=g.prc_dynuc, target=g.UcDynbd)
-        g.RpSgs[r, p].where[g.PrcMap[r, "NST", p]] = g.PrcMap[r, "NST", p]
-        sparseExpr = Sum(g.RpcIreio[r, p, c, ie, "IN"], 1)
-        g.IreDist[g.RpIre[r, p]].where[sparseExpr] = sparseExpr
-        sparseExpr = Sum(g.RpcIre[r, p, c, ie], g.Nrgelc[r, c])
-        g.RpUx[g.RpIre[r, p]].where[sparseExpr] = sparseExpr
+        g.RpSgs[r, p] = sparse(g.PrcMap[r, "NST", p])
+        g.IreDist[g.RpIre[r, p]] = sparse(Sum(g.RpcIreio[r, p, c, ie, "IN"], 1))
+        g.RpUx[g.RpIre[r, p]] = sparse(Sum(g.RpcIre[r, p, c, ie], g.Nrgelc[r, c]))
 
     def exec8(self: SolsetvV3) -> None:
         g = self.tc

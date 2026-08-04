@@ -11,7 +11,18 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Card, Loop, Number, Ord, Parameter, Set, Smax, SpecialValues, Sum
+from gamspy import (
+    Card,
+    Loop,
+    Number,
+    Ord,
+    Parameter,
+    Set,
+    Smax,
+    SpecialValues,
+    Sum,
+    sparse,
+)
 from gamspy.math import Max, Min, Round, abs, aggregate, mod, power, project, sign
 
 from core.base_class import GamsClass
@@ -77,10 +88,11 @@ class CoefShpMod(GamsClass):
         aggregate(source=g.RpGrp, target=g.prc_ymin)
         g.prc_ymax.setRecords(None)
 
-        sparseExpr = g.PrcVint[g.Rp] + g.RpGrp[g.Rp, "CAPFLO"]
-        g.Trackp[g.Rp].where[g.prc_ymin[g.Rp] & sparseExpr] = sparseExpr
+        g.Trackp[g.Rp].where[g.prc_ymin[g.Rp]] = sparse(
+            g.PrcVint[g.Rp] + g.RpGrp[g.Rp, "CAPFLO"]
+        )
 
-        g.RtpCapyr[g.RtpCptyr[r, v, t, p]].where[g.Trackp[r, p]] = g.Trackp[r, p]
+        g.RtpCapyr[g.RtpCptyr[r, v, t, p]] = sparse(g.Trackp[r, p])
 
         with Loop(g.Agej[j, age].where[Card(g.Trackp)]):  # type: ignore[index]
             with Loop(v):
@@ -133,13 +145,12 @@ class CoefShpMod(GamsClass):
             )
 
         # Shapes for capacity-related commodity flows
-        sparseExpr = g.rtp_ffcx[r, v, t, p, "CAPFLO", c]  # type: ignore[assignment]
-        g.coef_cio[g.RtpCapyr[r, v, t, p], c, io].where[
-            g.ncap_com[r, v, p, c, io] & sparseExpr
-        ] = sparseExpr
+        g.coef_cio[g.RtpCapyr[r, v, t, p], c, io].where[g.ncap_com[r, v, p, c, io]] = (
+            sparse(g.rtp_ffcx[r, v, t, p, "CAPFLO", c])
+        )
 
         g.coef_cio[g.RtpCptyr[r, v, t, p], c, io].where[g.ncap_clag[r, v, p, c, io]] = (
-            sign(g.ncap_clag[r, v, p, c, io])  # type: ignore
+            sign(g.ncap_clag[r, v, p, c, io])  # type: ignore[arg-type]
             * (
                 Max(
                     0,
@@ -189,7 +200,7 @@ class CoefShpMod(GamsClass):
         g.prc_ymax.setRecords(None)
 
         with Loop(g.Agej[j, age].where[Card(g.ncap_cpx)]):  # type: ignore[index]
-            g.Trackp[g.Rp].where[g.prc_ymin[g.Rp]] = g.prc_ymin[g.Rp]
+            g.Trackp[g.Rp] = sparse(g.prc_ymin[g.Rp])
             with Loop(v):
                 # Set the starting and ending years taking into account NCAP_ILED:
                 g.prc_ymin[g.Trackp[r, p]] = g.b[v] + Round(g.ncap_iled[r, v, p])
