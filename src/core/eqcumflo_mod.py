@@ -58,6 +58,7 @@ class EqcumfloMod(GamsClass):
                  SUM(TT(T)$
 """
         self.env.set_local("sw1", "")
+        self.env.set_local("sw1_GP", ())
         self.env.set_local("sw2", "")
         if self.env.stages + self.env.scum == "YES":
             self.env.set_scoped("sow", ",WW")
@@ -65,6 +66,9 @@ class EqcumfloMod(GamsClass):
             self.env.set_scoped("swt", ",SOW")
             self.env.set_scoped("swt_GP", (g.Sow,))
             self.env.set_scoped("sw1", "S_")
+            self.env.set_scoped(
+                "sw1_GP", ("S_",)
+            )  # NOTE: UPDATE THIS USAGE, AS REQUIRED
             self.env.set_scoped("sw2", ",'1',SOW")
         if self.env.obj.upper() != "LIN":
             equation += "((E(T) >= YEARVAL(ALLYEAR))$(B(T) <= YEARVAL(LL))),"

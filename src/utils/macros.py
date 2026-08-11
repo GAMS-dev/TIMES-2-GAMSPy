@@ -5,10 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
-from gamspy import Sum
+from gamspy import Alias, Set, Sum
 
 if TYPE_CHECKING:
-    from gamspy import Alias, Expression, Set
+    from gamspy import Expression
     from gamspy._symbols.implicits.implicit_parameter import ImplicitParameter
 
     from utils.compile_environment import CompileEnvironment
@@ -367,10 +367,16 @@ class Macros:
         # Return the Alias
         return "RTS"
 
-    def rts_GP(self, s: Any, env: CompileEnvironment, g: TimesModelClass) -> Any:
+    def rts_GP(
+        self, s: Set | Alias, env: CompileEnvironment, g: TimesModelClass
+    ) -> Set | Alias:
         # Return environment variable
         if self.rts_active:
-            return env.rts_GP(s)
+            rts = env.rts_GP(s)
+            assert isinstance(rts, (Set | Alias)), (
+                f"rts returned an enexpected value {rts=}"
+            )
+            return rts
         # Return the Alias
         return g.rts
 
