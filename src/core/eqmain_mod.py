@@ -19,9 +19,6 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Literal
 
-if TYPE_CHECKING:
-    pass
-
 from gamspy import Alias, Loop, Number, Parameter, Set, SpecialValues, Sum
 from gamspy._symbols.implicits import ImplicitParameter
 from gamspy.math import project
@@ -54,7 +51,7 @@ from core.eqpeak_mod import EqpeakMod
 from core.eqptrans_mod import EqptransMod
 from core.eqstgaux_lin import EqstgauxLin
 from core.eqstgaux_mod import EqstgauxMod
-from core.eqstgflo_mod import EqstgfloMod
+from core.eqstgflo_mod import EqstgfloMod, EqstgfloModConfig
 from core.eqstgips_lin import EqstgipsLin
 from core.eqstgips_mod import EqstgipsMod
 from core.eqstgtss_mod import EqstgtssMod
@@ -100,7 +97,7 @@ class EqmainMod(GamsClass):
         elif self.arg1.upper() == "TM":
             self.include(EqdeclrTm(tc=self.tc, env=self.env, arg1=self.arg1))
         else:
-            raise Exception(f"Extension {self.arg1} not available.")
+            raise ValueError(f"Extension {self.arg1} not available.")
 
         if self.env.vda.upper() == "YES":
             self.include(EquExtVda(tc=self.tc, env=self.env, arg1="DECLR"))
@@ -314,7 +311,7 @@ class EqmainMod(GamsClass):
             self.include(EqstgipsMod(tc=self.tc, env=self.env))
             self.include(EqstgauxMod(tc=self.tc, env=self.env))
         else:
-            raise Exception(
+            raise ValueError(
                 f"Invalid extension {self.env.obj} for eqstgips_<ext>.py and eqstgaux_<ext>.py."
             )
 
@@ -322,25 +319,20 @@ class EqmainMod(GamsClass):
         self.include(EqstgtssMod(tc=self.tc, env=self.env))
 
         # Bound on input/output flows of storage process
-        eqstgflo_batincludes: list[tuple[str, str, str, str]] = [
-            ("IN", "G", "LO", "0"),
-            ("IN", "E", "FX", "NA"),
-            ("IN", "L", "UP", "INF"),
-            ("OUT", "G", "LO", "0"),
-            ("OUT", "E", "FX", "NA"),
-            ("OUT", "L", "UP", "INF"),
+        eqstgflo_batincludes: list[EqstgfloModConfig] = [
+            EqstgfloModConfig(arg1="IN", arg2="G", arg3="LO", arg4=0),
+            EqstgfloModConfig(arg1="IN", arg2="E", arg3="FX", arg4=SpecialValues.NA),
+            EqstgfloModConfig(
+                arg1="IN", arg2="L", arg3="UP", arg4=SpecialValues.POSINF
+            ),
+            EqstgfloModConfig(arg1="OUT", arg2="G", arg3="LO", arg4=0),
+            EqstgfloModConfig(arg1="OUT", arg2="E", arg3="FX", arg4=SpecialValues.NA),
+            EqstgfloModConfig(
+                arg1="OUT", arg2="L", arg3="UP", arg4=SpecialValues.POSINF
+            ),
         ]
-        for arg1, arg2, arg3, arg4 in eqstgflo_batincludes:
-            self.include(
-                EqstgfloMod(
-                    tc=self.tc,
-                    env=self.env,
-                    arg1=arg1,
-                    arg2=arg2,
-                    arg3=arg3,
-                    arg4=arg4,
-                )
-            )
+        for config in eqstgflo_batincludes:
+            self.include(EqstgfloMod(tc=self.tc, env=self.env, config=config))
 
         if self.env.spines.upper() == "YES":
             apply_witspine(env=self.env)
@@ -393,8 +385,8 @@ class EqmainMod(GamsClass):
             ),
         ]
 
-        for config in equcwrap_batincludes:
-            self.include(EqucwrapMod(tc=self.tc, env=self.env, config=config))
+        for equcwrap_config in equcwrap_batincludes:
+            self.include(EqucwrapMod(tc=self.tc, env=self.env, config=equcwrap_config))
 
         if self.env.spines.upper() == "YES":
             apply_ewispine(env=self.env)
