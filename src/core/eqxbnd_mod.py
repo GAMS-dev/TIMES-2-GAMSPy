@@ -16,15 +16,27 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal
+
+from gamspy import Domain, Expression, Number, Sum
 
 from core.base_class import GamsClass
+from core.utils import generate_equation
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
+
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class EqxbndModConfig:
+    arg1: Literal["G", "E", "L"]
+    arg2: Literal["LO", "FX", "UP"]
+    arg3: Number | Expression
 
 
 class EqxbndMod(GamsClass):
@@ -34,66 +46,106 @@ class EqxbndMod(GamsClass):
     gams_source: str = "eqxbnd.mod"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
+        self, tc: TimesModelClass, env: CompileEnvironment, config: EqxbndModConfig
     ):
         self.env = env.fork()
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
+        self.config = config
         self._sub_modules = {}
         self.compile()
 
     def compile(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-*V0.5b 980902 - avoid equations if LO=0/UP=INF
-  {self.env.eq}{self.arg1}_XBND(ALL_REG,{self.env.tx},C,S,IE {self.env.swt})$((SUM(RPC_IRE(ALL_REG,P,C,IE),1)*{self.arg3})$IRE_XBND(ALL_REG,T,C,S,IE,'{self.arg2}'))..
+        g = self.tc
+        cc = self.config
 
-*-----------------------------------------------------------------------------
-* if region is internal then handle by
-*-----------------------------------------------------------------------------
-* sum over all possible at process TS-level
-       SUM((RPC_IRE(REG(ALL_REG),P,C,IE),RTPCS_VARF(REG,T,P,C,TS))$RS_TREE(REG,S,TS),
-* sum all the existing activities
-            SUM(RTP_VNTBYR(REG,T,P,V),
-* [UR] model reduction REDUCE is set in *.run
-              ({self.env.var}_IRE(REG,V,T,P,C,TS,IE{self.env.sow})$(NOT RPC_AIRE(REG,P,C)) +
-               ({self.env.var}_ACT(REG,V,T,P,TS{self.env.sow})*PRC_ACTFLO(REG,V,P,C))$RPC_AIRE(REG,P,C)) *
-* bound coarser than variable or bound finer than variable
-              RS_FR(REG,S,TS)
+        allreg, c, s, ie, p, t, RpcIre, ire_xbnd, Reg, ts, v, r, Com = (
+            g.allreg,
+            g.c,
+            g.s,
+            g.ie,
+            g.p,
+            g.t,
+            g.RpcIre,
+            g.ire_xbnd,
+            g.Reg,
+            g.ts,
+            g.v,
+            g.r,
+            g.Com,
+        )
+
+        swt = self.env.swt_GP
+
+        eq = g.get_equation(name=f"{self.env.eq}{cc.arg1}_XBND")
+
+        var_ire = g.get_variable(name=f"{self.env.var}_IRE")
+        var_act = g.get_variable(name=f"{self.env.var}_ACT")
+
+        # *V0.5b 980902 - avoid equations if LO=0/UP=INF
+        cond = (Sum(RpcIre[allreg, p, c, ie], 1) * cc.arg3).where[
+            ire_xbnd[allreg, t, c, s, ie, cc.arg2]
+        ]
+        eq[allreg, *self.env.tx_GP, c, s, ie, *swt].where[
+            cond
+            # *-----------------------------------------------------------------------------
+            # * if region is internal then handle by
+            # *-----------------------------------------------------------------------------
+            # * sum over all possible at process TS-level
+        ] = generate_equation(
+            lhs=Sum(
+                Domain(
+                    RpcIre[Reg[allreg], p, c, ie],
+                    g.RtpcsVarf[Reg, t, p, c, ts],
+                ).where[g.RsTree[Reg, s, ts]],  # * sum all the existing activities
+                Sum(
+                    g.RtpVntbyr[Reg, t, p, v],
+                    var_ire[Reg, v, t, p, c, ts, ie, *self.env.sow_GP].where[
+                        (~(g.RpcAire[Reg, p, c]))
+                    ]  # * [UR] model reduction REDUCE is set in *.run
+                    + (
+                        var_act[Reg, v, t, p, ts, *self.env.sow_GP]
+                        * g.prc_actflo[Reg, v, p, c]
+                    ).where[g.RpcAire[Reg, p, c]],
+                )  # * bound coarser than variable or bound finer than variable
+                * g.rs_fr[Reg, s, ts],
             )
-       ) +
-
-*-----------------------------------------------------------------------------
-* if region is external then handle the internal guys
-*-----------------------------------------------------------------------------
-* sum over all possible at process TS-level
-*V05c 980811 - use IMP/EXP sets instead of ordering
-       SUM(RPC_IRE(R,P,COM,IMPEXP(IE--1))$((TOP_IRE(ALL_REG,C,R,COM,P)$XPT(IE)) +
-                                           (TOP_IRE(R,COM,ALL_REG,C,P)$IMP(IE))),
-* sum all the existing activities
-            SUM(RS_TREE(R,ALL_TS,TS)$(RTPCS_VARF(R,T,P,COM,TS)*IRE_TSCVT(R,ALL_TS,ALL_REG,S)),
-                SUM(RTP_VNTBYR(R,T,P,V),
-* [UR] model reduction REDUCE is set in *.run
-                  ({self.env.var}_IRE(R,V,T,P,COM,TS,IMPEXP{self.env.sow})$(NOT RPC_AIRE(R,P,COM)) +
-                   ({self.env.var}_ACT(R,V,T,P,TS{self.env.sow})*PRC_ACTFLO(R,V,P,COM))$RPC_AIRE(R,P,COM)) *
-* ALL_TS coarser than variable or finer than variable
-                  IRE_TSCVT(R,ALL_TS,ALL_REG,S) * RS_FR(R,ALL_TS,TS)
-                )
-            )
-       )$(NOT REG(ALL_REG))
-
-  ={self.arg1}=
-
-       IRE_XBND(ALL_REG,T,C,S,IE,'{self.arg2}')
-  ;
-""",
+            # *-----------------------------------------------------------------------------
+            # * if region is external then handle the internal guys
+            # *-----------------------------------------------------------------------------
+            # * sum over all possible at process TS-level
+            # *V05c 980811 - use IMP/EXP sets instead of ordering
+            + Sum(
+                RpcIre[r, p, Com, g.impexp[ie.lag(1, type="circular")]].where[
+                    (
+                        (g.TopIre[allreg, c, r, Com, p].where[g.xpt[ie]])
+                        + (g.TopIre[r, Com, allreg, c, p].where[g.imp[ie]])
+                    )
+                ],
+                # * sum all the existing activities
+                Sum(
+                    g.RsTree[r, g.allts, ts].where[
+                        (
+                            g.RtpcsVarf[r, t, p, Com, ts]
+                            * g.ire_tscvt[r, g.allts, allreg, s]
+                        )
+                    ],
+                    Sum(  # * [UR] model reduction REDUCE is set in *.run
+                        g.RtpVntbyr[r, t, p, v],
+                        (
+                            var_ire[
+                                r, v, t, p, Com, ts, g.impexp, *self.env.sow_GP
+                            ].where[(~(g.RpcAire[r, p, Com]))]
+                            + (
+                                var_act[r, v, t, p, ts, *self.env.sow_GP]
+                                * g.prc_actflo[r, v, p, Com]
+                            ).where[g.RpcAire[r, p, Com]]
+                        )
+                        # * ALL_TS coarser than variable or finer than variable
+                        * g.ire_tscvt[r, g.allts, allreg, s]
+                        * g.rs_fr[r, g.allts, ts],
+                    ),
+                ),
+            ).where[(~(Reg[allreg]))],
+            type=cc.arg1,
+            rhs=ire_xbnd[allreg, t, c, s, ie, cc.arg2],
         )
