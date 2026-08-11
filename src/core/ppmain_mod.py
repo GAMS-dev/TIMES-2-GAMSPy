@@ -965,16 +965,8 @@ class PpmainMod(GamsClass):
         ):
             raise Exception("Inconsistent periods - cannot use OBLONG.")
 
-        # TODO lag with () is not working in gamspy yet
-        # with Loop(g.Miyr1[g.ll]):
-        #     g.Pastyear[g.ll.lag(g.yearval[g.ll] - g.miyr_v1 + 1)] = True
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-LOOP(MIYR_1(LL),PASTYEAR(LL-(YEARVAL(LL)-MIYR_V1+1)) = YES);
-""",
-        )
+        with Loop(g.Miyr1[g.ll]):
+            g.Pastyear[g.ll.lag(g.yearval[g.ll] - g.miyr_v1 + 1)] = True
 
         # * Set LEADs and LAGs for periods
         g.lead[g.tt[g.t.lead(1, "circular")]] = Max(
@@ -2121,21 +2113,15 @@ IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
         g.Rxx.setRecords(None)
         g.RtpsBd.setRecords(None)
 
-        # TODO parantheses in lag are curretnly not working
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="RTPS_BD(R,LL--(ORD(LL)*(NCAP_AF(R,LL,P,S,BD) GT 0)),P,S,BDUPX(BD))$(V(LL)$NCAP_AF(R,LL,P,S,BD))=YES;",
-        )
-        # g.RtpsBd[
-        #     g.r,
-        #     g.ll.lag(
-        #         (Ord(g.ll) * (g.ncap_af[g.r, g.ll, g.p, g.s, g.bd] > 0.0)), "circular"
-        #     ),
-        #     g.p,
-        #     g.s,
-        #     g.Bdupx[g.bd],
-        # ].where[(g.v[g.ll].where[g.ncap_af[g.r, g.ll, g.p, g.s, g.bd]])] = True
+        g.RtpsBd[
+            g.r,
+            g.ll.lag(
+                (Ord(g.ll) * (g.ncap_af[g.r, g.ll, g.p, g.s, g.bd] > 0.0)), "circular"
+            ),
+            g.p,
+            g.s,
+            g.Bdupx[g.bd],
+        ].where[(g.v[g.ll].where[g.ncap_af[g.r, g.ll, g.p, g.s, g.bd]])] = True
         project(source=g.RtpsBd, target=g.Trackp)
         g.Rxx[g.PrcTs[g.Trackp[g.r, g.p], g.s]] = sparse(
             Sum(g.RtpsBd[g.r, g.Lastll, g.p, g.s, g.Bdupx], 1.0)
@@ -2203,23 +2189,15 @@ IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
             )
         )
 
-        # TODO GAMSPY Bug removes brackets in .where
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-FLO_SUM(RTP(R,V,P),CG,C,COM,S)$(RP_PG(R,P,CG)*RPC_PG(R,P,C)*PRC_TS(R,P,S)) $=
-SUM(RPC_ACT(RP_FLO(R,P),COM),PRC_ACTFLO(R,V,P,COM)*(1/PRC_ACTFLO(R,V,P,C)));
-""",
+        g.flo_sum[g.Rtp[g.r, g.v, g.p], g.cg, g.c, g.Com, g.s].where[
+            (g.RpPg[g.r, g.p, g.cg] * g.RpcPg[g.r, g.p, g.c] * g.PrcTs[g.r, g.p, g.s])
+        ] = sparse(
+            Sum(
+                g.RpcAct[g.RpFlo[g.r, g.p], g.Com],
+                g.prc_actflo[g.r, g.v, g.p, g.Com]
+                * (1.0 / g.prc_actflo[g.r, g.v, g.p, g.c]),
+            )
         )
-        # sparseExpr = Sum(
-        #     g.RpcAct[g.RpFlo[g.r, g.p], g.Com],
-        #     g.prc_actflo[g.r, g.v, g.p, g.Com] * (1.0 / g.prc_actflo[g.r, g.v, g.p, g.c]),
-        # )
-        # g.flo_sum[g.Rtp[g.r, g.v, g.p], g.cg, g.c, g.Com, g.s].where[
-        #     (g.RpPg[g.r, g.p, g.cg] * g.RpcPg[g.r, g.p, g.c] * g.PrcTs[g.r, g.p, g.s])
-        #     & sparseExpr
-        # ] = sparseExpr
         g.RpcAct.setRecords(None)
 
     def phase_eightteen(
