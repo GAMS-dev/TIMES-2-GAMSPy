@@ -17,15 +17,27 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal
+
+from gamspy import Sum
 
 from core.base_class import GamsClass
+from core.utils import generate_equation
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class EqstgfloModConfig:
+    arg1: Literal["IN", "OUT"]
+    arg2: Literal["G", "E", "L"]
+    arg3: Literal["LO", "FX", "UP"]
+    arg4: float
 
 
 class EqstgfloMod(GamsClass):
@@ -36,42 +48,84 @@ class EqstgfloMod(GamsClass):
     gams_source: str = "eqstgflo.mod"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
-        arg4: str = "",
+        self, tc: TimesModelClass, env: CompileEnvironment, config: EqstgfloModConfig
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
-        self.arg4 = arg4
+        self.config = config
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        cc = self.config
+        PrcMap, r, p = g.PrcMap, g.r, g.p
+
         self.env.set_scoped("tmp", "(NOT PRC_MAP(R,'NST',P))+")
-        if self.arg1 == "OUT":
+        if cc.arg1 == "OUT":
             self.env.set_scoped("tmp", "NOT")
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-  {self.env.eq}{self.arg2}_STG{self.arg1}(RTPC({self.env.r_t},P,C),S {self.env.swt})$((STG{self.arg1}_BND(R,T,P,C,S,'{self.arg3}') NE {self.arg4})$(PRC_VINT(R,P)+(NOT RPCS_VAR(R,P,C,S)))
-                                         $RPS_PRCTS(R,P,S)$RPC_STG(R,P,C)$STG{self.arg1}_BND(R,T,P,C,S,'{self.arg3}')) ..
+        (
+            Rtpc,
+            c,
+            s,
+            RpcsVar,
+            ts,
+            RtpVintyr,
+            v,
+            t,
+            rs_fr,
+            rtcs_fr,
+            PrcNstts,
+            PrcVint,
+            RpsPrcts,
+            RpcStg,
+        ) = (
+            g.Rtpc,
+            g.c,
+            g.s,
+            g.RpcsVar,
+            g.ts,
+            g.RtpVintyr,
+            g.v,
+            g.t,
+            g.rs_fr,
+            g.rtcs_fr,
+            g.PrcNstts,
+            g.PrcVint,
+            g.RpsPrcts,
+            g.RpcStg,
+        )
 
-* sum over all possible flow variables at process TS-level
-       SUM(RPCS_VAR(R,P,C,TS)$(RS_FR(R,S,TS) * ({self.env.tmp} PRC_NSTTS(R,P,TS))),
-           SUM(RTP_VINTYR(R,V,T,P),{self.env.var}_S{self.arg1}(R,V,T,P,C,TS {self.env.sow})*RS_FR(R,S,TS)*(1+RTCS_FR(R,T,C,S,TS))))
+        sow = self.env.sow_GP
+        swt = self.env.swt_GP
+        r_t = self.env.r_t_GP
 
-  ={self.arg2}=
+        VAR_S = g.get_variable(f"{self.env.var}_S{cc.arg1}")
+        stginout_bnd = g.get_parameter(f"STG{cc.arg1}_BND")
 
-       STG{self.arg1}_BND(R,T,P,C,S,'{self.arg3}')
-  ;
-""",
+        multiplier = (
+            ~PrcNstts[r, p, ts]
+            if cc.arg1 == "OUT"
+            else ~PrcMap[r, "NST", p] + PrcNstts[r, p, ts]
+        )
+
+        eq_stg = g.get_equation(f"{self.env.eq}{cc.arg2}_STG{cc.arg1}")
+
+        eq_stg[Rtpc[*r_t, p, c], s, *swt].where[
+            (stginout_bnd[r, t, p, c, s, cc.arg3] != cc.arg4).where[
+                PrcVint[r, p] + (~RpcsVar[r, p, c, s])
+                & RpsPrcts[r, p, s]
+                & RpcStg[r, p, c]
+                & stginout_bnd[r, t, p, c, s, cc.arg3]
+            ]
+        ] = generate_equation(
+            Sum(  # sum over all possible flow variables at process TS-level
+                RpcsVar[r, p, c, ts].where[rs_fr[r, s, ts] * multiplier],
+                Sum(RtpVintyr[r, v, t, p], VAR_S[r, v, t, p, c, ts, *sow])
+                * rs_fr[r, s, ts]
+                * (1 + rtcs_fr[r, t, c, s, ts]),
+            ),
+            cc.arg2,
+            stginout_bnd[r, t, p, c, s, cc.arg3],
         )
