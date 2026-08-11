@@ -60,7 +60,7 @@ from core.eqstgips_mod import EqstgipsMod
 from core.eqstgtss_mod import EqstgtssMod
 from core.equ_ext_vda import EquExtVda
 from core.equcwrap_mod import EqucwrapMod, EqucwrapModConfig
-from core.eqxbnd_mod import EqxbndMod
+from core.eqxbnd_mod import EqxbndMod, EqxbndModConfig
 from core.recurrin_stc import RecurrinStc
 from core.utils import apply_ewispine, apply_sw_stvars, apply_witspine
 
@@ -401,18 +401,21 @@ class EqmainMod(GamsClass):
 
         # Bound on total inter-regional exchange, including external+internal regions
         # *V0.5b avoid equations if LO=0/UP=INF
-        batincludes = [
-            ("G", "LO", "(IRE_XBND(ALL_REG,T,C,S,IE,'LO') NE 0)"),
-            ("E", "FX", "YES"),
-            ("L", "UP", "(IRE_XBND(ALL_REG,T,C,S,IE,'UP') NE INF)"),
+        all_reg, t, c, s, ie, ire_xbnd = g.allreg, g.t, g.c, g.s, g.ie, g.ire_xbnd
+        batincludes: list[EqxbndModConfig] = [
+            EqxbndModConfig(
+                arg1="G", arg2="LO", arg3=ire_xbnd[all_reg, t, c, s, ie, "LO"] != 0
+            ),
+            EqxbndModConfig(arg1="E", arg2="FX", arg3=Number(1)),
+            EqxbndModConfig(
+                arg1="L",
+                arg2="UP",
+                arg3=ire_xbnd[all_reg, t, c, s, ie, "UP"] != float("inf"),
+            ),
         ]
 
-        for arg in batincludes:
-            self.include(
-                EqxbndMod(
-                    tc=self.tc, env=self.env, arg1=arg[0], arg2=arg[1], arg3=arg[2]
-                )
-            )
+        for eqxbnd_config in batincludes:
+            self.include(EqxbndMod(tc=self.tc, env=self.env, config=eqxbnd_config))
 
         # *GG* V07_2 Refinery blending
         # Blending constraint to a specification characteristic

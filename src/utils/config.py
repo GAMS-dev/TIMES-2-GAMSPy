@@ -470,6 +470,7 @@ class EnvironmentVariableSchema(BaseModel):
     varmac: str = Field(
         description="Macro expansion variable configuration property indicator."
     )
+
     tx: str = Field(
         description="Temporal calculation index identifier utilized in subset configurations."
     )
