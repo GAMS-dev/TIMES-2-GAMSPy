@@ -16,60 +16,150 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Literal
+
+from gamspy import Number, Product, Sum
+from gamspy.math import abs, power, same_as
+
+from core.utils import BaseUcModConfig, wrap_in_sum
+
+if TYPE_CHECKING:
+    from gamspy import Alias, Expression, Set
+    from gamspy._symbols.implicits import ImplicitParameter
+
+    from core.utils import SET_OR_ALIAS
+    from utils.times_model_class import TimesModelClass
 
 from utils.macros import macro_config as macro
 
 logger = logging.getLogger(__name__)
 
 
-def uc_act_mod(
-    var: str,
-    sow: str,
-    arg1: str = "",
-    arg2: str = "",
-    arg3: str = "",
-    arg4: str = "",
-    arg5: str = "",
-    arg6: str = "",
-    arg7: str = "",
-    arg8: str = "",
-) -> str:
-    """Translation unit for uc_act.mod."""
+@dataclass
+class UcActModConfig(BaseUcModConfig):
+    arg8: tuple[ImplicitParameter | Expression | Literal[1]] = (
+        1,
+    )  # LAGT(T), -LEAD(T) only when arg6 is 1
 
-    return rf"""
-*"SUM(UC_R_SUM(R,UC_N)," or bracket "("
- {arg1}
-*     "SUM(UC_T_SUM(UC_N,T)," or bracket "("
-      {arg2}
-{"(1+(FPD(T)+(COEF_PVT(R,T)-FPD(T))$UC_ATTR(R,UC_N,'LHS','ACT','PERDISC')-1)$UC_DT(R,UC_N)) *" if arg6 == "2" else ""}
-*          "SUM(UC_TS_SUM(UC_N,S)," or bracket "("
-           {arg3}
-              SUM(RTP_VINTYR(R,V,{arg4},P)$UC_GMAP_P(R,UC_N,'ACT',P),
-                          (
-*V0.9a S reference should be TS
-                           SUM(PRC_TS(R,P,TS)$(RS_FR(R,S,TS)*RTP_VARA(R,{arg4},P)),
-                               {var}_ACT(R,V,{arg4},P,TS {sow})*UC_ACT(UC_N,{arg5},R,{arg7},P,TS)*
 
-* [AL] PROD operator is useful here:
-                               PROD(ANNUAL,RS_FR(R,S,TS)) *
+def inner_sum(
+    g: TimesModelClass,
+    var: str | tuple[str, Any],
+    sow_GP: tuple[Literal["0", "1"] | SET_OR_ALIAS] | tuple[()],
+    config: UcActModConfig,
+) -> Sum:
+    cc = config
+    match cc:
+        case UcActModConfig(
+            arg4=(arg4,),
+            arg5=(arg5,),
+            arg6=(arg6,),
+            arg7=(arg7,),
+            arg8=(arg8,),
+        ):
+            pass
+        case _:
+            raise ValueError(
+                "Config object did not match the expected single-element tuple structure."
+            )
 
-{f"                               PROD(UC_ATTR(R,UC_N,{arg5},'ACT','GROWTH')," if arg6 == "1" else ""}
-{f"                                 POWER(ABS(UC_ACT(UC_N,{arg5},R,{arg7},P,TS)),{arg8}*UC_SIGN({arg5})-1)) *" if arg6 == "1" else ""}
-{"                               (1/G_YRFR(R,S)) *" if arg6 == "S" else ""}
-                               PROD(UC_ATTR(R,UC_N,{arg5},'ACT',UC_PERDS),FPD({arg4}) *
-                                 PROD(UC_NEWFLO(UC_PERDS),1$(SAMEAS(V,{arg4})+RVPT(R,V,P,{arg4}))/FPD({arg4})))
+    if isinstance(var, tuple) and len(var) > 1:
+        var_id, domain = var
+    else:
+        var_id = var
+        domain = None
 
-                           )
-                          )
-                            *
-                          PROD(UC_ATTR(R,UC_N,{arg5},'ACT','COST'),SUM(RDCUR(R,CUR),{macro.obj_acost("R", arg4, "P", "CUR")}))
-              )
-*          closing bracket of arg3 :
-           )
+    var_act = g.get_variable(name=f"{var_id}_ACT")
 
-*       closing bracket of arg2 :
+    if domain is not None:
+        var_act = Sum(domain, var_act)
+
+    expr2: Product | int
+    if arg6 == 1:
+        expr2 = Product(
+            g.UcAttr[g.r, g.ucn, arg5, "ACT", "GROWTH"],
+            power(
+                abs(g.uc_act[g.ucn, arg5, g.r, arg7, g.p, g.ts]),
+                arg8 * g.uc_sign[arg5] - 1.0,
+            ),
         )
+    else:
+        expr2 = 1
 
-*   closing bracket of arg1 :
+    expr3 = 1.0 / g.g_yrfr[g.r, g.s] if arg6 == "S" else 1
+
+    obj_acost = macro.obj_acost_GP(g.r, arg4, g.p, g.cur)
+
+    return Sum(
+        g.RtpVintyr[g.r, g.v, arg4, g.p].where[g.UcGmapP[g.r, g.ucn, "ACT", g.p]],
+        (
+            # *V0.9a S reference should be TS
+            Sum(
+                g.PrcTs[g.r, g.p, g.ts].where[
+                    (g.rs_fr[g.r, g.s, g.ts] * g.RtpVara[g.r, arg4, g.p])
+                ],
+                var_act[g.r, g.v, arg4, g.p, g.ts, *sow_GP]
+                * g.uc_act[g.ucn, arg5, g.r, arg7, g.p, g.ts]
+                * Product(
+                    g.Annual, g.rs_fr[g.r, g.s, g.ts]
+                )  # * [AL] PROD operator is useful here:
+                * expr2
+                * expr3
+                * Product(
+                    g.UcAttr[g.r, g.ucn, arg5, "ACT", g.UcPerds],
+                    g.fpd[arg4]
+                    * Product(
+                        g.UcNewflo[g.UcPerds],
+                        Number(1.0).where[
+                            (same_as(g.v, arg4) + g.Rvpt[g.r, g.v, g.p, arg4])
+                        ]
+                        / g.fpd[arg4],
+                    ),
+                ),
+            )
+        )
+        * Product(
+            g.UcAttr[g.r, g.ucn, arg5, "ACT", "COST"],
+            Sum(g.Rdcur[g.r, g.cur], obj_acost),
+        ),
     )
-"""
+
+
+def uc_act_mod(
+    g: TimesModelClass,
+    var: str | tuple[str, Any],
+    sow_GP: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
+    config: UcActModConfig,
+) -> str | Any:
+    cc = config
+
+    arg3 = next(iter(cc.arg3))
+    arg6 = next(iter(cc.arg6))
+
+    expression: Expression | Sum
+    expression = inner_sum(g, var, sow_GP, cc)
+
+    sub_expr1 = (
+        (
+            1.0
+            + (
+                g.fpd[g.t]
+                + (g.coef_pvt[g.r, g.t] - g.fpd[g.t]).where[
+                    g.UcAttr[g.r, g.ucn, "LHS", "ACT", "PERDISC"]
+                ]
+                - 1.0
+            ).where[g.UcDt[g.r, g.ucn]]
+        )
+        if arg6 == 2
+        else 1
+    )
+
+    expression = sub_expr1 * wrap_in_sum(arg3, expression)
+
+    args_to_sum = [arg for arg in [*cc.arg2, *cc.arg1] if arg is not None]
+
+    for arg in args_to_sum:
+        expression = wrap_in_sum(arg=arg, expression=expression)
+
+    return expression.gamsRepr()  # type: ignore[no-untyped-call]

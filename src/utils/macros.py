@@ -9,8 +9,9 @@ from gamspy import Alias, Set, Sum
 
 if TYPE_CHECKING:
     from gamspy import Expression
-    from gamspy._symbols.implicits.implicit_parameter import ImplicitParameter
+    from gamspy._symbols.implicits import ImplicitParameter
 
+    from core.utils import SET_OR_ALIAS
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -26,7 +27,7 @@ class VarSiftContext:
         g: TimesModelClass,
         var: str,
         sow: str,
-        sow_GP: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
+        sow_GP: tuple[Literal["0", "1"] | SET_OR_ALIAS] | tuple[()],
     ) -> None:
         self.g = g
         self.active = True
@@ -45,7 +46,7 @@ class VarSiftContext:
         return f"VAR_SIFT({v},{s},{lA})"
 
     def render_GP(
-        self, v: Set | Alias, s: Set | Alias, lA: Set | Alias
+        self, v: SET_OR_ALIAS, s: SET_OR_ALIAS, lA: SET_OR_ALIAS
     ) -> Expression | ImplicitParameter | Any:
         g = self.g
         if self.active:
@@ -70,7 +71,7 @@ class VarStsContext:
         g: TimesModelClass,
         var: str,
         sow: str,
-        sow_GP: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
+        sow_GP: tuple[Literal["0", "1"] | SET_OR_ALIAS] | tuple[()],
     ) -> None:
         self.g = g
         self.active = True
@@ -91,12 +92,12 @@ class VarStsContext:
 
     def render_GP(
         self,
-        r: Set | Alias,
-        v: Set | Alias,
-        t: Set | Alias,
-        p: Set | Alias,
-        ts: Set | Alias,
-        bd: Set | Alias | str,
+        r: SET_OR_ALIAS,
+        v: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        ts: SET_OR_ALIAS,
+        bd: SET_OR_ALIAS | str,
     ) -> Sum | ImplicitParameter:
         g = self.g
         if self.active:
@@ -130,7 +131,7 @@ class Macros:
         return f"OBJ_ICOST({r},{y},{p},{m})"
 
     def obj_icost_GP(
-        self, r: Set | Alias, y: Set | Alias, p: Set | Alias, m: Set | Alias
+        self, r: SET_OR_ALIAS, y: SET_OR_ALIAS, p: SET_OR_ALIAS, m: SET_OR_ALIAS
     ) -> ImplicitParameter:
         if self.obj_icost_active:
             return self._g.ob_icost[r, p, m, y]
@@ -151,7 +152,7 @@ class Macros:
         return f"OBJ_ISUB({r},{y},{p},{m})"
 
     def obj_isub_GP(
-        self, r: Set | Alias, y: Set | Alias, p: Set | Alias, m: Set | Alias
+        self, r: SET_OR_ALIAS, y: SET_OR_ALIAS, p: SET_OR_ALIAS, m: SET_OR_ALIAS
     ) -> ImplicitParameter:
         if self.obj_isub_active:
             return self._g.ob_isub[r, p, m, y]
@@ -172,7 +173,7 @@ class Macros:
         return f"OBJ_ITAX({r},{y},{p},{m})"
 
     def obj_itax_GP(
-        self, r: Set | Alias, y: Set | Alias, p: Set | Alias, m: Set | Alias
+        self, r: SET_OR_ALIAS, y: SET_OR_ALIAS, p: SET_OR_ALIAS, m: SET_OR_ALIAS
     ) -> ImplicitParameter:
         if self.obj_itax_active:
             return self._g.ob_itax[r, p, m, y]
@@ -193,7 +194,7 @@ class Macros:
         return f"OBJ_FOM({r},{y},{p},{m})"
 
     def obj_fom_GP(
-        self, r: Set | Alias, y: Set | Alias, p: Set | Alias, m: Set | Alias
+        self, r: SET_OR_ALIAS, y: SET_OR_ALIAS, p: SET_OR_ALIAS, m: SET_OR_ALIAS
     ) -> ImplicitParameter:
         if self.obj_fom_active:
             return self._g.ob_fom[r, p, m, y]
@@ -242,7 +243,7 @@ class Macros:
         return f"OBJ_DCOST({r},{y},{p},{m})"
 
     def obj_dcost_GP(
-        self, r: Set | Alias, y: Set | Alias, p: Set | Alias, m: Set | Alias
+        self, r: SET_OR_ALIAS, y: SET_OR_ALIAS, p: SET_OR_ALIAS, m: SET_OR_ALIAS
     ) -> ImplicitParameter:
         if self.obj_dcost_active:
             return self._g.ob_dcc[r, p, m, y]
@@ -277,7 +278,7 @@ class Macros:
         return f"OBJ_ACOST({r},{y},{p},{m})"
 
     def obj_acost_GP(
-        self, r: Set | Alias, y: Set | Alias, p: Set | Alias, m: Set | Alias
+        self, r: SET_OR_ALIAS, y: SET_OR_ALIAS, p: SET_OR_ALIAS, m: SET_OR_ALIAS
     ) -> ImplicitParameter:
         if self.obj_acost_active:
             return self._g.ob_act[r, p, m, y]
@@ -299,12 +300,12 @@ class Macros:
 
     def obj_fcost_GP(
         self,
-        r: Set | Alias,
-        y: Set | Alias,
-        p: Set | Alias,
-        c: Set | Alias,
-        s: Set | Alias,
-        m: Set | Alias,
+        r: SET_OR_ALIAS,
+        y: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        c: SET_OR_ALIAS,
+        s: SET_OR_ALIAS,
+        m: SET_OR_ALIAS,
     ) -> ImplicitParameter:
         if self.obj_fcost_active:
             return self._g.ob_fcos[r, p, c, s, m, y]
@@ -326,12 +327,12 @@ class Macros:
 
     def obj_fdelv_GP(
         self,
-        r: Set | Alias,
-        y: Set | Alias,
-        p: Set | Alias,
-        c: Set | Alias,
-        s: Set | Alias,
-        m: Set | Alias,
+        r: SET_OR_ALIAS,
+        y: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        c: SET_OR_ALIAS,
+        s: SET_OR_ALIAS,
+        m: SET_OR_ALIAS,
     ) -> ImplicitParameter:
         if self.obj_fdelv_active:
             return self._g.ob_fdel[r, p, c, s, m, y]

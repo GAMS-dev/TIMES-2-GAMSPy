@@ -28,7 +28,7 @@ from gamspy._algebra.condition import Condition
 from gamspy._symbols.implicits import ImplicitSet
 
 from core.base_class import GamsClass
-from core.uc_act_mod import uc_act_mod
+from core.uc_act_mod import UcActModConfig, uc_act_mod
 from core.uc_cap_mod import uc_cap_mod
 from core.uc_cli_mod import uc_cli_mod
 from core.uc_com_mod import UcComModConfig, uc_com_mod
@@ -258,15 +258,18 @@ class EqusercoMod(GamsClass):
             arg6="T",
         )
         include_uc_act = uc_act_mod(
+            g=g,
             var=self.env.var,
-            sow=self.env.sow,
-            arg1=f"{self.arg4}{self.arg7}",
-            arg2=self.arg5,
-            arg3=self.arg6,
-            arg4="T",
-            arg5=hs,
-            arg6=self.arg8,
-            arg7="T",
+            sow_GP=self.env.sow_GP,
+            config=UcActModConfig(
+                arg1=(self.arg7_GP,),
+                arg2=(self.arg5_GP,),
+                arg3=(self.arg6_GP,),
+                arg4=(g.t,),
+                arg5=(hs_GP,),
+                arg6=(self.arg8_GP,),
+                arg7=(g.t,),
+            ),
         )
         include_uc_com_prd = uc_com_mod(
             g=g,
@@ -434,16 +437,19 @@ class EqusercoMod(GamsClass):
 +
 {
             uc_act_mod(
-                var=self.env.var,  # TODO: Use self.env.var_GP
-                sow=self.env.sow,
-                arg1=f"{self.arg4}{self.arg7}",
-                arg2=self.env.tsum,
-                arg3=self.arg6,
-                arg4="TT",
-                arg5="SIDE",
-                arg6=self.arg8,
-                arg7="TT",
-                arg8="LAGT(T)",
+                g=g,
+                var=self.env.var_GP,
+                sow_GP=self.env.sow_GP,
+                config=UcActModConfig(
+                    arg1=(self.arg7_GP,),
+                    arg2=(*tsum_GP,),
+                    arg3=(self.arg6_GP,),
+                    arg4=(g.tt,),
+                    arg5=(g.side,),
+                    arg6=(self.arg8_GP,),
+                    arg7=(g.tt,),
+                    arg8=(g.lagt[g.t],),
+                ),
             )
         }
 +
@@ -580,16 +586,19 @@ class EqusercoMod(GamsClass):
 +
 {
             uc_act_mod(
-                var=self.env.var,  # TODO: Use self.env.var_GP
-                sow=self.env.sow,
-                arg1=f"{self.arg4}{self.arg7}",
-                arg2=f"{self.env.tsum}'ACT'{self.env.tucn}",
-                arg3=self.arg6,
-                arg4="TT",
-                arg5="SIDE",
-                arg6=self.arg8,
-                arg7="LL",
-                arg8="-LEAD(T)",
+                g=g,
+                var=self.env.var_GP,
+                sow_GP=self.env.sow_GP,
+                config=UcActModConfig(
+                    arg1=(self.arg7_GP,),
+                    arg2=(make_arg2(g, set_element="ACT"),),
+                    arg3=(self.arg6_GP,),
+                    arg4=(g.tt,),
+                    arg5=(g.side,),
+                    arg6=(self.arg8_GP,),
+                    arg7=(g.ll,),
+                    arg8=(-g.lead[g.t],),
+                ),
             )
         }
 +
