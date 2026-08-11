@@ -20,7 +20,7 @@ import logging
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
-    from core.equcwrap_mod import EqucwrapArg6Type
+    pass
 
 from gamspy import Alias, Loop, Number, Parameter, Set, SpecialValues, Sum
 from gamspy._symbols.implicits import ImplicitParameter
@@ -59,7 +59,7 @@ from core.eqstgips_lin import EqstgipsLin
 from core.eqstgips_mod import EqstgipsMod
 from core.eqstgtss_mod import EqstgtssMod
 from core.equ_ext_vda import EquExtVda
-from core.equcwrap_mod import EqucwrapMod
+from core.equcwrap_mod import EqucwrapMod, EqucwrapModConfig
 from core.eqxbnd_mod import EqxbndMod
 from core.recurrin_stc import RecurrinStc
 from core.utils import apply_ewispine, apply_sw_stvars, apply_witspine
@@ -372,25 +372,29 @@ class EqmainMod(GamsClass):
         self.add_sets(ucbd=ucbd, tmp=tmp)
         self.tc.enqueue(self.exec2, ucbd=ucbd, take=take)
 
-        equcwrap_batincludes: list[tuple[str, str, str, str, str, EqucwrapArg6Type]] = [
-            ("E", "BD", "", "SUM(BD$", ",1)", "NOT"),
-            ("E", "'FX'", ",'FX'", "", "", ""),
-            ("G", "'LO'", ",'LO'", "", "", ""),
-            ("L", "'UP'", ",'UP'", "", "", ""),
+        equcwrap_batincludes: list[EqucwrapModConfig] = [
+            EqucwrapModConfig(
+                "E",
+                g.bd,
+                (),
+                g.bd,
+                1,
+                "NOT",
+                legacy_support=("E", "BD", "", "SUM(BD$", ",1)", "NOT"),
+            ),
+            EqucwrapModConfig(
+                "E", "FX", ("FX",), legacy_support=("E", "'FX'", ",'FX'", "", "", "")
+            ),
+            EqucwrapModConfig(
+                "G", "LO", ("LO",), legacy_support=("G", "'LO'", ",'LO'", "", "", "")
+            ),
+            EqucwrapModConfig(
+                "L", "UP", ("UP",), legacy_support=("L", "'UP'", ",'UP'", "", "", "")
+            ),
         ]
-        for arg1, arg2, arg3, arg4, arg5, arg6 in equcwrap_batincludes:
-            self.include(
-                EqucwrapMod(
-                    tc=self.tc,
-                    env=self.env,
-                    arg1=arg1,
-                    arg2=arg2,
-                    arg3=arg3,
-                    arg4=arg4,
-                    arg5=arg5,
-                    arg6=arg6,
-                )
-            )
+
+        for config in equcwrap_batincludes:
+            self.include(EqucwrapMod(tc=self.tc, env=self.env, config=config))
 
         if self.env.spines.upper() == "YES":
             apply_ewispine(env=self.env)

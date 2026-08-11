@@ -64,9 +64,13 @@ class RecurrinStc(GamsClass):  # FilenameExt
                 if not self.env.tst == "TST":
                     raise Exception("Macro support needed. Upgrade your GAMS system.")
                 self.env.set_scoped("sw1", "")
+                self.env.set_scoped("sw1_GP", ())
                 self.env.set_scoped("sw2", "")
                 if self.env.stages != "YES":
                     self.env.set_scoped("sw1", "SUM")
+                    self.env.set_scoped(
+                        "sw1_GP", ("SUM",)
+                    )  # NOTE: UPDATE THIS USAGE, AS REQUIRED
                     self.env.set_scoped("sw2", "SOW,")
                 self.env.set_global("mx", "MX")
                 self.env.set_global("mx_GP", "MX")

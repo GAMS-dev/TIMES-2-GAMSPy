@@ -1,23 +1,46 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
 import pandas as pd
-from gamspy import Parameter, SpecialValues
+from gamspy import Alias, Parameter, Set, SpecialValues, Sum
+from gamspy._algebra.condition import Condition
+from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
 from gamspy.math import rpower
 
 if TYPE_CHECKING:
-    from gamspy import Alias, Set, SpecialValues
+    from gamspy import Domain, Expression
 
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
+
+SET_OR_ALIAS = Set | ImplicitSet | Alias
 
 
 class EscapeStack(Exception):
     """Helper function to safely return back to surface while testing."""
 
     pass
+
+
+@dataclass(kw_only=True)
+class BaseUcModConfig:
+    """Base config containing the fields shared across all 7 variations."""
+
+    arg1: tuple[Domain | ImplicitSet | None]
+    arg2: tuple[
+        None
+        | SET_OR_ALIAS
+        | Condition
+        | tuple[Condition | ImplicitSet, ImplicitParameter]
+    ]
+    arg3: tuple[Domain | ImplicitSet | None]
+    arg4: tuple[SET_OR_ALIAS]  # TT or T
+    arg5: tuple[SET_OR_ALIAS | str]  # SIDE, "LHS"
+    arg6: tuple[Literal["S", 1, 2, 0]]
+    arg7: tuple[SET_OR_ALIAS] | tuple[()] = ()
 
 
 def expand_set(symbol: Set | Alias, elements: Sequence[str | tuple[str, str]]) -> None:
@@ -214,3 +237,20 @@ def get_callable_parameter_type(
         "Expected a GAMSPy Parameter or callable macro replacement, "
         f"but got {type(symbol_or_func).__name__}."
     )
+
+
+def wrap_in_sum(arg: Any, expression: Expression | Sum) -> Expression | Sum:
+    """
+    Wraps an expression in a Sum based on the type of the argument.
+    """
+    match arg:
+        case None:
+            return expression
+        case (condition, imp_param):
+            return Sum(condition, imp_param * expression)  # type: ignore[arg-type]
+        case single_set if isinstance(
+            single_set, Set | Alias | ImplicitSet | Condition
+        ):
+            return Sum(single_set, expression)
+        case _:
+            raise TypeError(f"Unexpected argument type: {type(arg).__name__} for {arg}")

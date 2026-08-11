@@ -1,7 +1,7 @@
 # config.py
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import pandas as pd
 from gamspy import Alias, Expression, Number, Set, Sum
@@ -247,6 +247,9 @@ class EnvironmentVariableSchema(BaseModel):
     tsum: str = Field(
         description="Summary execution check identifier tracking mathematical summation steps."
     )
+    tsum_GP: tuple[Set | Alias | ImplicitSet, ...] | tuple[()] = Field(
+        description="Summary execution check identifier tracking mathematical summation steps."
+    )
     sigo: str = Field(
         description="Output tracking switch handling environmental constraint emissions parameters."
     )
@@ -280,7 +283,7 @@ class EnvironmentVariableSchema(BaseModel):
     swsw: str = Field(
         description="Nested operational matrix state control flag identifier."
     )
-    swsw_GP: tuple[ImplicitSet] | tuple[()] = Field(
+    swsw_GP: tuple[Set | Alias | ImplicitSet, ...] | tuple[()] = Field(
         description="Nested operational matrix state control flag identifier."
     )
     swtd: str = Field(
@@ -341,6 +344,9 @@ class EnvironmentVariableSchema(BaseModel):
     var: str = Field(
         description="Primary model variable name indicator mapped to global execution structures."
     )
+    var_GP: tuple[str, Any] | str = Field(
+        description="Primary model variable name indicator mapped to global execution structures."
+    )  # NOTE: Is required at equserco_mod.py:347
     varm: str = Field(
         description="Macro tracking variant variable used in objective calculation hooks."
     )
@@ -377,7 +383,7 @@ class EnvironmentVariableSchema(BaseModel):
     sws: str = Field(
         description="Scenario switch tracking token handling multi-stage matrix settings."
     )
-    sws_GP: tuple[Set | Alias, ...] | tuple[()] = Field(
+    sws_GP: tuple[Set | Alias | ImplicitSet, ...] | tuple[()] = Field(
         description="Scenario switch tracking token handling multi-stage matrix settings."
     )
     swstmp: str = Field(
@@ -393,6 +399,9 @@ class EnvironmentVariableSchema(BaseModel):
         description="Solution domain tracking token mapped to variable dimensions."
     )
     sw1: str = Field(
+        description="Primary configuration flag used in file inclusion loops."
+    )
+    sw1_GP: tuple[Set | Alias | str | Literal[1]] | tuple[()] = Field(
         description="Primary configuration flag used in file inclusion loops."
     )
     sw2: str = Field(

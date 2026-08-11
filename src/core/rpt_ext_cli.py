@@ -74,9 +74,11 @@ POSITIVE VARIABLES
         if self.env.stages == "YES":
             apply_sw_tags(env=self.env, g=g)
             self.env.set_scoped("swsw", "SW_TSW(SOW,T,WW),")
+            self.env.set_scoped("swsw_GP", (g.SwTsw[g.Sow, g.t, g.ww],))
 
         if self.env.scum == "1":
             self.env.set_scoped("swsw", "SW_T(T,WW),")
+            self.env.set_scoped("swsw_GP", (g.SwT[g.t, g.ww],))
             self.env.set_scoped("scum", "*SW_TPROB(T,WW)")
 
         self.add_records_to_universe_item(

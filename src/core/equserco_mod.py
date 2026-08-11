@@ -20,23 +20,79 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal, TypedDict, TypeVar
+
+from gamspy import Alias, Domain, Set, Sum
+from gamspy._algebra.condition import Condition
+from gamspy._symbols.implicits import ImplicitSet
 
 from core.base_class import GamsClass
 from core.uc_act_mod import uc_act_mod
 from core.uc_cap_mod import uc_cap_mod
 from core.uc_cli_mod import uc_cli_mod
-from core.uc_com_mod import uc_com_mod
+from core.uc_com_mod import UcComModConfig, uc_com_mod
 from core.uc_flo_mod import uc_flo_mod
 from core.uc_ire_mod import uc_ire_mod
 from core.uc_ncap_mod import uc_ncap_mod
 from core.uc_pasti_mod import uc_pasti_mod
+from core.utils import wrap_in_sum
+
+# from core.utils import generate_equation
 
 if TYPE_CHECKING:
+    from gamspy import Alias, Expression, Set
+    from gamspy._symbols.implicits import ImplicitParameter, ImplicitVariable
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+GAMSPyArg = TypeVar("GAMSPyArg")
+
+
+class Arg3Config(TypedDict):
+    cond: Condition | ImplicitSet | Set | Expression
+    dom: Domain | ImplicitSet | Set
+    eq: str
+
+
+@dataclass
+class DualArgs[GAMSPyArg]:
+    """Groups a legacy GAMS string with its GAMSPy equivalent."""
+
+    s: str
+    gp: GAMSPyArg
+
+
+@dataclass
+class EqusercoModConfig:
+    arg2: Literal["E", "G", "L"]
+    arg3: DualArgs[Arg3Config]
+    arg4: DualArgs[bool | None]
+    arg5: DualArgs[
+        Set
+        | Alias
+        | ImplicitSet
+        | Condition
+        | tuple[Condition, ImplicitParameter]
+        | None
+    ]
+    arg6: DualArgs[ImplicitSet | Domain | None]
+    arg7: DualArgs[ImplicitSet | Domain | None]
+    arg8: DualArgs[Literal["S", 1, 2, 0]]
+    arg9: ImplicitVariable
+    arg10: ImplicitParameter
+
+
+def make_arg2(
+    g: TimesModelClass, set_element: str
+) -> tuple[Condition, ImplicitParameter]:
+    domain = g.UcTmap[g.t, g.ll, g.tt, g.side, g.UcDynt].where[
+        (g.lim[g.UcDynt]) ^ (g.UcAttr[g.r, g.ucn, g.side, set_element, g.UcDynt])
+    ]
+    return domain, g.uc_sign[g.side]
 
 
 class EqusercoMod(GamsClass):
@@ -49,88 +105,112 @@ class EqusercoMod(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
-        arg4: str = "",
-        arg5: str = "",
-        arg6: str = "",
-        arg7: str = "",
-        arg8: str = "",
-        arg9: str = "",
-        arg10: str = "",
+        config: EqusercoModConfig,
     ):
         self.env = env.fork()
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
-        self.arg4 = arg4
-        self.arg5 = arg5
-        self.arg6 = arg6
-        self.arg7 = arg7
-        self.arg8 = arg8
-        self.arg9 = arg9
-        self.arg10 = arg10
+
+        self.arg2 = config.arg2
+        self.arg9 = config.arg9
+        self.arg10 = config.arg10
+
+        # Legacy GAMS string arguments
+        self.arg3 = config.arg3.s
+        self.arg4 = config.arg4.s
+        self.arg5 = config.arg5.s
+        self.arg6 = config.arg6.s
+        self.arg7 = config.arg7.s
+        self.arg8 = config.arg8.s
+
+        # GAMSPy objects
+        self.arg3_GP = config.arg3.gp
+        self.arg4_GP = config.arg4.gp
+        self.arg5_GP = config.arg5.gp
+        self.arg6_GP = config.arg6.gp
+        self.arg7_GP = config.arg7.gp
+        self.arg8_GP = config.arg8.gp
+
         self._sub_modules = {}
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+
         lhs = ""
-        if self.arg8 == "1":
+        if self.arg8_GP == 1:
             lhs = self._label_dynamic(
                 is_stages=self.env.stages == "YES",
                 is_cli=self.env.cli == "YES",
             )
         else:
-            self.env.set_local("hs", "'LHS'")
-            if self.arg8 == "2":
+            # self.env.set_local("hs", "'LHS'")
+            # NOTE: hs is only used in this file, using python variable instead
+            hs = "'LHS'"
+            hs_GP: str | Set
+            hs_GP = "LHS"
+            if self.arg8_GP == 2:
                 self.env.set_scoped("swt", self.env.sow)
                 self.env.set_scoped("swt_GP", self.env.sow_GP)
                 self.env.set_scoped("sow", self.env.swd)
                 self.env.set_scoped("sow_GP", self.env.swd_GP)
-            elif self.arg8 == "S":
-                self.env.set_local("hs", "SIDE")
-            lhs = self._static_lhs(
-                is_several=self.arg8 == "2",
-            )
+            elif self.arg8_GP == "S":
+                # self.env.set_local("hs", "SIDE")
+                hs = "SIDE"
+                hs_GP = g.side
+            lhs = self._static_lhs(is_several=self.arg8_GP == 2, hs_arg=(hs, hs_GP))
 
         rhs = (
-            self.arg9
-            if self.env.var_uc == "YES"
-            else f"{self.arg10}$({self.arg10} NE 0)"
+            self.arg9 if self.env.var_uc == "YES" else self.arg10.where[self.arg10 != 0]
         )
 
-        time_term = ""
-        if self.arg8 != "1":
-            time_term = rf"""
-+SUM(({self.arg7}V(T))$UC_TIME(UC_N,R,T), {self.arg5} UC_TIME(UC_N,R,T)*FPD(T)))
-"""
-        else:
-            time_term = rf"""
-+SUM(({self.arg7}V(T))$UC_TIME(UC_N,R,T), UC_TIME(UC_N,R,T)*(LEAD(T)$UC_DYNDIR(R,UC_N,'RHS')+LAGT(T)$(NOT UC_DYNDIR(R,UC_N,'RHS'))))
-"""
+        arg7 = () if self.arg7_GP is None else (self.arg7_GP,)
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
+        if self.arg8_GP != 1:
+            domain_expr = Domain(*arg7, g.v[g.t]).where[g.uc_time[g.ucn, g.r, g.t]]
+            base_expr = g.uc_time[g.ucn, g.r, g.t] * g.fpd[g.t]
+            inner_term: Expression | Sum
+            inner_term = wrap_in_sum(arg=self.arg5_GP, expression=base_expr)
+            time_term = Sum(domain_expr, inner_term)
+        else:
+            time_term = Sum(
+                Domain(*arg7, g.v[g.t]).where[g.uc_time[g.ucn, g.r, g.t]],
+                g.uc_time[g.ucn, g.r, g.t]
+                * (
+                    g.lead[g.t].where[g.UcDyndir[g.r, g.ucn, "RHS"]]
+                    + g.lagt[g.t].where[(~(g.UcDyndir[g.r, g.ucn, "RHS"]))]
+                ),
+            )
+        time_term_str = f"+{time_term.gamsRepr()}"  # type: ignore[no-untyped-call]
+        # eq = self.arg3_GP["eq"]
+        # domain = self.arg3_GP["dom"]
+        # condition = self.arg3_GP["cond"]
+        # eq_uc: Equation = g.get_equation(name=f"{self.env.eq}{self.arg2}_UC{eq}")
+        # # NOTE: lhs is a string
+        # eq_uc[*domain.sets].where[condition] = generate_equation(
+        #     lhs=lhs, type=self.arg2, rhs=rhs + time_term
+        # )
+        old_code = rf"""
     {self.env.eq}{self.arg2}_UC{self.arg3}..
 {lhs}
 
         ={self.arg2}=
 
-        {rhs}
-{time_term}
+        {rhs.gamsRepr()}
+{time_term_str}
 
    ;
-""",
+"""
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=old_code,
         )
 
     def _static_lhs(
-        self: EqusercoMod,
-        is_several: bool,
+        self: EqusercoMod, is_several: bool, hs_arg: tuple[str, str | Set]
     ) -> str:
+        g = self.tc
+        hs, hs_GP = hs_arg
         include_uc_flo = uc_flo_mod(
             cal_red=self.env.cal_red,
             var=self.env.var,
@@ -147,7 +227,7 @@ class EqusercoMod(GamsClass):
             arg2=self.arg5,
             arg3=self.arg6,
             arg4="T",
-            arg5=self.env.hs,
+            arg5=hs,
             arg6=self.arg8,
             arg7="T",
             arg8=self.arg7,
@@ -160,7 +240,7 @@ class EqusercoMod(GamsClass):
             arg1=f"{self.arg4}{self.arg7}",
             arg2=self.arg5,
             arg3="T",
-            arg4=self.env.hs,
+            arg4=hs,
             arg5=self.arg8,
             arg6="T",
         )
@@ -173,7 +253,7 @@ class EqusercoMod(GamsClass):
             arg1=f"{self.arg4}{self.arg7}",
             arg2=self.arg5,
             arg3="T",
-            arg4=self.env.hs,
+            arg4=hs,
             arg5=self.arg8,
             arg6="T",
         )
@@ -184,37 +264,43 @@ class EqusercoMod(GamsClass):
             arg2=self.arg5,
             arg3=self.arg6,
             arg4="T",
-            arg5=self.env.hs,
+            arg5=hs,
             arg6=self.arg8,
             arg7="T",
         )
         include_uc_com_prd = uc_com_mod(
+            g=g,
             var=self.env.var,
-            sow=self.env.sow,
-            arg1=f"{self.arg4}{self.arg7}",
-            arg2=self.arg5,
-            arg3=self.arg6,
-            arg4="T",
-            arg5=self.env.hs,
-            arg6=self.arg8,
-            arg7="T",
-            arg8="PRD",
-            arg9="PRD",
-            arg10="PD",
+            sow_GP=self.env.sow_GP,
+            config=UcComModConfig(
+                arg1=(self.arg7_GP,),
+                arg2=(self.arg5_GP,),
+                arg3=(self.arg6_GP,),
+                arg4=(g.t,),
+                arg5=(hs_GP,),
+                arg6=(self.arg8_GP,),
+                arg7=(g.t,),
+                arg8=("PRD",),
+                arg9=("PRD",),
+                arg10=("PD",),
+            ),
         )
         include_uc_com_net = uc_com_mod(
+            g=g,
             var=self.env.var,
-            sow=self.env.sow,
-            arg1=f"{self.arg4}{self.arg7}",
-            arg2=self.arg5,
-            arg3=self.arg6,
-            arg4="T",
-            arg5=self.env.hs,
-            arg6=self.arg8,
-            arg7="T",
-            arg8="BAL",
-            arg9="NET",
-            arg10="NT",
+            sow_GP=self.env.sow_GP,
+            config=UcComModConfig(
+                arg1=(self.arg7_GP,),
+                arg2=(self.arg5_GP,),
+                arg3=(self.arg6_GP,),
+                arg4=(g.t,),
+                arg5=(hs_GP,),
+                arg6=(self.arg8_GP,),
+                arg7=(g.t,),
+                arg8=("BAL",),
+                arg9=("NET",),
+                arg10=("NT",),
+            ),
         )
         include_uc_ire = uc_ire_mod(
             var=self.env.var,
@@ -223,7 +309,7 @@ class EqusercoMod(GamsClass):
             arg2=self.arg5,
             arg3=self.arg6,
             arg4="T",
-            arg5=self.env.hs,
+            arg5=hs,
             arg6=self.arg8,
             arg7="T",
         )
@@ -262,10 +348,12 @@ class EqusercoMod(GamsClass):
         uc_flo_arg10 = ""
         uc_flo_arg11 = ""
         uc_flo_arg12 = ""
+        self.env.set_scoped("var_GP", self.env.var)
 
         if is_stages:
             temp_var = self.env.var
             self.env.set_scoped("var", f"SUM({self.arg5}{temp_var}")
+            self.env.set_scoped("var_GP", (temp_var, self.arg5_GP))
             self.env.set_scoped("sow", ",WW)")
             self.env.set_scoped("sow_GP", (g.ww,))
             # self.env.set_scoped("swflo", f"{temp_var} ,WW SUM {self.arg5}")
@@ -275,12 +363,17 @@ class EqusercoMod(GamsClass):
             uc_flo_arg12 = self.arg5
 
         self.env.set_local("tsum", "SUM(UC_TMAP(TT,T,T,SIDE,'N'),UC_SIGN(SIDE)*")
+        # self.env.set_local(
+        #     "tsum_GP", ((g.UcTmap[g.tt, g.t, g.t, g.side, "N"], g.uc_sign[g.side]),)
+        # )  # NOTE: We multiply in the parent file
+        # NOTE: tsum_GP gets passed on from equwrap_mod.py and only changes its value in this file.
+        tsum_GP = ((g.UcTmap[g.tt, g.t, g.t, g.side, "N"], g.uc_sign[g.side]),)
         block_tplus = rf"""
 (
 {
             uc_flo_mod(
                 cal_red=self.env.cal_red,
-                var=self.env.var,
+                var=self.env.var,  # TODO: Use self.env.var_GP
                 swt=self.env.swt,
                 def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
                 sow=self.env.sow,
@@ -308,7 +401,7 @@ class EqusercoMod(GamsClass):
 +
 {
             uc_ncap_mod(
-                var=self.env.var,
+                var=self.env.var,  # TODO: Use self.env.var_GP
                 sow=self.env.sow,
                 varv=self.env.varv,
                 sws=self.env.sws,
@@ -324,7 +417,7 @@ class EqusercoMod(GamsClass):
 +
 {
             uc_cap_mod(
-                var=self.env.var,
+                var=self.env.var,  # TODO: Use self.env.var_GP
                 sow=self.env.sow,
                 upscaps=self.env.upscaps,
                 vda=self.env.vda,
@@ -341,7 +434,7 @@ class EqusercoMod(GamsClass):
 +
 {
             uc_act_mod(
-                var=self.env.var,
+                var=self.env.var,  # TODO: Use self.env.var_GP
                 sow=self.env.sow,
                 arg1=f"{self.arg4}{self.arg7}",
                 arg2=self.env.tsum,
@@ -356,43 +449,49 @@ class EqusercoMod(GamsClass):
 +
 {
             uc_com_mod(
-                var=self.env.var,
-                sow=self.env.sow,
-                arg1=f"{self.arg4}{self.arg7}",
-                arg2=self.env.tsum,
-                arg3=self.arg6,
-                arg4="TT",
-                arg5="SIDE",
-                arg6=self.arg8,
-                arg7="TT",
-                arg8="PRD",
-                arg9="PRD",
-                arg10="PD",
-                arg11="LAGT(T)",
+                g=g,
+                var=self.env.var_GP,
+                sow_GP=self.env.sow_GP,
+                config=UcComModConfig(
+                    arg1=(self.arg7_GP,),
+                    arg2=(*tsum_GP,),
+                    arg3=(self.arg6_GP,),
+                    arg4=(g.tt,),
+                    arg5=(g.side,),
+                    arg6=(self.arg8_GP,),
+                    arg7=(g.tt,),
+                    arg8=("PRD",),
+                    arg9=("PRD",),
+                    arg10=("PD",),
+                    arg11=(g.lagt[g.t],),
+                ),
             )
         }
 +
 {
             uc_com_mod(
-                var=self.env.var,
-                sow=self.env.sow,
-                arg1=f"{self.arg4}{self.arg7}",
-                arg2=self.env.tsum,
-                arg3=self.arg6,
-                arg4="TT",
-                arg5="SIDE",
-                arg6=self.arg8,
-                arg7="TT",
-                arg8="BAL",
-                arg9="NET",
-                arg10="NT",
-                arg11="LAGT(T)",
+                g=g,
+                var=self.env.var_GP,
+                sow_GP=self.env.sow_GP,
+                config=UcComModConfig(
+                    arg1=(self.arg7_GP,),
+                    arg2=(*tsum_GP,),
+                    arg3=(self.arg6_GP,),
+                    arg4=(g.tt,),
+                    arg5=(g.side,),
+                    arg6=(self.arg8_GP,),
+                    arg7=(g.tt,),
+                    arg8=("BAL",),
+                    arg9=("NET",),
+                    arg10=("NT",),
+                    arg11=(g.lagt[g.t],),
+                ),
             )
         }
 +
 {
             uc_ire_mod(
-                var=self.env.var,
+                var=self.env.var,  # TODO: Use self.env.var_GP
                 sow=self.env.sow,
                 arg1=f"{self.arg4}{self.arg7}",
                 arg2=self.env.tsum,
@@ -405,7 +504,7 @@ class EqusercoMod(GamsClass):
             )
         }
 +SUM(({self.arg7}UC_GMAP_U(R,UC_N,UCN)),{self.env.tsum} UC_UCN(UC_N,SIDE,R,TT,UCN)*{
-            self.env.var
+            self.env.var  # TODO: Use self.env.var_GP
         }_UCRT(UCN,R,TT{self.env.sow})$UC_RHSRT(R,UCN,TT,'N')))
 )$(NOT SUM(UC_DYNDIR(R,UC_N,'RHS'),1))
 """
@@ -421,7 +520,7 @@ class EqusercoMod(GamsClass):
 {
             uc_flo_mod(
                 cal_red=self.env.cal_red,
-                var=self.env.var,
+                var=self.env.var,  # TODO: Use self.env.var_GP
                 swt=self.env.swt,
                 def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
                 sow=self.env.sow,
@@ -448,7 +547,7 @@ class EqusercoMod(GamsClass):
 +
 {
             uc_ncap_mod(
-                var=self.env.var,
+                var=self.env.var,  # TODO: Use self.env.var_GP
                 sow=self.env.sow,
                 varv=self.env.varv,
                 sws=self.env.sws,
@@ -464,7 +563,7 @@ class EqusercoMod(GamsClass):
 +
 {
             uc_cap_mod(
-                var=self.env.var,
+                var=self.env.var,  # TODO: Use self.env.var_GP
                 sow=self.env.sow,
                 upscaps=self.env.upscaps,
                 vda=self.env.vda,
@@ -481,7 +580,7 @@ class EqusercoMod(GamsClass):
 +
 {
             uc_act_mod(
-                var=self.env.var,
+                var=self.env.var,  # TODO: Use self.env.var_GP
                 sow=self.env.sow,
                 arg1=f"{self.arg4}{self.arg7}",
                 arg2=f"{self.env.tsum}'ACT'{self.env.tucn}",
@@ -496,43 +595,49 @@ class EqusercoMod(GamsClass):
 +
 {
             uc_com_mod(
-                var=self.env.var,
-                sow=self.env.sow,
-                arg1=f"{self.arg4}{self.arg7}",
-                arg2=f"{self.env.tsum}'COMPRD'{self.env.tucn}",
-                arg3=self.arg6,
-                arg4="TT",
-                arg5="SIDE",
-                arg6=self.arg8,
-                arg7="LL",
-                arg8="PRD",
-                arg9="PRD",
-                arg10="PD",
-                arg11="-LEAD(T)",
+                g=g,
+                var=self.env.var_GP,
+                sow_GP=self.env.sow_GP,
+                config=UcComModConfig(
+                    arg1=(self.arg7_GP,),
+                    arg2=(make_arg2(g, set_element="COMPRD"),),
+                    arg3=(self.arg6_GP,),
+                    arg4=(g.tt,),
+                    arg5=(g.side,),
+                    arg6=(self.arg8_GP,),
+                    arg7=(g.ll,),
+                    arg8=("PRD",),
+                    arg9=("PRD",),
+                    arg10=("PD",),
+                    arg11=(-g.lead[g.t],),
+                ),
             )
         }
 +
 {
             uc_com_mod(
-                var=self.env.var,
-                sow=self.env.sow,
-                arg1=f"{self.arg4}{self.arg7}",
-                arg2=f"{self.env.tsum}'COMNET'{self.env.tucn}",
-                arg3=self.arg6,
-                arg4="TT",
-                arg5="SIDE",
-                arg6=self.arg8,
-                arg7="LL",
-                arg8="BAL",
-                arg9="NET",
-                arg10="NT",
-                arg11="-LEAD(T)",
+                g=g,
+                var=self.env.var_GP,
+                sow_GP=self.env.sow_GP,
+                config=UcComModConfig(
+                    arg1=(self.arg7_GP,),
+                    arg2=(make_arg2(g, set_element="COMNET"),),
+                    arg3=(self.arg6_GP,),
+                    arg4=(g.tt,),
+                    arg5=(g.side,),
+                    arg6=(self.arg8_GP,),
+                    arg7=(g.ll,),
+                    arg8=("BAL",),
+                    arg9=("NET",),
+                    arg10=("NT",),
+                    arg11=(-g.lead[g.t],),
+                ),
             )
         }
 +
 {
             uc_ire_mod(
-                var=self.env.var,
+                var=self.env.var,  # TODO: Use self.env.var_GP
                 sow=self.env.sow,
                 arg1=f"{self.arg4}{self.arg7}",
                 arg2=f"{self.env.tsum}'IRE'{self.env.tucn}",
@@ -546,13 +651,15 @@ class EqusercoMod(GamsClass):
         }
 +SUM(({self.arg7}UC_GMAP_U(R,UC_N,UCN)),{self.env.tsum}'UCN'{
             self.env.tucn
-        } UC_UCN(UC_N,SIDE,R,LL,UCN)*{self.env.var}_UCRT(UCN,R,TT{
+        } UC_UCN(UC_N,SIDE,R,LL,UCN)*{
+            self.env.var
+        }_UCRT(UCN,R,TT{  # TODO: Use self.env.var_GP
             self.env.sow
         })$UC_RHSRT(R,UCN,TT,'N')))
 {
             uc_cli_mod(
                 is_uc_cli_defined=self.tc.defined("UC_CLI"),
-                var=self.env.var,
+                var=self.env.var,  # TODO: Use self.env.var_GP
                 sow=self.env.sow,
                 arg1=f"{self.arg4}{self.arg7}",
                 arg2=f"{self.env.tsum}'CLI'{self.env.tucn}",
