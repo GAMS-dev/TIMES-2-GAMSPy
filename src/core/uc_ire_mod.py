@@ -68,9 +68,9 @@ def uc_ire_mod(
 
     VAR_IRE = g.get_variable(f"{var_id}_IRE")
     VAR_ACT = g.get_variable(f"{var_id}_ACT")
-    if domain is not None:
-        VAR_IRE = Sum(domain, VAR_IRE)
-        VAR_ACT = Sum(domain, VAR_ACT)
+
+    VAR_IRE_expr = Sum(domain, VAR_IRE) if domain is not None else VAR_IRE
+    VAR_ACT_expr = Sum(domain, VAR_ACT) if domain is not None else VAR_ACT
 
     r, v, p, c, s, ts, sl = g.r, g.v, g.p, g.c, g.s, g.ts, g.sl
     ucn, t, ie, cur = g.ucn, g.t, g.ie, g.cur
@@ -79,10 +79,10 @@ def uc_ire_mod(
 
     ire_term = (
         (
-            (VAR_IRE[r, v, arg4, p, c, ts, ie, *sow_GP]).where[~g.RpcAire[r, p, c]]
-            + (VAR_ACT[r, v, arg4, p, ts, *sow_GP] * g.prc_actflo[r, v, p, c]).where[
-                g.RpcAire[r, p, c]
-            ]
+            (VAR_IRE_expr[r, v, arg4, p, c, ts, ie, *sow_GP]).where[~g.RpcAire[r, p, c]]
+            + (
+                VAR_ACT_expr[r, v, arg4, p, ts, *sow_GP] * g.prc_actflo[r, v, p, c]
+            ).where[g.RpcAire[r, p, c]]
         )
         # *GG* use the derived multipier
         # * [AL] PROD operator is useful here, but must be activated due to a GAMS bug:
