@@ -197,10 +197,10 @@ def _write_vtable(
         return
 
     years = list(dict.fromkeys(active_records[year_col].astype(str).tolist()))
-    active_keys = set(
+    active_keys = {
         tuple(row[col] for col in [reg_col, *row_cols])
         for _, row in active_records.iterrows()
-    )
+    }
 
     description = getattr(symbol, "description", "")
 

@@ -1383,7 +1383,7 @@ class SetglobsGms(GamsClass):
             self.env.set_global("swx_GP", (self.x1,))
             self.env.set_global("swtx_GP", Number(1))  # signals true
         elif self.x1 == "":
-            self.env.set_global("swx_GP", tuple())
+            self.env.set_global("swx_GP", ())
             self.env.set_global("swtx_GP", Number(1))  # signals true
         else:
             raise ValueError(f"Unexpected value {self.x1} for x1.")

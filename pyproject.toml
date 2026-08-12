@@ -47,7 +47,7 @@ src = ["src"]
 target-version = "py313"
 
 [tool.ruff.lint]
-extend-select = ["B", "SIM", "UP", "I", "RUF"]
+extend-select = ["B", "SIM", "UP", "I", "RUF", "C4", "PIE", "PD"]
 ignore = []
 
 [tool.ruff.format]

@@ -95,7 +95,7 @@ class EqbndcstMod(GamsClass):
 
         if self.env.scum == "1":
             self.env.set_scoped("swt", "")
-            self.env.set_scoped("swt_GP", tuple())
+            self.env.set_scoped("swt_GP", ())
 
         self.env.set_scoped("sowstart", self.env.sow)
 

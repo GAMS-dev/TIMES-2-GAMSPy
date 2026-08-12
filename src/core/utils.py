@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -11,18 +10,19 @@ from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
 from gamspy.math import rpower
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
+
     from gamspy import Domain, Expression
 
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 SET_OR_ALIAS = Set | ImplicitSet | Alias
+EquationSenseTypes = Literal["E", "N", "L", "G"]
 
 
 class EscapeStack(Exception):
     """Helper function to safely return back to surface while testing."""
-
-    pass
 
 
 @dataclass(kw_only=True)
@@ -31,10 +31,10 @@ class BaseUcModConfig:
 
     arg1: tuple[Domain | ImplicitSet | None]
     arg2: tuple[
-        None
-        | SET_OR_ALIAS
+        SET_OR_ALIAS
         | Condition
         | tuple[Condition | ImplicitSet, ImplicitParameter]
+        | None
     ]
     arg3: tuple[Domain | ImplicitSet | None]
     arg4: tuple[SET_OR_ALIAS]  # TT or T
@@ -54,9 +54,9 @@ def expand_set(symbol: Set | Alias, elements: Sequence[str | tuple[str, str]]) -
 
     # 1. Extract existing elements AND their text
     if symbol.records is not None and not symbol.records.empty:
-        df = symbol.records.astype(object).fillna("")
+        data = symbol.records.astype(object).fillna("")
 
-        for row in df.values.tolist():
+        for row in data.values.tolist():  # noqa: PD011
             uni = row[0]
             text = row[1] if len(row) > 1 else ""
 
@@ -140,15 +140,15 @@ def apply_sw_notags(env: CompileEnvironment) -> None:
         env.set_scoped("sws", "")
         env.set_scoped("sws_GP", ())
         env.set_scoped("sow", "")
-        env.set_scoped("sow_GP", tuple())
+        env.set_scoped("sow_GP", ())
         env.set_scoped("swt", "")
-        env.set_scoped("swt_GP", tuple())
+        env.set_scoped("swt_GP", ())
         env.set_scoped("swd", "")
-        env.set_scoped("swd_GP", tuple())
+        env.set_scoped("swd_GP", ())
         env.set_scoped("swtd", "")
-        env.set_scoped("swtd_GP", tuple())
+        env.set_scoped("swtd_GP", ())
         env.set_scoped("swsw", "")
-        env.set_scoped("swsw_GP", tuple())
+        env.set_scoped("swsw_GP", ())
         env.set_scoped("vart", "VAR")
         env.set_scoped("vart_GP", ("VAR", None))
         env.set_scoped("varv", "VAR")
@@ -190,7 +190,7 @@ def apply_sw_stvars(
         raise ValueError(f"Unknown value in sw_stvars: {env.sw_stvars}")
 
 
-def generate_equation(lhs: Any, type: Literal["E", "N", "L", "G"], rhs: Any) -> Any:
+def generate_equation(lhs: Any, type: EquationSenseTypes, rhs: Any) -> Any:
     match type:
         case "E" | "N":
             return lhs == rhs
