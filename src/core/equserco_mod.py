@@ -33,7 +33,7 @@ from core.uc_cap_mod import uc_cap_mod
 from core.uc_cli_mod import uc_cli_mod
 from core.uc_com_mod import UcComModConfig, uc_com_mod
 from core.uc_flo_mod import uc_flo_mod
-from core.uc_ire_mod import uc_ire_mod
+from core.uc_ire_mod import UcIreModConfig, uc_ire_mod
 from core.uc_ncap_mod import uc_ncap_mod
 from core.uc_pasti_mod import uc_pasti_mod
 from core.utils import wrap_in_sum
@@ -305,15 +305,18 @@ class EqusercoMod(GamsClass):
             ),
         )
         include_uc_ire = uc_ire_mod(
+            g=g,
             var=self.env.var,
-            sow=self.env.sow,
-            arg1=f"{self.arg4}{self.arg7}",
-            arg2=self.arg5,
-            arg3=self.arg6,
-            arg4="T",
-            arg5=hs,
-            arg6=self.arg8,
-            arg7="T",
+            sow_GP=self.env.sow_GP,
+            config=UcIreModConfig(
+                arg1=(self.arg7_GP,),
+                arg2=(self.arg5_GP,),
+                arg3=(self.arg6_GP,),
+                arg4=(g.t,),
+                arg5=(hs_GP,),
+                arg6=(self.arg8_GP,),
+                arg7=(g.t,),
+            ),
         )
 
         cumcom_term = ""
@@ -495,16 +498,19 @@ class EqusercoMod(GamsClass):
 +
 {
             uc_ire_mod(
-                var=self.env.var,  # TODO: Use self.env.var_GP
-                sow=self.env.sow,
-                arg1=f"{self.arg4}{self.arg7}",
-                arg2=self.env.tsum,
-                arg3=self.arg6,
-                arg4="TT",
-                arg5="SIDE",
-                arg6=self.arg8,
-                arg7="TT",
-                arg8="LAGT(T)",
+                g=g,
+                var=self.env.var_GP,
+                sow_GP=self.env.sow_GP,
+                config=UcIreModConfig(
+                    arg1=(self.arg7_GP,),
+                    arg2=(*tsum_GP,),
+                    arg3=(self.arg6_GP,),
+                    arg4=(g.tt,),
+                    arg5=(g.side,),
+                    arg6=(self.arg8_GP,),
+                    arg7=(g.tt,),
+                    arg8=(g.lagt[g.t],),
+                ),
             )
         }
 +SUM(({self.arg7}UC_GMAP_U(R,UC_N,UCN)),{self.env.tsum} UC_UCN(UC_N,SIDE,R,TT,UCN)*{
@@ -643,16 +649,19 @@ class EqusercoMod(GamsClass):
 +
 {
             uc_ire_mod(
-                var=self.env.var,  # TODO: Use self.env.var_GP
-                sow=self.env.sow,
-                arg1=f"{self.arg4}{self.arg7}",
-                arg2=f"{self.env.tsum}'IRE'{self.env.tucn}",
-                arg3=self.arg6,
-                arg4="TT",
-                arg5="SIDE",
-                arg6=self.arg8,
-                arg7="LL",
-                arg8="-LEAD(T)",
+                g=g,
+                var=self.env.var_GP,
+                sow_GP=self.env.sow_GP,
+                config=UcIreModConfig(
+                    arg1=(self.arg7_GP,),
+                    arg2=(make_arg2(g, set_element="IRE"),),
+                    arg3=(self.arg6_GP,),
+                    arg4=(g.tt,),
+                    arg5=(g.side,),
+                    arg6=(self.arg8_GP,),
+                    arg7=(g.ll,),
+                    arg8=(-g.lead[g.t],),
+                ),
             )
         }
 +SUM(({self.arg7}UC_GMAP_U(R,UC_N,UCN)),{self.env.tsum}'UCN'{

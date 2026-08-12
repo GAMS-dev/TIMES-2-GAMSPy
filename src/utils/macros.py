@@ -399,6 +399,19 @@ class Macros:
             return f"OB_FTAX({r},{p},{c},{s},{m},{y})"
         return f"OBJ_FTAX({r},{y},{p},{c},{s},{m})"
 
+    def obj_ftax_GP(
+        self,
+        r: Set | Alias,
+        y: Set | Alias,
+        p: Set | Alias,
+        c: Set | Alias,
+        s: Set | Alias,
+        m: Set | Alias,
+    ) -> ImplicitParameter:
+        if self.obj_ftax_active:
+            return self._g.ob_ftax[r, p, c, s, m, y]
+        return self._g.obj_ftax[r, y, p, c, s, m]
+
     # RTS
     @property
     def rts_active(self) -> bool:
