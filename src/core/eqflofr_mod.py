@@ -15,15 +15,29 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal
+
+from gamspy import Domain, Number, SpecialValues, Sum
+from gamspy.math import Min, abs
 
 from core.base_class import GamsClass
+from core.cal_red_red import CalRedRedConfig
+from core.utils import generate_equation
 
 if TYPE_CHECKING:
+    from gamspy import Set
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class EqflofrModConfig:
+    arg1: Literal["L", "E", "G"]
+    arg2: Literal["LO", "UP"] | Set
 
 
 class EqflofrMod(GamsClass):
@@ -34,41 +48,84 @@ class EqflofrMod(GamsClass):
     gams_source: str = "eqflofr.mod"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str,
-        arg2: str,
+        self, tc: TimesModelClass, env: CompileEnvironment, config: EqflofrModConfig
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
+        self.sense = config.arg1
+        self.arg2 = config.arg2
         self.compile()
 
     def compile(self) -> None:
         if self.env.cal_red == "cal_red.red":
-            from core.cal_red_red import cal_red_red as cal_red_func
+            from core.cal_red_red import cal_red_red_GP as cal_red_func_GP
         else:
-            from core.cal_nored_red import cal_nored_red as cal_red_func
+            from core.cal_nored_red import cal_nored_red_GP as cal_red_func_GP
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-  {self.env.eq}{self.arg1}_FLOFR(RTPC({self.env.r_t},P,C),S,L({self.arg2}){self.env.swt})$(SUM(RPCS_VAR(RP_FLO(R,P),C,TS)$TS_MAP(R,S,TS),1)$FLO_FR(R,T,P,C,S,L))..
+        g = self.tc
+        sow = self.env.sow_GP
+        flo_fr, lA, Rtpc = g.flo_fr, g.lA, g.Rtpc
 
-   SUM(RTP_VINTYR(R,V,T,P),{self.env.var}_FLO(R,V,T,P,C,S{self.env.sow})$IPS(L) +
-     SUM(RS_BELOW1(R,SL,S),SUM(TS_ANN(SL,TS),{self.env.var}_FLO(R,V,T,P,C,TS{self.env.sow})*(FLO_FR(RTPC,TS,'N')>0))$FLO_FR(RTPC,SL,'N') +
-       SUM(RTPCS_VARF(RTPC,TS)$(FLO_FR(RTPC,S,L)>-INF$RS_FR(R,SL,TS)),
-{cal_red_func(var=self.env.var, sow=self.env.sow, pgprim=self.env.pgprim, def_rtp_ffcs=self.tc.defined("RTP_FFCS"), arg1="C", arg2="COM", arg3="TS", arg4="P", arg5="T")}
-          )$(NOT FLO_FR(RTPC,SL,'N')))$BD(L)) * ABS(FLO_FR(RTPC,S,L))
+        VAR_FLO = g.get_variable(name=f"{self.env.var}_FLO")
+        cal_red_result = cal_red_func_GP(
+            g=g,
+            config=CalRedRedConfig(
+                var=self.env.var,
+                sow=sow,
+                pgprim=self.env.pgprim,
+                def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
+                arg1=g.c,
+                arg2=g.Com,
+                arg3=g.ts,
+                arg4=g.p,
+                arg5=g.t,
+                arg10=Number(1),
+            ),
+        )
 
-   ={self.arg1}=
-
-   SUM((RTP_VINTYR(R,V,T,P),RTPCS_VARF(RTPC,TS))$(STOA(TS)$TS_MAP(R,S,TS)),
-{cal_red_func(var=self.env.var, sow=self.env.sow, pgprim=self.env.pgprim, def_rtp_ffcs=self.tc.defined("RTP_FFCS"), arg1="C", arg2="COM", arg3="TS", arg4="P", arg5="T")}
-      )$(MIN(0,FLO_FR(RTPC,S,L))->BD(L));
-""",
+        eq_flofr = g.get_equation(name=f"{self.env.eq}{self.sense}_FLOFR")
+        eq_flofr[
+            Rtpc[*self.env.r_t_GP, g.p, g.c], g.s, lA[self.arg2], *self.env.swt_GP
+        ].where[
+            (
+                Sum(
+                    g.RpcsVar[g.RpFlo[g.r, g.p], g.c, g.ts].where[
+                        g.TsMap[g.r, g.s, g.ts]
+                    ],
+                    1.0,
+                ).where[flo_fr[g.r, g.t, g.p, g.c, g.s, lA]]
+            )
+        ] = generate_equation(
+            Sum(
+                g.RtpVintyr[g.r, g.v, g.t, g.p],
+                VAR_FLO[g.r, g.v, g.t, g.p, g.c, g.s, *sow].where[g.ips[lA]]
+                + Sum(
+                    g.RsBelow1[g.r, g.sl, g.s],
+                    Sum(
+                        g.TsAnn[g.sl, g.ts],
+                        VAR_FLO[g.r, g.v, g.t, g.p, g.c, g.ts, *sow]
+                        * (flo_fr[Rtpc, g.ts, "N"] > 0.0),
+                    ).where[flo_fr[Rtpc, g.sl, "N"]]
+                    + Sum(
+                        g.RtpcsVarf[Rtpc, g.ts].where[
+                            (
+                                flo_fr[Rtpc, g.s, lA]
+                                > -Number(SpecialValues.POSINF).where[
+                                    g.rs_fr[g.r, g.sl, g.ts]
+                                ]
+                            )
+                        ],
+                        cal_red_result,
+                    ).where[(~(flo_fr[Rtpc, g.sl, "N"]))],
+                ).where[g.bd[lA]],
+            )
+            * abs(flo_fr[Rtpc, g.s, lA]),
+            self.sense,
+            Sum(
+                Domain(g.RtpVintyr[g.r, g.v, g.t, g.p], g.RtpcsVarf[Rtpc, g.ts]).where[
+                    (g.stoa[g.ts].where[g.TsMap[g.r, g.s, g.ts]])
+                ],
+                cal_red_result,
+            ).where[((~(Min(0.0, flo_fr[Rtpc, g.s, lA]))) | (g.bd[lA]))],
         )

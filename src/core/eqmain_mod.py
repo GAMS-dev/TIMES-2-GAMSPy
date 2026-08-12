@@ -39,7 +39,7 @@ from core.eqdamage_mod import EqdamageMod
 from core.eqdeclr_mod import EqdeclrMod
 from core.eqdeclr_tm import EqdeclrTm
 from core.eqflobnd_mod import EqflobndMod
-from core.eqflofr_mod import EqflofrMod
+from core.eqflofr_mod import EqflofrMod, EqflofrModConfig
 from core.eqflomrk_mod import EqflomrkMod
 from core.eqfloshr_mod import EqfloshrMod
 from core.eqire_mod import EqireMod
@@ -236,13 +236,13 @@ class EqmainMod(GamsClass):
             )
 
         # Fraction of a flow within a specific time slice
-        eqflofr_batincludes: list[tuple[str, str]] = [
-            ("L", "'LO'"),
-            ("E", "LNX"),
-            ("G", "'UP'"),
+        eqflofr_batincludes: list[EqflofrModConfig] = [
+            EqflofrModConfig(arg1="L", arg2="LO"),
+            EqflofrModConfig(arg1="E", arg2=g.Lnx),
+            EqflofrModConfig(arg1="G", arg2="UP"),
         ]
-        for arg1, arg2 in eqflofr_batincludes:
-            self.include(EqflofrMod(tc=self.tc, env=self.env, arg1=arg1, arg2=arg2))
+        for config in eqflofr_batincludes:
+            self.include(EqflofrMod(tc=self.tc, env=self.env, config=config))
 
         # Market share equation allocating commodity percentages of a group
         eqfloshr_batincludes: list[tuple[str, str, str]] = [
@@ -331,8 +331,8 @@ class EqmainMod(GamsClass):
                 arg1="OUT", arg2="L", arg3="UP", arg4=SpecialValues.POSINF
             ),
         ]
-        for config in eqstgflo_batincludes:
-            self.include(EqstgfloMod(tc=self.tc, env=self.env, config=config))
+        for eqstgflo_config in eqstgflo_batincludes:
+            self.include(EqstgfloMod(tc=self.tc, env=self.env, config=eqstgflo_config))
 
         if self.env.spines.upper() == "YES":
             apply_witspine(env=self.env)
