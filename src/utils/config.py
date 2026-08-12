@@ -211,6 +211,9 @@ class EnvironmentVariableSchema(BaseModel):
     capon: str = Field(
         description="Conditional capacity assignment switch parameter tracked as text tokens."
     )
+    capon_GP: Expression | Condition = Field(
+        description="Conditional capacity assignment switch parameter tracked as text tokens."
+    )
     mx: str = Field(
         description="Macro tracking name string identifier mapping specialized model equations."
     )
@@ -500,9 +503,6 @@ class EnvironmentVariableSchema(BaseModel):
     )
     invlif: str = Field(
         description="Investment active lifecycle tracking array parameter."
-    )
-    upscaps: str = Field(
-        description="Upper capacity scaling modifiers validation tracking text parameter."
     )
     gtime: str = Field(description="System generation timestamp variable indicator.")
     gdate: str = Field(

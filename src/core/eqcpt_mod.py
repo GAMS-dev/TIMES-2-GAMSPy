@@ -86,7 +86,7 @@ class EqcptMod(GamsClass):
         VARV_NCAP_expr = shared_expr if varv_set is None else Sum(varv_set, shared_expr)
 
         # GG V0.6a_3+ check whether used in UserConstraint
-        eq[g.Rtp[r, t, p], *swt].where[cc.arg3] = generate_equation(
+        eq[g.Rtp[r, t, p], *swt].where[cc.arg3] = generate_equation(  # type: ignore
             # VAR_CAP(r,t,p {self.env.sow}) or CAP_BND(r,t,p,bd):
             lhs=cc.arg4,
             type=cc.sense,

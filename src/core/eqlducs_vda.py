@@ -14,7 +14,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from gamspy import Equation, Variable
+from gamspy import Equation, Expression, Number, Sum, Variable
 
 from core.base_class import GamsClass
 from utils.macros import macro_config as macro
@@ -72,6 +72,33 @@ class EqlducsVda(GamsClass):
                 "capon",
                 f"(COEF_CPT(R,V,T,P)*({self.env.varv}_NCAP(R,V,P{self.env.sws})$T(V)+NCAP_PASTI(R,V,P){self.env.rcapsub}))$PRC_VINT(R,P)+{self.env.var}_CAP(R,T,P{self.env.sow})$RP_UX(R,P)",
             )
+
+            g = self.tc
+            varv_id, varv_set = self.env.varv_GP
+            varv_ncap = self.tc.get_variable(f"{varv_id}_NCAP")
+            var_cap = self.tc.get_variable(f"{self.env.var}_CAP")
+            if (
+                isinstance(self.env.rcapsub_GP, Number)
+                and self.env.rcapsub_GP_value == 1
+            ):
+                raise ValueError("rcapsub_GP cannot be Number(1) in this assignment.")
+
+            varv_ncap_expr = (
+                varv_ncap[g.r, g.v, g.p, *self.env.sws_GP]
+                if varv_set is None
+                else Sum(varv_set, varv_ncap[g.r, g.v, g.p, *self.env.sws_GP])
+            )
+            expr: Expression = g.coef_cpt[g.r, g.v, g.t, g.p] * (
+                varv_ncap_expr.where[g.t[g.v]]
+                + g.ncap_pasti[g.r, g.v, g.p]
+                + self.env.rcapsub_GP
+            )
+            self.env.set_scoped(
+                "capon_GP",
+                expr.where[g.PrcVint[g.r, g.p]]
+                + var_cap[g.r, g.t, g.p, *self.env.sow_GP].where[g.RpUx[g.r, g.p]],
+            )
+
             capups = f"({self.env.capon}-SUM(rs_below(r,all_ts,s)$rps_ups(r,p,all_ts),var_off(r,v,t,p,all_ts)))"
             self.define_equation1(
                 capon=self.env.capon,
@@ -79,7 +106,6 @@ class EqlducsVda(GamsClass):
                 r_v_t=self.env.r_v_t,
                 swx=self.env.swx,
                 swtx=self.env.swtx,
-                upscaps=self.env.upscaps,
             )
             # * Discrete Unit Commitment
             if self.env.duc.upper() != "YES":
@@ -180,7 +206,6 @@ $ macro SPRSV \
         r_v_t: str,
         swx: str,
         swtx: str,
-        upscaps: str,
     ) -> None:
         rts = macro.rts(s="S", g=self.tc, env=self.env)
 
@@ -226,7 +251,7 @@ $ macro SPRSV \
 
   eq_sudload(rtp_vintyr({r_v_t},p),{rts}{swx})$({swtx}prc_ts(r,p,s)$rp_dp(r,p))..
 
-     var_load(r,v,t,p,s) =E= ({capon}{upscaps})*ACT_MINLD(R,V,P) + var_gap(r,v,t,p,s)*(COEF_AF(r,v,t,p,s,'UP')-ACT_MINLD(r,v,p)) SPRSV;
+     var_load(r,v,t,p,s) =E= ({capon}{macro.upscaps.render()})*ACT_MINLD(R,V,P) + var_gap(r,v,t,p,s)*(COEF_AF(r,v,t,p,s,'UP')-ACT_MINLD(r,v,p)) SPRSV;
 
 *-----------------------------------------------------------------------------
 

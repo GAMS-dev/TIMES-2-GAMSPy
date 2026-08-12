@@ -76,9 +76,8 @@ def inner_sum(
         var_id = var
         domain = None
 
-    var_com = g.get_variable(name=f"{var_id}_COM{arg9}")
-    if domain is not None:
-        var_com = Sum(domain, var_com)
+    VAR_COM = g.get_variable(name=f"{var_id}_COM{arg9}")
+    VAR_COM_expr = Sum(domain, VAR_COM) if domain is not None else VAR_COM
 
     expr1: Expression | int
     if arg6 == 2:
@@ -115,7 +114,7 @@ def inner_sum(
         * Sum(
             rhs_com_set[g.r, arg4, g.c, g.ts].where[g.rs_fr[g.r, g.s, g.ts]],
             g.uc_com[g.ucn, arg9, arg5, g.r, arg7, g.c, g.ts, g.ucgrptype]
-            * var_com[g.r, arg4, g.c, g.ts, *sow_GP]
+            * VAR_COM_expr[g.r, arg4, g.c, g.ts, *sow_GP]
             * (
                 1.0
                 + (1.0 / g.com_ie[g.r, arg4, g.c, g.ts] - 1.0).where[

@@ -219,7 +219,6 @@ class EquExtAbs(GamsClass):
             swtx=self.env.swtx,
             tmp=self.env.tmp,
             mx=self.env.mx,
-            upscaps=self.env.upscaps,
             rts=macro.rts(s="S", g=self.tc, env=self.env),
         )
 
@@ -646,7 +645,6 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
         swtx: str,
         tmp: str,
         mx: str,
-        upscaps: str,
         rts: str,
     ) -> None:
         """Maintenence 2 - continuous duration"""
@@ -657,6 +655,6 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
             code=rf"""
  EQ_BS28(RTP_VINTYR({r_v_t},P),{rts}{swx})$({swtx}PRC_TS(R,P,S)$BS_MAINT(R,V,P,S))..
   SUM((RS_UP(R,S,JS),RJ_SL(R,JS,SL)),VAR_BSMUP(R,V,T,P,SL)$(RS_MODUS(R,S,JS,SL)<ABS(BS_MAINT(R,V,P,S))/8760))
-  =L=  {tmp}*(1-COEF_AF{mx}(R,V,T,P,S,'UP'))-({upscaps}*COEF_AF{mx}(R,V,T,P,S,'UP'));
+  =L=  {tmp}*(1-COEF_AF{mx}(R,V,T,P,S,'UP'))-({macro.upscaps.render()}*COEF_AF{mx}(R,V,T,P,S,'UP'));
 """,
         )

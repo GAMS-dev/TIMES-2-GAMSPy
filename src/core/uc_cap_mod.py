@@ -19,6 +19,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from utils.macros import macro_config as macro
+
 if TYPE_CHECKING:
     pass
 
@@ -28,7 +30,6 @@ logger = logging.getLogger(__name__)
 def uc_cap_mod(
     var: str,
     sow: str,
-    upscaps: str,
     vda: str,
     abs: str,
     arg1: str = "",
@@ -82,7 +83,7 @@ def uc_cap_mod(
          UC_CAP(UC_N,{arg4},R,{arg6},P)*PROD(UC_ATTR(R,UC_N,{
                 arg4
             },'CAP','CAPACT'),PRC_CAPACT(R,P)) *
-         SUM(RTP_VINTYR(R,V,{arg3},P),({upscaps})))$UC_ATTR(R,UC_N,{
+         SUM(RTP_VINTYR(R,V,{arg3},P),({macro.upscaps.render()})))$UC_ATTR(R,UC_N,{
                 arg4
             },'CAP','ONLINE')
    )

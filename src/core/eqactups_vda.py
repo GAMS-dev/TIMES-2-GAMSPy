@@ -5,21 +5,26 @@
 # * under the GNU General Public License v3.0 (see file NOTICE-GPLv3.txt).
 # *=============================================================================*
 # * EQACTUPS - implements the linear dispatching equations
-# *   arg1 - MX control
+# *   arg1_mx - MX control
 # *=============================================================================*
 
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
-from gamspy import Sum
+from gamspy import Alias, Domain, Expression, Loop, Number, Ord, Set, Smax, Sum
+from gamspy.math import Max, Min, diag, exp, mod, project
 
 from core.base_class import GamsClass
 from core.pp_lvlfc_mod import PpLvlfcModConfig, pp_lvlfc_mod
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
+    from gamspy import Parameter, Variable
+    from gamspy._algebra.condition import Condition
+    from gamspy._symbols.implicits.implicit_set import ImplicitSet
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -37,15 +42,20 @@ class EqactupsVda(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
+        arg1_mx: Sum
+        | Condition
+        | Expression
+        | tuple[Set | Alias | str, ...]
+        | tuple[()],
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
+        self.arg1_mx = arg1_mx
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
         self.tc.enqueue(self.set_indicators, pgprim=self.env.pgprim)
 
         self.env.set_scoped(
@@ -53,78 +63,106 @@ class EqactupsVda(GamsClass):
             f"(COEF_CPT(R,V,T,P)*({self.env.varv}_NCAP(R,V,P{self.env.sws})$T(V)+NCAP_PASTI(R,V,P){self.env.rcapsub}))$PRC_VINT(R,P)+{self.env.var}_CAP(R,T,P{self.env.sow})$RP_UX(R,P)",
         )
 
+        sws = self.env.sws_GP
+        sow = self.env.sow_GP
+        rcapsub = self.env.rcapsub_GP
+        varv_id, varv_set = self.env.varv_GP
+        varv_ncap = self.tc.get_variable(f"{varv_id}_NCAP")
+        VAR_CAP = self.tc.get_variable(f"{self.env.var}_CAP")
+        if isinstance(rcapsub, Number) and rcapsub._value == 1:
+            raise ValueError("rcapsub cannot be Number(1) in this assignment.")
+
+        varv_ncap_expr = (
+            varv_ncap[g.r, g.v, g.p, *sws]
+            if varv_set is None
+            else Sum(varv_set, varv_ncap[g.r, g.v, g.p, *sws])
+        )
+
+        expr: Expression = g.coef_cpt[g.r, g.v, g.t, g.p] * (
+            varv_ncap_expr.where[g.t[g.v]] + g.ncap_pasti[g.r, g.v, g.p] + rcapsub
+        )
+        self.env.set_scoped(
+            "capon_GP",
+            (
+                expr.where[g.PrcVint[g.r, g.p]]
+                + VAR_CAP[g.r, g.t, g.p, *sow].where[g.RpUx[g.r, g.p]]
+            ),
+        )
+
         self.set_scoped_mx()
 
-        self.env.set_scoped(
-            "tmp",
-            f"$(NOT RP_UX(R,P))+{self.env.var}_CAP(R,T,P{self.env.sow})$RP_UX(R,P){self.env.upscaps}",
+        VAR_CAP = g.get_variable(f"{self.env.var}_CAP")
+        tmp = (
+            ~g.RpUx[g.r, g.p],
+            VAR_CAP[g.r, g.t, g.p, *sow].where[g.RpUx[g.r, g.p]]
+            + macro.upscaps.render_GP(),
         )
 
         self.equation_capload(
             eq=self.env.eq,
-            r_v_t=self.env.r_v_t,
-            swt=self.env.swt,
+            r_v_t=self.env.r_v_t_GP,
+            swt=self.env.swt_GP,
             var=self.env.var,
-            sow=self.env.sow,
-            capon=self.env.capon,
-            upscaps=self.env.upscaps,
-            arg1=self.arg1,
+            sow=self.env.sow_GP,
+            capon=self.env.capon_GP,
+            arg1_mx=self.arg1_mx,
         )
-        rts = macro.rts(s="S", g=self.tc, env=self.env)
+
+        rts = macro.rts_GP(s=g.s, g=self.tc, env=self.env)
+
         self.equation_acttramp(
             eq=self.env.eq,
-            r_v_t=self.env.r_v_t,
-            swt=self.env.swt,
+            r_v_t=self.env.r_v_t_GP,
+            swt=self.env.swt_GP,
             var=self.env.var,
-            sow=self.env.sow,
-            mx=self.env.mx,
-            tmp=self.env.tmp,
+            sow=self.env.sow_GP,
+            mx=self.env.mx_GP,
+            tmp=tmp,
             rts=rts,
         )
         self.equation_actups(
             eq=self.env.eq,
-            r_v_t=self.env.r_v_t,
-            swt=self.env.swt,
+            r_v_t=self.env.r_v_t_GP,
+            swt=self.env.swt_GP,
             var=self.env.var,
-            sow=self.env.sow,
-            mx=self.env.mx,
-            tmp=self.env.tmp,
+            sow=self.env.sow_GP,
+            mx=self.env.mx_GP,
+            tmp=tmp,
             rts=rts,
         )
         self.equation_actupc(
             eq=self.env.eq,
-            r_v_t=self.env.r_v_t,
-            swt=self.env.swt,
+            r_v_t=self.env.r_v_t_GP,
+            swt=self.env.swt_GP,
             var=self.env.var,
-            sow=self.env.sow,
-            capon=self.env.capon,
-            upscaps=self.env.upscaps,
+            sow=self.env.sow_GP,
+            capon=self.env.capon_GP,
             rts=rts,
         )
         self.equation_actpl(
             eq=self.env.eq,
-            r_v_t=self.env.r_v_t,
-            swt=self.env.swt,
+            r_v_t=self.env.r_v_t_GP,
+            swt=self.env.swt_GP,
             var=self.env.var,
-            sow=self.env.sow,
-            mx=self.env.mx,
-            tmp=self.env.tmp,
+            sow=self.env.sow_GP,
+            mx=self.env.mx_GP,
+            tmp=tmp,
             rts=rts,
         )
         self.equation_actrmpc(
             eq=self.env.eq,
-            r_v_t=self.env.r_v_t,
-            swt=self.env.swt,
+            r_v_t=self.env.r_v_t_GP,
+            swt=self.env.swt_GP,
             var=self.env.var,
-            sow=self.env.sow,
+            sow=self.env.sow_GP,
         )
         self.equation_stgccl(
-            r_v_t=self.env.r_v_t,
-            mx=self.env.mx,
+            r_v_t=self.env.r_v_t_GP,
+            mx=self.env.mx_GP,
             var=self.env.var,
-            sow=self.env.sow,
-            swx=self.env.swx,
-            swtx=self.env.swtx,
+            sow=self.env.sow_GP,
+            swx=self.env.swx_GP,
+            swtx=self.env.swtx_GP,
         )
 
         if self.env.obmac.upper() == "YES":
@@ -134,10 +172,10 @@ class EqactupsVda(GamsClass):
 
         self.equation_slsift(
             eq=self.env.eq,
-            r_t=self.env.r_t,
-            swt=self.env.swt,
+            r_t=self.env.r_t_GP,
+            swt=self.env.swt_GP,
             var=self.env.var,
-            sow=self.env.sow,
+            sow=self.env.sow_GP,
             pgprim=self.env.pgprim,
             rts=rts,
         )
@@ -156,13 +194,15 @@ class EqactupsVda(GamsClass):
         varm_id, varm_set = self.env.varm_GP
         VARM_NCAP = g.get_variable(f"{varm_id}_NCAP")
 
-        shared_expr = (
-            VARM_NCAP[r, k, p, *sws].where[t[k]]
-            + g.ncap_pasti[r, k, p]
-            + self.env.rcapsbm_GP
+        varm_ncap_expr = (
+            VARM_NCAP[r, k, p, *sws]
+            if varm_set is None
+            else Sum(varm_set, VARM_NCAP[r, k, p, *sws])
         )
 
-        inner_expr = shared_expr if varm_set is None else Sum(varm_set, shared_expr)
+        inner_expr = (
+            varm_ncap_expr.where[t[k]] + g.ncap_pasti[r, k, p] + self.env.rcapsbm_GP
+        )
 
         mx_GP = Sum(
             g.RvpKmap[r, v, p, g.Modlyear[k]], g.coef_vnt[r, t, p, k] * inner_expr
@@ -172,37 +212,93 @@ class EqactupsVda(GamsClass):
 
     def set_indicators(self: EqactupsVda, pgprim: str) -> None:
         g = self.tc
-        m = self.tc.container
-        RpUpl = m["RP_UPL"]
-        RpPl = m["RP_PL"]
-        act_cstrmp = m["ACT_CSTRMP"]
+        RpUpl, RpPl, act_cstrmp = g.RpUpl, g.RpUpl, g.act_cstrmp
 
         # Set indicators
         # IF(CARD(RP_UPL)+CARD(RP_PL)+CARD(ACT_CSTRMP),
         if RpPl.number_records + RpUpl.number_records + act_cstrmp.number_records:
-            self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code=rf"""
-  OPTION CLEAR=UNCD7;
-  AFUPS(R,T,P,S)$((NOT RPS_CAFLAC(R,P,S,'UP'))$PRC_TS(R,P,S)) $= AFS(R,T,P,S,'UP')$RP_UPL(R,P,'FX'); AFS(AFUPS,BD)=NO;
-  RPS_UPS(R,P,S)$((STOAL(R,S)<2+1$RP_UPR(R,P,'N'))$RP_UPL(R,P,'FX')) = SUM(PRC_TS(R,P,TS)$RS_BELOW(R,S,TS),RS_BELOW1(R,S,TS) OR STOA(S));
-  RP_UX(RP)$(NOT PRC_VINT(RP))$=RP_UPL(RP,'FX'); RTP_VARP(RTP(R,T,P))$RP_UX(R,P)=YES;
-  COEF_AF(R,T,T,P,S,'UP')$AFUPS(R,T,P,S) $= NCAP_AF(R,T,P,S,'UP')$RP_UX(R,P);
-* Check for startup costs
-  UNCD7(R,LL--ORD(LL),P,TSL,RDCUR(R,CUR),'UP') $= ACT_CSTUP(R,LL,P,TSL,CUR);
-  UNCD7(R,LL--ORD(LL),P,BD,RDCUR(R,CUR),'N') $= ACT_CSTRMP(R,LL,P,BD,CUR);
-  LOOP(UNCD7(R,LL,P,ITEM,R,CUR,L),RP_UPS(R,P,TSL(ITEM),L)$(TSLVLNUM(TSL)$RP_UPL(R,P,'FX')>1)=YES; RPC_CUR(R,P,'{pgprim}',CUR)=YES);
-  RP_UPS(RP,TSL,L)$SUM(PRC_TSL(RP,TSLVL)$(ORD(TSL)>ORD(TSLVL)),1)=NO;
-  RPS_UPS(RP,S)$SUM(RP_UPS(PRC_TSL(RP,TSL),L),1)=NO;
-  RPS_UPS(R,P,S) $= SUM(RP_UPS(R,P,TSL,L)$TS_GROUP(R,TSL,S),1);
-  RP_UPS(R,P,TSL,LNX(L))$RP_UPS(R,P,TSL,'UP') = SUM(RP_UPS(R,P,TSLVL,BD),RLUP(R,TSLVL,TSL)$BD(L)+RLUP(R,TSL,TSLVL)$IPS(L));
-  RP_UPS(R,P,TSL,'FX')$(SUM(RP_UPS(PRC_TSL(R,P,TSLVL),L),RLUP(R,TSLVL,TSL))$RP_UPR(R,P,'UP'))=YES;
-* Check partial loads
-  LOOP(UNCD7(R,LL,P,TSL(ANNUAL),R,CUR,L),RP_UPS(R,P,TSL,L)=YES; RP_PL(R,P,'N')=NOT RP_PL(R,P,L));
-  ACT_LOSPL(RTP(R,V,P),BDNEQ(BD))$((ACT_LOSPL(RTP,BD)<=0)$RP_PL(R,P,'N'))=MAX(.1+.5$BDUPX(BD),ACT_MINLD(RTP));
-""",
+            g.Uncd7.setRecords(None)
+            sparseExpr = g.Afs[g.r, g.t, g.p, g.s, "UP"].where[g.RpUpl[g.r, g.p, "FX"]]
+            g.Afups[g.r, g.t, g.p, g.s].where[
+                ((~(g.RpsCaflac[g.r, g.p, g.s, "UP"])).where[g.PrcTs[g.r, g.p, g.s]])
+                & sparseExpr
+            ] = sparseExpr
+            g.Afs[g.Afups, g.bd] = False
+            g.RpsUps[g.r, g.p, g.s].where[
+                (
+                    (
+                        g.stoal[g.r, g.s]
+                        < 2.0 + Number(1.0).where[g.RpUpr[g.r, g.p, "N"]]
+                    ).where[g.RpUpl[g.r, g.p, "FX"]]
+                )
+            ] = Sum(
+                g.PrcTs[g.r, g.p, g.ts].where[g.RsBelow[g.r, g.s, g.ts]],
+                (g.RsBelow1[g.r, g.s, g.ts]) | (g.stoa[g.s]),
             )
+            g.RpUx[g.Rp].where[(~(g.PrcVint[g.Rp])) & g.RpUpl[g.Rp, "FX"]] = g.RpUpl[
+                g.Rp, "FX"
+            ]
+            g.RtpVarp[g.Rtp[g.r, g.t, g.p]].where[g.RpUx[g.r, g.p]] = True
+            sparseExpr = g.ncap_af[g.r, g.t, g.p, g.s, "UP"].where[g.RpUx[g.r, g.p]]
+            g.coef_af[g.r, g.t, g.t, g.p, g.s, "UP"].where[
+                g.Afups[g.r, g.t, g.p, g.s] & sparseExpr
+            ] = sparseExpr
+            # * Check for startup costs
+            sparseExpr = g.act_cstup[g.r, g.ll, g.p, g.tsl, g.cur]  # type: ignore [assignment]
+            g.Uncd7[
+                g.r,
+                g.ll.lag(Ord(g.ll), "circular"),
+                g.p,
+                g.tsl,
+                g.Rdcur[g.r, g.cur],
+                "UP",
+            ].where[sparseExpr] = sparseExpr
+            sparseExpr = g.act_cstrmp[g.r, g.ll, g.p, g.bd, g.cur]  # type: ignore [assignment]
+            g.Uncd7[
+                g.r,
+                g.ll.lag(Ord(g.ll), "circular"),
+                g.p,
+                g.bd,
+                g.Rdcur[g.r, g.cur],
+                "N",
+            ].where[sparseExpr] = sparseExpr
+            with Loop(g.Uncd7[g.r, g.ll, g.p, g.item, g.r, g.cur, g.lA]):
+                g.RpUps[g.r, g.p, g.tsl[g.item], g.lA].where[
+                    (g.tslvlnum[g.tsl].where[g.RpUpl[g.r, g.p, "FX"]] > 1.0)
+                ] = True
+                g.RpcCur[g.r, g.p, pgprim, g.cur] = True
+            g.RpUps[g.Rp, g.tsl, g.lA].where[
+                Sum(g.PrcTsl[g.Rp, g.tslvl].where[(Ord(g.tsl) > Ord(g.tslvl))], 1.0)
+            ] = False
+            g.RpsUps[g.Rp, g.s].where[
+                Sum(g.RpUps[g.PrcTsl[g.Rp, g.tsl], g.lA], 1.0)
+            ] = False
+            sparseExpr = Sum(
+                g.RpUps[g.r, g.p, g.tsl, g.lA].where[g.TsGroup[g.r, g.tsl, g.s]], 1.0
+            )  # type: ignore [assignment]
+            g.RpsUps[g.r, g.p, g.s].where[sparseExpr] = sparseExpr
+            g.RpUps[g.r, g.p, g.tsl, g.Lnx[g.lA]].where[
+                g.RpUps[g.r, g.p, g.tsl, "UP"]
+            ] = Sum(
+                g.RpUps[g.r, g.p, g.tslvl, g.bd],
+                g.Rlup[g.r, g.tslvl, g.tsl].where[g.bd[g.lA]]
+                + g.Rlup[g.r, g.tsl, g.tslvl].where[g.ips[g.lA]],
+            )
+            g.RpUps[g.r, g.p, g.tsl, "FX"].where[
+                (
+                    Sum(
+                        g.RpUps[g.PrcTsl[g.r, g.p, g.tslvl], g.lA],
+                        g.Rlup[g.r, g.tslvl, g.tsl],
+                    ).where[g.RpUpr[g.r, g.p, "UP"]]
+                )
+            ] = True
+            # * Check partial loads
+            with Loop(g.Uncd7[g.r, g.ll, g.p, g.tsl[g.Annual], g.r, g.cur, g.lA]):
+                g.RpUps[g.r, g.p, g.tsl, g.lA] = True
+                g.RpPl[g.r, g.p, "N"] = ~(g.RpPl[g.r, g.p, g.lA])
+            g.act_lospl[g.Rtp[g.r, g.v, g.p], g.Bdneq[g.bd]].where[
+                ((g.act_lospl[g.Rtp, g.bd] <= 0.0).where[g.RpPl[g.r, g.p, "N"]])
+            ] = Max(0.1 + Number(0.5).where[g.Bdupx[g.bd]], g.act_minld[g.Rtp])
 
             pp_lvlfc_mod(
                 module=self,
@@ -219,276 +315,594 @@ class EqactupsVda(GamsClass):
                 ),
             )
 
-            self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code=r"""
-  RTP_PL(RTP(R,V,P))$((ACT_LOSPL(RTP,'LO')=ACT_MINLD(RTP))$RP_UPL(R,P,'FX'))$=RP_PL(R,P,'N');
-* Check for cycling limits
-  RP_UPC(R,P,TSL,'N')$RP_UPR(R,P,'N') $= SUM(RP_UPS(PRC_TSL(R,P,TSLVL),L),RLUP(R,TSLVL,TSL));
-  RP_UPC(PRC_TSL(RP,TSL),BDNEQ(BD))$RP_UPS(RP,TSL,'UP') $= RP_UPR(RP,BD);
-""",
+            g.RtpPl[g.Rtp[g.r, g.v, g.p]].where[
+                (
+                    (g.act_lospl[g.Rtp, "LO"] == g.act_minld[g.Rtp]).where[
+                        g.RpUpl[g.r, g.p, "FX"]
+                    ]
+                )
+                & g.RpPl[g.r, g.p, "N"]
+            ] = g.RpPl[g.r, g.p, "N"]
+            # * Check for cycling limits
+            sparseExpr = Sum(
+                g.RpUps[g.PrcTsl[g.r, g.p, g.tslvl], g.lA], g.Rlup[g.r, g.tslvl, g.tsl]
+            )  # type: ignore [assignment]
+            g.RpUpc[g.r, g.p, g.tsl, "N"].where[g.RpUpr[g.r, g.p, "N"] & sparseExpr] = (
+                sparseExpr
             )
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-  OPTION RP_UPR < ACT_CSTRMP;""",
-        )
+            g.RpUpc[g.PrcTsl[g.Rp, g.tsl], g.Bdneq[g.bd]].where[
+                g.RpUps[g.Rp, g.tsl, "UP"] & g.RpUpr[g.Rp, g.bd]
+            ] = g.RpUpr[g.Rp, g.bd]
+
+        g = self.tc
+        project(source=g.act_cstrmp, target=g.RpUpr)
 
     def equation_capload(
         self: EqactupsVda,
         eq: str,
-        r_v_t: str,
-        swt: str,
+        r_v_t: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
+        swt: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
         var: str,
-        sow: str,
-        capon: str,
-        upscaps: str,
-        arg1: str,
+        sow: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
+        capon: Expression | Condition,
+        arg1_mx: Sum
+        | Condition
+        | Expression
+        | tuple[Set | Alias | str, ...]
+        | tuple[()],
+        # arg1_mx: str | tuple[()],
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-*-----------------------------------------------------------------------
+        g = self.tc
 
-  {eq}_CAPLOAD(RTP_VINTYR({r_v_t},P),S,BDNEQ(BD){swt})$AFUPS(R,T,P,S)..
+        eq_capload = g.get_equation(f"{eq}_CAPLOAD")
+        var_act = g.get_variable(f"{var}_ACT")
+        var_ups = g.get_variable(f"{var}_UPS")
+        coef_af: Parameter | Variable
+        if arg1_mx == ():
+            coef_af = g.coef_af
+        elif isinstance(arg1_mx, tuple):
+            # GAMS macro expands COEF_AF%1 by literal string concatenation,
+            # e.g. arg1_mx=("1",) -> "COEF_AF1", not "COEF_AF('1',)".
+            coef_af = g.get_variable(f"COEF_AF{''.join(str(x) for x in arg1_mx)}")
+        else:
+            raise TypeError(
+                f"arg1_mx must be a tuple of strings for COEF_AF lookup, got {type(arg1_mx)}"
+            )
 
-* activity bounded from LO/UP
-   {var}_ACT(R,V,T,P,S{sow})*BDSIG(BD)  =G=  {var}_UPS(R,V,T,P,S,'FX'{sow})$RTP_PL(R,V,P)$BDLOX(BD) +
-
-* fraction of capacity - vintaged or not
-   ({capon}{upscaps}) * MIN(COEF_AF{arg1}(R,V,T,P,S,'UP')*BDSIG(BD),SUM(TS_ANN(S,TS)$(NOT RTP_PL(R,V,P)),ACT_UPS(R,V,P,TS,'FX'))$BDLOX(BD)) *
-   PRC_CAPACT(R,P) * G_YRFR(R,S);
-""",
+        eq_capload[g.RtpVintyr[*r_v_t, g.p], g.s, g.Bdneq[g.bd], *swt].where[
+            g.Afups[g.r, g.t, g.p, g.s]
+        ] = (
+            var_act[g.r, g.v, g.t, g.p, g.s, *sow] * g.bdsig[g.bd]
+            >= var_ups[g.r, g.v, g.t, g.p, g.s, "FX", *sow].where[
+                g.RtpPl[g.r, g.v, g.p] & g.Bdlox[g.bd]
+            ]
+            + (capon + macro.upscaps.render_GP())
+            * Min(
+                coef_af[g.r, g.v, g.t, g.p, g.s, "UP"] * g.bdsig[g.bd],
+                Sum(
+                    g.TsAnn[g.s, g.ts].where[(~(g.RtpPl[g.r, g.v, g.p]))],
+                    g.act_ups[g.r, g.v, g.p, g.ts, "FX"],
+                ).where[g.Bdlox[g.bd]],
+            )
+            * g.prc_capact[g.r, g.p]
+            * g.g_yrfr[g.r, g.s]
         )
 
     def equation_acttramp(
         self: EqactupsVda,
         eq: str,
-        r_v_t: str,
-        swt: str,
+        r_v_t: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
+        swt: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
         var: str,
-        sow: str,
-        mx: str,
-        tmp: str,
-        rts: str,
+        sow: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
+        mx: Sum | Condition | Expression | tuple[Set | Alias | str, ...] | tuple[()],
+        tmp: tuple[Expression, Expression | ImplicitSet],
+        rts: Set | Alias,
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-*-----------------------------------------------------------------------
+        g = self.tc
+        tmp_condtion, tmp_expr = tmp
 
-  {eq}_ACTRAMP(RTP_VINTYR({r_v_t},P),{rts},BDNEQ(BD){swt})$(SUM(TS_ANN(S,TS)$ACT_UPS(R,V,P,TS,BD),1)$PRC_TS(R,P,S)$RP_UPL(R,P,BD))..
+        eq_actramp = g.get_equation(f"{eq}_ACTRAMP")
+        VAR_UPS = g.get_variable(f"{var}_UPS")
+        VAR_ACT = g.get_variable(f"{var}_ACT")
 
-* max fraction of capacity
-   SUM(RS_PREV(R,S,TS)$PRC_TS(R,P,TS),PRC_CAPACT(R,P)*SUM(TS_ANN(S,SL),ACT_UPS(R,V,P,SL,BD)) *
-     ({mx}{tmp} + (({var}_UPS(R,V,T,P,S,'N'{sow})-{var}_UPS(R,V,T,P,TS,'N'{sow}))$BDLOX(BD))$RPS_UPS(R,P,S)) +
-
-* dynamic ramp limits
-     RS_STGPRD(R,S)*2/(G_YRFR(R,S)+G_YRFR(R,TS))/8760 *
-     ({var}_ACT(R,V,T,P,S{sow})/G_YRFR(R,S)-{var}_ACT(R,V,T,P,TS{sow})/G_YRFR(R,TS) +
-      (({var}_UPS(R,V,T,P,S,'N'{sow})-{var}_UPS(R,V,T,P,TS,'N'{sow}))*PRC_CAPACT(R,P)*ACT_MINLD(R,V,P))$RPS_UPS(R,P,S))*BDSIG(BD))
-
-    =G= 0;
-""",
+        eq_actramp[g.RtpVintyr[*r_v_t, g.p], rts, g.Bdneq[g.bd], *swt].where[
+            (
+                Sum(
+                    g.TsAnn[g.s, g.ts].where[g.act_ups[g.r, g.v, g.p, g.ts, g.bd]], 1.0
+                ).where[g.PrcTs[g.r, g.p, g.s] & g.RpUpl[g.r, g.p, g.bd]]
+            )
+        ] = (
+            # * max fraction of capacity
+            Sum(
+                g.RsPrev[g.r, g.s, g.ts].where[g.PrcTs[g.r, g.p, g.ts]],
+                g.prc_capact[g.r, g.p]
+                * Sum(g.TsAnn[g.s, g.sl], g.act_ups[g.r, g.v, g.p, g.sl, g.bd])
+                * (
+                    # TODO need to catch which mx is allowed here
+                    mx.where[tmp_condtion]  # type: ignore
+                    + tmp_expr
+                    + (
+                        VAR_UPS[g.r, g.v, g.t, g.p, g.s, "N", *sow]
+                        - VAR_UPS[g.r, g.v, g.t, g.p, g.ts, "N", *sow]
+                    ).where[g.Bdlox[g.bd] & g.RpsUps[g.r, g.p, g.s]]
+                )
+                # * dynamic ramp limits
+                + g.rs_stgprd[g.r, g.s]
+                * 2.0
+                / (g.g_yrfr[g.r, g.s] + g.g_yrfr[g.r, g.ts])
+                / 8760.0
+                * (
+                    VAR_ACT[g.r, g.v, g.t, g.p, g.s, *sow] / g.g_yrfr[g.r, g.s]
+                    - VAR_ACT[g.r, g.v, g.t, g.p, g.ts, *sow] / g.g_yrfr[g.r, g.ts]
+                    + (
+                        (
+                            VAR_UPS[g.r, g.v, g.t, g.p, g.s, "N", *sow]
+                            - VAR_UPS[g.r, g.v, g.t, g.p, g.ts, "N", *sow]
+                        )
+                        * g.prc_capact[g.r, g.p]
+                        * g.act_minld[g.r, g.v, g.p]
+                    ).where[g.RpsUps[g.r, g.p, g.s]]
+                )
+                * g.bdsig[g.bd],
+            )
+            >= 0.0
         )
 
     def equation_actups(
         self: EqactupsVda,
         eq: str,
-        r_v_t: str,
-        swt: str,
+        r_v_t: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
+        swt: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
         var: str,
-        sow: str,
-        mx: str,
-        tmp: str,
-        rts: str,
+        sow: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
+        mx: Sum | Condition | Expression | tuple[Set | Alias | str, ...] | tuple[()],
+        tmp: tuple[Expression, Expression | ImplicitSet],
+        rts: Set | Alias,
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-*-----------------------------------------------------------------------
+        g = self.tc
+        tmp_condtion, tmp_expr = tmp
 
-  {eq}E_ACTUPS(RTP_VINTYR({r_v_t},P),TSL,L(BND_TYPE),{rts}{swt})$(TS_GROUP(R,TSL,S)$RP_UPS(R,P,TSL,L))..
+        eqe_actups = g.get_equation(f"{eq}E_ACTUPS")
+        eql_actups = g.get_equation(f"{eq}L_ACTUPS")
+        VAR_UPS = g.get_variable(f"{var}_UPS")
+        VAR_UDP = g.get_variable(f"{var}_UDP")
 
-* start-up/shut-down capacity
-   (SUM(RS_PREV(R,S,TS),{var}_UPS(R,V,T,P,S,'N'{sow})-{var}_UPS(R,V,T,P,TS,'N'{sow})-SUM(BD,{var}_UPS(R,V,T,P,S,BD{sow})*BDSIG(BD)))$STOA(S) +
-    SUM(ANNUAL(S)$RP_PL(R,P,'N'),{var}_UPS(R,V,T,P,S,L{sow})-SUM(PRC_TS(R,P,TS),{var}_UPS(R,V,T,P,TS,'FX'{sow}))))$(BDSIG(L)<0) +
-   SUM(BDLOX(BD(L)),{mx}{tmp}-{var}_UDP(R,V,T,P,S,'FX'{sow})-{var}_UPS(R,V,T,P,S,'FX'{sow})$RP_UPL(R,P,'FX'))
-
-    =E= 0;
-
-*-----------------------------------------------------------------------
-
-  {eq}L_ACTUPS(RTP_VINTYR({r_v_t},P),TSL,LNX(L),{rts}{swt})$(TS_GROUP(R,TSL,S)$RP_UPS(R,P,TSL,L))..
-
-* balance at higher level
-   ({var}_UPS(R,V,T,P,S,L{sow})-SUM(RS_BELOW1(R,TS,S),{var}_UPS(R,V,T,P,TS,'FX'{sow})))$IPS(L) +
-   ({var}_UPS(R,V,T,P,S,L{sow})-SUM(RS_BELOW1(R,S,TS),{var}_UPS(R,V,T,P,TS,'UP'{sow})))$BD(L)
-
-    =L= 0;
-
-
-""",
-        )
+        eqe_actups[g.RtpVintyr[*r_v_t, g.p], g.tsl, g.lA[g.BndType], rts, *swt].where[
+            (g.TsGroup[g.r, g.tsl, g.s].where[g.RpUps[g.r, g.p, g.tsl, g.lA]])
+        ] = (
+            # * start-up/shut-down capacity
+            Sum(
+                g.RsPrev[g.r, g.s, g.ts],
+                VAR_UPS[g.r, g.v, g.t, g.p, g.s, "N", *sow]
+                - VAR_UPS[g.r, g.v, g.t, g.p, g.ts, "N", *sow]
+                - Sum(
+                    g.bd,
+                    VAR_UPS[g.r, g.v, g.t, g.p, g.s, g.bd, *sow] * g.bdsig[g.bd],
+                ),
+            ).where[g.stoa[g.s]]
+            + Sum(
+                g.Annual[g.s].where[g.RpPl[g.r, g.p, "N"]],
+                VAR_UPS[g.r, g.v, g.t, g.p, g.s, g.lA, *sow]
+                - Sum(
+                    g.PrcTs[g.r, g.p, g.ts],
+                    VAR_UPS[g.r, g.v, g.t, g.p, g.ts, "FX", *sow],
+                ),
+            )
+        ).where[(g.bdsig[g.lA] < 0.0)] + Sum(
+            g.Bdlox[g.bd[g.lA]],
+            # TODO need to catch which mx is allowed here
+            (
+                mx.where[tmp_condtion]  # type: ignore[union-attr]
+                + tmp_expr
+            )
+            - VAR_UDP[g.r, g.v, g.t, g.p, g.s, "FX", *sow]
+            - VAR_UPS[g.r, g.v, g.t, g.p, g.s, "FX", *sow].where[
+                g.RpUpl[g.r, g.p, "FX"]
+            ],
+        ) == 0.0
+        # *-----------------------------------------------------------------------
+        eql_actups[g.RtpVintyr[*r_v_t, g.p], g.tsl, g.Lnx[g.lA], rts, *swt].where[
+            (g.TsGroup[g.r, g.tsl, g.s].where[g.RpUps[g.r, g.p, g.tsl, g.lA]])
+        ] = (
+            # * balance at higher level
+            VAR_UPS[g.r, g.v, g.t, g.p, g.s, g.lA, *sow]
+            - Sum(
+                g.RsBelow1[g.r, g.ts, g.s],
+                VAR_UPS[g.r, g.v, g.t, g.p, g.ts, "FX", *sow],
+            )
+        ).where[g.ips[g.lA]] + (
+            VAR_UPS[g.r, g.v, g.t, g.p, g.s, g.lA, *sow]
+            - Sum(
+                g.RsBelow1[g.r, g.s, g.ts],
+                VAR_UPS[g.r, g.v, g.t, g.p, g.ts, "UP", *sow],
+            )
+        ).where[g.bd[g.lA]] <= 0.0
 
     def equation_actupc(
         self: EqactupsVda,
         eq: str,
-        r_v_t: str,
-        swt: str,
+        r_v_t: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
+        swt: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
         var: str,
-        sow: str,
-        capon: str,
-        upscaps: str,
-        rts: str,
+        sow: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
+        capon: Expression | Condition,
+        rts: Set | Alias,
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-*-----------------------------------------------------------------------
+        g = self.tc
+        eql_actupc = g.get_equation(f"{eq}L_ACTUPC")
+        VAR_UPS = g.get_variable(f"{var}_UPS")
 
-  {eq}L_ACTUPC(RTP_VINTYR({r_v_t},P),TSL,L,{rts}{swt})$(TS_GROUP(R,TSL,S)$RP_UPC(R,P,TSL,L))..
-
-* max number of cycles
-   (SUM(RS_BELOW1(R,S,SL),{var}_UPS(R,V,T,P,SL,'UP'{sow})) - ({capon}{upscaps})*ACT_TIME(R,T,P,L))$IPS(L) +
-* min UP/LO hours
-   SUM(BD(L),
-     SUM((RS_UP(R,S,JS),RJ_SL(R,JS,SL)),{var}_UPS(R,V,T,P,SL,L{sow})$(RS_MODUS(R,S,JS,SL) < ACT_TIME(R,T,P,L)/8760)) -
-     SUM(RS_UP(R,S,J,TS),{var}_UPS(R,V,T,P,TS,'FX'{sow}))$BDUPX(BD)-{var}_UPS(R,V,T,P,S,'N'{sow})*BDSIG(L))
-
-    =L= 0;
-
-
-""",
-        )
+        eql_actupc[g.RtpVintyr[*r_v_t, g.p], g.tsl, g.lA, rts, *swt].where[
+            (g.TsGroup[g.r, g.tsl, g.s].where[g.RpUpc[g.r, g.p, g.tsl, g.lA]])
+        ] = (
+            # * max number of cycles
+            Sum(
+                g.RsBelow1[g.r, g.s, g.sl],
+                VAR_UPS[g.r, g.v, g.t, g.p, g.sl, "UP", *sow],
+            )
+            - (capon + macro.upscaps.render_GP()) * g.act_time[g.r, g.t, g.p, g.lA]
+        ).where[g.ips[g.lA]] + Sum(
+            #  *min UP/LO hours
+            g.bd[g.lA],
+            Sum(
+                Domain(g.RsUp[g.r, g.s, g.Js], g.RjSl[g.r, g.Js, g.sl]).where[
+                    (
+                        g.rs_modus[g.r, g.s, g.Js, g.sl]
+                        < g.act_time[g.r, g.t, g.p, g.lA] / 8760.0
+                    )
+                ],
+                VAR_UPS[g.r, g.v, g.t, g.p, g.sl, g.lA, *sow],
+            )
+            - Sum(
+                g.RsUp[g.r, g.s, g.j, g.ts],
+                VAR_UPS[g.r, g.v, g.t, g.p, g.ts, "FX", *sow],
+            ).where[g.Bdupx[g.bd]]
+            - VAR_UPS[g.r, g.v, g.t, g.p, g.s, "N", *sow] * g.bdsig[g.lA],
+        ) <= 0.0
 
     def equation_actpl(
         self: EqactupsVda,
         eq: str,
-        r_v_t: str,
-        swt: str,
+        r_v_t: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
+        swt: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
         var: str,
-        sow: str,
-        mx: str,
-        tmp: str,
-        rts: str,
+        sow: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
+        mx: Sum | Condition | Expression | tuple[Set | Alias | str, ...] | tuple[()],
+        tmp: tuple[Expression, Expression | ImplicitSet],
+        rts: Set | Alias,
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-*-----------------------------------------------------------------------
+        g = self.tc
+        tmp_condtion, tmp_expr = tmp
 
-  {eq}_ACTPL(RTP_VINTYR({r_v_t},P),{rts}{swt})$(PRC_TS(R,P,S)$RP_PL(R,P,'N'))..
+        eq_actpl = g.get_equation(f"{eq}_ACTPL")
+        VAR_UPS = g.get_variable(f"{var}_UPS")
+        VAR_ACT = g.get_variable(f"{var}_ACT")
+        VAR_UPT = g.get_variable(f"{var}_UPT")
 
-* partial loads
-   {var}_UPS(R,V,T,P,S,'FX'{sow})  =G=
-
-   (({mx}{tmp})*PRC_CAPACT(R,P)*G_YRFR(R,S) * (ACT_LOSPL(R,V,P,'UP')+ACT_LOSPL(R,V,P,'LO')*(1-ACT_LOSPL(R,V,P,'UP'))) -
-    {var}_ACT(R,V,T,P,S{sow})) / (ACT_LOSPL(R,V,P,'UP')*(1/ACT_LOSPL(R,V,P,'LO')-1)) +
-   sum((rp_upt(r,p,upt,bd),PRC_TSL(R,P,TSL))$DP_UNS(R,V,T,P,TSL,'IN','N'),
-     sum((rs_up(r,s,js),rj_sl(r,js,sl))$(MOD((RS_HR(r,s)-RS_HR(r,sl))*BDSIG(bd)+G_YRFR(r,sl)/RS_STGPRD(r,s)/2+2/G_CYCLE(tsl),1/G_CYCLE(tsl))<ACT_SDTIME(r,v,p,upt,bd)/8760*(1.001)),
-       MIN(1,MOD((RS_HR(r,s)-RS_HR(r,sl))*BDSIG(bd)+(G_YRFR(r,sl)-G_YRFR(r,s))/2/RS_STGPRD(r,s)+2/G_CYCLE(tsl),1/G_CYCLE(tsl))/(ACT_SDTIME(r,v,p,upt,bd)/8760))*(1-DIAG(S,SL))*DP_PSUD(r,v,p,upt,bd) *
-       ({var}_upt(r,v,t,p,sl,upt{sow})$bdupx(bd) + {var}_ups(r,v,t,p,sl,bd{sow})$bdlox(bd))) * PRC_CAPACT(r,p)*G_YRFR(r,s)*ACT_MINLD(r,v,p))$DP_LOSD(r,v,p);
-
-""",
+        eq_actpl[g.RtpVintyr[*r_v_t, g.p], rts, *swt].where[
+            (g.PrcTs[g.r, g.p, g.s].where[g.RpPl[g.r, g.p, "N"]])
+        ] = (
+            # * partial loads
+            VAR_UPS[g.r, g.v, g.t, g.p, g.s, "FX", *sow]
+            >= (
+                # TODO need to catch which mx is allowed here
+                mx.where[tmp_condtion]  # type: ignore[union-attr]
+                + tmp_expr
+                * g.prc_capact[g.r, g.p]
+                * g.g_yrfr[g.r, g.s]
+                * (
+                    g.act_lospl[g.r, g.v, g.p, "UP"]
+                    + g.act_lospl[g.r, g.v, g.p, "LO"]
+                    * (1.0 - g.act_lospl[g.r, g.v, g.p, "UP"])
+                )
+                - VAR_ACT[g.r, g.v, g.t, g.p, g.s, *sow]
+            )
+            / (
+                g.act_lospl[g.r, g.v, g.p, "UP"]
+                * (1.0 / g.act_lospl[g.r, g.v, g.p, "LO"] - 1.0)
+            )
+            + Sum(
+                Domain(g.RpUpt[g.r, g.p, g.upt, g.bd], g.PrcTsl[g.r, g.p, g.tsl]).where[
+                    g.dp_uns[g.r, g.v, g.t, g.p, g.tsl, "IN", "N"]
+                ],
+                Sum(
+                    Domain(g.RsUp[g.r, g.s, g.Js], g.RjSl[g.r, g.Js, g.sl]).where[
+                        (
+                            mod(
+                                (g.rs_hr[g.r, g.s] - g.rs_hr[g.r, g.sl]) * g.bdsig[g.bd]
+                                + g.g_yrfr[g.r, g.sl] / g.rs_stgprd[g.r, g.s] / 2.0
+                                + 2.0 / g.g_cycle[g.tsl],
+                                1.0 / g.g_cycle[g.tsl],
+                            )
+                            < g.act_sdtime[g.r, g.v, g.p, g.upt, g.bd]
+                            / 8760.0
+                            * (1.001)
+                        )
+                    ],
+                    Min(
+                        1.0,
+                        mod(
+                            (g.rs_hr[g.r, g.s] - g.rs_hr[g.r, g.sl]) * g.bdsig[g.bd]
+                            + (g.g_yrfr[g.r, g.sl] - g.g_yrfr[g.r, g.s])
+                            / 2.0
+                            / g.rs_stgprd[g.r, g.s]
+                            + 2.0 / g.g_cycle[g.tsl],
+                            1.0 / g.g_cycle[g.tsl],
+                        )
+                        / (g.act_sdtime[g.r, g.v, g.p, g.upt, g.bd] / 8760.0),
+                    )
+                    * (1.0 - diag(g.s, g.sl))
+                    * g.dp_psud[g.r, g.v, g.p, g.upt, g.bd]
+                    * (
+                        VAR_UPT[g.r, g.v, g.t, g.p, g.sl, g.upt, *sow].where[
+                            g.Bdupx[g.bd]
+                        ]
+                        + VAR_UPS[g.r, g.v, g.t, g.p, g.sl, g.bd, *sow].where[
+                            g.Bdlox[g.bd]
+                        ]
+                    ),
+                )
+                * g.prc_capact[g.r, g.p]
+                * g.g_yrfr[g.r, g.s]
+                * g.act_minld[g.r, g.v, g.p],
+            ).where[g.DpLosd[g.r, g.v, g.p]]
         )
 
     def equation_actrmpc(
         self: EqactupsVda,
         eq: str,
-        r_v_t: str,
-        swt: str,
+        r_v_t: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
+        swt: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
         var: str,
-        sow: str,
+        sow: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-*-----------------------------------------------------------------------
+        g = self.tc
+        eq_actrmpc = g.get_equation(f"{eq}_ACTRMPC")
+        VAR_UPS = g.get_variable(f"{var}_UPS")
+        VAR_ACT = g.get_variable(f"{var}_ACT")
+        VAR_UDP = g.get_variable(f"{var}_UDP")
 
-  {eq}_ACTRMPC(RTP_VINTYR({r_v_t},P),TS(S--RS_STG(R,S)){swt})$(PRC_TS(R,P,S)$RP_STD(R,P)$SUM(RP_UPR(R,P,BD),1))..
-
-* ramping costs
-   ({var}_ACT(R,V,T,P,TS{sow})/G_YRFR(R,TS)-{var}_ACT(R,V,T,P,S{sow})/G_YRFR(R,S))/PRC_CAPACT(R,P) =E=
-   SUM(BDNEQ(BD),{var}_UDP(R,V,T,P,S,BD{sow})*BDSIG(BD))-ACT_MINLD(R,V,P)*({var}_UPS(R,V,T,P,TS,'N'{sow})-{var}_UPS(R,V,T,P,S,'N'{sow}))$RPS_UPS(R,P,S);
-
-
-""",
-        )
+        eq_actrmpc[g.RtpVintyr[*r_v_t, g.p], g.ts[g.s], *swt].where[
+            (
+                g.PrcTs[g.r, g.p, g.s].where[
+                    g.RpStd[g.r, g.p] & Sum(g.RpUpr[g.r, g.p, g.bd], 1.0)
+                ]
+            )
+        ] = (
+            # * ramping costs
+            VAR_ACT[g.r, g.v, g.t, g.p, g.ts, *sow] / g.g_yrfr[g.r, g.ts]
+            - VAR_ACT[g.r, g.v, g.t, g.p, g.s, *sow] / g.g_yrfr[g.r, g.s]
+        ) / g.prc_capact[g.r, g.p] == Sum(
+            g.Bdneq[g.bd],
+            VAR_UDP[g.r, g.v, g.t, g.p, g.s, g.bd, *sow] * g.bdsig[g.bd],
+        ) - g.act_minld[g.r, g.v, g.p] * (
+            VAR_UPS[g.r, g.v, g.t, g.p, g.ts, "N", *sow]
+            - VAR_UPS[g.r, g.v, g.t, g.p, g.s, "N", *sow]
+        ).where[g.RpsUps[g.r, g.p, g.s]]
 
     def equation_stgccl(
         self: EqactupsVda,
-        r_v_t: str,
-        mx: str,
+        r_v_t: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
+        mx: Sum | Condition | Expression | tuple[Set | Alias | str, ...] | tuple[()],
         var: str,
-        sow: str,
-        swx: str,
-        swtx: str,
+        sow: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
+        swx: tuple[Literal["1"] | Set | Alias] | tuple[()],
+        swtx: Number | ImplicitSet,
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
+        g = self.tc
+        VAR_UPS = g.get_variable(f"{var}_UPS")
+        VAR_SOUT = g.get_variable(f"{var}_SOUT")
 
-  EQL_STGCCL(RTP_VINTYR({r_v_t},P){swx})$({swtx}SUM(RPS_STG(R,P,S)$COEF_AFUPS(R,V,P,S),1)$STG_MAXCYC(R,V,P)$RP_STG(R,P))..
-
-* Storage cycling penalty
-   ({mx}+{var}_UPS(R,V,T,P,'ANNUAL','UP'{sow}))/EXP(PRC_SC(R,P))*SMAX(RPS_STG(R,P,S),COEF_AFUPS(R,V,P,S))*PRC_CAPACT(R,P) =G=
-   SUM((TOP(RPC_STG(R,P,C),'OUT'),RPCS_VAR(R,P,C,S)),{var}_SOUT(R,V,T,P,C,S{sow})/PRC_ACTFLO(R,V,P,C))*NCAP_TLIFE(R,V,P) / STG_MAXCYC(R,V,P);
-
-""",
-        )
+        g.eql_stgccl[g.RtpVintyr[*r_v_t, g.p], *swx].where[
+            (
+                swtx.where[
+                    Sum(
+                        g.RpsStg[g.r, g.p, g.s].where[g.coef_afups[g.r, g.v, g.p, g.s]],
+                        1.0,
+                    )
+                    & g.stg_maxcyc[g.r, g.v, g.p]
+                    & g.RpStg[g.r, g.p]
+                ]
+            )
+        ] = (
+            # * Storage cycling penalty
+            # TODO mx?
+            mx + VAR_UPS[g.r, g.v, g.t, g.p, "ANNUAL", "UP", *sow]  # type: ignore
+        ) / exp(g.prc_sc[g.r, g.p]) * Smax(
+            g.RpsStg[g.r, g.p, g.s], g.coef_afups[g.r, g.v, g.p, g.s]
+        ) * g.prc_capact[g.r, g.p] >= Sum(
+            Domain(
+                g.Top[g.RpcStg[g.r, g.p, g.c], "OUT"], g.RpcsVar[g.r, g.p, g.c, g.s]
+            ),
+            VAR_SOUT[g.r, g.v, g.t, g.p, g.c, g.s, *sow]
+            / g.prc_actflo[g.r, g.v, g.p, g.c],
+        ) * g.ncap_tlife[g.r, g.v, g.p] / g.stg_maxcyc[g.r, g.v, g.p]
 
     def equation_slsift(
         self: EqactupsVda,
         eq: str,
-        r_t: str,
-        swt: str,
+        r_t: tuple[Set | Alias | ImplicitSet, Set | Alias | ImplicitSet],
+        swt: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
         var: str,
-        sow: str,
+        sow: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
         pgprim: str,
-        rts: str,
+        rts: Set | Alias,
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-* Load Shifting
-  {eq}_SLSIFT(RTP({r_t},P),COM,{rts},LNX,L{swt})$((PRC_TS(R,P,S)$ACT_TIME(RTP,L)+BD(LNX)$LNX(L))$RPS_PRCTS(R,P,S)$RPC_LS(R,P,COM))..
-
-  SUM(RTP_VINTYR(R,V,T,P),
-* Limit net and gross sifting flows
-    SUM(IPS(L)$(PRC_TS(R,P,S)+YES$STG_SIFT(RTP,'{pgprim}',S)+ANNUAL(S)$ACTCG(COM)),
-      SUM(PRC_TS(R,P,TS)$RS_BELOW1(R,S,TS),{var}_ACT(R,V,T,P,TS{sow}))$STG_SIFT(RTP,'{pgprim}',S) +
-      SUM((TOP(RPC_STG(R,P,C),'OUT'),RPCS_VAR(R,P,C,TS)),{var}_SOUT(R,V,T,P,C,TS{sow}))$ANNUAL(S)$ACTCG(COM) +
-      ({var}_SIN(R,V,T,P,COM,S{sow}) + {var}_ACT(R,V,T,P,S{sow}))$PRC_TS(R,P,S) + {var}_SOUT(R,T,T,P,'{pgprim}',S{sow}) -
-      SUM((TOP(RPC_STG(R,P,C),'OUT'),RTCS_VARC(RTC(R,T,C),TS))$RS_FR(R,S,TS),(STG_SIFT(RTP,C,TS)$(PRC_TS(R,P,S)+ANNUAL(S)$ACTCG(COM))+STG_SIFT(RTP,'{pgprim}',S))*{var}_COMPRD(R,T,C,TS{sow})/COM_IE(RTC,TS)*RS_FR(R,S,TS)*(1+RTCS_FR(R,T,C,S,TS)))) -
-* Get net sifting, force zero shifting at seasonal level
-    SUM(BD(L)$LNX(L),
-      (SUM((TOP(RPC_STG(R,P,C),'OUT'),RPCS_VAR(R,P,C,TS))$RS_FR(R,S,TS),{var}_SOUT(R,V,T,P,C,TS{sow})*RS_FR(R,S,TS)*(1+RTCS_FR(R,T,C,S,TS))) -
-       SUM(TOP(RPC_STG(R,P,C),'IN'),{var}_SIN(R,V,T,P,C,S{sow}))-({var}_ACT(R,V,T,P,S{sow})-{var}_SIN(R,V,T,P,COM,S{sow})))$PRC_TS(R,P,S) +
-      SUM(PRC_TS(R,P,TS)$RS_BELOW1(R,S,TS),{var}_SIN(R,V,T,P,COM,TS{sow})-{var}_ACT(R,V,T,P,TS{sow}))$(SUM(LIM$ACT_TIME(RTP,LIM),1)=0)) +
-* Asymmetric advance or delay
-    SUM(BDNEQ(BD(L))$ACT_TIME(RTP,'LO'),{macro.var_sift.render("V", "S", "L")}+{macro.var_sift.render("'0'", "S", "L")} -
-       SUM((RS_UP(R,S,JS),RJ_SL(R,JS,SL)),{var}_UPS(R,V,T,P,SL,L{sow})$(MOD((RS_HR(R,S)-RS_HR(R,SL)+G_YRFR(R,S)/RS_STGPRD(R,S)/9)*BDSIG(L)+1/JS_CCL(R,JS),1/JS_CCL(R,JS))<ACT_TIME(RTP,L)/8760))))$BD(LNX)
-  =E=
-  SUM(RTP_VINTYR(R,V,T,P),
-* Balance for sifting (LO=advance, UP=delay)
-    SUM(TS(S--RS_STG(R,S)),SUM(BDNEQ(BD),({macro.var_sift.render("V", "TS", "BD")}-{macro.var_sift.render("V", "S", "BD")})*BDSIG(BD))+{var}_SIN(R,V,T,P,COM,S{sow})-{var}_ACT(R,V,T,P,S{sow}))$(BDSIG(L)<0) +
-    (SUM(BDNEQ(BD),{var}_UPS(R,V,T,P,S,BD{sow}))-{var}_SIN(R,V,T,P,COM,S{sow}))$(BDSIG(L)>0) +
-* Limit advance and delay or balancing time window
-    SUM(LASTLL$LNX(L),SUM(LIM$(IPS(L) XOR BD(LIM)),{macro.var_sift.render("V", "S", "LIM")}) +
-      SUM((RS_UP(R,S,JS),RJ_SL(R,JS,TS(SL--RS_STG(R,SL)))),
-        ({var}_ACT(R,V,T,P,SL{sow})$IPS(L)-{var}_SIN(R,V,T,P,COM,SL{sow}) -
-         ({macro.var_sift.render("V", "SL", "'UP'")}-{macro.var_sift.render("V", "TS", "'UP'")})$BD(L))$(MOD(RS_HR(R,S)-RS_HR(R,SL)+G_YRFR(R,S)/RS_STGPRD(R,S)/9+1/JS_CCL(R,JS),1/JS_CCL(R,JS))<ACT_TIME(RTP,L)/8760))))$IPS(LNX);
-
-""",
+        g = self.tc
+        eq_slsift = g.get_equation(f"{eq}_SLSIFT")
+        VAR_UPS = g.get_variable(f"{var}_UPS")
+        VAR_ACT = g.get_variable(f"{var}_ACT")
+        VAR_SIN = g.get_variable(f"{var}_SIN")
+        VAR_SOUT = g.get_variable(f"{var}_SOUT")
+        VAR_COMPRD = g.get_variable(f"{var}_COMPRD")
+        # * Load Shifting
+        eq_slsift[g.Rtp[*r_t, g.p], g.Com, rts, g.Lnx, g.lA, *swt].where[
+            (
+                (
+                    g.PrcTs[g.r, g.p, g.s].where[g.act_time[g.Rtp, g.lA]]
+                    + g.bd[g.Lnx].where[g.Lnx[g.lA]]
+                ).where[g.RpsPrcts[g.r, g.p, g.s] & g.RpcLs[g.r, g.p, g.Com]]
+            )
+        ] = (
+            Sum(
+                g.RtpVintyr[g.r, g.v, g.t, g.p],
+                # * Limit net and gross sifting flows
+                Sum(
+                    g.ips[g.lA].where[
+                        (
+                            g.PrcTs[g.r, g.p, g.s]
+                            + Number(1).where[g.stg_sift[g.Rtp, pgprim, g.s]]
+                            + g.Annual[g.s].where[g.Actcg[g.Com]]
+                        )
+                    ],
+                    Sum(
+                        g.PrcTs[g.r, g.p, g.ts].where[g.RsBelow1[g.r, g.s, g.ts]],
+                        VAR_ACT[g.r, g.v, g.t, g.p, g.ts, *sow],
+                    ).where[g.stg_sift[g.Rtp, pgprim, g.s]]
+                    + Sum(
+                        Domain(
+                            g.Top[g.RpcStg[g.r, g.p, g.c], "OUT"],
+                            g.RpcsVar[g.r, g.p, g.c, g.ts],
+                        ),
+                        VAR_SOUT[g.r, g.v, g.t, g.p, g.c, g.ts, *sow],
+                    ).where[g.Annual[g.s] & g.Actcg[g.Com]]
+                    + (
+                        VAR_SIN[g.r, g.v, g.t, g.p, g.Com, g.s, *sow]
+                        + VAR_ACT[g.r, g.v, g.t, g.p, g.s, *sow]
+                    ).where[g.PrcTs[g.r, g.p, g.s]]
+                    + VAR_SOUT[g.r, g.t, g.t, g.p, pgprim, g.s, *sow]
+                    - Sum(
+                        Domain(
+                            g.Top[g.RpcStg[g.r, g.p, g.c], "OUT"],
+                            g.RtcsVarc[g.Rtc[g.r, g.t, g.c], g.ts],
+                        ).where[g.rs_fr[g.r, g.s, g.ts]],
+                        (
+                            g.stg_sift[g.Rtp, g.c, g.ts].where[
+                                (
+                                    g.PrcTs[g.r, g.p, g.s]
+                                    + g.Annual[g.s].where[g.Actcg[g.Com]]
+                                )
+                            ]
+                            + g.stg_sift[g.Rtp, pgprim, g.s]
+                        )
+                        * VAR_COMPRD[g.r, g.t, g.c, g.ts, *sow]
+                        / g.com_ie[g.Rtc, g.ts]
+                        * g.rs_fr[g.r, g.s, g.ts]
+                        * (1.0 + g.rtcs_fr[g.r, g.t, g.c, g.s, g.ts]),
+                    ),
+                )
+                # * Get net sifting, force zero shifting at seasonal level
+                - Sum(
+                    g.bd[g.lA].where[g.Lnx[g.lA]],
+                    (
+                        Sum(
+                            Domain(
+                                g.Top[g.RpcStg[g.r, g.p, g.c], "OUT"],
+                                g.RpcsVar[g.r, g.p, g.c, g.ts],
+                            ).where[g.rs_fr[g.r, g.s, g.ts]],
+                            VAR_SOUT[g.r, g.v, g.t, g.p, g.c, g.ts, *sow]
+                            * g.rs_fr[g.r, g.s, g.ts]
+                            * (1.0 + g.rtcs_fr[g.r, g.t, g.c, g.s, g.ts]),
+                        )
+                        - Sum(
+                            g.Top[g.RpcStg[g.r, g.p, g.c], "IN"],
+                            VAR_SIN[g.r, g.v, g.t, g.p, g.c, g.s, *sow],
+                        )
+                        - (
+                            VAR_ACT[g.r, g.v, g.t, g.p, g.s, *sow]
+                            - VAR_SIN[g.r, g.v, g.t, g.p, g.Com, g.s, *sow]
+                        )
+                    ).where[g.PrcTs[g.r, g.p, g.s]]
+                    + Sum(
+                        g.PrcTs[g.r, g.p, g.ts].where[g.RsBelow1[g.r, g.s, g.ts]],
+                        VAR_SIN[g.r, g.v, g.t, g.p, g.Com, g.ts, *sow]
+                        - VAR_ACT[g.r, g.v, g.t, g.p, g.ts, *sow],
+                    ).where[(Sum(g.lim.where[g.act_time[g.Rtp, g.lim]], 1.0) == 0.0)],
+                )
+                # * Asymmetric advance or delay
+                + Sum(
+                    g.Bdneq[g.bd[g.lA]].where[g.act_time[g.Rtp, "LO"]],
+                    macro.var_sift.render_GP(g.v, g.s, g.lA)
+                    + macro.var_sift.render_GP("0", g.s, g.lA)
+                    - Sum(
+                        Domain(g.RsUp[g.r, g.s, g.Js], g.RjSl[g.r, g.Js, g.sl]).where[
+                            (
+                                mod(
+                                    (
+                                        g.rs_hr[g.r, g.s]
+                                        - g.rs_hr[g.r, g.sl]
+                                        + g.g_yrfr[g.r, g.s]
+                                        / g.rs_stgprd[g.r, g.s]
+                                        / 9.0
+                                    )
+                                    * g.bdsig[g.lA]
+                                    + 1.0 / g.js_ccl[g.r, g.Js],
+                                    1.0 / g.js_ccl[g.r, g.Js],
+                                )
+                                < g.act_time[g.Rtp, g.lA] / 8760.0
+                            )
+                        ],
+                        VAR_UPS[g.r, g.v, g.t, g.p, g.sl, g.lA, *sow],
+                    ),
+                ),
+            ).where[g.bd[g.Lnx]]
+            == Sum(
+                g.RtpVintyr[g.r, g.v, g.t, g.p],
+                # * Balance for sifting (LO=advance, UP=delay)
+                Sum(
+                    g.ts[g.s.lag(g.rs_stg[g.r, g.s], "circular")],
+                    Sum(
+                        g.Bdneq[g.bd],
+                        (
+                            macro.var_sift.render_GP(g.v, g.ts, g.bd)
+                            - macro.var_sift.render_GP(g.v, g.s, g.bd)
+                        )
+                        * g.bdsig[g.bd],
+                    )
+                    + VAR_SIN[g.r, g.v, g.t, g.p, g.Com, g.s, *sow]
+                    - VAR_ACT[g.r, g.v, g.t, g.p, g.s, *sow],
+                ).where[(g.bdsig[g.lA] < 0.0)]
+                + (
+                    Sum(g.Bdneq[g.bd], VAR_UPS[g.r, g.v, g.t, g.p, g.s, g.bd, *sow])
+                    - VAR_SIN[g.r, g.v, g.t, g.p, g.Com, g.s, *sow]
+                ).where[(g.bdsig[g.lA] > 0.0)]
+                # * Limit advance and delay or balancing time window
+                + Sum(
+                    g.Lastll.where[g.Lnx[g.lA]],
+                    Sum(
+                        g.lim.where[((g.ips[g.lA]) ^ (g.bd[g.lim]))],
+                        macro.var_sift.render_GP(g.v, g.s, g.lim),
+                    )
+                    + Sum(
+                        Domain(
+                            g.RsUp[g.r, g.s, g.Js],
+                            g.RjSl[
+                                g.r,
+                                g.Js,
+                                g.ts[g.sl.lag(g.rs_stg[g.r, g.sl], "circular")],
+                            ],
+                        ).where[
+                            (
+                                mod(
+                                    g.rs_hr[g.r, g.s]
+                                    - g.rs_hr[g.r, g.sl]
+                                    + g.g_yrfr[g.r, g.s] / g.rs_stgprd[g.r, g.s] / 9.0
+                                    + 1.0 / g.js_ccl[g.r, g.Js],
+                                    1.0 / g.js_ccl[g.r, g.Js],
+                                )
+                                < g.act_time[g.Rtp, g.lA] / 8760.0
+                            )
+                        ],
+                        (
+                            VAR_ACT[g.r, g.v, g.t, g.p, g.sl, *sow].where[g.ips[g.lA]]
+                            - VAR_SIN[g.r, g.v, g.t, g.p, g.Com, g.sl, *sow]
+                            - (
+                                macro.var_sift.render_GP(g.v, g.sl, "UP")
+                                - macro.var_sift.render_GP(g.v, g.ts, "UP")
+                            ).where[g.bd[g.lA]]
+                        ),
+                    ),
+                ),
+            ).where[g.ips[g.Lnx]]
         )

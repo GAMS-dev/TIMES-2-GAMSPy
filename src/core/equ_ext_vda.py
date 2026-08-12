@@ -29,6 +29,7 @@ from core.pp_actef_vda import PpActefVda
 from core.resloadc_vda import ResloadcVda
 from core.ucbet_vda import UcbetVda
 from core.utils import apply_sw_stvars
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -70,7 +71,7 @@ class EquExtVda(GamsClass):
         if self.env.stages == "YES":
             apply_sw_stvars(env=self.env, g=self.tc)
         self.env.set_scoped(
-            "upscap0", f"({self.env.upscaps}$PRC_TS(R,P,S))$RP_UPL(R,P,'FX')"
+            "upscap0", f"({macro.upscaps.render()}$PRC_TS(R,P,S))$RP_UPL(R,P,'FX')"
         )
 
         g = self.tc
@@ -105,7 +106,7 @@ class EquExtVda(GamsClass):
                     arg4=args[3],
                 )
             )
-        self.include(EqactupsVda(self.tc, self.env, arg1=self.env.mx))
+        self.include(EqactupsVda(self.tc, self.env, arg1_mx=self.env.mx_GP))
         self.include(EqlducsVda(self.tc, self.env, arg1="EQU"))
 
         # * ASHAR equations:

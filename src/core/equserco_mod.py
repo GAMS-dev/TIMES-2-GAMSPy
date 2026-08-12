@@ -247,7 +247,6 @@ class EqusercoMod(GamsClass):
         include_uc_cap = uc_cap_mod(
             var=self.env.var,
             sow=self.env.sow,
-            upscaps=self.env.upscaps,
             vda=self.env.vda,
             abs=self.env.abs,
             arg1=f"{self.arg4}{self.arg7}",
@@ -422,7 +421,6 @@ class EqusercoMod(GamsClass):
             uc_cap_mod(
                 var=self.env.var,  # TODO: Use self.env.var_GP
                 sow=self.env.sow,
-                upscaps=self.env.upscaps,
                 vda=self.env.vda,
                 abs=self.env.abs,
                 arg1=f"{self.arg4}{self.arg7}",
@@ -571,7 +569,6 @@ class EqusercoMod(GamsClass):
             uc_cap_mod(
                 var=self.env.var,  # TODO: Use self.env.var_GP
                 sow=self.env.sow,
-                upscaps=self.env.upscaps,
                 vda=self.env.vda,
                 abs=self.env.abs,
                 arg1=f"{self.arg4}{self.arg7}",

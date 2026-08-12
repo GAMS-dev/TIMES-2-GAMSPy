@@ -46,7 +46,7 @@ class UcActModConfig(BaseUcModConfig):
 def inner_sum(
     g: TimesModelClass,
     var: str | tuple[str, Any],
-    sow_GP: tuple[Literal["0", "1"] | SET_OR_ALIAS] | tuple[()],
+    sow: tuple[Literal["0", "1"] | SET_OR_ALIAS] | tuple[()],
     config: UcActModConfig,
 ) -> Sum:
     cc = config
@@ -70,10 +70,9 @@ def inner_sum(
         var_id = var
         domain = None
 
-    var_act = g.get_variable(name=f"{var_id}_ACT")
+    VAR_ACT = g.get_variable(name=f"{var_id}_ACT")
 
-    if domain is not None:
-        var_act = Sum(domain, var_act)
+    VAR_ACT_expr = Sum(domain, VAR_ACT) if domain is not None else VAR_ACT
 
     expr2: Product | int
     if arg6 == 1:
@@ -99,7 +98,7 @@ def inner_sum(
                 g.PrcTs[g.r, g.p, g.ts].where[
                     (g.rs_fr[g.r, g.s, g.ts] * g.RtpVara[g.r, arg4, g.p])
                 ],
-                var_act[g.r, g.v, arg4, g.p, g.ts, *sow_GP]
+                VAR_ACT_expr[g.r, g.v, arg4, g.p, g.ts, *sow]
                 * g.uc_act[g.ucn, arg5, g.r, arg7, g.p, g.ts]
                 * Product(
                     g.Annual, g.rs_fr[g.r, g.s, g.ts]

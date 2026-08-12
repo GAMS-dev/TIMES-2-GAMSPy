@@ -227,7 +227,7 @@ class ResloadcVda(GamsClass):
       SUM((RTP_VINTYR(R,V,T,P),PRC_TS(R,P,S))$RS_FR(R,TS,S),SMAX(RPC_PG(R,P,C)$NRG_TMAP(R,'ELC',C),PRC_ACTFLO(R,V,P,C)) *
         (SUM(BD$BDNEQ(BD),GR_THBND(R,T,P,BD))+SUM(TS_ANN(S,SL),ACT_UPS(R,V,P,SL,'FX'))$(NOT GR_THMIN(R,T,P))) *
         (SUM(MODLYEAR(K)$(COEF_CPT(R,K,T,P)$(DIAG(V,K)>=1$PRC_VINT(R,P))),COEF_CPT(R,MODLYEAR,T,P) *
-          ({self.env.varm}_NCAP(R,K,P {self.env.sws})$TT(K)+NCAP_PASTI(R,K,P)$PYR(K){self.env.rcapsbm})){self.env.upscaps}))))$BDLOX(BDNEQ);
+          ({self.env.varm}_NCAP(R,K,P {self.env.sws})$TT(K)+NCAP_PASTI(R,K,P)$PYR(K){self.env.rcapsbm})){macro.upscaps.render()}))))$BDLOX(BDNEQ);
 """,
             )
 

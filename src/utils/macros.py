@@ -46,7 +46,7 @@ class VarSiftContext:
         return f"VAR_SIFT({v},{s},{lA})"
 
     def render_GP(
-        self, v: SET_OR_ALIAS, s: SET_OR_ALIAS, lA: SET_OR_ALIAS
+        self, v: SET_OR_ALIAS | str, s: SET_OR_ALIAS, lA: SET_OR_ALIAS | str
     ) -> Expression | ImplicitParameter | Any:
         g = self.g
         if self.active:
@@ -109,12 +109,59 @@ class VarStsContext:
         return g.var_sts[r, v, t, p, ts, bd]
 
 
+@dataclass
+class UpscapsContext:
+    active: bool = False
+    var: str = ""
+    sow: str = ""
+
+    def activate(
+        self,
+        g: TimesModelClass,
+        var: str,
+        sow: str,
+        sow_GP: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
+    ) -> None:
+        self.g = g
+        self.active = True
+        self.var = var
+        self.sow = sow
+        self.sow_GP = sow_GP
+
+    def deactivate(self) -> None:
+        self.active = False
+        self.var = ""
+        self.sow = ""
+        self.sow_GP = ()
+
+    def render(self) -> str:
+        if self.active:
+            return f"-SUM(TS_MAP(R,ALL_TS,S)$RPS_UPS(R,P,ALL_TS),{self.var}_UPS(R,V,T,P,ALL_TS,'N'{self.sow}))"
+        else:
+            raise NotImplementedError
+
+    def render_GP(
+        self,
+    ) -> Expression:
+        g = self.g
+        if self.active:
+            var_ups = g.get_variable(f"{self.var}_UPS")
+            expr = -Sum(
+                g.TsMap[g.r, g.allts, g.s].where[g.RpsUps[g.r, g.p, g.allts]],
+                var_ups[g.r, g.v, g.t, g.p, g.allts, "N", *self.sow_GP],
+            )
+            return expr
+        else:
+            raise NotImplementedError
+
+
 class Macros:
     def __init__(self) -> None:
         self._g: TimesModelClass
         self._active: dict[str, bool] = {}
         self.var_sift = VarSiftContext()
         self.var_sts = VarStsContext()
+        self.upscaps = UpscapsContext()
 
     # ICOST
     @property

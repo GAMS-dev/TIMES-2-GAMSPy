@@ -76,10 +76,8 @@ class CoefExtVda(GamsClass):
         # RESID
         self.tc.enqueue(self.make_sensible_resid_pasti)
 
-        # * Offline capacity terms & STS amendments
-        self.env.set_global(
-            "upscaps",
-            f"-SUM(TS_MAP(R,ALL_TS,S)$RPS_UPS(R,P,ALL_TS),{self.env.var}_UPS(R,V,T,P,ALL_TS,'N'{self.env.sow}))",
+        macro.upscaps.activate(
+            g=self.tc, var=self.env.var, sow=self.env.sow, sow_GP=self.env.sow_GP
         )
 
         macro.var_sts.activate(
