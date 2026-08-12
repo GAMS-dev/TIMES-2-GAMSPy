@@ -28,7 +28,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class EquExtIer(GamsClass):  # FilenameExt
+# TODO For now without dataclass because it gets called in a boundle
+class EquExtIer(GamsClass):
     """Translation unit for equ_ext.ier."""
 
     # Instance attributes
@@ -39,8 +40,8 @@ class EquExtIer(GamsClass):  # FilenameExt
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
+        arg1: str,
+        arg2: str,
     ):
         self.env = env.fork()
         self._sub_modules = {}
@@ -52,7 +53,6 @@ class EquExtIer(GamsClass):  # FilenameExt
     def compile(self) -> None:
         g = self.tc
         m = g.container
-
         # *-----------------------------------------------------------------------------
         # * Bound on the market share of a flow in the production/consumption of a commodity
         # *-----------------------------------------------------------------------------
@@ -75,24 +75,35 @@ class EquExtIer(GamsClass):  # FilenameExt
                 ),
             )
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  EQUATIONS
-*-----------------------------------------------------------------------------
-* Equation bounding the electricity production of extraction condensing CHP plants
-* by the available condensing resp. backpressure capacity
-*-----------------------------------------------------------------------------
-EQL_CHPCON(R,YEAR,YEAR,P,ALLSOW)      'Condensing capacity constraint (=L=)'
-EQL_CHPBPT(R,YEAR,YEAR,P,ALLSOW)      'Backpressure capacity constraint (=L=)'
-EQE_CHPCON(R,YEAR,YEAR,P,ALLSOW)      'Condensing capacity constraint (=E=)'
-EQE_CHPBPT(R,YEAR,YEAR,P,ALLSOW)      'Backpressure capacity constraint (=E=)'
-;
-*----------------------------End of equations---------------------------------
-
-""",
+        # *-----------------------------------------------------------------------------
+        # * Equation bounding the electricity production of extraction condensing CHP plants
+        # * by the available condensing resp. backpressure capacity
+        # *-----------------------------------------------------------------------------
+        g.eql_chpcon = Equation(
+            m,
+            name="EQL_CHPCON",
+            domain=[g.r, g.year, g.year, g.p, g.allsow],
+            description="Condensing capacity constraint (=L=)",
         )
+        g.eql_chpbpt = Equation(
+            m,
+            name="EQL_CHPBPT",
+            domain=[g.r, g.year, g.year, g.p, g.allsow],
+            description="Backpressure capacity constraint (=L=)",
+        )
+        g.eqe_chpcon = Equation(
+            m,
+            name="EQE_CHPCON",
+            domain=[g.r, g.year, g.year, g.p, g.allsow],
+            description="Condensing capacity constraint (=E=)",
+        )
+        g.eqe_chpbpt = Equation(
+            m,
+            name="EQE_CHPBPT",
+            domain=[g.r, g.year, g.year, g.p, g.allsow],
+            description="Backpressure capacity constraint (=E=)",
+        )
+        # *----------------------------End of equations---------------------------------
 
         # * Call for Implementations
         # *-----------------------------------------------------------------------------
@@ -101,12 +112,12 @@ EQE_CHPBPT(R,YEAR,YEAR,P,ALLSOW)      'Backpressure capacity constraint (=E=)'
 
         # fmt: off
         batincludes: list[EqmrkcomIerConfig] = [
-            EqmrkcomIerConfig(arg1=f"{self.arg1}", arg2="L", arg3="LO", arg4="PRD", arg5="OUT"),
-            EqmrkcomIerConfig(arg1=f"{self.arg1}", arg2="E", arg3="FX", arg4="PRD", arg5="OUT"),
-            EqmrkcomIerConfig(arg1=f"{self.arg1}", arg2="G", arg3="UP", arg4="PRD", arg5="OUT"),
-            EqmrkcomIerConfig(arg1=f"{self.arg1}", arg2="L", arg3="LO", arg4="CON", arg5="IN"),
-            EqmrkcomIerConfig(arg1=f"{self.arg1}", arg2="E", arg3="FX", arg4="CON", arg5="IN"),
-            EqmrkcomIerConfig(arg1=f"{self.arg1}", arg2="G", arg3="UP", arg4="CON", arg5="IN"),
+            EqmrkcomIerConfig(arg1=self.arg1, arg2="L", arg3="LO", arg4="PRD", arg5="OUT"),
+            EqmrkcomIerConfig(arg1=self.arg1, arg2="E", arg3="FX", arg4="PRD", arg5="OUT"),
+            EqmrkcomIerConfig(arg1=self.arg1, arg2="G", arg3="UP", arg4="PRD", arg5="OUT"),
+            EqmrkcomIerConfig(arg1=self.arg1, arg2="L", arg3="LO", arg4="CON", arg5="IN"),
+            EqmrkcomIerConfig(arg1=self.arg1, arg2="E", arg3="FX", arg4="CON", arg5="IN"),
+            EqmrkcomIerConfig(arg1=self.arg1, arg2="G", arg3="UP", arg4="CON", arg5="IN"),
         ]
         # fmt: on
         for config in batincludes:
@@ -117,28 +128,9 @@ EQE_CHPBPT(R,YEAR,YEAR,P,ALLSOW)      'Backpressure capacity constraint (=E=)'
         # * by the available condensing resp. backpressure capacity
         # *-----------------------------------------------------------------------------
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-ECT_CHP(RP)$(NOT PRC_CAP(RP)$RP_STD(RP)) = NO;
-""",
-        )
+        g.EctChp[g.Rp].where[(~(g.PrcCap[g.Rp].where[g.RpStd[g.Rp]]))] = False
+
         if self.env.chp_mode == "YES":
-            self.include(
-                EqchpelcIer(
-                    self.tc,
-                    self.env,
-                    arg1="L",
-                    arg2="UP",
-                )
-            )
+            self.include(EqchpelcIer(self.tc, self.env, arg1="L", arg2="UP"))
         if self.env.chp_mode == "YES":
-            self.include(
-                EqchpelcIer(
-                    self.tc,
-                    self.env,
-                    arg1="E",
-                    arg2="FX",
-                )
-            )
+            self.include(EqchpelcIer(self.tc, self.env, arg1="E", arg2="FX"))
