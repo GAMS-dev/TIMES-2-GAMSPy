@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from gamspy import Alias, Equation, Parameter, Set, Sum
 
@@ -32,9 +32,11 @@ from core.utils import apply_sw_stvars
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
+    from gamspy import Expression
+    from gamspy._algebra.condition import Condition
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
-
 logger = logging.getLogger(__name__)
 
 
@@ -60,6 +62,7 @@ class EquExtVda(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
         if self.arg1.upper() != "DECLR":  # L11: GOTO VDA
             pass
         else:
@@ -73,8 +76,13 @@ class EquExtVda(GamsClass):
         self.env.set_scoped(
             "upscap0", f"({macro.upscaps.render()}$PRC_TS(R,P,S))$RP_UPL(R,P,'FX')"
         )
+        self.env.set_scoped(
+            "upscap0_GP",
+            macro.upscaps.render_GP().where[
+                g.PrcTs[g.r, g.p, g.s] & g.RpUpl[g.r, g.p, "FX"]
+            ],
+        )
 
-        g = self.tc
         r, ll, t, p, tsl, ips, lA = g.r, g.ll, g.t, g.p, g.tsl, g.ips, g.lA
 
         m = g.container
@@ -91,9 +99,20 @@ class EquExtVda(GamsClass):
         # * Activity Efficiency Transformation
         self.include(PpActefVda(self.tc, self.env))
         # * Capacity-activity equations:
-        eqcaflac_bat_includes = [
-            ("E", "'FX'", "$", self.env.mx),
-            ("L", "'UP'", "*", self.env.mx),
+        eqcaflac_bat_includes: list[
+            tuple[
+                Literal["E", "N", "L", "G"],
+                str,
+                str,
+                Sum
+                | Condition
+                | Expression
+                | tuple[Set | Alias | str, ...]
+                | tuple[()],
+            ]
+        ] = [
+            ("E", "FX", "$", self.env.mx_GP),
+            ("L", "UP", "*", self.env.mx_GP),
         ]
         for args in eqcaflac_bat_includes:
             self.include(

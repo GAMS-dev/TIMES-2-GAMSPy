@@ -240,6 +240,9 @@ class EnvironmentVariableSchema(BaseModel):
     upscap0: str = Field(
         description="Initial capability update tracking parameter handling historical baseline records."
     )
+    upscap0_GP: Condition = Field(
+        description="Initial capability update tracking parameter handling historical baseline records."
+    )
     vas: str = Field(
         description="Variable assignment tracking string mapping structural matrix parameters."
     )

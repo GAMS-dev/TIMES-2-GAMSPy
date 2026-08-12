@@ -17,9 +17,16 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
+
+from gamspy import Alias, Domain, Expression, Number, Product, Set, Sum
+from gamspy._algebra.condition import Condition
+from gamspy._symbols.implicits import ImplicitSet
+from gamspy.math import abs, diag, exp
 
 from core.base_class import GamsClass
+from core.cal_red_red import CalRedRedConfig
+from core.utils import generate_equation
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
@@ -40,10 +47,10 @@ class EqcaflacVda(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
+        arg1: Literal["E", "N", "L", "G"],
+        arg4: Sum | Condition | Expression | tuple[Set | Alias | str, ...] | tuple[()],
         arg2: str = "",
         arg3: str = "",
-        arg4: str = "",
     ):
         self.env = env.fork()
         self._sub_modules = {}
@@ -57,13 +64,13 @@ class EqcaflacVda(GamsClass):
     def compile(self) -> None:
         self.comp1(
             eq=self.env.eq,
-            r_v_t=self.env.r_v_t,
-            swt=self.env.swt,
-            sow=self.env.sow,
-            rcapsbm=self.env.rcapsbm,
-            upscap0=self.env.upscap0,
-            varm=self.env.varm,
-            sws=self.env.sws,
+            r_v_t=self.env.r_v_t_GP,
+            swt=self.env.swt_GP,
+            sow=self.env.sow_GP,
+            rcapsbm=self.env.rcapsbm_GP,
+            upscap0=self.env.upscap0_GP,
+            varm=self.env.varm_GP,
+            sws=self.env.sws_GP,
             var=self.env.var,
             arg1=self.arg1,
             arg2=self.arg2,
@@ -74,14 +81,14 @@ class EqcaflacVda(GamsClass):
 
         self.comp2(
             eq=self.env.eq,
-            r_v_t=self.env.r_v_t,
-            rts=self.env.rts(),
-            swt=self.env.swt,
-            sow=self.env.sow,
-            rcapsbm=self.env.rcapsbm,
-            upscap0=self.env.upscap0,
-            varm=self.env.varm,
-            sws=self.env.sws,
+            r_v_t=self.env.r_v_t_GP,
+            rts=self.env.rts_GP(),
+            swt=self.env.swt_GP,
+            sow=self.env.sow_GP,
+            rcapsbm=self.env.rcapsbm_GP,
+            upscap0=self.env.upscap0_GP,
+            varm=self.env.varm_GP,
+            sws=self.env.sws_GP,
             var=self.env.var,
             cal_red=self.env.cal_red,
             pgprim=self.env.pgprim,
@@ -93,106 +100,251 @@ class EqcaflacVda(GamsClass):
     def comp1(
         self: EqcaflacVda,
         eq: str,
-        r_v_t: str,
-        swt: str,
-        sow: str,
-        rcapsbm: str,
-        upscap0: str,
-        varm: str,
-        sws: str,
+        r_v_t: tuple[Set | Alias | ImplicitSet, ...],
+        swt: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
+        sow: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
+        rcapsbm: Expression | Condition | Number,
+        upscap0: Condition,
+        varm: tuple[str, ImplicitSet | None],
+        sws: tuple[Set | Alias, ...] | tuple[()],
         var: str,
-        arg1: str,
+        arg1: Literal["E", "N", "L", "G"],
         arg2: str,
-        arg4: str,
+        arg4: Sum | Condition | Expression | tuple[Set | Alias | str, ...] | tuple[()],
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-{eq}{arg1}_CAFLAC(RTP_VINTYR({r_v_t},P),S{swt})$(AFS(R,T,P,S,{arg2})$RPS_CAFLAC(R,P,S,{arg2}))..
+        g = self.tc
 
-* Sum over flows in PG
-    SUM((RPC_PG(R,P,C),COM_TMAP(R,COM_TYPE(CG),C)),
-        (1/ABS(PRC_ACTFLO(R,V,P,C))) /
-        (NCAP_AFCS(R,V,P,C,S)+PROD(XPT$NCAP_AFCS(R,V,P,CG,S),NCAP_AFCS(R,V,P,CG,S))$(NOT NCAP_AFCS(R,V,P,C,S))) *
-        SUM(RPCS_VAR(R,P,C,TS)$RS_FR(R,S,TS),RS_FR(R,S,TS) * ({var}_FLO(R,V,T,P,C,TS {sow})$RP_STD(R,P) +
-          (SUM(TOP(RPC_STG(R,P,C),IO)$(NCAP_AFCS(R,V,P,C,S)+NCAP_AFCS(R,V,P,CG,S)),
-            ({var}_SIN(R,V,T,P,C,TS {sow})*PROD(RPG_AFCX(R,P,C,IE)$NCAP_AFCS(R,V,P,C,S),(NCAP_AFCS(R,V,P,C,S)/NCAP_AFCS(R,V,P,CG,S))$NCAP_AFCS(R,V,P,CG,S)))$IPS(IO)+
-            ({var}_SOUT(R,V,T,P,C,TS {sow})*STG_EFF(R,V,P)*(1+RTCS_FR(R,T,C,S,TS)))$(NOT IPS(IO))) +
-           SUM(RPC_IRE(R,P,C,IE),{var}_IRE(R,V,T,P,C,TS,IE {sow})*PROD(RPG_AFCX(R,P,C,IE)$((NCAP_AFCS(R,V,P,C,S)$NCAP_AFCS(R,V,P,CG,S))**1$RP_AIRE(R,P,IE)),
-             (NCAP_AFCS(R,V,P,C,S)/NCAP_AFCS(R,V,P,CG,S))$NCAP_AFCS(R,V,P,CG,S))+1$0))$(NOT RP_STD(R,P)))))
+        if arg4 != ():
+            raise NotImplementedError(f"Need to call variable COEF_AF{arg4}.")
 
-  ={arg1}=
+        eq_caflac = g.get_equation(f"{eq}{arg1}_CAFLAC")
+        VAR_FLO = g.get_variable(f"{var}_FLO")
+        VAR_SIN = g.get_variable(f"{var}_SIN")
+        VAR_SOUT = g.get_variable(f"{var}_SOUT")
+        VAR_IRE = g.get_variable(f"{var}_IRE")
 
-* process capacity - vintaged or not
-    (SUM(RVP_KMAP(R,V,P,MODLYEAR(K)),COEF_VNT(R,T,P,K) * COEF_AF{arg4}(R,K,T,P,S,{arg2}) *
-       ({varm}_NCAP(R,K,P{sws})$T(K)+NCAP_PASTI(R,K,P)$PYR(K){rcapsbm}))+COEF_AF{arg4}(R,V,T,P,S,{arg2})*{upscap0}) *
-* timeslice fraction of capacity
-    PRC_CAPACT(R,P) * G_YRFR(R,S)
-  ;
-""",
+        varm_id, varm_set = varm
+        VARM_NCAP = g.get_variable(f"{varm_id}_NCAP")
+        varm_ncap_expr = (
+            VARM_NCAP[g.r, g.k, g.p, *sws]
+            if varm_set is None
+            else Sum(varm_set, VARM_NCAP[g.r, g.k, g.p, *sws])
+        )
+
+        eq_caflac[g.RtpVintyr[*r_v_t, g.p], g.s, *swt].where[
+            (g.Afs[g.r, g.t, g.p, g.s, arg2].where[g.RpsCaflac[g.r, g.p, g.s, arg2]])
+        ] = generate_equation(
+            Sum(
+                Domain(g.RpcPg[g.r, g.p, g.c], g.ComTmap[g.r, g.ComType[g.cg], g.c]),
+                (1.0 / abs(g.prc_actflo[g.r, g.v, g.p, g.c]))
+                / (
+                    g.ncap_afcs[g.r, g.v, g.p, g.c, g.s]
+                    + Product(
+                        g.xpt.where[g.ncap_afcs[g.r, g.v, g.p, g.cg, g.s]],
+                        g.ncap_afcs[g.r, g.v, g.p, g.cg, g.s],
+                    ).where[(~(g.ncap_afcs[g.r, g.v, g.p, g.c, g.s]))]
+                )
+                * Sum(
+                    g.RpcsVar[g.r, g.p, g.c, g.ts].where[g.rs_fr[g.r, g.s, g.ts]],
+                    g.rs_fr[g.r, g.s, g.ts]
+                    * (
+                        VAR_FLO[g.r, g.v, g.t, g.p, g.c, g.ts, *sow].where[
+                            g.RpStd[g.r, g.p]
+                        ]
+                        + (
+                            Sum(
+                                g.Top[g.RpcStg[g.r, g.p, g.c], g.io].where[
+                                    (
+                                        g.ncap_afcs[g.r, g.v, g.p, g.c, g.s]
+                                        + g.ncap_afcs[g.r, g.v, g.p, g.cg, g.s]
+                                    )
+                                ],
+                                (
+                                    VAR_SIN[g.r, g.v, g.t, g.p, g.c, g.ts, *sow]
+                                    * Product(
+                                        g.RpgAfcx[g.r, g.p, g.c, g.ie].where[
+                                            g.ncap_afcs[g.r, g.v, g.p, g.c, g.s]
+                                        ],
+                                        (
+                                            g.ncap_afcs[g.r, g.v, g.p, g.c, g.s]
+                                            / g.ncap_afcs[g.r, g.v, g.p, g.cg, g.s]
+                                        ).where[g.ncap_afcs[g.r, g.v, g.p, g.cg, g.s]],
+                                    )
+                                ).where[g.ips[g.io]]
+                                + (
+                                    VAR_SOUT[g.r, g.v, g.t, g.p, g.c, g.ts, *sow]
+                                    * g.stg_eff[g.r, g.v, g.p]
+                                    * (1.0 + g.rtcs_fr[g.r, g.t, g.c, g.s, g.ts])
+                                ).where[(~(g.ips[g.io]))],
+                            )
+                            + Sum(
+                                g.RpcIre[g.r, g.p, g.c, g.ie],
+                                VAR_IRE[g.r, g.v, g.t, g.p, g.c, g.ts, g.ie, *sow]
+                                * Product(
+                                    g.RpgAfcx[g.r, g.p, g.c, g.ie].where[
+                                        (
+                                            (
+                                                (
+                                                    g.ncap_afcs[
+                                                        g.r, g.v, g.p, g.c, g.s
+                                                    ].where[
+                                                        g.ncap_afcs[
+                                                            g.r, g.v, g.p, g.cg, g.s
+                                                        ]
+                                                    ]
+                                                )
+                                                ** 1.0
+                                            ).where[g.RpAire[g.r, g.p, g.ie]]
+                                        )
+                                    ],
+                                    (
+                                        g.ncap_afcs[g.r, g.v, g.p, g.c, g.s]
+                                        / g.ncap_afcs[g.r, g.v, g.p, g.cg, g.s]
+                                    ).where[g.ncap_afcs[g.r, g.v, g.p, g.cg, g.s]],
+                                )
+                                + Number(1.0).where[Number(0)],
+                            )
+                        ).where[(~(g.RpStd[g.r, g.p]))]
+                    ),
+                ),
+            ),
+            arg1,
+            (
+                Sum(
+                    g.RvpKmap[g.r, g.v, g.p, g.Modlyear[g.k]],
+                    g.coef_vnt[g.r, g.t, g.p, g.k]
+                    * g.coef_af[g.r, g.k, g.t, g.p, g.s, arg2]
+                    * (
+                        varm_ncap_expr.where[g.t[g.k]]
+                        + g.ncap_pasti[g.r, g.k, g.p].where[g.pyr[g.k]]
+                        + rcapsbm
+                    ),
+                )
+                + g.coef_af[g.r, g.v, g.t, g.p, g.s, arg2] * upscap0
+            )
+            * g.prc_capact[g.r, g.p]
+            * g.g_yrfr[g.r, g.s],
         )
 
     def comp2(
         self: EqcaflacVda,
         eq: str,
-        r_v_t: str,
-        rts: str,
-        swt: str,
-        sow: str,
-        rcapsbm: str,
-        upscap0: str,
-        varm: str,
-        sws: str,
+        r_v_t: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
+        rts: Set | Alias,
+        swt: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
+        sow: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
+        rcapsbm: Expression | Condition | Number,
+        upscap0: Condition,
+        varm: tuple[str, ImplicitSet | None],
+        sws: tuple[Set | Alias, ...] | tuple[()],
         var: str,
         cal_red: str,
         pgprim: str,
         def_rtp_ffcs: bool,
-        arg1: str,
+        arg1: Literal["L", "E", "N", "G"],
         arg2: str,
     ) -> None:
-        if cal_red == "cal_red.red":
-            from core.cal_red_red import cal_red_red as cal_red_func
-        elif cal_red == "cal_nored.red":
-            from core.cal_nored_red import cal_nored_red as cal_red_func
-        else:
-            raise ValueError(f"Unexpected value for cal_red: {self.env.cal_red}")
+        g = self.tc
 
-        include_cal_red = cal_red_func(
-            var=var,
-            sow=sow,
-            pgprim=pgprim,
-            arg1="C",
-            arg2="COM",
-            arg3="TS",
-            arg4="P",
-            arg5="T",
-            def_rtp_ffcs=def_rtp_ffcs,
+        eql_capflo = g.get_equation(f"{eq}L_CAPFLO")
+        VAR_ACT = g.get_variable(f"{var}_ACT")
+        VAR_SIN = g.get_variable(f"{var}_SIN")
+        VAR_SOUT = g.get_variable(f"{var}_SOUT")
+
+        varm_id, varm_set = varm
+        VARM_NCAP = g.get_variable(f"{varm_id}_NCAP")
+        varm_ncap_expr = (
+            VARM_NCAP[g.r, g.k, g.p, *sws]
+            if varm_set is None
+            else Sum(varm_set, VARM_NCAP[g.r, g.k, g.p, *sws])
         )
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-{eq}L_CAPFLO(RTP_VINTYR({r_v_t},P),CG,SL(STL({rts})){swt})$(RS_TSLVL(R,S)$NCAP_AFC(R,V,P,CG,STL))..
 
-* Sum over regular flows
-    SUM(RPC(RP_FLO(R,P),C)$COM_GMAP(R,CG,C),
-      SUM(RTPCS_VARF(R,T,P,C,TS)$RS_FR(R,S,TS),RS_FR(R,S,TS)*(1+RTCS_FR(R,T,C,S,TS))*
-{include_cal_red}
-       )) +
-* storage: for activity multiply by number of storage cycles in a year
-    SUM(PRC_TS(RP_STG(R,P),TS)$RS_FR(R,TS,S),({var}_ACT(R,V,T,P,TS{sow})+{macro.var_sts.render("R", "V", "T", "P", "TS", arg2)})*RS_FR(R,TS,S)*EXP(PRC_SC(R,P))/RS_STGPRD(R,TS)*G_YRFR(R,S))$ACTCG(CG) +
-    SUM(RPC_STG(R,P,C)$COM_GMAP(R,CG,C),
-      SUM((TOP(R,P,C,IO),RPCS_VAR(R,P,C,TS))$RS_FR(R,S,TS),RS_FR(R,S,TS)*(1+RTCS_FR(R,T,C,S,TS))*
-        ({var}_SIN(R,V,T,P,C,TS{sow})$(NOT TOP(R,P,C,'OUT'))$IPS(IO)+{var}_SOUT(R,V,T,P,C,TS{sow})*STG_EFF(R,V,P)*DIAG(IO,'OUT'))))
+        if cal_red == "cal_red.red":
+            from core.cal_red_red import cal_red_red_GP as cal_red_func_GP
+        elif cal_red == "cal_nored.red":
+            from core.cal_nored_red import cal_nored_red_GP as cal_red_func_GP
+        else:
+            raise ValueError(f"Unexpected value for cal_red: {cal_red}")
 
-  ={arg1}=
+        include_cal_red = cal_red_func_GP(
+            g,
+            CalRedRedConfig(
+                var=var,
+                sow=sow,
+                pgprim=pgprim,
+                arg1=g.c,
+                arg2=g.Com,
+                arg3=g.ts,
+                arg4=g.p,
+                arg5=g.t,
+                arg10=Number(1),
+                def_rtp_ffcs=def_rtp_ffcs,
+            ),
+        )
 
-* process capacity - vintaged or not
-    (SUM(RVP_KMAP(R,V,P,MODLYEAR(K)),COEF_VNT(R,T,P,K) *
-       ({varm}_NCAP(R,K,P{sws})$T(K)+NCAP_PASTI(R,K,P)$PYR(K){rcapsbm}))+{upscap0})*NCAP_AFC(R,V,P,CG,STL) *
-* timeslice fraction of capacity
-    PRC_CAPACT(R,P) * G_YRFR(R,S)
-  ;
-""",
+        eql_capflo[g.RtpVintyr[*r_v_t, g.p], g.cg, g.sl[g.stl[rts]], *swt].where[
+            (g.rs_tslvl[g.r, g.s].where[g.ncap_afc[g.r, g.v, g.p, g.cg, g.stl]])
+        ] = generate_equation(
+            # * Sum over regular flows
+            Sum(
+                g.Rpc[g.RpFlo[g.r, g.p], g.c].where[g.ComGmap[g.r, g.cg, g.c]],
+                Sum(
+                    g.RtpcsVarf[g.r, g.t, g.p, g.c, g.ts].where[
+                        g.rs_fr[g.r, g.s, g.ts]
+                    ],
+                    g.rs_fr[g.r, g.s, g.ts]
+                    * (1.0 + g.rtcs_fr[g.r, g.t, g.c, g.s, g.ts])
+                    * include_cal_red,
+                ),
+            )
+            # * storage: for activity multiply by number of storage cycles in a year
+            + Sum(
+                g.PrcTs[g.RpStg[g.r, g.p], g.ts].where[g.rs_fr[g.r, g.ts, g.s]],
+                (
+                    VAR_ACT[g.r, g.v, g.t, g.p, g.ts, *sow]
+                    + macro.var_sts.render_GP(g.r, g.v, g.t, g.p, g.ts, arg2)
+                )
+                * g.rs_fr[g.r, g.ts, g.s]
+                * exp(g.prc_sc[g.r, g.p])
+                / g.rs_stgprd[g.r, g.ts]
+                * g.g_yrfr[g.r, g.s],
+            ).where[g.Actcg[g.cg]]
+            + Sum(
+                g.RpcStg[g.r, g.p, g.c].where[g.ComGmap[g.r, g.cg, g.c]],
+                Sum(
+                    Domain(
+                        g.Top[g.r, g.p, g.c, g.io], g.RpcsVar[g.r, g.p, g.c, g.ts]
+                    ).where[g.rs_fr[g.r, g.s, g.ts]],
+                    g.rs_fr[g.r, g.s, g.ts]
+                    * (1.0 + g.rtcs_fr[g.r, g.t, g.c, g.s, g.ts])
+                    * (
+                        VAR_SIN[g.r, g.v, g.t, g.p, g.c, g.ts, *sow].where[
+                            (~(g.Top[g.r, g.p, g.c, "OUT"])) & g.ips[g.io]
+                        ]
+                        + VAR_SOUT[g.r, g.v, g.t, g.p, g.c, g.ts, *sow]
+                        * g.stg_eff[g.r, g.v, g.p]
+                        * diag(g.io, "OUT")
+                    ),
+                ),
+            ),
+            arg1,
+            (
+                (
+                    # * process capacity - vintaged or not
+                    Sum(
+                        g.RvpKmap[g.r, g.v, g.p, g.Modlyear[g.k]],
+                        g.coef_vnt[g.r, g.t, g.p, g.k]
+                        * (
+                            varm_ncap_expr.where[g.t[g.k]]
+                            + g.ncap_pasti[g.r, g.k, g.p].where[g.pyr[g.k]]
+                            + rcapsbm
+                        ),
+                    )
+                    + upscap0
+                )
+                * g.ncap_afc[g.r, g.v, g.p, g.cg, g.stl]
+                # * timeslice fraction of capacity
+                * g.prc_capact[g.r, g.p]
+                * g.g_yrfr[g.r, g.s]
+            ),
         )

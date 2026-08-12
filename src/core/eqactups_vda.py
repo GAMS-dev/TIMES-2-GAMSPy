@@ -36,7 +36,7 @@ class EqactupsVda(GamsClass):
 
     # Instance attributes
     module_name: str = "eqactups_vda"
-    gams_source: str = "eqactups.vda."
+    gams_source: str = "eqactups.vda"
 
     def __init__(
         self,

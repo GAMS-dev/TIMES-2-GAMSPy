@@ -15,6 +15,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Set
+
 from core.base_class import GamsClass
 from core.dynslite_vda import DynsliteVda
 from core.equcrtp_vda import EqucrtpVda, EqucrtpVdaConfig
@@ -51,6 +53,8 @@ class PpmExtVda(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
         self.tc.enqueue(self.display)
 
         if self.tc.defined("GR_VARGEN"):
@@ -69,7 +73,7 @@ class PpmExtVda(GamsClass):
             condition=self.env.reduce != "YES",
         )
 
-        self.tc.add_gams_code(module=self, phase="init", code="SET RPG_AFCX(R,P,C,IE);")
+        g.RpgAfcx = Set(m, name="RPG_AFCX", domain=[g.r, g.p, g.c, g.ie])
 
         self.tc.register_assignment(self.tc.RpsCaflac)
         self.tc.enqueue(self.prep_commodity_factors, pgprim=self.env.pgprim)

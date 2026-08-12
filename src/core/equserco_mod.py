@@ -98,8 +98,8 @@ def make_arg2(
 class EqusercoMod(GamsClass):
     """Translation unit for eq_uc.mod."""
 
-    module_name: str = "eq_uc_mod"
-    gams_source: str = "eq_uc.mod"
+    module_name: str = "equserco_mod"
+    gams_source: str = "equserco.mod"
 
     def __init__(
         self,
