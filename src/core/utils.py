@@ -4,21 +4,36 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
 import pandas as pd
-from gamspy import Alias, Parameter, Set, SpecialValues, Sum
+from gamspy import (
+    Alias,
+    Domain,
+    Expression,
+    Parameter,
+    Set,
+    SpecialValues,
+    Sum,
+    Variable,
+)
 from gamspy._algebra.condition import Condition
-from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
+from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet, ImplicitVariable
 from gamspy.math import rpower
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
-
-    from gamspy import Domain, Expression
 
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 SET_OR_ALIAS = Set | ImplicitSet | Alias
 EquationSenseTypes = Literal["E", "N", "L", "G"]
+TargetType = Expression | Sum | Variable | ImplicitVariable
+DomainType = (
+    SET_OR_ALIAS
+    | tuple[ImplicitSet | Condition, ImplicitParameter]
+    | Condition
+    | Domain
+    | None
+)
 
 
 class EscapeStack(Exception):
@@ -29,18 +44,18 @@ class EscapeStack(Exception):
 class BaseUcModConfig:
     """Base config containing the fields shared across all 7 variations."""
 
-    arg1: tuple[Domain | ImplicitSet | None]
-    arg2: tuple[
+    arg1: Domain | ImplicitSet | None
+    arg2: (
         SET_OR_ALIAS
         | Condition
         | tuple[Condition | ImplicitSet, ImplicitParameter]
         | None
-    ]
-    arg3: tuple[Domain | ImplicitSet | None]
-    arg4: tuple[SET_OR_ALIAS]  # TT or T
-    arg5: tuple[SET_OR_ALIAS | str]  # SIDE, "LHS"
-    arg6: tuple[Literal["S", 1, 2, 0]]
-    arg7: tuple[SET_OR_ALIAS] | tuple[()] = ()
+    )
+    arg3: Domain | ImplicitSet | None
+    arg4: SET_OR_ALIAS  # TT or T
+    arg5: SET_OR_ALIAS | str  # SIDE, "LHS"
+    arg6: Literal["S", 1, 2, 0]
+    arg7: SET_OR_ALIAS | tuple[()] = ()
 
 
 def expand_set(symbol: Set | Alias, elements: Sequence[str | tuple[str, str]]) -> None:
@@ -239,18 +254,32 @@ def get_callable_parameter_type(
     )
 
 
-def wrap_in_sum(arg: Any, expression: Expression | Sum) -> Expression | Sum:
+def wrap_in_sum[T: TargetType](target: T, domain: DomainType) -> T | Sum:
     """
-    Wraps an expression in a Sum based on the type of the argument.
+    Wraps a target expression or variable in a Sum based on the provided domain/condition.
+    Returns the unmodified target if the expression is None.
     """
-    match arg:
+    match domain:
         case None:
-            return expression
-        case (condition, imp_param):
-            return Sum(condition, imp_param * expression)  # type: ignore[arg-type]
-        case single_set if isinstance(
-            single_set, Set | Alias | ImplicitSet | Condition
-        ):
-            return Sum(single_set, expression)
+            return target
+        case (condition, imp_param) if imp_param is not None:
+            return Sum(condition, imp_param * target)  # type: ignore[arg-type]
+        case (condition,) if isinstance(condition, SET_OR_ALIAS | Condition):
+            return Sum(condition, target)
+        case condition if isinstance(condition, SET_OR_ALIAS | Condition):
+            return Sum(condition, target)
         case _:
-            raise TypeError(f"Unexpected argument type: {type(arg).__name__} for {arg}")
+            raise TypeError(
+                f"Unexpected argument type: {type(domain).__name__} for {domain}"
+            )
+
+
+def extract_var_domain(
+    var: str | tuple[str, Any],
+) -> tuple[str, ImplicitSet | None]:
+    if isinstance(var, tuple) and len(var) > 1:
+        var_id, var_set = var
+    else:
+        var_id = var
+        var_set = None
+    return var_id, var_set

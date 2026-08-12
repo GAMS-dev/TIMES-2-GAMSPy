@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from gamspy import Number, Product, Sum
 from gamspy.math import abs, power, same_as
 
-from core.utils import BaseUcModConfig, wrap_in_sum
+from core.utils import BaseUcModConfig, extract_var_domain, wrap_in_sum
 
 if TYPE_CHECKING:
     from gamspy import Alias, Expression, Set
@@ -38,9 +38,9 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class UcActModConfig(BaseUcModConfig):
-    arg8: tuple[ImplicitParameter | Expression | Literal[1]] = (
-        1,
-    )  # LAGT(T), -LEAD(T) only when arg6 is 1
+    arg8: ImplicitParameter | Expression | Literal[1] = (
+        1  # LAGT(T), -LEAD(T) only when arg6 is 1
+    )
 
 
 def inner_sum(
@@ -50,76 +50,56 @@ def inner_sum(
     config: UcActModConfig,
 ) -> Sum:
     cc = config
-    match cc:
-        case UcActModConfig(
-            arg4=(arg4,),
-            arg5=(arg5,),
-            arg6=(arg6,),
-            arg7=(arg7,),
-            arg8=(arg8,),
-        ):
-            pass
-        case _:
-            raise ValueError(
-                "Config object did not match the expected single-element tuple structure."
-            )
 
-    if isinstance(var, tuple) and len(var) > 1:
-        var_id, domain = var
-    else:
-        var_id = var
-        domain = None
-
-    VAR_ACT = g.get_variable(name=f"{var_id}_ACT")
-
-    VAR_ACT_expr = Sum(domain, VAR_ACT) if domain is not None else VAR_ACT
+    var_id, domain = extract_var_domain(var)
+    var_act = wrap_in_sum(target=g.get_variable(name=f"{var_id}_ACT"), domain=domain)
 
     expr2: Product | int
-    if arg6 == 1:
+    if cc.arg6 == 1:
         expr2 = Product(
-            g.UcAttr[g.r, g.ucn, arg5, "ACT", "GROWTH"],
+            g.UcAttr[g.r, g.ucn, cc.arg5, "ACT", "GROWTH"],
             power(
-                abs(g.uc_act[g.ucn, arg5, g.r, arg7, g.p, g.ts]),
-                arg8 * g.uc_sign[arg5] - 1.0,
+                abs(g.uc_act[g.ucn, cc.arg5, g.r, cc.arg7, g.p, g.ts]),
+                cc.arg8 * g.uc_sign[cc.arg5] - 1.0,
             ),
         )
     else:
         expr2 = 1
 
-    expr3 = 1.0 / g.g_yrfr[g.r, g.s] if arg6 == "S" else 1
+    expr3 = 1.0 / g.g_yrfr[g.r, g.s] if cc.arg6 == "S" else 1
 
-    obj_acost = macro.obj_acost_GP(g.r, arg4, g.p, g.cur)
+    obj_acost = macro.obj_acost_GP(g.r, cc.arg4, g.p, g.cur)
 
     return Sum(
-        g.RtpVintyr[g.r, g.v, arg4, g.p].where[g.UcGmapP[g.r, g.ucn, "ACT", g.p]],
+        g.RtpVintyr[g.r, g.v, cc.arg4, g.p].where[g.UcGmapP[g.r, g.ucn, "ACT", g.p]],
         (
             # *V0.9a S reference should be TS
             Sum(
                 g.PrcTs[g.r, g.p, g.ts].where[
-                    (g.rs_fr[g.r, g.s, g.ts] * g.RtpVara[g.r, arg4, g.p])
+                    (g.rs_fr[g.r, g.s, g.ts] * g.RtpVara[g.r, cc.arg4, g.p])
                 ],
-                VAR_ACT_expr[g.r, g.v, arg4, g.p, g.ts, *sow]
-                * g.uc_act[g.ucn, arg5, g.r, arg7, g.p, g.ts]
+                var_act[g.r, g.v, cc.arg4, g.p, g.ts, *sow]
+                * g.uc_act[g.ucn, cc.arg5, g.r, cc.arg7, g.p, g.ts]
                 * Product(
                     g.Annual, g.rs_fr[g.r, g.s, g.ts]
                 )  # * [AL] PROD operator is useful here:
                 * expr2
                 * expr3
                 * Product(
-                    g.UcAttr[g.r, g.ucn, arg5, "ACT", g.UcPerds],
-                    g.fpd[arg4]
+                    g.UcAttr[g.r, g.ucn, cc.arg5, "ACT", g.UcPerds],
+                    g.fpd[cc.arg4]
                     * Product(
                         g.UcNewflo[g.UcPerds],
                         Number(1.0).where[
-                            (same_as(g.v, arg4) + g.Rvpt[g.r, g.v, g.p, arg4])
+                            (same_as(g.v, cc.arg4) + g.Rvpt[g.r, g.v, g.p, cc.arg4])
                         ]
-                        / g.fpd[arg4],
+                        / g.fpd[cc.arg4],
                     ),
                 ),
             )
         )
         * Product(
-            g.UcAttr[g.r, g.ucn, arg5, "ACT", "COST"],
+            g.UcAttr[g.r, g.ucn, cc.arg5, "ACT", "COST"],
             Sum(g.Rdcur[g.r, g.cur], obj_acost),
         ),
     )
@@ -132,9 +112,6 @@ def uc_act_mod(
     config: UcActModConfig,
 ) -> str | Any:
     cc = config
-
-    arg3 = next(iter(cc.arg3))
-    arg6 = next(iter(cc.arg6))
 
     expression: Expression | Sum
     expression = inner_sum(g, var, sow_GP, cc)
@@ -150,15 +127,15 @@ def uc_act_mod(
                 - 1.0
             ).where[g.UcDt[g.r, g.ucn]]
         )
-        if arg6 == 2
+        if cc.arg6 == 2
         else 1
     )
 
-    expression = sub_expr1 * wrap_in_sum(arg3, expression)
+    expression = sub_expr1 * wrap_in_sum(target=expression, domain=cc.arg3)
 
-    args_to_sum = [arg for arg in [*cc.arg2, *cc.arg1] if arg is not None]
+    args_to_sum = [arg for arg in [cc.arg2, cc.arg1] if arg is not None]
 
     for arg in args_to_sum:
-        expression = wrap_in_sum(arg=arg, expression=expression)
+        expression = wrap_in_sum(target=expression, domain=arg)
 
     return expression.gamsRepr()  # type: ignore[no-untyped-call]

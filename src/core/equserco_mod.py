@@ -34,7 +34,7 @@ from core.uc_cli_mod import uc_cli_mod
 from core.uc_com_mod import UcComModConfig, uc_com_mod
 from core.uc_flo_mod import uc_flo_mod
 from core.uc_ire_mod import UcIreModConfig, uc_ire_mod
-from core.uc_ncap_mod import uc_ncap_mod
+from core.uc_ncap_mod import UcNcapModConfig, uc_ncap_mod
 from core.uc_pasti_mod import uc_pasti_mod
 from core.utils import wrap_in_sum
 
@@ -86,15 +86,6 @@ class EqusercoModConfig:
     arg10: ImplicitParameter
 
 
-def make_arg2(
-    g: TimesModelClass, set_element: str
-) -> tuple[Condition, ImplicitParameter]:
-    domain = g.UcTmap[g.t, g.ll, g.tt, g.side, g.UcDynt].where[
-        (g.lim[g.UcDynt]) ^ (g.UcAttr[g.r, g.ucn, g.side, set_element, g.UcDynt])
-    ]
-    return domain, g.uc_sign[g.side]
-
-
 class EqusercoMod(GamsClass):
     """Translation unit for eq_uc.mod."""
 
@@ -133,6 +124,14 @@ class EqusercoMod(GamsClass):
         self._sub_modules = {}
         self.compile()
 
+    def make_arg2(self, set_element: str) -> tuple[Condition, ImplicitParameter]:
+        g = self.tc
+
+        domain = g.UcTmap[g.t, g.ll, g.tt, g.side, g.UcDynt].where[
+            (g.lim[g.UcDynt]) ^ (g.UcAttr[g.r, g.ucn, g.side, set_element, g.UcDynt])
+        ]
+        return domain, g.uc_sign[g.side]
+
     def compile(self) -> None:
         g = self.tc
 
@@ -146,8 +145,7 @@ class EqusercoMod(GamsClass):
             # self.env.set_local("hs", "'LHS'")
             # NOTE: hs is only used in this file, using python variable instead
             hs = "'LHS'"
-            hs_GP: str | Set
-            hs_GP = "LHS"
+            hs_GP: str | Set = "LHS"
             if self.arg8_GP == 2:
                 self.env.set_scoped("swt", self.env.sow)
                 self.env.set_scoped("swt_GP", self.env.sow_GP)
@@ -168,8 +166,7 @@ class EqusercoMod(GamsClass):
         if self.arg8_GP != 1:
             domain_expr = Domain(*arg7, g.v[g.t]).where[g.uc_time[g.ucn, g.r, g.t]]
             base_expr = g.uc_time[g.ucn, g.r, g.t] * g.fpd[g.t]
-            inner_term: Expression | Sum
-            inner_term = wrap_in_sum(arg=self.arg5_GP, expression=base_expr)
+            inner_term = wrap_in_sum(target=base_expr, domain=self.arg5_GP)
             time_term = Sum(domain_expr, inner_term)
         else:
             time_term = Sum(
@@ -233,16 +230,19 @@ class EqusercoMod(GamsClass):
             arg8=self.arg7,
         )
         include_uc_ncap = uc_ncap_mod(
-            var=self.env.var,
-            sow=self.env.sow,
-            varv=self.env.varv,
-            sws=self.env.sws,
-            arg1=f"{self.arg4}{self.arg7}",
-            arg2=self.arg5,
-            arg3="T",
-            arg4=hs,
-            arg5=self.arg8,
-            arg6="T",
+            g=g,
+            config=UcNcapModConfig(
+                var=self.env.var,
+                sow=self.env.sow_GP,
+                varv=self.env.varv_GP,
+                sws=self.env.sws_GP,
+                arg1=self.arg7_GP,
+                arg2=self.arg5_GP,
+                arg3=g.t,
+                arg4=hs_GP,
+                arg5=self.arg8_GP,
+                arg6=g.t,
+            ),
         )
         include_uc_cap = uc_cap_mod(
             var=self.env.var,
@@ -261,13 +261,13 @@ class EqusercoMod(GamsClass):
             var=self.env.var,
             sow_GP=self.env.sow_GP,
             config=UcActModConfig(
-                arg1=(self.arg7_GP,),
-                arg2=(self.arg5_GP,),
-                arg3=(self.arg6_GP,),
-                arg4=(g.t,),
-                arg5=(hs_GP,),
-                arg6=(self.arg8_GP,),
-                arg7=(g.t,),
+                arg1=self.arg7_GP,
+                arg2=self.arg5_GP,
+                arg3=self.arg6_GP,
+                arg4=g.t,
+                arg5=hs_GP,
+                arg6=self.arg8_GP,
+                arg7=g.t,
             ),
         )
         include_uc_com_prd = uc_com_mod(
@@ -275,16 +275,16 @@ class EqusercoMod(GamsClass):
             var=self.env.var,
             sow_GP=self.env.sow_GP,
             config=UcComModConfig(
-                arg1=(self.arg7_GP,),
-                arg2=(self.arg5_GP,),
-                arg3=(self.arg6_GP,),
-                arg4=(g.t,),
-                arg5=(hs_GP,),
-                arg6=(self.arg8_GP,),
-                arg7=(g.t,),
-                arg8=("PRD",),
-                arg9=("PRD",),
-                arg10=("PD",),
+                arg1=self.arg7_GP,
+                arg2=self.arg5_GP,
+                arg3=self.arg6_GP,
+                arg4=g.t,
+                arg5=hs_GP,
+                arg6=self.arg8_GP,
+                arg7=g.t,
+                arg8="PRD",
+                arg9="PRD",
+                arg10="PD",
             ),
         )
         include_uc_com_net = uc_com_mod(
@@ -292,16 +292,16 @@ class EqusercoMod(GamsClass):
             var=self.env.var,
             sow_GP=self.env.sow_GP,
             config=UcComModConfig(
-                arg1=(self.arg7_GP,),
-                arg2=(self.arg5_GP,),
-                arg3=(self.arg6_GP,),
-                arg4=(g.t,),
-                arg5=(hs_GP,),
-                arg6=(self.arg8_GP,),
-                arg7=(g.t,),
-                arg8=("BAL",),
-                arg9=("NET",),
-                arg10=("NT",),
+                arg1=self.arg7_GP,
+                arg2=self.arg5_GP,
+                arg3=self.arg6_GP,
+                arg4=g.t,
+                arg5=hs_GP,
+                arg6=self.arg8_GP,
+                arg7=g.t,
+                arg8="BAL",
+                arg9="NET",
+                arg10="NT",
             ),
         )
         include_uc_ire = uc_ire_mod(
@@ -309,13 +309,13 @@ class EqusercoMod(GamsClass):
             var=self.env.var,
             sow_GP=self.env.sow_GP,
             config=UcIreModConfig(
-                arg1=(self.arg7_GP,),
-                arg2=(self.arg5_GP,),
-                arg3=(self.arg6_GP,),
-                arg4=(g.t,),
-                arg5=(hs_GP,),
-                arg6=(self.arg8_GP,),
-                arg7=(g.t,),
+                arg1=self.arg7_GP,
+                arg2=self.arg5_GP,
+                arg3=self.arg6_GP,
+                arg4=g.t,
+                arg5=hs_GP,
+                arg6=self.arg8_GP,
+                arg7=g.t,
             ),
         )
 
@@ -372,7 +372,7 @@ class EqusercoMod(GamsClass):
         #     "tsum_GP", ((g.UcTmap[g.tt, g.t, g.t, g.side, "N"], g.uc_sign[g.side]),)
         # )  # NOTE: We multiply in the parent file
         # NOTE: tsum_GP gets passed on from equwrap_mod.py and only changes its value in this file.
-        tsum_GP = ((g.UcTmap[g.tt, g.t, g.t, g.side, "N"], g.uc_sign[g.side]),)
+        tsum_GP = (g.UcTmap[g.tt, g.t, g.t, g.side, "N"], g.uc_sign[g.side])
         block_tplus = rf"""
 (
 {
@@ -406,17 +406,20 @@ class EqusercoMod(GamsClass):
 +
 {
             uc_ncap_mod(
-                var=self.env.var,  # TODO: Use self.env.var_GP
-                sow=self.env.sow,
-                varv=self.env.varv,
-                sws=self.env.sws,
-                arg1=f"{self.arg4}{self.arg7}",
-                arg2=self.env.tsum,
-                arg3="TT",
-                arg4="SIDE",
-                arg5=self.arg8,
-                arg6="TT",
-                arg7="LAGT(T)",
+                g=g,
+                config=UcNcapModConfig(
+                    var=self.env.var_GP,
+                    sow=self.env.sow_GP,
+                    varv=self.env.varv_GP,
+                    sws=self.env.sws_GP,
+                    arg1=self.arg7_GP,
+                    arg2=tsum_GP,
+                    arg3=g.tt,
+                    arg4=g.side,
+                    arg5=self.arg8_GP,
+                    arg6=g.tt,
+                    arg7=g.lagt[g.t],
+                ),
             )
         }
 +
@@ -442,14 +445,14 @@ class EqusercoMod(GamsClass):
                 var=self.env.var_GP,
                 sow_GP=self.env.sow_GP,
                 config=UcActModConfig(
-                    arg1=(self.arg7_GP,),
-                    arg2=(*tsum_GP,),
-                    arg3=(self.arg6_GP,),
-                    arg4=(g.tt,),
-                    arg5=(g.side,),
-                    arg6=(self.arg8_GP,),
-                    arg7=(g.tt,),
-                    arg8=(g.lagt[g.t],),
+                    arg1=self.arg7_GP,
+                    arg2=tsum_GP,
+                    arg3=self.arg6_GP,
+                    arg4=g.tt,
+                    arg5=g.side,
+                    arg6=self.arg8_GP,
+                    arg7=g.tt,
+                    arg8=g.lagt[g.t],
                 ),
             )
         }
@@ -460,17 +463,17 @@ class EqusercoMod(GamsClass):
                 var=self.env.var_GP,
                 sow_GP=self.env.sow_GP,
                 config=UcComModConfig(
-                    arg1=(self.arg7_GP,),
-                    arg2=(*tsum_GP,),
-                    arg3=(self.arg6_GP,),
-                    arg4=(g.tt,),
-                    arg5=(g.side,),
-                    arg6=(self.arg8_GP,),
-                    arg7=(g.tt,),
-                    arg8=("PRD",),
-                    arg9=("PRD",),
-                    arg10=("PD",),
-                    arg11=(g.lagt[g.t],),
+                    arg1=self.arg7_GP,
+                    arg2=tsum_GP,
+                    arg3=self.arg6_GP,
+                    arg4=g.tt,
+                    arg5=g.side,
+                    arg6=self.arg8_GP,
+                    arg7=g.tt,
+                    arg8="PRD",
+                    arg9="PRD",
+                    arg10="PD",
+                    arg11=g.lagt[g.t],
                 ),
             )
         }
@@ -481,17 +484,17 @@ class EqusercoMod(GamsClass):
                 var=self.env.var_GP,
                 sow_GP=self.env.sow_GP,
                 config=UcComModConfig(
-                    arg1=(self.arg7_GP,),
-                    arg2=(*tsum_GP,),
-                    arg3=(self.arg6_GP,),
-                    arg4=(g.tt,),
-                    arg5=(g.side,),
-                    arg6=(self.arg8_GP,),
-                    arg7=(g.tt,),
-                    arg8=("BAL",),
-                    arg9=("NET",),
-                    arg10=("NT",),
-                    arg11=(g.lagt[g.t],),
+                    arg1=self.arg7_GP,
+                    arg2=tsum_GP,
+                    arg3=self.arg6_GP,
+                    arg4=g.tt,
+                    arg5=g.side,
+                    arg6=self.arg8_GP,
+                    arg7=g.tt,
+                    arg8="BAL",
+                    arg9="NET",
+                    arg10="NT",
+                    arg11=g.lagt[g.t],
                 ),
             )
         }
@@ -502,14 +505,14 @@ class EqusercoMod(GamsClass):
                 var=self.env.var_GP,
                 sow_GP=self.env.sow_GP,
                 config=UcIreModConfig(
-                    arg1=(self.arg7_GP,),
-                    arg2=(*tsum_GP,),
-                    arg3=(self.arg6_GP,),
-                    arg4=(g.tt,),
-                    arg5=(g.side,),
-                    arg6=(self.arg8_GP,),
-                    arg7=(g.tt,),
-                    arg8=(g.lagt[g.t],),
+                    arg1=self.arg7_GP,
+                    arg2=tsum_GP,
+                    arg3=self.arg6_GP,
+                    arg4=g.tt,
+                    arg5=g.side,
+                    arg6=self.arg8_GP,
+                    arg7=g.tt,
+                    arg8=g.lagt[g.t],
                 ),
             )
         }
@@ -557,17 +560,20 @@ class EqusercoMod(GamsClass):
 +
 {
             uc_ncap_mod(
-                var=self.env.var,  # TODO: Use self.env.var_GP
-                sow=self.env.sow,
-                varv=self.env.varv,
-                sws=self.env.sws,
-                arg1=f"{self.arg4}{self.arg7}",
-                arg2=f"{self.env.tsum}'NCAP'{self.env.tucn}",
-                arg3="TT",
-                arg4="SIDE",
-                arg5=self.arg8,
-                arg6="LL",
-                arg7="-LEAD(T)",
+                g=g,
+                config=UcNcapModConfig(
+                    var=self.env.var_GP,
+                    sow=self.env.sow_GP,
+                    varv=self.env.varv_GP,
+                    sws=self.env.sws_GP,
+                    arg1=self.arg7_GP,
+                    arg2=self.make_arg2(set_element="NCAP"),
+                    arg3=g.tt,
+                    arg4=g.side,
+                    arg5=self.arg8_GP,
+                    arg6=g.ll,
+                    arg7=(-g.lead[g.t]),
+                ),
             )
         }
 +
@@ -593,14 +599,14 @@ class EqusercoMod(GamsClass):
                 var=self.env.var_GP,
                 sow_GP=self.env.sow_GP,
                 config=UcActModConfig(
-                    arg1=(self.arg7_GP,),
-                    arg2=(make_arg2(g, set_element="ACT"),),
-                    arg3=(self.arg6_GP,),
-                    arg4=(g.tt,),
-                    arg5=(g.side,),
-                    arg6=(self.arg8_GP,),
-                    arg7=(g.ll,),
-                    arg8=(-g.lead[g.t],),
+                    arg1=self.arg7_GP,
+                    arg2=self.make_arg2(set_element="ACT"),
+                    arg3=self.arg6_GP,
+                    arg4=g.tt,
+                    arg5=g.side,
+                    arg6=self.arg8_GP,
+                    arg7=g.ll,
+                    arg8=-g.lead[g.t],
                 ),
             )
         }
@@ -611,17 +617,17 @@ class EqusercoMod(GamsClass):
                 var=self.env.var_GP,
                 sow_GP=self.env.sow_GP,
                 config=UcComModConfig(
-                    arg1=(self.arg7_GP,),
-                    arg2=(make_arg2(g, set_element="COMPRD"),),
-                    arg3=(self.arg6_GP,),
-                    arg4=(g.tt,),
-                    arg5=(g.side,),
-                    arg6=(self.arg8_GP,),
-                    arg7=(g.ll,),
-                    arg8=("PRD",),
-                    arg9=("PRD",),
-                    arg10=("PD",),
-                    arg11=(-g.lead[g.t],),
+                    arg1=self.arg7_GP,
+                    arg2=self.make_arg2(set_element="COMPRD"),
+                    arg3=self.arg6_GP,
+                    arg4=g.tt,
+                    arg5=g.side,
+                    arg6=self.arg8_GP,
+                    arg7=g.ll,
+                    arg8="PRD",
+                    arg9="PRD",
+                    arg10="PD",
+                    arg11=-g.lead[g.t],
                 ),
             )
         }
@@ -632,17 +638,17 @@ class EqusercoMod(GamsClass):
                 var=self.env.var_GP,
                 sow_GP=self.env.sow_GP,
                 config=UcComModConfig(
-                    arg1=(self.arg7_GP,),
-                    arg2=(make_arg2(g, set_element="COMNET"),),
-                    arg3=(self.arg6_GP,),
-                    arg4=(g.tt,),
-                    arg5=(g.side,),
-                    arg6=(self.arg8_GP,),
-                    arg7=(g.ll,),
-                    arg8=("BAL",),
-                    arg9=("NET",),
-                    arg10=("NT",),
-                    arg11=(-g.lead[g.t],),
+                    arg1=self.arg7_GP,
+                    arg2=self.make_arg2(set_element="COMNET"),
+                    arg3=self.arg6_GP,
+                    arg4=g.tt,
+                    arg5=g.side,
+                    arg6=self.arg8_GP,
+                    arg7=g.ll,
+                    arg8="BAL",
+                    arg9="NET",
+                    arg10="NT",
+                    arg11=-g.lead[g.t],
                 ),
             )
         }
@@ -653,14 +659,14 @@ class EqusercoMod(GamsClass):
                 var=self.env.var_GP,
                 sow_GP=self.env.sow_GP,
                 config=UcIreModConfig(
-                    arg1=(self.arg7_GP,),
-                    arg2=(make_arg2(g, set_element="IRE"),),
-                    arg3=(self.arg6_GP,),
-                    arg4=(g.tt,),
-                    arg5=(g.side,),
-                    arg6=(self.arg8_GP,),
-                    arg7=(g.ll,),
-                    arg8=(-g.lead[g.t],),
+                    arg1=self.arg7_GP,
+                    arg2=self.make_arg2(set_element="IRE"),
+                    arg3=self.arg6_GP,
+                    arg4=g.tt,
+                    arg5=g.side,
+                    arg6=self.arg8_GP,
+                    arg7=g.ll,
+                    arg8=-g.lead[g.t],
                 ),
             )
         }
