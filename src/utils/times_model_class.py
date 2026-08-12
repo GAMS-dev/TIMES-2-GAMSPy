@@ -1755,7 +1755,10 @@ class TimesModelClass:
     gr_admit: Parameter = None  # type: ignore[assignment] # [allreg, t, c, allreg, c] GR_ADMIT:
     gr_units: Parameter = None  # type: ignore[assignment] # [r, t, item] GR_UNITS:
     gr_capup: Parameter = None  # type: ignore[assignment] # [r, year, p] GR_CAPUP:
-
+    eql_chpcon: Equation = None  # type: ignore[assignment] # [r, year, year, p, allsow] EQL_CHPCON: Condensing capacity constraint (=L=)
+    eql_chpbpt: Equation = None  # type: ignore[assignment] # [r, year, year, p, allsow] EQL_CHPBPT: Backpressure capacity constraint (=L=)
+    eqe_chpcon: Equation = None  # type: ignore[assignment] # [r, year, year, p, allsow] EQE_CHPCON: Condensing capacity constraint (=E=)
+    eqe_chpbpt: Equation = None  # type: ignore[assignment] # [r, year, year, p, allsow] EQE_CHPBPT: Backpressure capacity constraint (=E=)
     # endregion
 
     # region IER extension (equ_ext.ier market-share equations)
