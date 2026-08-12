@@ -267,7 +267,7 @@ class EqmainMod(GamsClass):
             )
 
         # Process market share constraint in total commodity production
-        eqflomrk_batincludes: list[tuple[str, str]] = [
+        eqflomrk_batincludes: list[tuple[Literal["E", "N", "L", "G"], str]] = [
             ("G", "LO"),
             ("E", "FX"),
             ("L", "UP"),

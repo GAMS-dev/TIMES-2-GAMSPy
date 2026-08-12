@@ -92,7 +92,7 @@ $ ONEMPTY
             item_records = ["BOH"] + [str(i) for i in range(1, eotime + 1)]
             self.add_records_to_universe_item(records=item_records)
 
-        allyear_records = [i for i in range(botime, eotime + 1)]
+        allyear_records = list(range(botime, eotime + 1))
         g.bohyear = Set(
             container=m,
             name="BOHYEAR",

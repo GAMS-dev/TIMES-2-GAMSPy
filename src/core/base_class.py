@@ -42,4 +42,3 @@ class GamsClass(ABC):
     @abstractmethod
     def compile(self) -> None:
         """Must be implemented by every translated module."""
-        pass

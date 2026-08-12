@@ -194,7 +194,7 @@ PARAMETERS SW_UNPB(LL,WW), SW_UNPC(LL,WW);
         self.include(PextlevsStc(self.tc, self.env, arg1=self.arg1))
 
         self.env.set_scoped("sow", "")
-        self.env.set_scoped("sow_GP", tuple())
+        self.env.set_scoped("sow_GP", ())
         self.env.set_scoped("EQ", "EQ")
         self.env.set_scoped("var", "VAR")
 

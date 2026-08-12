@@ -53,7 +53,7 @@ class InitmtyDsc(GamsClass):
             m,
             name="UNIT",
             description="Number of different units",
-            records=range(0, 101),
+            records=range(101),
         )
         g.PrcDscncap = Set(
             m,
