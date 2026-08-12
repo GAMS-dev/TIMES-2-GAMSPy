@@ -15,6 +15,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter
+
 from core.base_class import GamsClass
 from core.cal_nored_red import cal_nored_red
 from core.cal_red_red import cal_red_red
@@ -46,6 +48,7 @@ class EqbndcstMod(GamsClass):
 
     def compile(self) -> None:
         g = self.tc
+        m = g.container
 
         self.tc.add_gams_code(
             module=self,
@@ -56,8 +59,12 @@ class EqbndcstMod(GamsClass):
  SET YKK(ALLYEAR,ALLYEAR,ALLYEAR)                //;
  SET RTP_IAN(REG,T,P,CUR)                        //;
  SET RT_IAN(REG,ALLYEAR,ALLYEAR,CUR,COSTAGG)     //;
- PARAMETER CST_ANNC(R,ALLYEAR,P,ALLYEAR,UC_NAME,CUR) //;
 """,
+        )
+        g.cst_annc = Parameter(
+            m,
+            name="CST_ANNC",
+            domain=[g.r, g.allyear, g.p, g.allyear, g.ucname, g.cur],
         )
 
         if "OBJ_SUMII" not in self.tc.container.listSymbols():
