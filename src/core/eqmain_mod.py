@@ -38,7 +38,7 @@ from core.eqcumflo_mod import EqcumfloMod
 from core.eqdamage_mod import EqdamageMod
 from core.eqdeclr_mod import EqdeclrMod
 from core.eqdeclr_tm import EqdeclrTm
-from core.eqflobnd_mod import EqflobndMod
+from core.eqflobnd_mod import EqflobndMod, EqflobndModConfig
 from core.eqflofr_mod import EqflofrMod, EqflofrModConfig
 from core.eqflomrk_mod import EqflomrkMod
 from core.eqfloshr_mod import EqfloshrMod
@@ -224,16 +224,18 @@ class EqmainMod(GamsClass):
         )
 
         # Bound on the flow variable
-        eqflobnd_batincludes: list[tuple[str, str, str]] = [
-            ("G", "LO", "YES"),
-            ("E", "FX", "YES"),
-            ("L", "UP", "(FLO_BND(R,T,P,CG,S,'UP') NE INF)"),
+        eqflobnd_batincludes: list[EqflobndModConfig] = [
+            EqflobndModConfig(sense="G", arg2="LO", arg3=Number(1)),
+            EqflobndModConfig(sense="E", arg2="FX", arg3=Number(1)),
+            EqflobndModConfig(
+                sense="L",
+                arg2="UP",
+                arg3=g.flo_bnd[g.r, g.t, g.p, g.cg, g.s, "UP"] != SpecialValues.POSINF,
+            ),
         ]
 
-        for arg1, arg2, arg3 in eqflobnd_batincludes:
-            self.include(
-                EqflobndMod(tc=self.tc, env=self.env, arg1=arg1, arg2=arg2, arg3=arg3)
-            )
+        for eqflobnd_config in eqflobnd_batincludes:
+            self.include(EqflobndMod(tc=self.tc, env=self.env, config=eqflobnd_config))
 
         # Fraction of a flow within a specific time slice
         eqflofr_batincludes: list[EqflofrModConfig] = [
@@ -241,8 +243,8 @@ class EqmainMod(GamsClass):
             EqflofrModConfig(arg1="E", arg2=g.Lnx),
             EqflofrModConfig(arg1="G", arg2="UP"),
         ]
-        for config in eqflofr_batincludes:
-            self.include(EqflofrMod(tc=self.tc, env=self.env, config=config))
+        for eqflofr_config in eqflofr_batincludes:
+            self.include(EqflofrMod(tc=self.tc, env=self.env, config=eqflofr_config))
 
         # Market share equation allocating commodity percentages of a group
         eqfloshr_batincludes: list[tuple[str, str, str]] = [
