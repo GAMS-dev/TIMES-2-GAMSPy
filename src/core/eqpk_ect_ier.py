@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Literal
 
 from gamspy import Number, Sum
 
-from core.cal_fflo_mod import CalFfloModConfig, cal_fflo_mod, cal_fflo_mod_GP
+from core.cal_fflo_mod import CalFfloModConfig, cal_fflo_mod_GP
 
 if TYPE_CHECKING:
     from gamspy import Alias, Set, Variable
@@ -78,35 +78,3 @@ def eqpk_ect_ier_GP(
             ),
         ),
     )
-
-
-def eqpk_ect_ier(
-    varv: str,
-    sws: str,
-    # args for cal_fflo_mod
-    reduce: str,
-    sow: str,
-    var: str,
-    pgprim: str,
-    is_rtp_ffcs_defined: bool,
-) -> str:
-    """Translation unit for eqpk_ect.ier."""
-    include_cal_fflo = cal_fflo_mod(
-        reduce=reduce,
-        sow=sow,
-        var=var,
-        pgprim=pgprim,
-        is_rtp_ffcs_defined=is_rtp_ffcs_defined,
-        arg1="OUT",
-        # arg2 = "O" in cal_fflo_mod stated as no longer used
-        arg3="*(-(NCAP_PKCNT(R,V,P,S)**RPC_PKF(R,P,C)))$RPC_PKF(R,P,C)",
-    )
-
-    return rf"""
-     + SUM(ECT_ELC(ECT_CHP(R,P),C)$((NOT PRC_CAP(R,P)*RPC_PKC(R,P,C))$TOP(R,P,C,'OUT')),
-{include_cal_fflo}
-             (G_YRFR(R,S)*SUM(RTP_CPTYR(R,V,T,P),PRC_CAPACT(R,P)*
-                               NCAP_PKCNT(R,V,P,S)*COEF_CPT(R,V,T,P)*
-                               ({varv}_NCAP(R,V,P {sws})$MILESTONYR(V)+NCAP_PASTI(R,V,P)$PASTYEAR(V)))))
-
-"""
