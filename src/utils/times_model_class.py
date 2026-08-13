@@ -963,6 +963,8 @@ class TimesModelClass:
     VAS_UDP: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,s,l] VAS_UDP: Unit dispatching
     VAR_RLD: Variable = None  # type: ignore[assignment]  # [r,t,s,item] VAR_RLD: Residual loads
     VAS_RLD: Variable = None  # type: ignore[assignment]  # [r,t,s,item] VAS_RLD: Residual loads
+    VAR_BSPRS: Variable = None  # type: ignore[assignment]  # [r,year,t,p,c,s,l] VAR_BSPRS: Balancing services
+    VAS_BSPRS: Variable = None  # type: ignore[assignment]  # [r,year,t,p,c,s,l] VAS_BSPRS: Balancing services
     VAR_OBJ: Variable = None  # type: ignore[assignment]# [r,obv,cur] VAR_OBJ: Objective costs INV,SAL,FIX,VAR,DAM
     VAS_OBJ: Variable = None  # type: ignore[assignment]# [r,obv,cur] VAS_OBJ: Objective costs INV,SAL,FIX,VAR,DAM
     VAR_OBJELS: Variable = None  # type: ignore[assignment]# [r,bd,cur] VAR_OBJELS: Change in Consumer surplus
@@ -1768,6 +1770,14 @@ class TimesModelClass:
     eqe_mrkcon: Equation = None  # type: ignore[assignment] # [r,t,p,c,s,allsow] EQE_MRKCON: Consumption share (=E=)
     eql_mrkcon: Equation = None  # type: ignore[assignment] # [r,t,p,c,s,allsow] EQL_MRKCON: Consumption share (=L=)
     eqg_mrkcon: Equation = None  # type: ignore[assignment] # [r,t,p,c,s,allsow] EQG_MRKCON: Consumption share (=G=)
+    # endregion
+
+    # region ABS extension (initmty.abs ancillary balancing services)
+    bs_rtype: Parameter = None  # type: ignore[assignment] # [r,c] BS_RTYPE: Types of reserve commodities, positive or negative 1-4
+    BsComts: Set = None  # type: ignore[assignment] # [r,c,s] BS_COMTS: Reserve commodity timeslices
+    BsSupp: Set = None  # type: ignore[assignment] # [r,p] BS_SUPP: Reserve provision by generation
+    BsPrs: Set = None  # type: ignore[assignment] # [r,p,s] BS_PRS: Process slices for reserve tracking
+    BsUcmap: Set = None  # type: ignore[assignment] # [ucn,side,r,p,c] BS_UCMAP: Map to refer to reserves in UC_FLO
     # endregion
 
     def __post_init__(self) -> None:

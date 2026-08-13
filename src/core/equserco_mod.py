@@ -29,7 +29,7 @@ from gamspy._symbols.implicits import ImplicitSet
 
 from core.base_class import GamsClass
 from core.uc_act_mod import UcActModConfig, uc_act_mod
-from core.uc_cap_mod import uc_cap_mod
+from core.uc_cap_mod import UcCapModConfig, uc_cap_mod
 from core.uc_cli_mod import UcCliModConfig, uc_cli_mod
 from core.uc_com_mod import UcComModConfig, uc_com_mod
 from core.uc_flo_mod import uc_flo_mod
@@ -245,16 +245,19 @@ class EqusercoMod(GamsClass):
             ),
         )
         include_uc_cap = uc_cap_mod(
-            var=self.env.var,
-            sow=self.env.sow,
-            vda=self.env.vda,
-            abs=self.env.abs,
-            arg1=f"{self.arg4}{self.arg7}",
-            arg2=self.arg5,
-            arg3="T",
-            arg4=hs,
-            arg5=self.arg8,
-            arg6="T",
+            g=g,
+            config=UcCapModConfig(
+                var=self.env.var,
+                sow=self.env.sow_GP,
+                vda=self.env.vda,
+                abs=self.env.abs,
+                arg1=self.arg7_GP,
+                arg2=self.arg5_GP,
+                arg3=g.t,
+                arg4=hs_GP,
+                arg5=self.arg8_GP,
+                arg6=g.t,
+            ),
         )
         include_uc_act = uc_act_mod(
             g=g,
@@ -425,17 +428,20 @@ class EqusercoMod(GamsClass):
 +
 {
             uc_cap_mod(
-                var=self.env.var,  # TODO: Use self.env.var_GP
-                sow=self.env.sow,
-                vda=self.env.vda,
-                abs=self.env.abs,
-                arg1=f"{self.arg4}{self.arg7}",
-                arg2=self.env.tsum,
-                arg3="TT",
-                arg4="SIDE",
-                arg5=self.arg8,
-                arg6="TT",
-                arg7="LAGT(T)",
+                g=g,
+                config=UcCapModConfig(
+                    var=self.env.var_GP,
+                    sow=self.env.sow_GP,
+                    vda=self.env.vda,
+                    abs=self.env.abs,
+                    arg1=self.arg7_GP,
+                    arg2=tsum_GP,
+                    arg3=g.tt,
+                    arg4=g.side,
+                    arg5=self.arg8_GP,
+                    arg6=g.tt,
+                    arg7=g.lagt[g.t],
+                ),
             )
         }
 +
@@ -579,17 +585,20 @@ class EqusercoMod(GamsClass):
 +
 {
             uc_cap_mod(
-                var=self.env.var,  # TODO: Use self.env.var_GP
-                sow=self.env.sow,
-                vda=self.env.vda,
-                abs=self.env.abs,
-                arg1=f"{self.arg4}{self.arg7}",
-                arg2=f"{self.env.tsum}'CAP'{self.env.tucn}",
-                arg3="TT",
-                arg4="SIDE",
-                arg5=self.arg8,
-                arg6="LL",
-                arg7="-LEAD(T)",
+                g=g,
+                config=UcCapModConfig(
+                    var=self.env.var_GP,
+                    sow=self.env.sow_GP,
+                    vda=self.env.vda,
+                    abs=self.env.abs,
+                    arg1=self.arg7_GP,
+                    arg2=self.make_arg2(set_element="CAP"),
+                    arg3=g.tt,
+                    arg4=g.side,
+                    arg5=self.arg8_GP,
+                    arg6=g.ll,
+                    arg7=-g.lead[g.t],
+                ),
             )
         }
 +

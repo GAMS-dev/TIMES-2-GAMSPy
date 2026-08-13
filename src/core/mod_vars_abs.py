@@ -13,6 +13,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Variable
+
 from core.base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -40,13 +42,27 @@ class ModVarsAbs(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
+        var = self.env.var
+
+        g.set_variable(
+            name=f"{var}_BSPRS",
+            var=Variable(
+                m,
+                name=f"{var}_BSPRS",
+                type="Positive",
+                domain=[g.r, g.year, g.t, g.p, g.c, g.s, g.lA, *self.env.swd_GP],
+                description="Balancing services",
+            ),
+        )
+
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=rf"""
   POSITIVE VARIABLES
   {self.env.var}_COMLV(CLVT,R,YEAR,C,S{self.env.swd})   Commodity levels
-  {self.env.var}_BSPRS(R,YEAR,T,P,C,S,L{self.env.swd})  Balancing services //
   {self.env.var}_RLD(R,T,S,ITEM{self.env.swd})          Reserve-defining load levels
   ;
 

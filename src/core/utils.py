@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 SET_OR_ALIAS = Set | ImplicitSet | Alias
 EquationSenseTypes = Literal["E", "N", "L", "G"]
-TargetType = Expression | Sum | Variable | ImplicitVariable
+TargetType = Expression | Sum | Variable | ImplicitVariable | Condition
 DomainType = (
     SET_OR_ALIAS
     | tuple[ImplicitSet | Condition, ImplicitParameter]
