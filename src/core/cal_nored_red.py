@@ -24,7 +24,6 @@ from core.cal_red_red import CalRedRedConfig
 
 if TYPE_CHECKING:
     from gamspy import Alias, Set, Variable
-    from gamspy._algebra.condition import Condition
     from gamspy._algebra.expression import Expression
     from gamspy._symbols.implicits import ImplicitSet
 
@@ -34,7 +33,7 @@ if TYPE_CHECKING:
 # Use same config as in cal_red_red to make it easier to switch
 def cal_nored_red_GP(
     g: TimesModelClass, config: CalRedRedConfig
-) -> Condition | Expression | ImplicitSet | Sum:
+) -> Expression | ImplicitSet | Sum:
     """GAMSPy counterpart of cal_nored_red().
 
     arg6 selects the '.L' suffix, arg9 the optional SUM domain (arg8 of the string
@@ -62,8 +61,8 @@ def cal_nored_red_GP(
         shp3 = (1 + g.rtp_ffcx[r, v, cc.arg5, *shg].where[tst]) * shp3
 
     def total(
-        expr: Condition | Expression | ImplicitSet,
-    ) -> Condition | Expression | ImplicitSet | Sum:
+        expr: Expression | ImplicitSet,
+    ) -> Expression | ImplicitSet | Sum:
         """arg8/arg9 of the string version: SUM(arg9, expr) or just expr."""
         # NB: gamspy's Sum() type hint omits Condition, which GAMS accepts
         return expr if cc.index_set is None else Sum(cc.index_set, expr)  # type: ignore[arg-type]

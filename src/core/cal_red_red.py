@@ -61,7 +61,7 @@ class CalRedRedConfig:
 
 def cal_red_red_GP(
     g: TimesModelClass, config: CalRedRedConfig
-) -> Condition | Expression | ImplicitSet | Sum:
+) -> Expression | ImplicitSet | Sum:
     """GAMSPy counterpart of cal_red_red().
 
     arg6 selects the '.L' suffix, arg9 the optional SUM domain (arg8 of the string
