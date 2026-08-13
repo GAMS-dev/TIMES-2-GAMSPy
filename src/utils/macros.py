@@ -5,15 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
-from gamspy import Alias, Set, Sum
+from gamspy import Sum
 
 if TYPE_CHECKING:
     from gamspy import Expression
     from gamspy._symbols.implicits import ImplicitParameter
 
-    from core.utils import SET_OR_ALIAS
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
+
+from core.utils import SET_OR_ALIAS
 
 
 @dataclass
@@ -120,7 +121,7 @@ class UpscapsContext:
         g: TimesModelClass,
         var: str,
         sow: str,
-        sow_GP: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
+        sow_GP: tuple[Literal["0", "1"] | SET_OR_ALIAS] | tuple[()],
     ) -> None:
         self.g = g
         self.active = True
@@ -401,12 +402,12 @@ class Macros:
 
     def obj_ftax_GP(
         self,
-        r: Set | Alias,
-        y: Set | Alias,
-        p: Set | Alias,
-        c: Set | Alias,
-        s: Set | Alias,
-        m: Set | Alias,
+        r: SET_OR_ALIAS,
+        y: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        c: SET_OR_ALIAS,
+        s: SET_OR_ALIAS,
+        m: SET_OR_ALIAS,
     ) -> ImplicitParameter:
         if self.obj_ftax_active:
             return self._g.ob_ftax[r, p, c, s, m, y]
@@ -429,12 +430,12 @@ class Macros:
         return "RTS"
 
     def rts_GP(
-        self, s: Set | Alias, env: CompileEnvironment, g: TimesModelClass
-    ) -> Set | Alias:
+        self, s: SET_OR_ALIAS, env: CompileEnvironment, g: TimesModelClass
+    ) -> SET_OR_ALIAS:
         # Return environment variable
         if self.rts_active:
             rts = env.rts_GP(s)
-            assert isinstance(rts, (Set | Alias)), (
+            assert isinstance(rts, (SET_OR_ALIAS)), (
                 f"rts returned an enexpected value {rts=}"
             )
             return rts

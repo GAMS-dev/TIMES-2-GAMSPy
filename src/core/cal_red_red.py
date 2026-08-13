@@ -20,12 +20,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from gamspy import Domain, Number, Sum
 
 if TYPE_CHECKING:
-    from gamspy import Alias, Set, Variable
+    from gamspy import Variable
     from gamspy._algebra.condition import Condition
     from gamspy._algebra.expression import Expression
     from gamspy._symbols.implicits import (
@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     )
     from gamspy.math import MathOp
 
+    from core.utils import SET_OR_ALIAS
     from utils.times_model_class import TimesModelClass
 
 
@@ -42,15 +43,15 @@ if TYPE_CHECKING:
 class CalRedRedConfig:
     """Strongly typed data contract for cal_red_red."""
 
-    var: str
-    sow: tuple[Literal["0", "1"] | Set | Alias, ...] | tuple[()]
+    var: str | tuple[str, Any]
+    sow: tuple[Literal["0", "1"] | SET_OR_ALIAS, ...] | tuple[()]
     pgprim: str
     def_rtp_ffcs: bool
-    arg1: Set | Alias
-    arg2: Set | Alias
-    arg3: Set | Alias
-    arg4: Set | Alias
-    arg5: Set | Alias
+    arg1: SET_OR_ALIAS
+    arg2: SET_OR_ALIAS
+    arg3: SET_OR_ALIAS
+    arg4: SET_OR_ALIAS
+    arg5: SET_OR_ALIAS
     # multiplier or empty
     arg10: Condition | Expression | ImplicitParameter | MathOp | Number
     is_output: bool = False  # old arg6
@@ -76,7 +77,7 @@ def cal_red_red_GP(
     shp2: Number | Expression = Number(1)
     shp3: Number | Expression = Number(1)
 
-    vnt: Set | Alias = cc.arg5 if cc.arg7 == "T" else v
+    vnt: SET_OR_ALIAS = cc.arg5 if cc.arg7 == "T" else v
 
     # needs to be used in .where[] !!
     tst: Number | ImplicitSet = g.PrcVint[r, cc.arg4]

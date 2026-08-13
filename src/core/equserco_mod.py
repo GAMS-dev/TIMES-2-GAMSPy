@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, TypedDict, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, TypedDict, TypeVar
 
 from gamspy import Alias, Domain, Set, Sum
 from gamspy._algebra.condition import Condition
@@ -32,7 +32,7 @@ from core.uc_act_mod import UcActModConfig, uc_act_mod
 from core.uc_cap_mod import UcCapModConfig, uc_cap_mod
 from core.uc_cli_mod import UcCliModConfig, uc_cli_mod
 from core.uc_com_mod import UcComModConfig, uc_com_mod
-from core.uc_flo_mod import uc_flo_mod
+from core.uc_flo_mod import UcFloModConfig, uc_flo_mod
 from core.uc_ire_mod import UcIreModConfig, uc_ire_mod
 from core.uc_ncap_mod import UcNcapModConfig, uc_ncap_mod
 from core.uc_pasti_mod import UcPastiModConfig, uc_pasti_mod
@@ -79,8 +79,8 @@ class EqusercoModConfig:
         | tuple[Condition, ImplicitParameter]
         | None
     ]
-    arg6: DualArgs[ImplicitSet | Domain | None]
-    arg7: DualArgs[ImplicitSet | Domain | None]
+    arg6: DualArgs[ImplicitSet | None]
+    arg7: DualArgs[ImplicitSet | None]
     arg8: DualArgs[Literal["S", 1, 2, 0]]
     arg9: ImplicitVariable
     arg10: ImplicitParameter
@@ -209,25 +209,29 @@ class EqusercoMod(GamsClass):
         g = self.tc
         hs, hs_GP = hs_arg
         include_uc_flo = uc_flo_mod(
-            cal_red=self.env.cal_red,
-            var=self.env.var,
-            swt=self.env.swt,
-            def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
-            sow=self.env.sow,
-            cufscal=self.env.cufscal,
-            pgprim=self.env.pgprim,
-            sws=self.env.sws,
-            varm=self.env.varm,
-            varv=self.env.varv,
-            is_vnret_defined=self.tc.defined("VNRET"),
-            arg1=f"{self.arg4}{self.arg7}",
-            arg2=self.arg5,
-            arg3=self.arg6,
-            arg4="T",
-            arg5=hs,
-            arg6=self.arg8,
-            arg7="T",
-            arg8=self.arg7,
+            g=g,
+            config=UcFloModConfig(
+                cal_red=self.env.cal_red,
+                var=self.env.var,
+                swt=self.env.swt_GP,
+                def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
+                sow=self.env.sow_GP,
+                cufscal=self.env.cufscal,
+                pgprim=self.env.pgprim,
+                sws=self.env.sws_GP,
+                varm=self.env.varm_GP,
+                varv=self.env.varv_GP,
+                is_vnret_defined=self.tc.defined("VNRET"),
+                arg1=self.arg7_GP,
+                arg2=self.arg5_GP,
+                arg3=self.arg6_GP,
+                arg4=g.t,
+                arg5=hs_GP,
+                arg6=self.arg8_GP,
+                arg7=g.t,
+                arg8=self.arg7_GP,
+                arg9=(self.env.var, ()),
+            ),
         )
         include_uc_ncap = uc_ncap_mod(
             g=g,
@@ -352,10 +356,11 @@ class EqusercoMod(GamsClass):
     ) -> str:
         g = self.tc
 
-        uc_flo_arg9 = self.env.var  # self.env.set_scoped("swflo", self.env.var)
-        uc_flo_arg10 = ""
-        uc_flo_arg11 = ""
-        uc_flo_arg12 = ""
+        uc_flo_arg9: tuple[Any, Any] = (
+            self.env.var,
+            (),
+        )  # self.env.set_scoped("swflo", self.env.var)
+        uc_flo_arg10 = None
         self.env.set_scoped("var_GP", self.env.var)
 
         if is_stages:
@@ -365,10 +370,8 @@ class EqusercoMod(GamsClass):
             self.env.set_scoped("sow", ",WW)")
             self.env.set_scoped("sow_GP", (g.ww,))
             # self.env.set_scoped("swflo", f"{temp_var} ,WW SUM {self.arg5}")
-            uc_flo_arg9 = temp_var
-            uc_flo_arg10 = " ,WW"
-            uc_flo_arg11 = "SUM"
-            uc_flo_arg12 = self.arg5
+            uc_flo_arg9 = (temp_var, (g.ww,))
+            uc_flo_arg10 = self.arg5_GP
 
         self.env.set_local("tsum", "SUM(UC_TMAP(TT,T,T,SIDE,'N'),UC_SIGN(SIDE)*")
         # self.env.set_local(
@@ -380,30 +383,31 @@ class EqusercoMod(GamsClass):
 (
 {
             uc_flo_mod(
-                cal_red=self.env.cal_red,
-                var=self.env.var,  # TODO: Use self.env.var_GP
-                swt=self.env.swt,
-                def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
-                sow=self.env.sow,
-                cufscal=self.env.cufscal,
-                pgprim=self.env.pgprim,
-                sws=self.env.sws,
-                varm=self.env.varm,
-                varv=self.env.varv,
-                is_vnret_defined=self.tc.defined("VNRET"),
-                arg1=f"{self.arg4}{self.arg7}",
-                arg2=self.env.tsum,
-                arg3=self.arg6,
-                arg4="TT",
-                arg5="SIDE",
-                arg6=self.arg8,
-                arg7="TT",
-                arg8="LAGT(T)",
-                # arg9=self.env.swflo, !%SWFLO% contains emtpy strings! -> split into multiple arguments
-                arg9=uc_flo_arg9,
-                arg10=uc_flo_arg10,
-                arg11=uc_flo_arg11,
-                arg12=uc_flo_arg12,
+                g=g,
+                config=UcFloModConfig(
+                    cal_red=self.env.cal_red,
+                    var=self.env.var_GP,
+                    swt=self.env.swt_GP,
+                    def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
+                    sow=self.env.sow_GP,
+                    cufscal=self.env.cufscal,
+                    pgprim=self.env.pgprim,
+                    sws=self.env.sws_GP,
+                    varm=self.env.varm_GP,
+                    varv=self.env.varv_GP,
+                    is_vnret_defined=self.tc.defined("VNRET"),
+                    arg1=self.arg7_GP,
+                    arg2=tsum_GP,
+                    arg3=self.arg6_GP,
+                    arg4=g.tt,
+                    arg5=g.side,
+                    arg6=self.arg8_GP,
+                    arg7=g.tt,
+                    arg8=g.lagt[g.t],
+                    # arg9=self.env.swflo, !%SWFLO% contains emtpy strings! -> split into multiple arguments
+                    arg9=uc_flo_arg9,
+                    arg10=uc_flo_arg10,
+                ),
             )
         }
 +
@@ -538,29 +542,30 @@ class EqusercoMod(GamsClass):
 (
 {
             uc_flo_mod(
-                cal_red=self.env.cal_red,
-                var=self.env.var,  # TODO: Use self.env.var_GP
-                swt=self.env.swt,
-                def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
-                sow=self.env.sow,
-                cufscal=self.env.cufscal,
-                pgprim=self.env.pgprim,
-                sws=self.env.sws,
-                varm=self.env.varm,
-                varv=self.env.varv,
-                is_vnret_defined=self.tc.defined("VNRET"),
-                arg1=f"{self.arg4}{self.arg7}",
-                arg2=f"{self.env.tsum}'FLO'{self.env.tucn}",
-                arg3=self.arg6,
-                arg4="TT",
-                arg5="SIDE",
-                arg6=self.arg8,
-                arg7="LL",
-                arg8="-LEAD(T)",
-                arg9=uc_flo_arg9,
-                arg10=uc_flo_arg10,
-                arg11=uc_flo_arg11,
-                arg12=uc_flo_arg12,
+                g=g,
+                config=UcFloModConfig(
+                    cal_red=self.env.cal_red,
+                    var=self.env.var_GP,
+                    swt=self.env.swt_GP,
+                    def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
+                    sow=self.env.sow_GP,
+                    cufscal=self.env.cufscal,
+                    pgprim=self.env.pgprim,
+                    sws=self.env.sws_GP,
+                    varm=self.env.varm_GP,
+                    varv=self.env.varv_GP,
+                    is_vnret_defined=self.tc.defined("VNRET"),
+                    arg1=self.arg7_GP,
+                    arg2=self.make_arg2(set_element="FLO"),
+                    arg3=self.arg6_GP,
+                    arg4=g.tt,
+                    arg5=g.side,
+                    arg6=self.arg8_GP,
+                    arg7=g.ll,
+                    arg8=-g.lead[g.t],
+                    arg9=uc_flo_arg9,
+                    arg10=uc_flo_arg10,
+                ),
             )
         }
 +

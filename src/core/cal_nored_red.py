@@ -23,10 +23,11 @@ from gamspy import Domain, Number, Sum
 from core.cal_red_red import CalRedRedConfig
 
 if TYPE_CHECKING:
-    from gamspy import Alias, Set, Variable
+    from gamspy import Variable
     from gamspy._algebra.expression import Expression
     from gamspy._symbols.implicits import ImplicitSet
 
+    from core.utils import SET_OR_ALIAS
     from utils.times_model_class import TimesModelClass
 
 
@@ -44,7 +45,7 @@ def cal_nored_red_GP(
     r, v, allts, cg3, com2 = g.r, g.v, g.allts, g.cg3, g.com2
 
     shp3: Expression | Number = Number(1)
-    vnt: Set | Alias = cc.arg5 if cc.arg7 == "T" else v
+    vnt: SET_OR_ALIAS = cc.arg5 if cc.arg7 == "T" else v
     shg = (cc.arg4, cg3, cc.arg1)
     tst: ImplicitSet | Number = g.PrcVint[r, cc.arg4]
 
