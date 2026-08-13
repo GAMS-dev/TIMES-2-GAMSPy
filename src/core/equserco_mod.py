@@ -35,7 +35,7 @@ from core.uc_com_mod import UcComModConfig, uc_com_mod
 from core.uc_flo_mod import uc_flo_mod
 from core.uc_ire_mod import UcIreModConfig, uc_ire_mod
 from core.uc_ncap_mod import UcNcapModConfig, uc_ncap_mod
-from core.uc_pasti_mod import uc_pasti_mod
+from core.uc_pasti_mod import UcPastiModConfig, uc_pasti_mod
 from core.utils import wrap_in_sum
 
 # from core.utils import generate_equation
@@ -709,10 +709,13 @@ class EqusercoMod(GamsClass):
 -
 {
             uc_pasti_mod(
-                arg1=f"{self.arg4}{self.arg7}",
-                arg2="MIYR_1",
-                arg3="T",
-                arg4="'RHS'",
+                g=g,
+                config=UcPastiModConfig(
+                    arg1=self.arg7_GP,
+                    arg2=g.Miyr1,
+                    arg3=g.t,
+                    arg4="RHS",
+                ),
             )
         }
 )$SUM(UC_DYNDIR(R,UC_N,'RHS'),1)
