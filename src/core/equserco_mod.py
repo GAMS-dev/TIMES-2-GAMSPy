@@ -30,7 +30,7 @@ from gamspy._symbols.implicits import ImplicitSet
 from core.base_class import GamsClass
 from core.uc_act_mod import UcActModConfig, uc_act_mod
 from core.uc_cap_mod import uc_cap_mod
-from core.uc_cli_mod import uc_cli_mod
+from core.uc_cli_mod import UcCliModConfig, uc_cli_mod
 from core.uc_com_mod import UcComModConfig, uc_com_mod
 from core.uc_flo_mod import uc_flo_mod
 from core.uc_ire_mod import UcIreModConfig, uc_ire_mod
@@ -679,17 +679,20 @@ class EqusercoMod(GamsClass):
         })$UC_RHSRT(R,UCN,TT,'N')))
 {
             uc_cli_mod(
+                g=g,
                 is_uc_cli_defined=self.tc.defined("UC_CLI"),
-                var=self.env.var,  # TODO: Use self.env.var_GP
-                sow=self.env.sow,
-                arg1=f"{self.arg4}{self.arg7}",
-                arg2=f"{self.env.tsum}'CLI'{self.env.tucn}",
-                arg3=self.arg6,
-                arg4="TT",
-                arg5="SIDE",
-                arg6=self.arg8,
-                arg7="LL",
-                arg8="-LEAD(T)",
+                var=self.env.var_GP,
+                sow_GP=self.env.sow_GP,
+                config=UcCliModConfig(
+                    arg1=self.arg7_GP,
+                    arg2=self.make_arg2(set_element="CLI"),
+                    arg3=self.arg6_GP,
+                    arg4=g.tt,
+                    arg5=g.side,
+                    arg6=self.arg8_GP,
+                    arg7=g.ll,
+                    arg8=-g.lead[g.t],
+                ),
             )
             if is_cli
             else ""

@@ -18,10 +18,10 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
-from gamspy import Alias, Domain, Number, Product, Set, Sum
+from gamspy import Domain, Number, Product, Sum
 from gamspy.math import Max, Min, abs, power, same_as
 
-from core.utils import BaseUcModConfig, extract_var_domain, wrap_in_sum
+from core.utils import BaseUcModConfig, SowGPType, extract_var_domain, wrap_in_sum
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
@@ -41,7 +41,7 @@ class UcIreModConfig(BaseUcModConfig):
 def uc_ire_mod(
     g: TimesModelClass,
     var: str | tuple[str, Any],
-    sow_GP: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
+    sow_GP: SowGPType,
     config: UcIreModConfig,
 ) -> str | Any:
     cc = config

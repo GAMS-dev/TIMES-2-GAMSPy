@@ -20,10 +20,10 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
-from gamspy import Alias, Domain, Product, Set, Sum
+from gamspy import Domain, Product, Set, Sum
 from gamspy.math import abs, diag, power
 
-from core.utils import BaseUcModConfig, extract_var_domain, wrap_in_sum
+from core.utils import BaseUcModConfig, SowGPType, extract_var_domain, wrap_in_sum
 
 if TYPE_CHECKING:
     from gamspy import Expression, Parameter
@@ -47,7 +47,7 @@ class UcComModConfig(BaseUcModConfig):
 def inner_sum(
     g: TimesModelClass,
     var: str | tuple[str, Any],
-    sow_GP: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
+    sow_GP: SowGPType,
     config: UcComModConfig,
 ) -> Sum:
     cc = config
@@ -139,7 +139,7 @@ def inner_sum(
 def uc_com_mod(
     g: TimesModelClass,
     var: str | tuple[str, Any],
-    sow_GP: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
+    sow_GP: SowGPType,
     config: UcComModConfig,
 ) -> str | Any:
     cc = config
