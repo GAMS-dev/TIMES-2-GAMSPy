@@ -41,7 +41,7 @@ from core.eqdeclr_tm import EqdeclrTm
 from core.eqflobnd_mod import EqflobndMod, EqflobndModConfig
 from core.eqflofr_mod import EqflofrMod, EqflofrModConfig
 from core.eqflomrk_mod import EqflomrkMod
-from core.eqfloshr_mod import EqfloshrMod
+from core.eqfloshr_mod import EqfloshrMod, EqfloshrModConfig
 from core.eqire_mod import EqireMod
 from core.eqirebnd_mod import EqirebndMod, EqirebndModConfig
 from core.eqmacro_tm import EqmacroTm
@@ -247,26 +247,22 @@ class EqmainMod(GamsClass):
             self.include(EqflofrMod(tc=self.tc, env=self.env, config=eqflofr_config))
 
         # Market share equation allocating commodity percentages of a group
-        eqfloshr_batincludes: list[tuple[str, str, str]] = [
-            ("L", "LO", "IN"),
-            ("E", "FX", "IN"),
-            ("G", "UP", "IN"),
+        eqfloshr_batincludes: list[EqfloshrModConfig] = [
+            EqfloshrModConfig(sense="L", arg2="LO", arg3="IN"),
+            EqfloshrModConfig(sense="E", arg2="FX", arg3="IN"),
+            EqfloshrModConfig(sense="G", arg2="UP", arg3="IN"),
         ]
-        for arg1, arg2, arg3 in eqfloshr_batincludes:
-            self.include(
-                EqfloshrMod(tc=self.tc, env=self.env, arg1=arg1, arg2=arg2, arg3=arg3)
-            )
+        for eqfloshr_config in eqfloshr_batincludes:
+            self.include(EqfloshrMod(tc=self.tc, env=self.env, config=eqfloshr_config))
 
         # Product share equation allocating commodity percentages of a group
         eqfloshr_batincludes = [
-            ("L", "LO", "OUT"),
-            ("E", "FX", "OUT"),
-            ("G", "UP", "OUT"),
+            EqfloshrModConfig(sense="L", arg2="LO", arg3="OUT"),
+            EqfloshrModConfig(sense="E", arg2="FX", arg3="OUT"),
+            EqfloshrModConfig(sense="G", arg2="UP", arg3="OUT"),
         ]
-        for arg1, arg2, arg3 in eqfloshr_batincludes:
-            self.include(
-                EqfloshrMod(tc=self.tc, env=self.env, arg1=arg1, arg2=arg2, arg3=arg3)
-            )
+        for eqfloshr_config in eqfloshr_batincludes:
+            self.include(EqfloshrMod(tc=self.tc, env=self.env, config=eqfloshr_config))
 
         # Process market share constraint in total commodity production
         eqflomrk_batincludes: list[tuple[Literal["E", "N", "L", "G"], str]] = [

@@ -18,15 +18,31 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from gamspy import Domain, Number, Sum
+
 from core.base_class import GamsClass
+from core.cal_red_red import CalRedRedConfig
+from core.utils import EquationSenseTypes, generate_equation
 
 if TYPE_CHECKING:
+    from gamspy._algebra.condition import Condition
+    from gamspy._algebra.expression import Expression
+    from gamspy._symbols.implicits import ImplicitSet
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class EqfloshrModConfig:
+    sense: EquationSenseTypes
+    arg2: str
+    arg3: str
 
 
 class EqfloshrMod(GamsClass):
@@ -37,56 +53,102 @@ class EqfloshrMod(GamsClass):
     gams_source: str = "eqfloshr.mod"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str,
-        arg2: str,
-        arg3: str,
+        self, tc: TimesModelClass, env: CompileEnvironment, config: EqfloshrModConfig
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
+        self.config = config
         self.compile()
 
     def compile(self) -> None:
+        cc = self.config
+        g = self.tc
         if self.env.cal_red == "cal_red.red":
-            from core.cal_red_red import cal_red_red as cal_red_func
+            from core.cal_red_red import cal_red_red_GP as cal_red_func_GP
+        elif self.env.cal_red == "cal_nored.red":
+            from core.cal_nored_red import cal_nored_red_GP as cal_red_func_GP
         else:
-            from core.cal_nored_red import cal_nored_red as cal_red_func
+            raise ValueError(f"Unexpected value for cal_red: {self.env.cal_red}")
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-    {self.env.eq}{self.arg1}_{self.arg3}SHR(RTP_VINTYR({self.env.r_v_t},P),C,CG,S {self.env.swt})$((RP_STD(R,P)*TOP(R,P,C,'{self.arg3}')*RTPCS_VARF(R,T,P,C,S))$FLO_SHAR(R,V,P,C,CG,S,'{self.arg2}'))..
+        include_cal_red1: Condition | Expression | ImplicitSet | Sum = cal_red_func_GP(
+            g=g,
+            config=CalRedRedConfig(
+                var=self.env.var,
+                sow=self.env.sow_GP,
+                pgprim=self.env.pgprim,
+                def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
+                arg1=g.Com,
+                arg2=g.com1,
+                arg3=g.ts,
+                arg4=g.p,
+                arg5=g.t,
+                arg10=Number(1),
+            ),
+        )
 
-* all flows in the group
-        FLO_SHAR(R,V,P,C,CG,S,'{self.arg2}') *
-*V0.5a 980729 - RPCS_VAR: com not c
-* [AL] Handle reduced/non-reduced groups separately
-        (SUM((TOP(R,P,COM,'{self.arg3}'),RTPCS_VARF(R,T,P,COM,TS))$COM_GMAP(R,CG,COM),
-             {self.env.var}_FLO(R,V,T,P,COM,TS {self.env.sow})*RS_FR(R,S,TS)*(1+RTCS_FR(R,T,COM,S,TS))
-            )$(NOT RPG_RED(R,P,CG,'{self.arg3}')) +
+        include_cal_red2: Condition | Expression | ImplicitSet | Sum = cal_red_func_GP(
+            g=g,
+            config=CalRedRedConfig(
+                var=self.env.var,
+                sow=self.env.sow_GP,
+                pgprim=self.env.pgprim,
+                def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
+                arg1=g.c,
+                arg2=g.Com,
+                arg3=g.s,
+                arg4=g.p,
+                arg5=g.t,
+                arg10=Number(1),
+            ),
+        )
+        eq_shr = g.get_equation(f"{self.env.eq}{cc.sense}_{cc.arg3}SHR")
+        VAR_FLO = g.get_variable(f"{self.env.var}_FLO")
 
-         SUM((TOP(R,P,COM,'{self.arg3}'),RTPCS_VARF(R,T,P,COM,TS))$COM_GMAP(R,CG,COM),
-{cal_red_func(var=self.env.var, sow=self.env.sow, pgprim=self.env.pgprim, def_rtp_ffcs=self.tc.defined("RTP_FFCS"), arg1="COM", arg2="COM1", arg3="TS", arg4="P", arg5="T")}
-                      *
-* share-ts coarser than variable or share finer than variable
-             RS_FR(R,S,TS)*(1+RTCS_FR(R,T,COM,S,TS))
-            )$RPG_RED(R,P,CG,'{self.arg3}')
-        )$(FLO_SHAR(R,V,P,C,CG,S,'{self.arg2}') > 0)
+        sow = self.env.sow_GP
 
-    ={self.arg1}=
-
-* commodity working on, summed for all
-        {self.env.var}_FLO(R,V,T,P,C,S {self.env.sow})$(NOT RPG_RED(R,P,CG,'{self.arg3}')) +
-        (
-{cal_red_func(var=self.env.var, sow=self.env.sow, pgprim=self.env.pgprim, def_rtp_ffcs=self.tc.defined("RTP_FFCS"), arg1="C", arg2="COM", arg3="S", arg4="P", arg5="T")}
-        )$RPG_RED(R,P,CG,'{self.arg3}')
-    ;
-""",
+        eq_shr[
+            g.RtpVintyr[*self.env.r_v_t_GP, g.p], g.c, g.cg, g.s, *self.env.swt_GP
+        ].where[
+            (
+                (
+                    g.RpStd[g.r, g.p]
+                    * g.Top[g.r, g.p, g.c, cc.arg3]
+                    * g.RtpcsVarf[g.r, g.t, g.p, g.c, g.s]
+                ).where[g.flo_shar[g.r, g.v, g.p, g.c, g.cg, g.s, cc.arg2]]
+            )
+        ] = generate_equation(
+            # * all flows in the group
+            g.flo_shar[g.r, g.v, g.p, g.c, g.cg, g.s, cc.arg2]
+            * (
+                # *V0.5a 980729 - RPCS_VAR: com not c
+                # * [AL] Handle reduced/non-reduced groups separately
+                Sum(
+                    Domain(
+                        g.Top[g.r, g.p, g.Com, cc.arg3],
+                        g.RtpcsVarf[g.r, g.t, g.p, g.Com, g.ts],
+                    ).where[g.ComGmap[g.r, g.cg, g.Com]],
+                    VAR_FLO[g.r, g.v, g.t, g.p, g.Com, g.ts, *sow]
+                    * g.rs_fr[g.r, g.s, g.ts]
+                    * (1.0 + g.rtcs_fr[g.r, g.t, g.Com, g.s, g.ts]),
+                ).where[(~(g.RpgRed[g.r, g.p, g.cg, cc.arg3]))]
+                + Sum(
+                    Domain(
+                        g.Top[g.r, g.p, g.Com, cc.arg3],
+                        g.RtpcsVarf[g.r, g.t, g.p, g.Com, g.ts],
+                    ).where[g.ComGmap[g.r, g.cg, g.Com]],
+                    include_cal_red1
+                    # * share-ts coarser than variable or share finer than variable
+                    * g.rs_fr[g.r, g.s, g.ts]
+                    * (1.0 + g.rtcs_fr[g.r, g.t, g.Com, g.s, g.ts]),
+                ).where[g.RpgRed[g.r, g.p, g.cg, cc.arg3]]
+            ).where[(g.flo_shar[g.r, g.v, g.p, g.c, g.cg, g.s, cc.arg2] > 0.0)],
+            cc.sense,
+            # * commodity working on, summed for all
+            (
+                VAR_FLO[g.r, g.v, g.t, g.p, g.c, g.s, *sow].where[
+                    (~(g.RpgRed[g.r, g.p, g.cg, cc.arg3]))
+                ]
+                + (include_cal_red2).where[g.RpgRed[g.r, g.p, g.cg, cc.arg3]]  # type: ignore
+            ),
         )
