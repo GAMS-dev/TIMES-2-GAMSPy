@@ -17,39 +17,60 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Literal
+
+from gamspy import Product, Sum
+from gamspy.math import abs, power
+
+from core.utils import SET_OR_ALIAS, wrap_in_sum
 
 if TYPE_CHECKING:
-    pass
+    from gamspy import Domain
+    from gamspy._symbols.implicits import ImplicitSet
+
+    from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
 
 
-def uc_pasti_mod(
-    arg1: str = "",
-    arg2: str = "",
-    arg3: str = "",
-    arg4: str = "",
-) -> str:
-    """Translation unit for uc_pasti.mod."""
+@dataclass
+class UcPastiModConfig:
+    arg1: Domain | ImplicitSet | None
+    arg2: SET_OR_ALIAS
+    arg3: SET_OR_ALIAS
+    arg4: Literal["RHS"]
 
-    return rf"""
-*"SUM(UC_R_SUM(R,UC_N)," or bracket "("
- {arg1}
 
-*[AL] Sum over RTP that have UC_CAP specified on current side
-        SUM(RTP(R,{arg3},P)$UC_GMAP_P(R,UC_N,'CAP',P),
+def uc_pasti_mod(g: TimesModelClass, config: UcPastiModConfig) -> str | Any:
+    cc = config
+    r, p, ucn, side, Pastyear = g.r, g.p, g.ucn, g.side, g.Pastyear
 
-* Sum of PASTI inherited to first period is used as a capacity value for T-1 of MIYR_1(T)
-* UC_CAP coefficient is taken from MIYR_1, because UC_CAP is interpolated on T only
-            SUM(RTP_CPTYR(R,PASTYEAR,{arg3},P),COEF_CPT(R,PASTYEAR,{arg3},P)*NCAP_PASTI(R,PASTYEAR,P)) *
-                UC_CAP(UC_N,{arg4},R,{arg3},P) *
-* [AL] PROD operator is useful here, but needs to be 'initialized' due to a GAMS bug:
-                PROD(SIDE({arg4}),PROD(UC_ATTR(R,UC_N,SIDE,'CAP','GROWTH'),
-                     POWER(ABS(UC_CAP(UC_N,{arg4},R,{arg3},P)),M({arg3})-B({arg3}))))
+    uc_cap = g.uc_cap[ucn, cc.arg4, r, cc.arg3, p]
 
-         )
+    # *[AL] Sum over RTP that have UC_CAP specified on current side
+    term = Sum(
+        g.Rtp[r, cc.arg3, p].where[g.UcGmapP[r, ucn, "CAP", p]],
+        # * Sum of PASTI inherited to first period is used as a capacity value for
+        # * T-1 of MIYR_1(T)
+        # * UC_CAP coefficient is taken from MIYR_1, because UC_CAP is interpolated
+        # * on T only
+        Sum(
+            g.RtpCptyr[r, Pastyear, cc.arg3, p],
+            g.coef_cpt[r, Pastyear, cc.arg3, p] * g.ncap_pasti[r, Pastyear, p],
+        )
+        * uc_cap
+        # * [AL] PROD operator is useful here, but needs to be 'initialized' due to a
+        # * GAMS bug:
+        * Product(
+            side[cc.arg4],
+            Product(
+                g.UcAttr[r, ucn, side, "CAP", "GROWTH"],
+                power(abs(uc_cap), g.m[cc.arg3] - g.b[cc.arg3]),
+            ),
+        ),
+    )
 
-*   closing bracket of {arg1} :
-    )$SUM({arg2}({arg3}),1)
-"""
+    wrapped_term = wrap_in_sum(target=term, domain=cc.arg1)
+    conditional_term = wrapped_term.where[Sum(cc.arg2[[cc.arg3]], 1)]
+    return conditional_term.gamsRepr()  # type: ignore[no-untyped-call]
