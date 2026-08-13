@@ -11,6 +11,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter, Set
+
 from core.base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -38,7 +40,44 @@ class InitmtyAbs(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
+
         self.env.set_global("abs", "YES")
+
+        # * Input parameters
+        g.bs_rtype = Parameter(
+            m,
+            name="BS_RTYPE",
+            domain=[g.r, g.c],
+            description="Types of reserve commodities, positive or negative 1-4",
+        )
+
+        # * Internal sets
+        g.BsComts = Set(
+            m,
+            name="BS_COMTS",
+            domain=[g.r, g.c, g.s],
+            description="Reserve commodity timeslices",
+        )
+        g.BsSupp = Set(
+            m,
+            name="BS_SUPP",
+            domain=[g.r, g.p],
+            description="Reserve provision by generation",
+        )
+        g.BsPrs = Set(
+            m,
+            name="BS_PRS",
+            domain=[g.r, g.p, g.s],
+            description="Process slices for reserve tracking",
+        )
+        g.BsUcmap = Set(
+            m,
+            name="BS_UCMAP",
+            domain=[g.ucnA, g.side, g.r, g.p, g.c],
+            description="Map to refer to reserves in UC_FLO",
+        )
 
         self.tc.add_gams_code(
             module=self,
@@ -53,7 +92,6 @@ class InitmtyAbs(GamsClass):
 * Input parameters
   PARAMETERS
   BS_CAPACT(R)              'Conversion factor from exogenous reserve demand to activity' //
-  BS_RTYPE(R,C)             'Types of reserve commodities, positive or negative 1-4' //
   BS_DEMDET(R,YEAR,RSP,C,S) 'Deterministic demands of reserves - EXOGEN and WMAXSI' //
   BS_STIME(R,P,COM,BD)      'Minimum times for reserve provision from storage (hours)' //
   BS_DETWT(R,YEAR,C)        'Weights for deterministic reserve demands' //
@@ -71,7 +109,6 @@ class InitmtyAbs(GamsClass):
   SETS
   BS_K(ITEM)              'Sources of imbalance or provision' / UP, LO /
   BS_RTK(R,T,ITEM)        'Sources of imbalances by period' //
-  BS_COMTS(R,C,S)         'Reserve commodity timeslices' //
   BS_APOS(R,C)            'Positive reserve commodities' //
   BS_ANEG(R,C)            'Negative reserve commodities' //
   BS_ABD(R,C,L)           'Reserve commodities by direction' //
@@ -80,12 +117,9 @@ class InitmtyAbs(GamsClass):
   BS_UPC(R,P,TSL,L)       'Minimum uptime/downtime indicator' //
   BS_TOP(R,P,C,IO)        'Topology for imbalance process' //
   BS_ENDP(R,P)            'Reserve providion by demand' //
-  BS_SUPP(R,P)            'Reserve provision by generation' //
   BS_STGP(R,P)            'Reserve provision by storage' //
   BS_NEGP(R,P)            'Processes with negative provision' //
-  BS_PRS(R,P,S)           'Process slices for reserve tracking' //
   BS_SBD(R,S,L)           'Timeslices for reserve provision' //
-  BS_UCMAP(UCN,SIDE,R,P,C) 'Map to refer to reserves in UC_FLO' //
   ;
 
   PARAMETERS
