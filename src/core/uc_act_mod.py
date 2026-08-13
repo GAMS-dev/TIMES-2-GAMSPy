@@ -22,10 +22,10 @@ from typing import TYPE_CHECKING, Any, Literal
 from gamspy import Number, Product, Sum
 from gamspy.math import abs, power, same_as
 
-from core.utils import BaseUcModConfig, extract_var_domain, wrap_in_sum
+from core.utils import BaseUcModConfig, SowGPType, extract_var_domain, wrap_in_sum
 
 if TYPE_CHECKING:
-    from gamspy import Alias, Expression, Set
+    from gamspy import Expression
     from gamspy._symbols.implicits import ImplicitParameter
 
     from core.utils import SET_OR_ALIAS
@@ -108,7 +108,7 @@ def inner_sum(
 def uc_act_mod(
     g: TimesModelClass,
     var: str | tuple[str, Any],
-    sow_GP: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
+    sow_GP: SowGPType,
     config: UcActModConfig,
 ) -> str | Any:
     cc = config

@@ -34,6 +34,7 @@ DomainType = (
     | Domain
     | None
 )
+SowGPType = tuple[Literal["0", "1"] | Set | Alias] | tuple[()]
 
 
 class EscapeStack(Exception):

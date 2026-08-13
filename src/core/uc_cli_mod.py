@@ -16,61 +16,100 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
+
+from gamspy import Product, Sum
+from gamspy.math import abs, power
+
+from core.utils import BaseUcModConfig, SowGPType, extract_var_domain, wrap_in_sum
 
 if TYPE_CHECKING:
-    pass
+    from gamspy import Expression
+
+    from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass(kw_only=True)
+class UcCliModConfig(BaseUcModConfig):
+    arg8: Expression  # -LEAD(T)
+
+
+def inner_sum(
+    g: TimesModelClass,
+    var: str,
+    sow_GP: SowGPType,
+    config: UcCliModConfig,
+) -> Sum:
+    cc = config
+
+    growth_term: Product | int
+    if cc.arg6 == 1:
+        growth_term = Product(
+            g.UcAttr[g.r, g.ucn, cc.arg5, "CLI", "GROWTH"],
+            power(
+                abs(g.uc_cli[g.ucn, cc.arg5, g.r, cc.arg7, g.CmVar]),
+                cc.arg8 * g.uc_sign[cc.arg5] - 1.0,
+            ),
+        )
+    else:
+        growth_term = 1
+
+    var_id, domain = extract_var_domain(var)
+
+    var_clitot = wrap_in_sum(
+        target=g.get_variable(name=f"{var_id}_CLITOT"), domain=domain
+    )
+    var_clibox = wrap_in_sum(
+        target=g.get_variable(name=f"{var_id}_CLIBOX"), domain=domain
+    )
+
+    return Sum(
+        g.CmVar.where[g.uc_cli[g.ucn, cc.arg5, g.r, cc.arg7, g.CmVar]],
+        g.uc_cli[g.ucn, cc.arg5, g.r, cc.arg7, g.CmVar]
+        * (
+            var_clitot[g.CmVar, cc.arg4, *sow_GP].where[g.CmKind[g.CmVar]]
+            + Sum(
+                g.CmBoxmap[g.CmKind, g.CmVar, g.CmBox].where[
+                    (~(g.CmAtmap[g.CmKind, g.CmVar].where[g.CmEmis[g.CmKind]]))
+                ],
+                var_clibox[g.CmVar, g.CmBox, cc.arg4, *sow_GP],
+            )
+            + Sum(
+                g.CmBoxmap[g.CmEmis, g.CmHists, g.CmBox].where[
+                    (
+                        g.cm_phi[g.CmEmis, g.CmBox, g.CmEmis].where[
+                            g.CmAtmap[g.CmEmis, g.CmVar]
+                        ]
+                    )
+                ],
+                var_clibox[g.CmVar, g.CmBox, cc.arg4, *sow_GP] / g.cm_ppm[g.CmEmis],
+            ).where[(~(g.CmTkind[g.CmVar]))]
+        )
+        * Product(g.Annual, 1.0)
+        * growth_term
+        * Product(g.UcAttr[g.r, g.ucn, cc.arg5, "CLI", "PERIOD"], g.fpd[cc.arg4]),
+    )
+
+
 def uc_cli_mod(
+    g: TimesModelClass,
     is_uc_cli_defined: bool,
     var: str,
-    sow: str,
-    arg1: str = "",
-    arg2: str = "",
-    arg3: str = "",
-    arg4: str = "",
-    arg5: str = "",
-    arg6: str = "",
-    arg7: str = "",
-    arg8: str = "",
-) -> str:
-    """Translation unit for uc_cli.mod."""
+    sow_GP: SowGPType,
+    config: UcCliModConfig,
+) -> str | Any:
     if not is_uc_cli_defined:
         return ""
+    cc = config
 
-    growth_term = ""
-    if arg6 == "1":
-        growth_term = rf"""
-                      PROD(UC_ATTR(R,UC_N,{arg5},'CLI','GROWTH'),
-                           POWER(ABS(UC_CLI(UC_N,{arg5},R,{arg7},CM_VAR)),{arg8}*UC_SIGN({arg5})-1)) *
-"""
-    return rf"""
-* "SUM(UC_R_SUM(R,UC_N)," or bracket (
-  {arg1}
-*     "SUM(UC_T_SUM(UC_N,T)," or bracket (
-       {arg2}
-*         "SUM(UC_TS_SUM(UC_N,S)," or bracket (
-           {arg3}
-              SUM(CM_VAR$UC_CLI(UC_N,{arg5},R,{arg7},CM_VAR), UC_CLI(UC_N,{arg5},R,{arg7},CM_VAR) *
-                ({var}_CLITOT(CM_VAR,{arg4} {sow})$CM_KIND(CM_VAR) +
-                 SUM(CM_BOXMAP(CM_KIND,CM_VAR,CM_BOX)$(NOT CM_ATMAP(CM_KIND,CM_VAR)$CM_EMIS(CM_KIND)),{var}_CLIBOX(CM_VAR,CM_BOX,{arg4} {sow})) +
-                 SUM(CM_BOXMAP(CM_EMIS,CM_HISTS,CM_BOX)$(CM_PHI(CM_EMIS,CM_BOX,CM_EMIS)$CM_ATMAP(CM_EMIS,CM_VAR)),
-                     {var}_CLIBOX(CM_VAR,CM_BOX,{arg4} {sow})/CM_PPM(CM_EMIS))$(NOT CM_TKIND(CM_VAR))) *
-* [AL] PROD operator is useful here, but requires 'initialization' due to GAMS bug
-                      PROD(ANNUAL,1) *
-{growth_term}
-                      PROD(UC_ATTR(R,UC_N,{arg5},'CLI','PERIOD'),FPD({arg4}))
-              )
+    expression: Expression | Sum
+    expression = inner_sum(g, var, sow_GP, cc)
+    args_to_sum = [arg for arg in [cc.arg3, cc.arg2, cc.arg1] if arg is not None]
 
-*          closing bracket of {arg3} :
-           )
+    for arg in args_to_sum:
+        expression = wrap_in_sum(target=expression, domain=arg)
 
-*       closing bracket of {arg2} :
-       )
-
-*   closing bracket of {arg1} :
-   )
-"""
+    return expression.gamsRepr()  # type: ignore[no-untyped-call]
