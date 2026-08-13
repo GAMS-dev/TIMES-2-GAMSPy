@@ -82,6 +82,7 @@ from core.utils import resolve_ctst
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
+    from core.utils import SET_OR_ALIAS
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import GamsPhase, TimesModelClass
 
@@ -2043,7 +2044,9 @@ IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
         g.Rcs.setRecords(None)
         g.Trackc.setRecords(None)
 
-    def phase_thirteen(self: PpmainMod, mx: str, rts: Set | Alias | Expression) -> None:
+    def phase_thirteen(
+        self: PpmainMod, mx: str, rts: SET_OR_ALIAS | Expression
+    ) -> None:
         if mx != "":
             raise NotImplementedError(f"Value for mx: {mx} not implemented")
 

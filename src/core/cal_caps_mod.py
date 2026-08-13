@@ -15,11 +15,93 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from gamspy import Domain, Sum
+
 if TYPE_CHECKING:
-    pass
+    from gamspy._algebra.condition import Condition
+    from gamspy._algebra.expression import Expression
+    from gamspy._algebra.number import Number
+    from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
+    from gamspy.math import MathOp
+
+    from core.utils import SET_OR_ALIAS
+    from utils.times_model_class import TimesModelClass
+
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class CalCapsModConfig:
+    """Strongly typed data contract for cal_caps_mod."""
+
+    is_vnret_defined: bool
+    varv: tuple[str, ImplicitSet | None]
+    sws: tuple[SET_OR_ALIAS, ...] | tuple[()]
+    varm: tuple[str, ImplicitSet | None]
+    arg1: SET_OR_ALIAS
+    # coefficient expression for EQOBJVAR / UC_FLO
+    arg2: Condition | Expression | ImplicitParameter | MathOp | Number
+    arg3: SET_OR_ALIAS
+    is_output: bool = False  # old arg4, the '.L' suffix
+
+
+def cal_caps_mod_GP(g: TimesModelClass, config: CalCapsModConfig) -> Sum:
+    """GAMSPy counterpart of cal_caps_mod().
+
+    arg1 is the milestone year, arg2 the coefficient expression and arg3 the TS
+    control index of the RPCS_VAR summing.
+    """
+    cc = config
+    r, v, p, c, s, ts, io = g.r, g.v, g.p, g.c, g.s, g.ts, g.io
+    varv_id, varv_set = cc.varv
+    varm_id, varm_set = cc.varm
+    VARV_NCAP = g.get_variable(f"{varv_id}_NCAP")
+    VARM_SCAP = g.get_variable(f"{varm_id}_SCAP")
+    varv_ncap = VARV_NCAP.l if cc.is_output else VARV_NCAP
+    varm_scap = VARM_SCAP.l if cc.is_output else VARM_SCAP
+
+    ncap_expr = varv_ncap[r, v, p, *cc.sws]
+    ncap = ncap_expr if varv_set is None else Sum(varv_set, ncap_expr)
+
+    scap_expr = varm_scap[r, v, cc.arg1, p, *cc.sws]
+    scap = scap_expr if varm_set is None else Sum(varm_set, scap_expr)
+
+    # SUM(RPCS_VAR(R,P,C,%3), RS_FR(R,TS,S) * %2)
+    coefficient = Sum(g.RpcsVar[r, p, c, cc.arg3], g.rs_fr[r, ts, s] * cc.arg2)
+
+    invest_decom = g.coef_icom[r, v, cc.arg1, p, c] + g.coef_ocom[r, v, cc.arg1, p, c]
+    # * Flows related to existing capacity over lifetime
+    installed = ncap.where[g.t[v]] + g.ncap_pasti[r, v, p]
+    if cc.is_vnret_defined:
+        installed = (
+            installed
+            - Sum(g.Vnret[v, g.Modlyear[cc.arg1]], scap).where[g.PrcRcap[r, p]]
+        )
+
+    # *V05c 980923 - use the capacity flow control set
+    return Sum(
+        Domain(g.Vnt[v, cc.arg1], g.RpcCapflo[r, v, p, c]),
+        # *V05b 980902 - need to apply seasonal fraction
+        # * Flows related to investment / decommissioning
+        (
+            invest_decom
+            * g.g_yrfr[r, s]
+            * (ncap.where[g.Milestonyr[v]] + g.ncap_pasti[r, v, p])
+            * coefficient
+        ).where[invest_decom]
+        + Sum(
+            Domain(g.RtpCptyr[r, v, cc.arg1, p], io).where[g.ncap_com[r, v, p, c, io]],
+            g.coef_cpt[r, v, cc.arg1, p]
+            * g.ncap_com[r, v, p, c, io]
+            * g.g_yrfr[r, s]
+            * installed
+            * coefficient
+            * (1 + g.coef_cio[r, v, cc.arg1, p, c, io]),
+        ),
+    )
 
 
 def cal_caps_mod(

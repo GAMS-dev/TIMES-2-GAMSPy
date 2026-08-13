@@ -18,6 +18,7 @@ from gamspy.math import Max, Min, diag, exp, mod, project
 
 from core.base_class import GamsClass
 from core.pp_lvlfc_mod import PpLvlfcModConfig, pp_lvlfc_mod
+from core.utils import SET_OR_ALIAS
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
@@ -397,7 +398,7 @@ class EqactupsVda(GamsClass):
         sow: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
         mx: Sum | Condition | Expression | tuple[Set | Alias | str, ...] | tuple[()],
         tmp: tuple[Expression, Expression | ImplicitSet],
-        rts: Set | Alias,
+        rts: SET_OR_ALIAS,
     ) -> None:
         g = self.tc
         tmp_condtion, tmp_expr = tmp
@@ -458,7 +459,7 @@ class EqactupsVda(GamsClass):
         sow: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
         mx: Sum | Condition | Expression | tuple[Set | Alias | str, ...] | tuple[()],
         tmp: tuple[Expression, Expression | ImplicitSet],
-        rts: Set | Alias,
+        rts: SET_OR_ALIAS,
     ) -> None:
         g = self.tc
         tmp_condtion, tmp_expr = tmp
@@ -527,7 +528,7 @@ class EqactupsVda(GamsClass):
         var: str,
         sow: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
         capon: Expression | Condition,
-        rts: Set | Alias,
+        rts: SET_OR_ALIAS,
     ) -> None:
         g = self.tc
         eql_actupc = g.get_equation(f"{eq}L_ACTUPC")
@@ -570,7 +571,7 @@ class EqactupsVda(GamsClass):
         sow: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
         mx: Sum | Condition | Expression | tuple[Set | Alias | str, ...] | tuple[()],
         tmp: tuple[Expression, Expression | ImplicitSet],
-        rts: Set | Alias,
+        rts: SET_OR_ALIAS,
     ) -> None:
         g = self.tc
         tmp_condtion, tmp_expr = tmp
@@ -727,7 +728,7 @@ class EqactupsVda(GamsClass):
         var: str,
         sow: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
         pgprim: str,
-        rts: Set | Alias,
+        rts: SET_OR_ALIAS,
     ) -> None:
         g = self.tc
         eq_slsift = g.get_equation(f"{eq}_SLSIFT")
