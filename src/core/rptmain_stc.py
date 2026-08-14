@@ -17,7 +17,7 @@ from gamspy import Variable
 from core.base_class import GamsClass
 from core.clearsol_stc import ClearsolStc, clearsol_stc
 from core.cost_ann_rpt import cost_ann_rpt
-from core.pextlevs_stc import PextlevsStc
+from core.pextlevs_stc import PextlevsStc, PextlevsStcConfig
 from core.rpt_obj_rpt import rpt_obj_rpt
 from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
 from core.rptmisc_rpt import rptmisc_rpt
@@ -26,6 +26,8 @@ from core.sol_ire_rpt import SolIreRpt, sol_ire_rpt
 from core.utils import apply_sw_notags
 
 if TYPE_CHECKING:
+    from gamspy import Alias, Set
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -46,12 +48,14 @@ class RptmainStc(GamsClass):
         arg1: str,
         arg2: str,
         model_name: str,
+        arg1_GP: tuple[Set | Alias | str] | tuple[()] = (),
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
         self.arg1 = arg1
         self.arg2 = arg2
+        self.arg1_GP = arg1_GP
         self.model_name = model_name
         self.compile()
 
@@ -86,6 +90,7 @@ PARAMETERS SW_UNPB(LL,WW), SW_UNPC(LL,WW);
         if self.env.spines.upper() == "YES":
             self.arg1 = ""
             self.arg2 = ""
+            self.arg1_GP = ()
 
         if str(self.env.spines + self.env.solveda).upper() != "YES1":
             self.env.set_scoped("solveda", "1")
@@ -144,7 +149,13 @@ PARAMETERS SW_UNPB(LL,WW), SW_UNPC(LL,WW);
                 if_not_defined_eq_g_ucmax=not self.tc.defined(f"{self.env.eq}G_UCMAX"),
             )
 
-            self.include(PextlevsStc(self.tc, self.env, arg1=self.arg1))
+            self.include(
+                PextlevsStc(
+                    self.tc,
+                    self.env,
+                    config=PextlevsStcConfig(arg1=self.arg1, arg1_GP=self.arg1_GP),
+                )
+            )
             self.tc.enqueue(self.set_auxsow)
             return
 
@@ -191,7 +202,13 @@ PARAMETERS SW_UNPB(LL,WW), SW_UNPC(LL,WW);
             )
         )
 
-        self.include(PextlevsStc(self.tc, self.env, arg1=self.arg1))
+        self.include(
+            PextlevsStc(
+                self.tc,
+                self.env,
+                PextlevsStcConfig(arg1=self.arg1, arg1_GP=self.arg1_GP),
+            )
+        )
 
         self.env.set_scoped("sow", "")
         self.env.set_scoped("sow_GP", ())
@@ -300,7 +317,14 @@ OPTION CLEAR=RPC_EMIS,CLEAR=RPC_FFUNC,CLEAR=F_IOSET; SOW(W)=AUXSOW(W);
             code=rf"""
   LOOP(SOW$SW_PROB(SOW),
 
-  {clearsol_stc(var_dam_defined=var_dam_defined, var_scap_defined=var_scap_defined)}
+  {
+                clearsol_stc(
+                    tc=self.tc,
+                    var_dam_defined=var_dam_defined,
+                    var_scap_defined=var_scap_defined,
+                    inline=True,
+                )
+            }
 
 * Get the variable levels
     VAR_ACT.L(R,V,T,P,S)      $= {vart}_ACT.L(R,V,T,P,S {sws});

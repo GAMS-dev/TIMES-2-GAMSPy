@@ -111,6 +111,7 @@ class RptmainMod(GamsClass):
                             arg1="SOW",
                             arg2=self.env.sws,
                             model_name=self.model_name,
+                            arg1_GP=(self.tc.Sow,),
                         )
                     )
                     # NOTE: RptmainStc takes only 2 args, but on L32, it is included with 3 arg3 = "'1'" ",'1')"
