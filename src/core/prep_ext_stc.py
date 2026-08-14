@@ -13,7 +13,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Number, SpecialValues
+from gamspy import Card, Domain, Loop, Number, Parameter, SpecialValues, Sum, sparse
+from gamspy.math import project
 
 from core.base_class import GamsClass
 from core.fillparm_gms import FillparmGms
@@ -34,16 +35,10 @@ class PrepExtStc(GamsClass):
     module_name: str = "prep_ext_stc"
     gams_source: str = "prep_ext.stc"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str = "",
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
         self.compile()
 
     def compile(self) -> None:
@@ -169,17 +164,11 @@ class PrepExtStc(GamsClass):
 
         self.include(RecurrinStc(self.tc, self.env, arg1="MXPAR"))
 
-        code = ""
-        if self.tc.defined("S_DAM_COST"):
-            code += "PARAMETER DAM_COST //;\n"
-        if self.tc.defined("DAM_COST"):
-            code += "PARAMETER S_DAM_COST //;\n"
-        if len(code):
-            self.tc.add_gams_code(
-                module=self,
-                phase="init",
-                code=code,
-            )
+        m = g.container
+        if self.tc.defined(g.s_dam_cost) and not self.tc.defined(g.dam_cost):
+            g.dam_cost = Parameter(m, name="DAM_COST")
+        if self.tc.defined(g.dam_cost) and not self.tc.defined(g.s_dam_cost):
+            g.s_dam_cost = Parameter(m, name="S_DAM_COST")
 
         self.tc.enqueue(
             self.prep_ext_stc_exec,
@@ -187,38 +176,151 @@ class PrepExtStc(GamsClass):
         )
 
     def prep_ext_stc_exec(self: PrepExtStc, have_s_flo_func: bool) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-* commodities involved in CUM constraints
-  S_COM_CUM(R,'NET',ALLYEAR(BOHYEAR+BEOH(BOHYEAR)),LL(EOHYEAR+BEOH(EOHYEAR)),C,BD,J,WW) $= S_COM_CUMNET(R,BOHYEAR,EOHYEAR,C,BD,J,WW);
-  S_COM_CUM(R,'PRD',ALLYEAR(BOHYEAR+BEOH(BOHYEAR)),LL(EOHYEAR+BEOH(EOHYEAR)),C,BD,J,WW) $= S_COM_CUMPRD(R,BOHYEAR,EOHYEAR,C,BD,J,WW);
-  OPTION CLEAR=S_COM_CUMPRD,CLEAR=S_COM_CUMNET;
-  S_COM_CUM(R,COM_VAR,ALLYEAR,LL,C,'LO',J,WW)$((S_COM_CUM(R,COM_VAR,ALLYEAR,LL,C,'LO',J,WW) EQ 0)$S_COM_CUM(R,COM_VAR,ALLYEAR,LL,C,'LO',J,WW)) = 0;
-  RC_CUMCOM(R,COM_VAR,ALLYEAR,LL,C) $= SUM((BD,J,WW)$S_COM_CUM(R,COM_VAR,ALLYEAR,LL,C,BD,J,WW),YES);
-  LOOP((R,T,C,S,COM_VAR,CUR,J,WW)$S_COM_TAX(R,T,C,S,COM_VAR,CUR,J,WW),UC_COM('OBJ1',COM_VAR,'LHS',R,'0',C,ANNUAL,'UCN')=1);
-
-* collect transformation tuples
-{"OPTION RP_FFSGG <= S_FLO_FUNC;" if have_s_flo_func else ""}
-
-* Activate capacity variables if S_CAP_BND is specified
-  LOOP((R,T,P,BD,J,WW)$S_CAP_BND(R,T,P,BD,J,WW),RTP_VARP(R,T,P) = YES);
-
-* Set flags for Phased UC_N
-  UC_R_SUM(R,'OBJZ') = YES; UC_R_EACH(R,'OBJZ') = YES; UC_R_SUM(R,'OBJ1') = YES;
-  UC_T_SUM(R,'OBJZ',T) = YES; UC_T_SUM(R,'OBJ1',MIYR_1) = YES;
-  LOOP((UC_N,WW)$S_UCOBJ(UC_N,WW),UC_RHS(UC_N,'N')$(NOT UC_RHS(UC_N,'N')) = -1);
-* Initialize SW_PARM
-  SW_PARM = CARD(S_COM_PROJ) + CARD(S_CAP_BND) + CARD(S_COM_CUMPRD) + CARD(S_COM_CUMNET);
-  SW_PARM = SW_PARM + CARD(S_CM_CONST) + CARD(S_CM_MAXC);
-* Set flag for detemininstic RHS if none set but is set for some SOW
-  UC_RHS(UC_N,'UP')$((NOT UC_RHS(UC_N,'UP'))$SUM((LIM,J,WW)$S_UC_RHS(UC_N,LIM,J,WW),1)) = INF;
-  UC_RHSR(R,UC_N,'UP')$((NOT UC_RHSR(R,UC_N,'UP'))$SUM((LIM,J,WW)$S_UC_RHSR(R,UC_N,LIM,J,WW),1)) = INF;
-  UC_RHST(UC_N,T,'UP')$((NOT UC_RHST(UC_N,T,'UP'))$SUM((LIM,J,WW)$S_UC_RHST(UC_N,T,LIM,J,WW),1)) = INF;
-  UC_RHSRT(R,UC_N,T,'UP')$((NOT UC_RHSRT(R,UC_N,T,'UP'))$SUM((LIM,J,WW)$S_UC_RHSRT(R,UC_N,T,LIM,J,WW),1)) = INF;
-  UC_RHSTS(UC_N,T,S,'UP')$((NOT UC_RHSTS(UC_N,T,S,'UP'))$SUM((LIM,J,WW)$S_UC_RHSTS(UC_N,T,S,LIM,J,WW),1)) = INF;
-  UC_RHSRTS(R,UC_N,T,S,'UP')$((NOT UC_RHSRTS(R,UC_N,T,S,'UP'))$SUM((LIM,J,WW)$S_UC_RHSRTS(R,UC_N,T,S,LIM,J,WW),1)) = INF;
-  UC_DYNBND('OBJ1','N')=YES;
-""",
+        g = self.tc
+        # * commodities involved in CUM constraints
+        g.s_com_cum[
+            g.r,
+            "NET",
+            g.allyear[g.bohyear + g.beoh[g.bohyear]],
+            g.ll[g.eohyear + g.beoh[g.eohyear]],
+            g.c,
+            g.bd,
+            g.j,
+            g.ww,
+        ] = sparse(g.s_com_cumnet[g.r, g.bohyear, g.eohyear, g.c, g.bd, g.j, g.ww])
+        g.s_com_cum[
+            g.r,
+            "PRD",
+            g.allyear[g.bohyear + g.beoh[g.bohyear]],
+            g.ll[g.eohyear + g.beoh[g.eohyear]],
+            g.c,
+            g.bd,
+            g.j,
+            g.ww,
+        ] = sparse(g.s_com_cumprd[g.r, g.bohyear, g.eohyear, g.c, g.bd, g.j, g.ww])
+        g.s_com_cumprd.setRecords(None)
+        g.s_com_cumnet.setRecords(None)
+        g.s_com_cum[g.r, g.comvar, g.allyear, g.ll, g.c, "LO", g.j, g.ww].where[
+            (
+                (
+                    g.s_com_cum[g.r, g.comvar, g.allyear, g.ll, g.c, "LO", g.j, g.ww]
+                    == 0.0
+                ).where[
+                    g.s_com_cum[g.r, g.comvar, g.allyear, g.ll, g.c, "LO", g.j, g.ww]
+                ]
+            )
+        ] = 0.0
+        g.RcCumcom[g.r, g.comvar, g.allyear, g.ll, g.c] = sparse(
+            Sum(
+                Domain(g.bd, g.j, g.ww).where[
+                    g.s_com_cum[g.r, g.comvar, g.allyear, g.ll, g.c, g.bd, g.j, g.ww]
+                ],
+                True,
+            )  # type: ignore
         )
+        with Loop(
+            Domain(g.r, g.t, g.c, g.s, g.comvar, g.cur, g.j, g.ww).where[
+                g.s_com_tax[g.r, g.t, g.c, g.s, g.comvar, g.cur, g.j, g.ww]
+            ]
+        ):
+            g.uc_com["OBJ1", g.comvar, "LHS", g.r, "0", g.c, g.Annual, "UCN"] = 1.0
+        # * collect transformation tuples
+        if have_s_flo_func:
+            project(source=g.s_flo_func, target=g.RpFfsgg, direction="left")
+        # * Activate capacity variables if S_CAP_BND is specified
+        with Loop(
+            Domain(g.r, g.t, g.p, g.bd, g.j, g.ww).where[
+                g.s_cap_bnd[g.r, g.t, g.p, g.bd, g.j, g.ww]
+            ]
+        ):
+            g.RtpVarp[g.r, g.t, g.p] = True
+        # * Set flags for Phased UC_N
+        g.UcRSum[g.r, "OBJZ"] = True
+        g.UcREach[g.r, "OBJZ"] = True
+        g.UcRSum[g.r, "OBJ1"] = True
+        g.UcTSum[g.r, "OBJZ", g.t] = True
+        g.UcTSum[g.r, "OBJ1", g.Miyr1] = True
+        with Loop(Domain(g.ucn, g.ww).where[g.s_ucobj[g.ucn, g.ww]]):
+            g.uc_rhs[g.ucn, "N"].where[(~(g.uc_rhs[g.ucn, "N"]))] = -1.0
+        # * Initialize SW_PARM
+        g.sw_parm[...] = (
+            Card(g.s_com_proj)
+            + Card(g.s_cap_bnd)
+            + Card(g.s_com_cumprd)
+            + Card(g.s_com_cumnet)
+        )
+        g.sw_parm[...] = g.sw_parm + Card(g.s_cm_const) + Card(g.s_cm_maxc)
+        # * Set flag for detemininstic RHS if none set but is set for some SOW
+        g.uc_rhs[g.ucn, "UP"].where[
+            (
+                (~(g.uc_rhs[g.ucn, "UP"])).where[
+                    Sum(
+                        Domain(g.lim, g.j, g.ww).where[
+                            g.s_uc_rhs[g.ucn, g.lim, g.j, g.ww]
+                        ],
+                        1.0,
+                    )
+                ]
+            )
+        ] = SpecialValues.POSINF
+        g.uc_rhsr[g.r, g.ucn, "UP"].where[
+            (
+                (~(g.uc_rhsr[g.r, g.ucn, "UP"])).where[
+                    Sum(
+                        Domain(g.lim, g.j, g.ww).where[
+                            g.s_uc_rhsr[g.r, g.ucn, g.lim, g.j, g.ww]
+                        ],
+                        1.0,
+                    )
+                ]
+            )
+        ] = SpecialValues.POSINF
+        g.uc_rhst[g.ucn, g.t, "UP"].where[
+            (
+                (~(g.uc_rhst[g.ucn, g.t, "UP"])).where[
+                    Sum(
+                        Domain(g.lim, g.j, g.ww).where[
+                            g.s_uc_rhst[g.ucn, g.t, g.lim, g.j, g.ww]
+                        ],
+                        1.0,
+                    )
+                ]
+            )
+        ] = SpecialValues.POSINF
+        g.uc_rhsrt[g.r, g.ucn, g.t, "UP"].where[
+            (
+                (~(g.uc_rhsrt[g.r, g.ucn, g.t, "UP"])).where[
+                    Sum(
+                        Domain(g.lim, g.j, g.ww).where[
+                            g.s_uc_rhsrt[g.r, g.ucn, g.t, g.lim, g.j, g.ww]
+                        ],
+                        1.0,
+                    )
+                ]
+            )
+        ] = SpecialValues.POSINF
+        g.uc_rhsts[g.ucn, g.t, g.s, "UP"].where[
+            (
+                (~(g.uc_rhsts[g.ucn, g.t, g.s, "UP"])).where[
+                    Sum(
+                        Domain(g.lim, g.j, g.ww).where[
+                            g.s_uc_rhsts[g.ucn, g.t, g.s, g.lim, g.j, g.ww]
+                        ],
+                        1.0,
+                    )
+                ]
+            )
+        ] = SpecialValues.POSINF
+        g.uc_rhsrts[g.r, g.ucn, g.t, g.s, "UP"].where[
+            (
+                (~(g.uc_rhsrts[g.r, g.ucn, g.t, g.s, "UP"])).where[
+                    Sum(
+                        Domain(g.lim, g.j, g.ww).where[
+                            g.s_uc_rhsrts[g.r, g.ucn, g.t, g.s, g.lim, g.j, g.ww]
+                        ],
+                        1.0,
+                    )
+                ]
+            )
+        ] = SpecialValues.POSINF
+        g.UcDynbnd["OBJ1", "N"] = True
