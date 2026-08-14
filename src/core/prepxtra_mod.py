@@ -11,9 +11,11 @@ from __future__ import annotations
 
 import datetime
 import logging
+import shutil
+from pathlib import Path
 from typing import TYPE_CHECKING
 
-from gamspy import Number, SpecialValues
+from gamspy import Else, If, Loop, Number, Ord, Smax, Smin, SpecialValues
 
 from core.base_class import GamsClass
 from core.fillparm_gms import FillparmGms
@@ -376,53 +378,60 @@ class PrepxtraMod(GamsClass):
                 )
 
     def exec1(self: PrepxtraMod, condition: bool) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-MODLYEAR(LL) = T(LL)+PASTYEAR(LL);
-*-----------------------------------------------------------------------------
-* Clean up some unwanted stuff
-{"LOOP(PYR_S(LL),NCAP_PASTI(R,LL,P)$PRC_RESID(R,'0',P)=0; NCAP_TLIFE(R,LL,P)$PRC_RESID(R,'0',P)=0);" if condition else ""}
-{"PRC_RESID(R,'0',P)=0;" if condition else ""}
-""",
-        )
+        g = self.tc
+        r, p, t, ll = g.r, g.p, g.t, g.ll
+
+        g.Modlyear[ll] = t[ll] + g.Pastyear[ll]
+        # -----------------------------------------------------------------------------
+        # Clean up some unwanted stuff
+        if condition:
+            with Loop(g.PyrS[ll]):
+                g.ncap_pasti[r, ll, p].where[g.prc_resid[r, "0", p]] = 0
+                g.ncap_tlife[r, ll, p].where[g.prc_resid[r, "0", p]] = 0
+            g.prc_resid[r, "0", p] = 0
 
     def exec2(self: PrepxtraMod, dflbl: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-* Check 'every T' specifications through using DFLBL:
-* For T_SUM, fill in between user-specified year range or all
-  UC_DT(R,UC_N)$UC_T_SUM(R,UC_N,'{dflbl}') = YES; UC_T_SUM(UC_DT,'{dflbl}') = NO;
-  LOOP(UC_DT, Z=SMAX(UC_T_SUM(UC_DT,LL),ORD(LL));
-    IF(Z > 0, F=SMIN(UC_T_SUM(UC_DT,LL),ORD(LL)); ELSE F=Z);
-    IF(Z NE F,UC_T_SUM(UC_DT,T(LL))$((ORD(LL) GT F)$(ORD(LL) LT Z)) = YES;
-    ELSE UC_T_SUM(UC_DT,T) = YES));
-  OPTION CLEAR=UC_DT;
-  UC_T_SUCC(R,UC_N,T)$UC_T_SUCC(R,UC_N,'{dflbl}') = YES;
-  UC_T_EACH(R,UC_N,T)$UC_T_EACH(R,UC_N,'{dflbl}') = YES;
-  LOOP(T(YEAR),
-    UC_T_EACH(R,UC_N,LL+(ORD(YEAR)-ORD(LL)))$(EOHYEARS(LL)$PERIODYR(T,LL)$UC_T_EACH(R,UC_N,LL)) = YES;
-    UC_T_SUCC(R,UC_N,LL+(ORD(YEAR)-ORD(LL)))$(EOHYEARS(LL)$PERIODYR(T,LL)$UC_T_SUCC(R,UC_N,LL)) = YES;
-    UC_T_SUM(R,UC_N,LL+(ORD(YEAR)-ORD(LL)))$(EOHYEARS(LL)$PERIODYR(T,LL)$UC_T_SUM(R,UC_N,LL)) = YES;
-  );
-""",
-        )
+        g = self.tc
+        r, t, ll, year = g.r, g.t, g.ll, g.year
+        ucn, z, f = g.ucn, g.z, g.f
+        UcDt, UcTSum, UcTSucc, UcTEach = g.UcDt, g.UcTSum, g.UcTSucc, g.UcTEach
+
+        # Check 'every T' specifications through using DFLBL:
+        # For T_SUM, fill in between user-specified year range or all
+        UcDt[r, ucn].where[UcTSum[r, ucn, dflbl]] = True
+        UcTSum[UcDt, dflbl] = False
+        with Loop(UcDt):
+            z[...] = Smax(UcTSum[UcDt, ll], Ord(ll))
+            with If(z > 0):
+                f[...] = Smin(UcTSum[UcDt, ll], Ord(ll))
+            with Else():  # type: ignore[no-untyped-call]
+                f[...] = z
+            with If(z != f):
+                UcTSum[UcDt, t[ll]].where[(Ord(ll) > f) & (Ord(ll) < z)] = True
+            with Else():  # type: ignore[no-untyped-call]
+                UcTSum[UcDt, t] = True
+        UcDt.setRecords(None)
+        UcTSucc[r, ucn, t].where[UcTSucc[r, ucn, dflbl]] = True
+        UcTEach[r, ucn, t].where[UcTEach[r, ucn, dflbl]] = True
+        with Loop(t[year]):
+            UcTEach[r, ucn, ll + (Ord(year) - Ord(ll))].where[
+                g.Eohyears[ll] & g.Periodyr[t, ll] & UcTEach[r, ucn, ll]
+            ] = True
+            UcTSucc[r, ucn, ll + (Ord(year) - Ord(ll))].where[
+                g.Eohyears[ll] & g.Periodyr[t, ll] & UcTSucc[r, ucn, ll]
+            ] = True
+            UcTSum[r, ucn, ll + (Ord(year) - Ord(ll))].where[
+                g.Eohyears[ll] & g.Periodyr[t, ll] & UcTSum[r, ucn, ll]
+            ] = True
 
     def exec3(self: PrepxtraMod, gdxpath: str, run_name: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-Z=CARD("{gdxpath}{run_name}")+16;
-""",
-        )
+        # CARD of a string literal is its number of characters, computed in Python
+        self.tc.z[...] = len(f"{gdxpath}{run_name}") + 16
 
     def exec4(
         self: PrepxtraMod, gdxpath: str, run_name: str, gtime: str, gdate: str
     ) -> None:
+        # PUT / PUT_UTILITY has no GAMSPy equivalent, so this stays raw GAMS.
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -434,10 +443,20 @@ PUT QLOG; FILE.PW=512; PUT_UTILITY 'SHELL' / 'mv -f _dd_.gdx ' '{gdxpath}{run_na
     def comp1(
         self: PrepxtraMod, gdxpath: str, run_name: str, gtime: str, gdate: str
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-$hiddencall mv -f _dd_.gdx "{gdxpath}{run_name}~Data_{gdate}_{gtime}.gdx"
-""",
-        )
+        # $hiddencall mv -f _dd_.gdx "%GDXPATH%%RUN_NAME%~Data_%GDATE%_%GTIME%.gdx"
+        source = Path("_dd_.gdx")
+        target = Path(f"{gdxpath}{run_name}~Data_{gdate}_{gtime}.gdx")
+
+        if not source.exists():
+            # mv reports a missing source, but $hiddencall discards the error
+            # level, so a missing data dump must never stop the run.
+            logger.debug("No %s to move to %s", source, target)
+            return
+
+        try:
+            # shutil.move replaces an existing target, just like mv -f
+            shutil.move(source, target)
+        except OSError:
+            # Same reasoning as above: a failing move (e.g. because %GDXPATH%
+            # does not exist) is silent in GAMS and must not stop the run.
+            logger.warning("Could not move %s to %s", source, target)
