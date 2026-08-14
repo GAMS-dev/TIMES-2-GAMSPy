@@ -6,15 +6,21 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
 from gamspy import Sum
+from gamspy.math import Max, power, sqrt
+
+from core.utils import SET_OR_ALIAS
 
 if TYPE_CHECKING:
-    from gamspy import Expression
-    from gamspy._symbols.implicits import ImplicitParameter
+    from gamspy import Expression, Number
+    from gamspy._algebra.expression import ShiftExpression
+    from gamspy._symbols.implicits import (
+        ImplicitParameter,
+        ImplicitSet,
+        ImplicitVariable,
+    )
 
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
-
-from core.utils import SET_OR_ALIAS
 
 
 @dataclass
@@ -441,6 +447,200 @@ class Macros:
             return rts
         # Return the Alias
         return g.rts
+
+    # From gasgrids_vda
+
+    # VAR_GG_PRU
+    @property
+    def var_gg_pru_active(self) -> bool:
+        return self._active.get("VAR_GG_PRU", False)
+
+    @var_gg_pru_active.setter
+    def var_gg_pru_active(self, value: bool) -> None:
+        self._active["VAR_GG_PRU"] = value
+
+    def var_gg_pru_GP(
+        self,
+        r: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        c: SET_OR_ALIAS,
+        s: SET_OR_ALIAS,
+    ) -> Sum:
+        g = self._g
+        if self.var_gg_pru_active:
+            return Sum(g.Actcg[g.com2], g.VAR_GG_PDIF[r, t, p, c, r, g.com2, s])
+
+        raise NotImplementedError(
+            "var_gg_pru is only implemented as a macro and wasn't activeted."
+        )
+
+    # VAR_GG_Y2
+    @property
+    def var_gg_y2_active(self) -> bool:
+        return self._active.get("VAR_GG_Y2", False)
+
+    @var_gg_y2_active.setter
+    def var_gg_y2_active(self, value: bool) -> None:
+        self._active["VAR_GG_Y2"] = value
+
+    def var_gg_y2_GP(
+        self,
+        r: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        c: SET_OR_ALIAS,
+        Reg: SET_OR_ALIAS,
+        Com: SET_OR_ALIAS,
+        s: SET_OR_ALIAS,
+    ) -> Expression | ImplicitSet:
+        g = self._g
+        if self.var_gg_y2_active:
+            return (
+                g.VAR_GG_Y[r, t, p, c, s].where[g.GgTop[r, c, Reg, Com, p]]
+                + (1.0 - g.VAR_GG_Y[Reg, t, p, Com, s]).where[
+                    g.GgTop[Reg, Com, r, c, p]
+                ]
+            )
+
+        raise NotImplementedError(
+            "var_gg_y2 is only implemented as a macro and wasn't activeted."
+        )
+
+    # VAR_GG_PRIO
+    @property
+    def var_gg_prio_active(self) -> bool:
+        return self._active.get("VAR_GG_PRIO", False)
+
+    @var_gg_prio_active.setter
+    def var_gg_prio_active(self, value: bool) -> None:
+        self._active["VAR_GG_PRIO"] = value
+
+    def var_gg_prio_GP(
+        self,
+        r: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        c: SET_OR_ALIAS,
+        s: SET_OR_ALIAS,
+    ) -> Expression | ImplicitSet:
+        g = self._g
+        if self.var_gg_prio_active:
+            return (
+                g.VAR_GG_PR[r, t, c, s]
+                + g.VAR_GG_PADD[r, t, p, c, s].where[g.gg_gamma[r, t, p, c]]
+            )
+
+        raise NotImplementedError(
+            "var_gg_prio is only implemented as a macro and wasn't activeted."
+        )
+
+    # VAR_GG_HLIP
+    @property
+    def var_gg_hlip_active(self) -> bool:
+        return self._active.get("VAR_GG_HLIP", False)
+
+    @var_gg_hlip_active.setter
+    def var_gg_hlip_active(self, value: bool) -> None:
+        self._active["VAR_GG_HLIP"] = value
+
+    def var_gg_hlip_GP(
+        self,
+        r: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        s: SET_OR_ALIAS | ShiftExpression,
+    ) -> ImplicitVariable:
+        g = self._g
+        if self.var_gg_hlip_active:
+            return g.VAR_GG_PADD[r, t, p, g.env.pgprim, s]
+
+        raise NotImplementedError(
+            "var_gg_hlip is only implemented as a macro and wasn't activeted."
+        )
+
+    # VAR_GG_WSLAC
+    @property
+    def var_gg_wslac_active(self) -> bool:
+        return self._active.get("VAR_GG_WSLAC", False)
+
+    @var_gg_wslac_active.setter
+    def var_gg_wslac_active(self, value: bool) -> None:
+        self._active["VAR_GG_WSLAC"] = value
+
+    def var_gg_wslac_GP(
+        self,
+        r: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        c: SET_OR_ALIAS,
+        Reg: SET_OR_ALIAS,
+        Com: SET_OR_ALIAS,
+        s: SET_OR_ALIAS,
+    ) -> Sum | ImplicitParameter:
+        g = self._g
+        if self.var_gg_wslac_active:
+            return Sum(
+                g.com2[g.Actcg].where[g.gg_kgf[r, t, p, c]],
+                g.VAR_GG_PDIF[r, t, p, g.com2, r, c, s]
+                + 8.0
+                / 11.0
+                * g.VAR_GG_PDIF[Reg, t, p, g.com2, Reg, Com, s].where[
+                    g.GgWink[Reg, p, Com, r, c] & ((~(g.gg_m1)) | (0.0))
+                ],
+            )
+
+        raise NotImplementedError(
+            "var_gg_wslac is only implemented as a macro and wasn't activeted."
+        )
+
+    # VAR_GG_PDMAX
+    @property
+    def var_gg_pdmax_active(self) -> bool:
+        return self._active.get("VAR_GG_PDMAX", False)
+
+    @var_gg_pdmax_active.setter
+    def var_gg_pdmax_active(self, value: bool) -> None:
+        self._active["VAR_GG_PDMAX"] = value
+
+    def var_gg_pdmax_GP(
+        self,
+        r: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        c: SET_OR_ALIAS,
+        Reg: SET_OR_ALIAS,
+        Com: SET_OR_ALIAS,
+        ts: SET_OR_ALIAS,
+        z: Number,
+        with_sqrt: bool,
+    ) -> Expression:
+        g = self._g
+        if self.var_gg_pdmax_active:
+            firstpart = Max(
+                power(
+                    g.gg_prbd[r, t, c, "UP"] * Max(1.0, g.gg_gamma[r, t, p, c]),
+                    z,
+                )
+                - power(g.gg_prbd[Reg, t, Com, "LO"], z),
+                0.0,
+            )
+
+            secondpart = (
+                g.VAR_GG_Y[r, t, p, c, ts].where[g.GgTop[r, c, Reg, Com, p]]
+                + (1.0 - g.VAR_GG_Y[Reg, t, p, Com, ts]).where[
+                    g.GgTop[Reg, Com, r, c, p]
+                ]
+            )
+
+            if with_sqrt:
+                firstpart = sqrt(firstpart)
+
+            return firstpart * secondpart
+
+        raise NotImplementedError(
+            "var_gg_pdmax is only implemented as a macro and wasn't activeted."
+        )
 
 
 macro_config = Macros()
