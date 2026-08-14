@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from gamspy import Product, Sum
 from gamspy.math import abs, power
@@ -100,9 +100,9 @@ def uc_cli_mod(
     var: str,
     sow_GP: SowGPType,
     config: UcCliModConfig,
-) -> str | Any:
+) -> Expression | Sum | int:
     if not is_uc_cli_defined:
-        return ""
+        return 0
     cc = config
 
     expression: Expression | Sum
@@ -112,4 +112,4 @@ def uc_cli_mod(
     for arg in args_to_sum:
         expression = wrap_in_sum(target=expression, domain=arg)
 
-    return expression.gamsRepr()  # type: ignore[no-untyped-call]
+    return expression

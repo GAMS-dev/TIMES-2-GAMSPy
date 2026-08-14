@@ -364,22 +364,27 @@ class EqmainMod(GamsClass):
 
         equcwrap_batincludes: list[EqucwrapModConfig] = [
             EqucwrapModConfig(
-                "E",
-                g.bd,
-                (),
-                g.bd,
-                1,
-                "NOT",
-                legacy_support=("E", "BD", "", "SUM(BD$", ",1)", "NOT"),
+                arg1="E",
+                arg2=g.bd,
+                arg3=(),
+                arg4=g.bd,
+                arg5=1,
+                arg6="NOT",
             ),
             EqucwrapModConfig(
-                "E", "FX", ("FX",), legacy_support=("E", "'FX'", ",'FX'", "", "", "")
+                arg1="E",
+                arg2="FX",
+                arg3=("FX",),
             ),
             EqucwrapModConfig(
-                "G", "LO", ("LO",), legacy_support=("G", "'LO'", ",'LO'", "", "", "")
+                arg1="G",
+                arg2="LO",
+                arg3=("LO",),
             ),
             EqucwrapModConfig(
-                "L", "UP", ("UP",), legacy_support=("L", "'UP'", ",'UP'", "", "", "")
+                arg1="L",
+                arg2="UP",
+                arg3=("UP",),
             ),
         ]
 

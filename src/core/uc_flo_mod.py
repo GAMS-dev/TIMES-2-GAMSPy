@@ -72,7 +72,7 @@ class UcFloModConfig(BaseUcModConfig):
     ) = None
 
 
-def uc_flo_mod(g: TimesModelClass, config: UcFloModConfig) -> str | Any:
+def uc_flo_mod(g: TimesModelClass, config: UcFloModConfig) -> Expression | Sum:
     cc = config
     r, v, p, c, s, ts, sl = g.r, g.v, g.p, g.c, g.s, g.ts, g.sl
     ucn, t, ll, cur, allyear = g.ucn, g.t, g.ll, g.cur, g.allyear
@@ -220,4 +220,4 @@ def uc_flo_mod(g: TimesModelClass, config: UcFloModConfig) -> str | Any:
         * cc.cufscal,
     )
 
-    return (term + cumflo_sum).gamsRepr()  # type: ignore[no-untyped-call]
+    return term + cumflo_sum

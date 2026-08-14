@@ -141,7 +141,7 @@ def uc_com_mod(
     var: str | tuple[str, Any],
     sow_GP: SowGPType,
     config: UcComModConfig,
-) -> str | Any:
+) -> Expression | Sum:
     cc = config
 
     expression = inner_sum(g, var, sow_GP, config)
@@ -150,4 +150,4 @@ def uc_com_mod(
     for arg in args_to_sum:
         expression = wrap_in_sum(target=expression, domain=arg)
 
-    return expression.gamsRepr()  # type: ignore[no-untyped-call]
+    return expression
