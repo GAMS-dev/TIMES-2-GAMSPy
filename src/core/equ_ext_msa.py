@@ -14,7 +14,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from core.base_class import GamsClass
-from core.eqobjann_tm import EqobjannTm
+from core.eqobjann_tm import EqobjannTm, EqobjannTmConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -42,7 +42,13 @@ class EquExtMsa(GamsClass):
 
     def compile(self) -> None:
         # Prepare annualized coefficients and enable adjusted PV factors
-        self.include(EqobjannTm(tc=self.tc, env=self.env, arg1="N", arg2="*0"))
+        self.include(
+            EqobjannTm(
+                tc=self.tc,
+                env=self.env,
+                config=EqobjannTmConfig(arg1="N", arg2=0),
+            )
+        )
 
         if (self.env.objann + self.env.msa).upper() == "YESMSA":
             self.tc.enqueue(self.exec1)

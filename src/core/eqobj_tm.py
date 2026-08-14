@@ -1,4 +1,4 @@
-# equobj_tm.py
+# eqobj_tm.py
 # *++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # * Copyright (C) 2000-2023 Energy Technology Systems Analysis Programme (ETSAP)
 # * This file is part of the IEA-ETSAP TIMES model generator, licensed

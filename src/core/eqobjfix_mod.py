@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 from gamspy import (
     Card,
@@ -45,7 +45,7 @@ from core.utils import resolve_ctst
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
-    from gamspy import Alias, Number
+    from gamspy import Alias, Expression, Number
     from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
     from gamspy.math import MathOp
 
@@ -66,13 +66,13 @@ class EqobjfixMod(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
+        sense: str = "",
         arg2: str = "",
     ):
         self.env = env.fork()
         self.tc = tc
         self._sub_modules: dict[str, GamsClass] = {}
-        self.arg1 = arg1
+        self.arg1 = sense
         self.arg2 = arg2
         self.compile()
 
@@ -148,26 +148,31 @@ class EqobjfixMod(GamsClass):
         g = self.tc
         m = g.container
 
+        r, Reg, allyear, p, prc, age, j, cur = (
+            g.r,
+            g.Reg,
+            g.allyear,
+            g.p,
+            g.prc,
+            g.age,
+            g.j,
+            g.cur,
+        )
+
         # * For loop controls
-        g.ObjFcur = Set(m, name="OBJ_FCUR", domain=[g.Reg, g.allyear, g.p, g.cur])
+        g.ObjFcur = Set(m, name="OBJ_FCUR", domain=[Reg, allyear, p, cur])
         # * OBJ coefficient SUM control set with the 3 ALLYEAR indexes in sequence =
         # *   Y-running OBJ year, V-variables' investment period, K-cost value counter & index
-        g.ObjSumiv = Set(
-            m, name="OBJ_SUMIV", domain=[g.allyear, g.r, g.allyear, g.p, g.age, g.age]
-        )
+        g.ObjSumiv = Set(m, name="OBJ_SUMIV", domain=[allyear, r, allyear, p, age, age])
         g.ObjSumivs = Set(
-            m, name="OBJ_SUMIVS", domain=[g.r, g.allyear, g.p, g.allyear, g.allyear]
+            m, name="OBJ_SUMIVS", domain=[r, allyear, p, allyear, allyear]
         )
         # * Shaping controls
-        g.RtpShape = Set(
-            m, name="RTP_SHAPE", domain=[g.Reg, g.allyear, g.prc, g.j, g.j, g.j]
-        )
+        g.RtpShape = Set(m, name="RTP_SHAPE", domain=[Reg, allyear, prc, j, j, j])
         # * Fixed cost year span divisor
-        g.obj_diviv = Parameter(m, name="OBJ_DIVIV", domain=[g.Reg, g.allyear, g.prc])
+        g.obj_diviv = Parameter(m, name="OBJ_DIVIV", domain=[Reg, allyear, prc])
         # * Present value factor of technical life
-        g.obj_life = Parameter(
-            m, name="OBJ_LIFE", domain=[g.allyear, g.Reg, g.age, g.age, g.cur]
-        )
+        g.obj_life = Parameter(m, name="OBJ_LIFE", domain=[allyear, Reg, age, age, cur])
 
     def exec1(self: EqobjfixMod, condition: bool) -> None:
         # *UR: 09/30/01
@@ -448,16 +453,14 @@ class EqobjfixMod(GamsClass):
         VART_CAP = g.get_variable(f"{vart_id}_CAP")
         VAR_OBJ = g.get_variable(f"{var}_OBJ")
 
-        # {varv}_NCAP(R,V,P {sws})$MILESTONYR(V) + NCAP_PASTI(R,V,P)$PASTYEAR(V)
-        ncap: Any = VARV_NCAP[r, v, p, *sws]
-        if varv_set is not None:
-            ncap = Sum(varv_set, ncap)
-        pasti = g.ncap_pasti[r, v, p].where[g.Pastyear[v]]
-        capacity = ncap.where[g.Milestonyr[v]] + pasti
-        # (NCAP_PASTI(R,V,P)$PASTYEAR(V))$OBJ_2A(R,V,P)
-        pasti_2a = g.ncap_pasti[r, v, p].where[g.Pastyear[v] & g.Obj2a[r, v, p]]
+        shared_ncap = VARV_NCAP[r, v, p, *sws]
+        ncap = Sum(varv_set, shared_ncap) if varv_set is not None else shared_ncap
 
-        def shaped(cost: Any, index: str) -> Any:
+        capacity = (
+            ncap.where[g.Milestonyr[v]] + g.ncap_pasti[r, v, p].where[g.Pastyear[v]]
+        )
+
+        def shaped(cost: ImplicitParameter, index: str) -> Expression:
             """cost * (1+SUM(RTP_SHAPE(R,V,P,index,J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1))"""
             return cost * (
                 1
@@ -474,7 +477,7 @@ class EqobjfixMod(GamsClass):
         # * Cases IV - Fixed O&M including surveillance during decommissioning, V - Taxes
         # *------------------------------------------------------------------------------
         # * Fixed O&M Cost and Taxes
-        lhs: Any = Sum(
+        lhs: Expression | Sum = Sum(
             ObjSumiv[KEoh, r, v, p, jot, life].where[~RtpIshpr[r, v, p]],
             Sum(
                 g.Invspred[KEoh, jot, ll, k],
@@ -509,9 +512,9 @@ class EqobjfixMod(GamsClass):
             # * [UR] 07.10.2003: for validating MARKAL using VAR_CAP instead of VAR_NCAP+NCAP_PASTI,
             # *                  since it is possible in MARKAL to decommission capacity of demand
             # *                  devices (DMD)
-            cap: Any = VART_CAP[r, t, p, *sws]
-            if vart_set is not None:
-                cap = Sum(vart_set, cap)
+            shared_cap = VART_CAP[r, t, p, *sws]
+            cap = Sum(vart_set, shared_cap) if vart_set is not None else shared_cap
+
             shaped_costs = shaped_costs * (
                 Sum(g.Periodyr[t[v], YEoh], cap).where[
                     g.Obj1a[r, v, p] + g.Obj1b[r, v, p]
@@ -519,7 +522,7 @@ class EqobjfixMod(GamsClass):
                 + capacity.where[g.Obj2a[r, v, p] + g.Obj2b[r, v, p]]
             )
 
-        shaped_sum: Any = Sum(
+        shaped_sum: Expression | Sum = Sum(
             Domain(
                 g.Invspred[KEoh, jot, ll, k],
                 g.Opyear[life, age],
@@ -541,7 +544,10 @@ class EqobjfixMod(GamsClass):
             g.obj_disc[r, Y, cur]
             * macro.obj_dlagc_GP(r, k, p, cur)
             # * Case 2.a-b
-            * (ncap.where[g.Milestonyr[v]] + pasti_2a),
+            * (
+                ncap.where[g.Milestonyr[v]]
+                + g.ncap_pasti[r, v, p].where[g.Pastyear[v] & g.Obj2a[r, v, p]]
+            ),
         )
 
         eq_objfix[g.Rdcur[r, cur], *sow] = lhs == Sum(
