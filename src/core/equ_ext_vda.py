@@ -20,7 +20,7 @@ from gamspy import Alias, Equation, Parameter, Set, Sum
 from core.base_class import GamsClass
 from core.bnd_ire_vda import BndIreVda
 from core.eqactups_vda import EqactupsVda
-from core.eqashar_vda import EqasharVda
+from core.eqashar_vda import EqasharVda, EqasharVdaConfig
 from core.eqcaflac_vda import EqcaflacVda
 from core.eqlducs_vda import EqlducsVda
 from core.equcrtp_vda import EqucrtpVda, EqucrtpVdaConfig
@@ -129,15 +129,13 @@ class EquExtVda(GamsClass):
         self.include(EqlducsVda(self.tc, self.env, arg1="EQU"))
 
         # * ASHAR equations:
-        # fmt: off
-        eqashar_batinclude: list[tuple[str, str]] = [
-            ("E", "FX"),
-            ("L", "LO"),
-            ("G", "UP")
+        eqashar_batinclude: list[EqasharVdaConfig] = [
+            EqasharVdaConfig(sense="E", arg2="FX"),
+            EqasharVdaConfig(sense="L", arg2="LO"),
+            EqasharVdaConfig(sense="G", arg2="UP"),
         ]
-        # fmt: on
-        for arg1, arg2 in eqashar_batinclude:
-            self.include(EqasharVda(self.tc, self.env, arg1=arg1, arg2=arg2))
+        for eqashar_config in eqashar_batinclude:
+            self.include(EqasharVda(self.tc, self.env, config=eqashar_config))
 
         # * UCBET equations
         if self.tc.defined("UC_FLOBET"):

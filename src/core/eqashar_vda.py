@@ -16,21 +16,30 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal
 
-from gamspy import Number
+from gamspy import Domain, If, Loop, Number, SpecialValues, Sum, sparse
+from gamspy.math import Max, abs, exp, project, same_as
 
 from core.base_class import GamsClass
-from core.cal_nored_red import cal_nored_red
-from core.cal_red_red import cal_red_red
+from core.cal_red_red import CalRedRedConfig
 from core.pp_lvlfc_mod import PpLvlfcMod, PpLvlfcModConfig
+from core.utils import generate_equation
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
+    from core.utils import EquationSenseTypes
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class EqasharVdaConfig:
+    sense: EquationSenseTypes | Literal[""] = ""
+    arg2: str = ""
 
 
 class EqasharVda(GamsClass):
@@ -44,29 +53,22 @@ class EqasharVda(GamsClass):
         self: EqasharVda,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
+        config: EqasharVdaConfig,
     ):
         self.env = env.fork()
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
+        self.config = config
         self._sub_modules = {}
         self.compile()
 
     def compile(self: EqasharVda) -> None:
         g = self.tc
-        if len(self.arg1):
-            self.label_eqdef(
-                no_red=self.env.cal_red == "cal_nored.red",
-                eq=self.env.eq,
-                r_v_t=self.env.r_v_t,
-                swt=self.env.swt,
-                sow=self.env.sow,
-                var=self.env.var,
-            )
+        cc = self.config
+        if cc.sense != "":
+            self.label_eqdef()
         else:
             self.tc.enqueue(self.collect_all_flo_ashar_groups)
+            # * Levelize FLO_ASHAR
             self.include(
                 PpLvlfcMod(
                     tc=self.tc,
@@ -87,108 +89,214 @@ class EqasharVda(GamsClass):
             )
 
     def collect_all_flo_ashar_groups(self: EqasharVda) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Collect all FLO_ASHAR groups
-  OPTION CG_GRP <= FLO_ASHAR;
-  FLO_SHAR(R,'0',P,C,CG,ANNUAL,'LO')$CG_GRP(R,P,C,CG) = EPS;
+        g = self.tc
+        r, v, p, c, cg, cg2 = g.r, g.v, g.p, g.c, g.cg, g.cg2
+        s, ll, bd, tsl = g.s, g.ll, g.bd, g.tsl
 
-* We have been left with any C not in CG or not in RPC
-  IF(CARD(CG_GRP),
-    LOOP((CG_GRP(RPC(R,P,C),C),COM_TMAP(R,COM_TYPE(CG),C)),RPCG_ASHAR(R,P,C,CG,S)$(PRC_SGL(R,P)=STOAL(R,S))=-1);
-    FLO_ASHAR(RTP(R,V,P),C,COM_TYPE(CG),S,BD)$COM_TMAP(R,COM_TYPE,C) $= FLO_ASHAR(R,V,P,C,C,S,BD);
-    FLO_ASHAR(R,LL,P,C,C,S,BD) = 0; CG_GRP(RPC(RP,C),C) = NO;
-    RP_PGFLO(RP_FLO(RP)) $= SUM(CG_GRP(NO_ACT(RP),C,ACTCG),1);
-    RPCG_ASHAR(CG_GRP(RPC,CG),S)$=RPCS_VAR(RPC,S);
-    RPCG_ASHAR(CG_GRP(RPC_STG(RP,C),ACTCG),S)=RPS_STG(RP,S)+PRC_TSL(RP,'ANNUAL')$ANNUAL(S);
-    CG_GRP(RPC,CG)=NO;
-    LOOP(CG_GRP(R,P,CG,CG2), Z=1;
-      LOOP(COM_TSL(R,C(CG),TSL), Z=0; RPCG_ASHAR(R,P,CG,CG2,S)$TS_GROUP(R,TSL,S) = 1);
-      IF(Z, RPCG_ASHAR(R,P,CG,CG2,ANNUAL) = YES));
-    OPTION CLEAR=CG_GRP);
-""",
+        # Collect all FLO_ASHAR groups
+        project(source=g.flo_ashar, target=g.CgGrp, direction="left")
+        g.flo_shar[r, "0", p, c, cg, g.Annual, "LO"].where[g.CgGrp[r, p, c, cg]] = (
+            SpecialValues.EPS
         )
 
-    def label_eqdef(
-        self: EqasharVda,
-        no_red: bool,
-        eq: str,
-        r_v_t: str,
-        swt: str,
-        sow: str,
-        var: str,
-    ) -> None:
-        if no_red:
-            cal_red_code = cal_nored_red(
-                arg1="COM",
-                arg2="COM1",
-                arg3="TS",
-                arg4="P",
-                arg5="T",
-                def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
-                sow=self.env.sow,
-                var=self.env.var,
-                pgprim=self.env.pgprim,
+        # We have been left with any C not in CG or not in RPC
+        if g.CgGrp.number_records:
+            with Loop(
+                Domain(
+                    g.CgGrp[g.Rpc[r, p, c], c],
+                    g.ComTmap[r, g.ComType[cg], c],
+                )
+            ):
+                g.rpcg_ashar[r, p, c, cg, s].where[
+                    g.prc_sgl[r, p] == g.stoal[r, s]
+                ] = -1
+            g.flo_ashar[g.Rtp[r, v, p], c, g.ComType[cg], s, bd].where[
+                g.ComTmap[r, g.ComType, c]
+            ] = sparse(g.flo_ashar[r, v, p, c, c, s, bd])
+            g.flo_ashar[r, ll, p, c, c, s, bd] = 0
+            g.CgGrp[g.Rpc[g.Rp, c], c] = False
+            g.RpPgflo[g.RpFlo[g.Rp]] = sparse(
+                Sum(g.CgGrp[g.NoAct[g.Rp], c, g.Actcg], 1)
             )
+            g.rpcg_ashar[g.CgGrp[g.Rpc, cg], s] = sparse(g.RpcsVar[g.Rpc, s])
+            g.rpcg_ashar[g.CgGrp[g.RpcStg[g.Rp, c], g.Actcg], s] = (
+                g.RpsStg[g.Rp, s] + g.PrcTsl[g.Rp, "ANNUAL"].where[g.Annual[s]]
+            )
+            g.CgGrp[g.Rpc, cg] = False
+            with Loop(g.CgGrp[r, p, cg, cg2]):
+                g.z[...] = 1
+                with Loop(g.ComTsl[r, c[cg], tsl]):
+                    g.z[...] = 0
+                    g.rpcg_ashar[r, p, cg, cg2, s].where[g.TsGroup[r, tsl, s]] = 1
+                with If(g.z):
+                    g.rpcg_ashar[r, p, cg, cg2, g.Annual] = 1
+            g.CgGrp.setRecords(None)
+
+    def label_eqdef(self: EqasharVda) -> None:
+        g = self.tc
+        cc = self.config
+
+        r, v, t, p, c, cg, cg2 = g.r, g.v, g.t, g.p, g.c, g.cg, g.cg2
+        s, sl, ts, ie, io = g.s, g.sl, g.ts, g.ie, g.io
+        Com, com1, Reg = g.Com, g.com1, g.Reg
+
+        var = self.env.var
+        sow = self.env.sow_GP
+        swt = self.env.swt_GP
+        r_v_t = self.env.r_v_t_GP
+        bd = cc.arg2
+
+        VAR_ACT = g.get_variable(f"{var}_ACT")
+        VAR_FLO = g.get_variable(f"{var}_FLO")
+        VAR_IRE = g.get_variable(f"{var}_IRE")
+        VAR_SOUT = g.get_variable(f"{var}_SOUT")
+        rts = macro.rts_GP(s=s, g=self.tc, env=self.env)
+        eq = g.get_equation(f"{self.env.eq}{cc.sense}_ASHAR")
+
+        cal_red = self.env.cal_red
+        if cal_red == "cal_red.red":
+            from core.cal_red_red import cal_red_red_GP as cal_red_func_GP
+        elif cal_red == "cal_nored.red":
+            from core.cal_nored_red import cal_nored_red_GP as cal_red_func_GP
         else:
-            cal_red_code = cal_red_red(
-                arg1="COM",
-                arg2="COM1",
-                arg3="TS",
-                arg4="P",
-                arg5="T",
+            raise ValueError(f"Unexpected value for cal_red: {cal_red}")
+
+        include_cal_red = cal_red_func_GP(
+            g=g,
+            config=CalRedRedConfig(
+                arg1=Com,
+                arg2=com1,
+                arg3=ts,
+                arg4=p,
+                arg5=t,
+                arg10=Number(1),
                 pgprim=self.env.pgprim,
                 def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
-                sow=self.env.sow,
-                var=self.env.var,
+                sow=sow,
+                var=var,
+            ),
+        )
+
+        assert cc.sense != "", "Sense cannot be empty."
+
+        eq[g.RtpVintyr[*r_v_t, p], cg, cg2, rts, *swt].where[
+            Sum(
+                g.RsTree[r, s, ts].where[g.flo_ashar[r, v, p, cg, cg2, ts, bd]], 1
+            ).where[g.rpcg_ashar[r, p, cg, cg2, s]]
+        ] = generate_equation(
+            # * sum over RPS_S2 timeslices
+            Sum(
+                g.RpsS2[g.RpFlo[r, p], sl].where[g.TsMap[r, s, sl]],
+                Sum(g.TsAnn[sl, ts], g.flo_ashar[r, v, p, cg, cg2, ts, bd])
+                * (
+                    # * sum over all flows in the reference group CG2
+                    Sum(
+                        Domain(
+                            g.RtpcsVarf[r, t, p, Com, ts], g.RsTree[r, sl, ts]
+                        ).where[g.ComGmap[r, cg2, Com]],
+                        include_cal_red
+                        * Max(
+                            g.rpcg_ashar[r, p, cg, cg2, s],
+                            Number(1).where[
+                                Sum(g.Top[r, p, c[cg], io], g.Top[r, p, Com, io]).where[
+                                    g.ComType[cg2]
+                                ]
+                            ],
+                        )
+                        # * timeslice S coarser than variable or finer than variable
+                        * g.rs_fr[r, sl, ts]
+                        * (1 + g.rtcs_fr[r, t, Com, sl, ts]),
+                    )
+                    # * Allow referring to activity as well
+                    + Sum(
+                        Domain(g.PrcTs[r, p, ts], g.RtpVara[r, t, p]).where[
+                            g.rs_fr[r, sl, ts]
+                        ],
+                        (
+                            g.rs_fr[r, sl, ts]
+                            * (
+                                VAR_ACT[r, v, t, p, ts, *sow]
+                                * exp(
+                                    (-abs(g.stg_loss[r, v, p, ts]) / 2).where[
+                                        g.RpStg[r, p]
+                                    ]
+                                )
+                            )
+                        ).where[~g.RpPgflo[r, p]]
+                        + Sum(
+                            g.RpcPg[g.RpStd[r, p], Com],
+                            (
+                                VAR_ACT[r, v, t, p, ts, *sow].where[g.RpPgact[r, p]]
+                                + (
+                                    VAR_FLO[r, v, t, p, Com, ts, *sow]
+                                    / g.prc_actflo[r, v, p, Com]
+                                ).where[~g.RpPgact[r, p]]
+                            )
+                            * g.rs_fr[r, sl, ts]
+                            * (1 + g.rtcs_fr[r, t, Com, sl, ts]),
+                        ).where[g.RpPgflo[r, p]],
+                    ).where[g.Actcg[cg2]]
+                ),
             )
-        rts = macro.rts(s="S", g=self.tc, env=self.env)
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-{eq}{self.arg1}_ASHAR(RTP_VINTYR({r_v_t},P),CG,CG2,{rts}{swt})$(SUM(RS_TREE(R,S,TS)$FLO_ASHAR(R,V,P,CG,CG2,TS,'{self.arg2}'),1)$RPCG_ASHAR(R,P,CG,CG2,S))..
-
-* sum over RPS_S2 timeslices
-     SUM(RPS_S2(RP_FLO(R,P),SL)$TS_MAP(R,S,SL),
-         SUM(TS_ANN(SL,TS),FLO_ASHAR(R,V,P,CG,CG2,TS,'{self.arg2}')) *
-* sum over all flows in the reference group CG2
-         (SUM((RTPCS_VARF(R,T,P,COM,TS),RS_TREE(R,SL,TS))$COM_GMAP(R,CG2,COM),
-{cal_red_code}
-             * MAX(RPCG_ASHAR(R,P,CG,CG2,S),1$SUM(TOP(R,P,C(CG),IO),TOP(R,P,COM,IO))$COM_TYPE(CG2)) *
-* timeslice S coarser than variable or finer than variable
-             RS_FR(R,SL,TS)*(1+RTCS_FR(R,T,COM,SL,TS))) +
-* Allow referring to activity as well
-          SUM((PRC_TS(R,P,TS),RTP_VARA(R,T,P))$RS_FR(R,SL,TS),RS_FR(R,SL,TS)*
-            ({var}_ACT(R,V,T,P,TS {sow})*EXP((-ABS(STG_LOSS(R,V,P,TS))/2)$RP_STG(R,P)))$(NOT RP_PGFLO(R,P)) +
-            SUM(RPC_PG(RP_STD(R,P),COM),({var}_ACT(R,V,T,P,TS {sow})$RP_PGACT(R,P)+({var}_FLO(R,V,T,P,COM,TS {sow})/PRC_ACTFLO(R,V,P,COM))$(NOT RP_PGACT(R,P))) *
-              RS_FR(R,SL,TS)*(1+RTCS_FR(R,T,COM,SL,TS)))$RP_PGFLO(R,P))$ACTCG(CG2)
-         )
-        ) +
-* Allow ANNUAL share for IRE processes
-     SUM(ANNUAL(S),
-       SUM(RPC_IRE(R,P,COM,IE)$(COM_GMAP(R,CG,COM)*((NOT IMPEXP(CG2))+SAMEAS(IE,CG2))),
-         FLO_ASHAR(R,V,P,CG,CG2,S,'{self.arg2}') *
-         (SUM(RTPCS_VARF(REG,T,P,C,TS)$((COM_GMAP(REG,CG2,C)+IMPEXP(CG2))$RPC_IRE(REG,P,C,IE)),
-           {var}_IRE(REG,V,T,P,C,TS,IE{sow})$(NOT RPC_AIRE(REG,P,C))+({var}_ACT(REG,V,T,P,TS{sow})*PRC_ACTFLO(REG,V,P,C))$RPC_AIRE(REG,P,C)) +
-          SUM(PRC_TS(R,P,TS),{var}_ACT(R,V,T,P,TS {sow}))$ACTCG(CG2)) -
-         SUM(RTPCS_VARF(R,T,P,COM,TS),
-           {var}_IRE(R,V,T,P,COM,TS,IE{sow})$(NOT RPC_AIRE(R,P,COM))+({var}_ACT(R,V,T,P,TS{sow})*PRC_ACTFLO(R,V,P,COM))$RPC_AIRE(R,P,COM)))
-        )$RP_IRE(R,P)
-
-    ={self.arg1}=
-
-* derived commodities, summed for all flows in the group CG
-   SUM((RTPCS_VARF(R,T,P,COM,TS),COM_GMAP(R,CG,COM))$TS_MAP(R,S,TS),
-{cal_red_code}
-      )$RP_FLO(R,P) +
-   SUM(PRC_TS(R,P,TS)$TS_MAP(R,S,TS),{var}_ACT(R,V,T,P,TS {sow})$(NOT NO_ACT(R,P))+
-     SUM(RPC_PG(NO_ACT(R,P),C),{var}_FLO(R,V,T,P,C,TS {sow})/PRC_ACTFLO(R,V,P,C)))$ACTCG(CG) +
-   SUM((TOP(RPC_STG(R,P,C(CG)),'OUT'),RPCS_VAR(R,P,C,TS)),RS_FR(R,S,TS)*(1+RTCS_FR(R,T,C,S,TS))*
-     {var}_SOUT(R,V,T,P,C,TS{sow})/PRC_ACTFLO(R,V,P,C))$ACTCG(CG2)
-
-;
-""",
+            # * Allow ANNUAL share for IRE processes
+            + Sum(
+                g.Annual[s],
+                Sum(
+                    g.RpcIre[r, p, Com, ie].where[
+                        g.ComGmap[r, cg, Com] * ((~g.impexp[cg2]) + same_as(ie, cg2))
+                    ],
+                    g.flo_ashar[r, v, p, cg, cg2, s, bd]
+                    * (
+                        Sum(
+                            g.RtpcsVarf[Reg, t, p, c, ts].where[
+                                (g.ComGmap[Reg, cg2, c] + g.impexp[cg2]).where[
+                                    g.RpcIre[Reg, p, c, ie]
+                                ]
+                            ],
+                            VAR_IRE[Reg, v, t, p, c, ts, ie, *sow].where[
+                                ~g.RpcAire[Reg, p, c]
+                            ]
+                            + (
+                                VAR_ACT[Reg, v, t, p, ts, *sow]
+                                * g.prc_actflo[Reg, v, p, c]
+                            ).where[g.RpcAire[Reg, p, c]],
+                        )
+                        + Sum(g.PrcTs[r, p, ts], VAR_ACT[r, v, t, p, ts, *sow]).where[
+                            g.Actcg[cg2]
+                        ]
+                    )
+                    - Sum(
+                        g.RtpcsVarf[r, t, p, Com, ts],
+                        VAR_IRE[r, v, t, p, Com, ts, ie, *sow].where[
+                            ~g.RpcAire[r, p, Com]
+                        ]
+                        + (
+                            VAR_ACT[r, v, t, p, ts, *sow] * g.prc_actflo[r, v, p, Com]
+                        ).where[g.RpcAire[r, p, Com]],
+                    ),
+                ),
+            ).where[g.RpIre[r, p]],
+            cc.sense,
+            # * derived commodities, summed for all flows in the group CG
+            Sum(
+                Domain(g.RtpcsVarf[r, t, p, Com, ts], g.ComGmap[r, cg, Com]).where[
+                    g.TsMap[r, s, ts]
+                ],
+                include_cal_red,
+            ).where[g.RpFlo[r, p]]
+            + Sum(
+                g.PrcTs[r, p, ts].where[g.TsMap[r, s, ts]],
+                VAR_ACT[r, v, t, p, ts, *sow].where[~g.NoAct[r, p]]
+                + Sum(
+                    g.RpcPg[g.NoAct[r, p], c],
+                    VAR_FLO[r, v, t, p, c, ts, *sow] / g.prc_actflo[r, v, p, c],
+                ),
+            ).where[g.Actcg[cg]]
+            + Sum(
+                Domain(g.Top[g.RpcStg[r, p, c[cg]], "OUT"], g.RpcsVar[r, p, c, ts]),
+                g.rs_fr[r, s, ts]
+                * (1 + g.rtcs_fr[r, t, c, s, ts])
+                * VAR_SOUT[r, v, t, p, c, ts, *sow]
+                / g.prc_actflo[r, v, p, c],
+            ).where[g.Actcg[cg2]],
         )
