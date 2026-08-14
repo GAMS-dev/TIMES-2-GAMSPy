@@ -268,6 +268,13 @@ class Macros:
             return f"OB_FSB({r},{p},{m},{y})"
         return f"OBJ_FSB({r},{y},{p},{m})"
 
+    def obj_fsb_GP(
+        self, r: SET_OR_ALIAS, y: SET_OR_ALIAS, p: SET_OR_ALIAS, m: SET_OR_ALIAS
+    ) -> ImplicitParameter:
+        if self.obj_fsb_active:
+            return self._g.ob_fsb[r, p, m, y]
+        return self._g.obj_fsb[r, y, p, m]
+
     # FTX
     @property
     def obj_ftx_active(self) -> bool:
@@ -281,6 +288,13 @@ class Macros:
         if self.obj_ftx_active:
             return f"OB_FTX({r},{p},{m},{y})"
         return f"OBJ_FTX({r},{y},{p},{m})"
+
+    def obj_ftx_GP(
+        self, r: SET_OR_ALIAS, y: SET_OR_ALIAS, p: SET_OR_ALIAS, m: SET_OR_ALIAS
+    ) -> ImplicitParameter:
+        if self.obj_ftx_active:
+            return self._g.ob_ftx[r, p, m, y]
+        return self._g.obj_ftx[r, y, p, m]
 
     # DCOST
     @property
@@ -316,6 +330,13 @@ class Macros:
         if self.obj_dlagc_active:
             return f"OB_DLC({r},{p},{m},{y})"
         return f"OBJ_DLAGC({r},{y},{p},{m})"
+
+    def obj_dlagc_GP(
+        self, r: SET_OR_ALIAS, y: SET_OR_ALIAS, p: SET_OR_ALIAS, m: SET_OR_ALIAS
+    ) -> ImplicitParameter:
+        if self.obj_dlagc_active:
+            return self._g.ob_dlc[r, p, m, y]
+        return self._g.obj_dlagc[r, y, p, m]
 
     # ACOST
     @property

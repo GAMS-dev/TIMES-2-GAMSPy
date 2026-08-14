@@ -65,18 +65,10 @@ class EqobjMod(GamsClass):
         g = self.tc
         m = g.container
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="SET K_EOH(ALLYEAR);",
-        )
+        g.KEoh = Set(m, name="K_EOH", domain=[g.allyear])
         self.tc.enqueue(self.exec1)
         # Sets for periodic costs
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="SET KTYAGE(LL,YEAR,LL,AGE);",
-        )
+        g.Ktyage = Set(m, name="KTYAGE", domain=[g.ll, g.year, g.ll, g.age])
         self.add_records_to_universe_item(["OBJELS"])
         self.tc.enqueue(self.exec2)
 

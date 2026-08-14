@@ -37,11 +37,11 @@ logger = logging.getLogger(__name__)
 
 
 class EqobjTm(GamsClass):
-    """Translation unit for equobj.tm."""
+    """Translation unit for eqobj.tm."""
 
     # Instance attributes
-    module_name: str = "equobj_tm"
-    gams_source: str = "equobj.tm"
+    module_name: str = "eqobj_tm"
+    gams_source: str = "eqobj.tm"
 
     def __init__(
         self,
@@ -57,11 +57,9 @@ class EqobjTm(GamsClass):
         g = self.tc
         m = g.container
 
-        self.tc.add_gams_code(module=self, phase="init", code="SET K_EOH(ALLYEAR);")
+        g.KEoh = Set(m, name="K_EOH", domain=[g.allyear])
         self.tc.enqueue(self.exec1)
-        self.tc.add_gams_code(
-            module=self, phase="init", code="SET KTYAGE(LL,YEAR,LL,AGE);"
-        )
+        g.Ktyage = Set(m, name="KTYAGE", domain=[g.ll, g.year, g.ll, g.age])
         self.tc.enqueue(self.exec2)
 
         r, allyear, p, reg, cur = g.r, g.allyear, g.p, g.Reg, g.cur
