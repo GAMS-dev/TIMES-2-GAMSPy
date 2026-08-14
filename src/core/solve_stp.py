@@ -771,6 +771,7 @@ UC_T_EACH(R,UC_N,T)   $= STP_UCT('3',R,UC_N,T);
     {"LOOP(R, BACKWARD(T)=NO_RT(R,T);" if rtpx == "X" else ""}
     {
                     pextlevs_stc(
+                        tc=self.tc,
                         arg1="'1'",
                         arg2="(BACKWARD)",
                         eq=eq,
