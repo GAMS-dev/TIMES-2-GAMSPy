@@ -832,9 +832,9 @@ class PpmainMod(GamsClass):
             Sum(g.RpcStgn[g.Trackpc[g.Rp, g.Com], g.io], 1)
         ] = False
         with Loop(g.CgGrp[g.Trackp[g.Rp], g.c, g.Com]):
-            with If(g.Trackpc[g.Rp, g.c]):  # type: ignore [arg-type]
+            with If(g.Trackpc[g.Rp, g.c]):
                 g.RpcStgn[g.Rp, g.Com, g.io] = False
-            with ElseIf(g.Trackpc[g.Rp, g.Com]):  # type: ignore [arg-type]
+            with ElseIf(g.Trackpc[g.Rp, g.Com]):
                 g.RpcStgn[g.Rp, g.c, g.io] = False
         g.Trackpc[g.Rpc] = sparse(Sum(g.RpcStgn[g.Rpc, g.io], 1))
         # * day-night storage
@@ -851,7 +851,7 @@ class PpmainMod(GamsClass):
             with If(~(Sum(g.Top[g.r, g.p, g.c, g.io], 1))):
                 g.Top[g.r, g.p, g.c, g.io] = True
             with If(~(g.RpSts[g.r, g.p])):
-                g.PrcTsl[g.r, g.p, g.tslvl] = same_as(g.tslvl, "ANNUAL")  # type: ignore
+                g.PrcTsl[g.r, g.p, g.tslvl] = g.tslvl.sameAs("ANNUAL")  # type: ignore[assignment]
         # * time-slice storage
         g.PrcStgtss[g.Trackpc[g.r, g.p, g.c]].where[~(g.PrcMap[g.r, "STK", g.p])] = True
         with Loop(g.PrcStgtss[g.r, g.p, g.c]):
@@ -896,7 +896,7 @@ class PpmainMod(GamsClass):
             g.f[...] = g.ncap_pasty[g.r, g.ll, g.p]
             g.my_f[...] = g.ncap_pasti[g.r, g.ll, g.p] / g.f
             # * for each year within spread build running sum of distributed PASTIs
-            with For(g.z, g.f - 1.0, 0.0, direction="downto"):  # type: ignore [arg-type]
+            with For(g.z, g.f - 1.0, 0.0, direction="downto"):
                 g.pastsum[g.r, g.allyear[g.ll - g.z], g.p] = (
                     g.pastsum[g.r, g.allyear, g.p] + g.my_f
                 )
@@ -1220,7 +1220,7 @@ PUT QLOG ' SEVERE ERROR  - Group removed from topology:   R=',{rl},' CG=',C.TL);
                 ~(g.RpInout[g.r, g.p, g.io])
             ]
         ):
-            with If(g.Trackp[g.r, g.p]):  # type: ignore
+            with If(g.Trackp[g.r, g.p]):
                 # * set the SPG to the same type as the PG if commodities on the other side with that COM_TYPE
                 with If(
                     Sum(
@@ -1228,7 +1228,7 @@ PUT QLOG ' SEVERE ERROR  - Group removed from topology:   R=',{rl},' CG=',C.TL);
                     )
                 ):
                     g.PrcSpg[g.r, g.p, g.cg] = True
-                with Else():  # type: ignore
+                with Else():
                     # * did not find any commodities with the same type as the PG, so assume energy
                     # * assume material if PRC is material conversion and PGTYPE is DEM
                     with If(
@@ -1241,7 +1241,7 @@ PUT QLOG ' SEVERE ERROR  - Group removed from topology:   R=',{rl},' CG=',C.TL);
                         ]
                     ):
                         g.PrcSpg[g.r, g.p, "MAT"] = True
-                    with Else():  # type: ignore
+                    with Else():
                         g.z[...] = 1.0
                         with Loop(g.PgSmap[g.cg, g.j, g.ComType].where[g.z]):  # noqa: SIM117
                             with If(
@@ -1273,8 +1273,8 @@ PUT QLOG ' SEVERE ERROR  - Group removed from topology:   R=',{rl},' CG=',C.TL);
         # * remove invalid levels
         g.Rxx.setRecords(None)
         g.Rxx[g.r, g.tsl, g.r].where[~(Sum(g.Rjlvl[g.j, g.r, g.tsl], 1.0))] = True
-        g.f[...] = Card(g.ComTsl)  # type: ignore
-        g.z[...] = Card(g.PrcTsl)  # type: ignore
+        g.f[...] = Card(g.ComTsl)
+        g.z[...] = Card(g.PrcTsl)
         g.ComTsl[g.r, g.c, g.tsl - 1].where[g.Rxx[g.r, g.tsl, g.r]] = sparse(
             g.ComTsl[g.r, g.c, g.tsl]
         )
@@ -1922,7 +1922,7 @@ NCAP_TLIFE(RXX(R,V,P)) = 1);
         g.Trackpc[g.RpcNoflo] = True
         # * identify those commodities involved ONLY with capacity by eliminating those with flows
         with Loop(g.Trackpc[g.r, g.p, g.c]):
-            with If(g.RpIre[g.r, g.p]):  # type: ignore
+            with If(g.RpIre[g.r, g.p]):
                 # * RPC_IRE implies IRE_FLOc so not only capacity related
                 g.z[...] = ~(Sum(g.RpcIre[g.r, g.p, g.c, g.ie], 1.0))
                 g.z[...].where[g.z] = ~(
@@ -1933,7 +1933,7 @@ NCAP_TLIFE(RXX(R,V,P)) = 1);
                         g.RpcIre[g.r, g.p, g.Com, g.ie],
                     )
                 )
-            with Else():  # type: ignore
+            with Else():
                 g.z[...] = ~(
                     Sum(
                         g.Rtpc[g.r, g.t, g.p, g.c].where[
@@ -2240,7 +2240,7 @@ IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
         g.Trackpc[g.IreDist[g.r, g.p], g.c].where[g.RpcMarket[g.r, g.p, g.c, "EXP"]] = (
             True
         )
-        with While(Card(g.Trackpc)):  # type: ignore
+        with While(Card(g.Trackpc)):  # type: ignore[arg-type]
             g.Rxx.setRecords(None)
             with Loop(  # noqa: SIM117
                 Domain(
@@ -2286,7 +2286,7 @@ LOOP(RPC_MARKET(R,P,C,IE)$(NOT SUM(TOP_IRE(R,C,R,COM,P),1)),
         # * Complete the preparation of marketplace
         with Loop(g.TopIre[g.r, g.c, g.r, g.Com, g.p]):
             # * If no IRE_FLO set for marketplace, set default values
-            with If(g.IreDist[g.r, g.p]):  # type: ignore
+            with If(g.IreDist[g.r, g.p]):
                 g.ire_flo[g.Rtp[g.r, g.v, g.p], g.c, g.r, g.Com, g.s].where[
                     (
                         (g.ire_flo[g.r, g.v, g.p, g.c, g.r, g.Com, g.s] == 0.0).where[
@@ -2294,7 +2294,7 @@ LOOP(RPC_MARKET(R,P,C,IE)$(NOT SUM(TOP_IRE(R,C,R,COM,P),1)),
                         ]
                     )
                 ] = 1.0
-            with Else():  # type: ignore
+            with Else():
                 g.f[...] = Sum(
                     Domain(g.Rtp[g.r, g.t, g.p], g.s).where[
                         g.ire_flo[g.r, g.t, g.p, g.c, g.r, g.Com, g.s]
@@ -2332,10 +2332,10 @@ LOOP(RPC_MARKET(R,P,C,IE)$(NOT SUM(TOP_IRE(R,C,R,COM,P),1)),
         with Loop(g.TopIre[g.r, g.c, g.r, g.Com, g.p]):
             with If(~(g.RpcEqire[g.r, g.p, g.Com, "IMP"])):
                 g.RpcEqire[g.r, g.p, g.c, "EXP"] = True
-            with ElseIf(g.RpcMarket[g.r, g.p, g.c, "EXP"]):  # type: ignore
-                with If(g.IreDist[g.r, g.p]):  # type: ignore
+            with ElseIf(g.RpcMarket[g.r, g.p, g.c, "EXP"]):
+                with If(g.IreDist[g.r, g.p]):
                     g.RpcEqire[g.r, g.p, g.c, "EXP"] = True
-                with Else():  # type: ignore
+                with Else():
                     g.RpcMarket[g.r, g.p, g.Com, "IMP"] = True
         g.TopIre[g.r, g.c, g.r, g.Com, g.p].where[g.RpcEqire[g.r, g.p, g.c, "EXP"]] = (
             False

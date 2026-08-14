@@ -630,6 +630,7 @@ class TimesModelClass:
     Trackpg: Set = None  # type: ignore[assignment] # [r,p,cg] TRACKPG:
     Rvt: Set = None  # type: ignore[assignment] # [r,allyear,t] RVT:
     Rtpx: Set = None  # type: ignore[assignment] # [r,t,p] RTPX:
+    SwTsw: Set = None  # type: ignore[assignment] #  [ALLSOW, ALLYEAR, ALLSOW] SW_TSW: 'Mapping from finest SOWs to unique SOW at each period'
     RtPp: Set = None  # type: ignore[assignment] # [r,t] RT_PP:
     u2: Set = None  # type: ignore[assignment] # [*] U2
     u3: Set = None  # type: ignore[assignment] # [*] U3
@@ -1644,7 +1645,6 @@ class TimesModelClass:
     gg_ppm: Parameter = None  # type: ignore[assignment] # GG_PPM
     gg_ppw: Parameter = None  # type: ignore[assignment] # GG_PPW
     cru: Alias = None  # type: ignore[assignment] #
-    SwTsw: Set = None  # type: ignore[assignment] # [ALLSOW,ALLYEAR,ALLSOW] SW_TSW Mapping from finest SOWs to unique SOW at each period
     sw_tprob: Parameter = None  # type: ignore[assignment] # [T,ALLSOW] SW_TPROB
     rypm: Parameter = None  # type: ignore[assignment] #
     rycsm: Parameter = None  # type: ignore[assignment] #

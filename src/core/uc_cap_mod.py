@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 from gamspy import Domain, Number, Product, SpecialValues, Sum
 from gamspy.math import abs, power
@@ -60,7 +60,7 @@ class UcCapModConfig:
     )
 
 
-def uc_cap_mod(g: TimesModelClass, config: UcCapModConfig) -> str | Any:
+def uc_cap_mod(g: TimesModelClass, config: UcCapModConfig) -> Expression | Sum:
     cc = config
     r, v, p, c, s, ts = g.r, g.v, g.p, g.c, g.s, g.ts
     ucn, lA, t = g.ucn, g.lA, g.t

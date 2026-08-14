@@ -247,15 +247,6 @@ class EnvironmentVariableSchema(BaseModel):
         description="Variable assignment tracking string mapping structural matrix parameters."
     )
     hs: str = Field(description="Historical scaling parameter tracking data limits.")
-    tucn: str = Field(
-        description="Tracking identifier mapped to constraint tracking nodes."
-    )
-    tsum: str = Field(
-        description="Summary execution check identifier tracking mathematical summation steps."
-    )
-    tsum_GP: tuple[Set | Alias | ImplicitSet, ...] | tuple[()] = Field(
-        description="Summary execution check identifier tracking mathematical summation steps."
-    )
     sigo: str = Field(
         description="Output tracking switch handling environmental constraint emissions parameters."
     )
@@ -482,6 +473,9 @@ class EnvironmentVariableSchema(BaseModel):
     )
     tx_GP: tuple[Set | Alias | ImplicitSet, ...] = Field(
         description="Temporal calculation index identifier utilized in subset configurations."
+    )
+    tsum: str = Field(
+        description="Summary execution check identifier tracking mathematical summation steps."
     )
     rtpx: str = Field(
         description="Regional time process indexing axis identifier mapping configurations."

@@ -110,7 +110,7 @@ def uc_act_mod(
     var: str | tuple[str, Any],
     sow_GP: SowGPType,
     config: UcActModConfig,
-) -> str | Any:
+) -> Expression | Sum:
     cc = config
 
     expression: Expression | Sum
@@ -138,4 +138,4 @@ def uc_act_mod(
     for arg in args_to_sum:
         expression = wrap_in_sum(target=expression, domain=arg)
 
-    return expression.gamsRepr()  # type: ignore[no-untyped-call]
+    return expression

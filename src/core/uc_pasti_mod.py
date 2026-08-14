@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 from gamspy import Product, Sum
 from gamspy.math import abs, power
@@ -27,6 +27,7 @@ from core.utils import SET_OR_ALIAS, wrap_in_sum
 
 if TYPE_CHECKING:
     from gamspy import Domain
+    from gamspy._algebra.condition import Condition
     from gamspy._symbols.implicits import ImplicitSet
 
     from utils.times_model_class import TimesModelClass
@@ -42,7 +43,7 @@ class UcPastiModConfig:
     arg4: Literal["RHS"]
 
 
-def uc_pasti_mod(g: TimesModelClass, config: UcPastiModConfig) -> str | Any:
+def uc_pasti_mod(g: TimesModelClass, config: UcPastiModConfig) -> Condition:
     cc = config
     r, p, ucn, side, Pastyear = g.r, g.p, g.ucn, g.side, g.Pastyear
 
@@ -73,4 +74,4 @@ def uc_pasti_mod(g: TimesModelClass, config: UcPastiModConfig) -> str | Any:
 
     wrapped_term = wrap_in_sum(target=term, domain=cc.arg1)
     conditional_term = wrapped_term.where[Sum(cc.arg2[[cc.arg3]], 1)]
-    return conditional_term.gamsRepr()  # type: ignore[no-untyped-call]
+    return conditional_term

@@ -43,7 +43,7 @@ def uc_ire_mod(
     var: str | tuple[str, Any],
     sow_GP: SowGPType,
     config: UcIreModConfig,
-) -> str | Any:
+) -> Expression | Sum:
     cc = config
 
     var_id, domain = extract_var_domain(var=var)
@@ -140,4 +140,4 @@ def uc_ire_mod(
     for arg in args_to_sum:
         term = wrap_in_sum(target=term, domain=arg)
 
-    return term.gamsRepr()  # type: ignore[no-untyped-call]
+    return term

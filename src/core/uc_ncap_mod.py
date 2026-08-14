@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 from gamspy import Domain, Product, Sum
 from gamspy.math import abs, power
@@ -63,7 +63,7 @@ class UcNcapModConfig:
     )
 
 
-def uc_ncap_mod(g: TimesModelClass, config: UcNcapModConfig) -> str | Any:
+def uc_ncap_mod(g: TimesModelClass, config: UcNcapModConfig) -> Expression | Sum:
     cc = config
 
     r, v, p, cur, ucn = g.r, g.v, g.p, g.cur, g.ucn
@@ -143,4 +143,4 @@ def uc_ncap_mod(g: TimesModelClass, config: UcNcapModConfig) -> str | Any:
     for arg in args_to_sum:
         ncap_term = wrap_in_sum(target=ncap_term, domain=arg)
 
-    return ncap_term.gamsRepr()  # type: ignore[no-untyped-call]
+    return ncap_term
