@@ -607,7 +607,6 @@ class EnvironmentVariableSchema(BaseModel):
     powerflo: str
     pdtol: str
     bigm: str
-    gg_wn: str
     ireauxbal: str
     rpt_opt: pd.DataFrame
     stepped: str
