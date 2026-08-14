@@ -456,6 +456,9 @@ class EnvironmentVariableSchema(BaseModel):
     capjd: str = Field(
         description="Technical capacity retirement degradation tracking marker."
     )
+    capjd_GP: ImplicitParameter | Number = Field(
+        description="Technical capacity retirement degradation tracking marker."
+    )
     cufscal: int = Field(
         description="Capacity utilization factors scaling parameters modifier parameter."
     )

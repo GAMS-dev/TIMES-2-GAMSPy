@@ -1372,6 +1372,10 @@ class SetglobsGms(GamsClass):
         # Objective function variants
         self.env.set_global("capjd", self.x1)
         self.env.set_global("capwd", self.x1)
+        # Both are multiplicative prefixes in the source, so the empty string is a
+        # neutral factor of one for the GAMSPy twins (see coef_alt.lin for the
+        # variants that carry an actual weight).
+        self.env.set_global("capjd_GP", Number(1))
         self.env.set_global("capwd_GP", Number(1))
         capjd = self.env.capjd
         capwd = self.env.capwd

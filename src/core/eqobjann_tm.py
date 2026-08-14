@@ -10,19 +10,34 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from gamspy import Parameter
+from gamspy import Domain, Equation, Ord, Parameter, Set, Sum, Variable
+from gamspy.math import diag
 
 from core.base_class import GamsClass
 from core.eqobjcst_tm import EqobjcstTm
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
+    from gamspy import Expression, Number
+    from gamspy._symbols.implicits import ImplicitParameter
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class EqobjannTmConfig:
+    """Strongly typed data contract replacing the legacy positional BATINCLUDE args."""
+
+    # %1 - suffix appended to the COEF_OBINV/COEF_OBFIX symbol names
+    arg1: str = ""
+    # %2 - multiplier trailing the investment/fixed tax and subsidy terms
+    arg2: float = 1
 
 
 class EqobjannTm(GamsClass):
@@ -36,182 +51,291 @@ class EqobjannTm(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
+        config: EqobjannTmConfig | None = None,
     ):
         self.env = env.fork()
-        self.arg1 = arg1
-        self.arg2 = arg2
+        self.config = config if config is not None else EqobjannTmConfig()
         self._sub_modules: dict[str, GamsClass] = {}
         self.tc = tc
         self.compile()
 
     def compile(self) -> None:
+        cc = self.config
         g = self.tc
         m = g.container
 
-        if self.tc.defined(f"COEF_OBINV{self.arg1}"):
+        if self.tc.defined(f"COEF_OBINV{cc.arg1}"):
             self._label_coef()
             return
 
         g.set_parameter(
-            name=f"COEF_OBINV{self.arg1}",
+            name=f"COEF_OBINV{cc.arg1}",
             parameter=Parameter(
-                m, name=f"COEF_OBINV{self.arg1}", domain=[g.r, g.year, g.p, g.cur]
+                m, name=f"COEF_OBINV{cc.arg1}", domain=[g.r, g.year, g.p, g.cur]
             ),
         )
         g.set_parameter(
-            name=f"COEF_OBFIX{self.arg1}",
+            name=f"COEF_OBFIX{cc.arg1}",
             parameter=Parameter(
-                m, name=f"COEF_OBFIX{self.arg1}", domain=[g.r, g.year, g.p, g.cur]
+                m, name=f"COEF_OBFIX{cc.arg1}", domain=[g.r, g.year, g.p, g.cur]
             ),
         )
         g.coef_crf = Parameter(m, name="COEF_CRF", domain=[g.r, g.allyear, g.p, g.cur])
 
-        if self.arg1 == "N":
+        if cc.arg1 == "N":
             self._label_coef()
             return
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="""
-SET OBVANN(OBV) / OBJINV, OBJFIX, OBJVAR /;
-""",
+        g.Obvann = Set(
+            m,
+            name="OBVANN",
+            domain=[g.obv],
+            records=["OBJINV", "OBJFIX", "OBJVAR"],
         )
 
         self.tc.enqueue(self.exec1)
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="""
-  POSITIVE VARIABLES VAR_ANNCST(OBV,R,ALLYEAR,CUR);
-  EQUATIONS
-    EQ_OBJANN(OBVANN,REG,CUR)
-    EQ_ANNFIX(REG,ALLYEAR,CUR)
-    EQ_ANNINV(REG,ALLYEAR,CUR)
-    EQ_ANNVAR(REG,ALLYEAR,CUR);
-""",
+        g.VAR_ANNCST = Variable(
+            m,
+            name="VAR_ANNCST",
+            type="positive",
+            domain=[g.obv, g.r, g.allyear, g.cur],
+        )
+        g.set_equation(
+            name="EQ_OBJANN",
+            eq=Equation(m, name="EQ_OBJANN", domain=[g.Obvann, g.Reg, g.cur]),
+        )
+        g.set_equation(
+            name="EQ_ANNFIX",
+            eq=Equation(m, name="EQ_ANNFIX", domain=[g.Reg, g.allyear, g.cur]),
+        )
+        g.set_equation(
+            name="EQ_ANNINV",
+            eq=Equation(m, name="EQ_ANNINV", domain=[g.Reg, g.allyear, g.cur]),
+        )
+        g.set_equation(
+            name="EQ_ANNVAR",
+            eq=Equation(m, name="EQ_ANNVAR", domain=[g.Reg, g.allyear, g.cur]),
         )
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-  EQ_OBJANN(OBVANN,RDCUR(R,CUR))..
-  VAR_OBJ(R,OBVANN,CUR) =E=  SUM(T, OBJ_PVT(R,T,CUR) * VAR_ANNCST(OBVANN,R,T,CUR))
-  {"+ SUM(OBJ_SUMS(R,V,P)$RVPRL(R,V,P),OBJSCC(R,V,P,CUR)*OBJ_DCEOH(R,CUR)*(VAR_NCAP(R,V,P)$T(V)+NCAP_PASTI(R,V,P)-VAR_SCAP(R,V,'0',P)))$DIAG(OBVANN,'OBJINV')" if g.defined(g.Vnret) else ""}
- ; """,
-        )
+        self.equation()
 
         self.include(EqobjcstTm(self.tc, self.env))
 
         self._label_coef()
 
+    def equation(self) -> None:
+        g = self.tc
+        r, v, p, t, cur = g.r, g.v, g.p, g.t, g.cur
+        Obvann = g.Obvann
+        VAR_OBJ = g.VAR_OBJ
+
+        eq_objann = g.get_equation("EQ_OBJANN")
+
+        rhs: Expression | Sum = Sum(
+            t, g.obj_pvt[r, t, cur] * g.VAR_ANNCST[Obvann, r, t, cur]
+        )
+        if g.defined(g.Vnret):
+            rhs += Sum(
+                g.ObjSums[r, v, p].where[g.rvprl[r, v, p]],
+                g.objscc[r, v, p, cur]
+                * g.obj_dceoh[r, cur]
+                * (
+                    g.VAR_NCAP[r, v, p].where[g.t[v]]
+                    + g.ncap_pasti[r, v, p]
+                    - g.VAR_SCAP[r, v, "0", p]
+                ),
+            ).where[diag(Obvann, "OBJINV")]
+
+        eq_objann[Obvann, g.Rdcur[r, cur]] = VAR_OBJ[r, Obvann, cur] == rhs
+
     def exec1(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""
-SUM_OBJ(OBV('OBJSAL'),OBV)  =  0;
-""",
+        g = self.tc
+
+        g.sum_obj[g.obv["OBJSAL"], g.obv] = 0
+
+    def exec3(
+        self,
+        arg1: str,
+        capjd: ImplicitParameter | Number,
+        arg2: float,
+        anncost: str,
+        capwd: ImplicitParameter | Number,
+    ) -> None:
+        g = self.tc
+        r, v, p, t, tt, cur = g.r, g.v, g.p, g.t, g.tt, g.cur
+        ll, k, y, age, life, jot = g.ll, g.k, g.Y, g.age, g.life, g.jot
+        j, jj = g.j, g.jj
+        KEoh, YEoh = g.KEoh, g.YEoh
+
+        coef_obinv = g.get_parameter(f"COEF_OBINV{arg1}")
+        coef_obfix = g.get_parameter(f"COEF_OBFIX{arg1}")
+        coef_crf = g.coef_crf
+
+        # * Calculate coefficients for annualized costs
+        # * Investment costs: Commissioning years
+        g.ObjSumsi.setRecords(None)
+        g.fil2[v] = g.b[v] - g.yearval[v]
+        g.ObjSumsi[g.Rtp[r, v[ll], p], ll + (g.fil2[v] + g.ncap_iled[r, v, p])] = True
+
+        # * Annualizing coefficient for investment costs over years of capacity transfer
+        coef_crf[g.ObjIcur[r, v, p, cur]] = Sum(
+            g.RtpCptyr[r, tt[v], t, p], g.coef_cpt[r, v, t, p] * g.obj_pvt[r, t, cur]
+        ) + Sum(
+            g.ObjSumsi[r, g.Pastmile[v], p, k],
+            g.obj_disc[r, k, cur]
+            * (1 - (1 + g.g_drate[r, v, cur]) ** (-g.ncap_tlife[r, v, p]))
+            / (1 - (1 / (1 + g.g_drate[r, v, cur]))),
         )
 
-    def exec3(self, arg1: str, capjd: str, arg2: str, anncost: str, capwd: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-* Calculate coefficients for annualized costs
-* Investment costs: Commissioning years
-  OPTION CLEAR=OBJ_SUMSI;
-  FIL2(V) = B(V)-YEARVAL(V);
-  OBJ_SUMSI(RTP(R,V(LL),P),LL+(FIL2(V)+NCAP_ILED(R,V,P))) = YES;
-
-* Annualizing coefficient for investment costs over years of capacity transfer
-  COEF_CRF(OBJ_ICUR(R,V,P,CUR)) =
-    SUM(RTP_CPTYR(R,TT(V),T,P),COEF_CPT(R,V,T,P)*OBJ_PVT(R,T,CUR)) +
-    SUM(OBJ_SUMSI(R,PASTMILE(V),P,K),OBJ_DISC(R,K,CUR)*(1-(1+G_DRATE(R,V,CUR))**(-NCAP_TLIFE(R,V,P)))/(1-(1/(1+G_DRATE(R,V,CUR)))));
-
-* Investment cost coefficient
-
-  COEF_OBINV{arg1}(OBJ_ICUR(R,V,P,CUR)) = (1/COEF_CRF(R,V,P,CUR))$COEF_CRF(R,V,P,CUR) * (
-
-* Cases I - Investment Cost and II - Taxes/Subsidies
-
-    SUM(OBJ_SUMII(R,V,P,LIFE,K_EOH,JOT), {capjd}
-      SUM(INVSPRED(K_EOH,JOT,LL,K), OBJ_DISC(R,K,CUR) * (1-SALV_INV(R,V,P,LL)$T(V)) *
-        ({macro.obj_icost("R", "K", "P", "CUR")} + ({macro.obj_itax("R", "K", "P", "CUR")} - {macro.obj_isub("R", "K", "P", "CUR")}){arg2})) *
-      COR_SALVI(R,V,P,CUR) / OBJ_DIVI(R,V,P))
-       +
-* Cases III - Decommissioning
-
-    SUM(OBJ_SUMIII(R,V,P,LL,K,Y)${macro.obj_dcost("R", "V", "P", "CUR")},
-      OBJ_DISC(R,Y,CUR) * COR_SALVD(R,V,P,CUR) * {macro.obj_dcost("R", "K", "P", "CUR")} / OBJ_DIVIII(R,V,P))
-  );
-
-  COEF_OBINV{arg1}(OBJ_ICUR(R,PASTMILE(V),P,CUR))$PRC_RESID(R,'0',P) =
-      OBJ_CRF(R,V,P,CUR)*({macro.obj_icost("R", "V", "P", "CUR")}+({macro.obj_itax("R", "V", "P", "CUR")}-{macro.obj_isub("R", "V", "P", "CUR")}){arg2});
-
-*------------------------------------------------------------------------------
-* Fixed costs: Annualizing coefficient for costs over years of capacity transfer
-  COEF_CRF(OBJ_FCUR(R,V,P,CUR)) = SUM(RTP_CPTYR(R,V,T,P),COEF_CPT(R,V,T,P)*OBJ_PVT(R,T,CUR));
-""",
+        # * Investment cost coefficient
+        coef_obinv[g.ObjIcur[r, v, p, cur]] = (1 / coef_crf[r, v, p, cur]).where[
+            coef_crf[r, v, p, cur]
+        ] * (
+            # * Cases I - Investment Cost and II - Taxes/Subsidies
+            Sum(
+                g.ObjSumii[r, v, p, life, KEoh, jot],
+                capjd
+                * Sum(
+                    g.Invspred[KEoh, jot, ll, k],
+                    g.obj_disc[r, k, cur]
+                    * (1 - g.salv_inv[r, v, p, ll].where[t[v]])
+                    * (
+                        macro.obj_icost_GP(r, k, p, cur)
+                        + (
+                            macro.obj_itax_GP(r, k, p, cur)
+                            - macro.obj_isub_GP(r, k, p, cur)
+                        )
+                        * arg2
+                    ),
+                )
+                * g.cor_salvi[r, v, p, cur]
+                / g.obj_divi[r, v, p],
+            )
+            # * Cases III - Decommissioning
+            + Sum(
+                g.ObjSumiii[r, v, p, ll, k, y].where[macro.obj_dcost_GP(r, v, p, cur)],
+                g.obj_disc[r, y, cur]
+                * g.cor_salvd[r, v, p, cur]
+                * macro.obj_dcost_GP(r, k, p, cur)
+                / g.obj_diviii[r, v, p],
+            )
         )
 
+        coef_obinv[g.ObjIcur[r, g.Pastmile[v], p, cur]].where[
+            g.prc_resid[r, "0", p]
+        ] = g.obj_crf[r, v, p, cur] * (
+            macro.obj_icost_GP(r, v, p, cur)
+            + (macro.obj_itax_GP(r, v, p, cur) - macro.obj_isub_GP(r, v, p, cur)) * arg2
+        )
+
+        # *----------------------------------------------------------------------------
+        # * Fixed costs: Annualizing coefficient for costs over years of capacity transfer
+        coef_crf[g.ObjFcur[r, v, p, cur]] = Sum(
+            g.RtpCptyr[r, v, t, p], g.coef_cpt[r, v, t, p] * g.obj_pvt[r, t, cur]
+        )
         if anncost.upper() != "LEV":
-            self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code="""
-COEF_CRF(OBJ_FCUR(R,PASTMILE(V),P,CUR)) = SUM(OBJ_SUMIV(K_EOH,R,V,P,JOT,LIFE),OBJ_LIFE(K_EOH,R,JOT,LIFE,CUR));
-""",
+            coef_crf[g.ObjFcur[r, g.Pastmile[v], p, cur]] = Sum(
+                g.ObjSumiv[KEoh, r, v, p, jot, life],
+                g.obj_life[KEoh, r, jot, life, cur],
             )
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-* Fixed cost coefficient
-
-  COEF_OBFIX{arg1}(OBJ_FCUR(R,V,P,CUR)) = (1/COEF_CRF(R,V,P,CUR))$COEF_CRF(R,V,P,CUR) * (
-
-* Case IV - Fixed O&M Cost and Taxes
-
-      SUM(OBJ_SUMIV(K_EOH,R,V,P,JOT,LIFE)$(NOT RTP_ISHPR(R,V,P)),
-       SUM(INVSPRED(K_EOH,JOT,LL,K), OBJ_LIFE(LL,R,JOT,LIFE,CUR) * {capwd}
-        ({macro.obj_fom("R", "K", "P", "CUR")}+({macro.obj_ftx("R", "K", "P", "CUR")}-{macro.obj_fsb("R", "K", "P", "CUR")}){arg2})) / OBJ_DIVIV(R,V,P)) +
-
-      SUM(OBJ_SUMIV(K_EOH,RTP_ISHPR(R,V,P),JOT,LIFE),
-        SUM((INVSPRED(K_EOH,JOT,LL,K),OPYEAR(LIFE,AGE),Y_EOH(LL+(ORD(AGE)-1))),
-             OBJ_DISC(R,Y_EOH,CUR) * (1+SUM(PERIODYR(T,Y_EOH),RTP_CPX(R,V,P,T))$NCAP_CPX(R,V,P)) * {capwd}
-                (
-                   {macro.obj_fom("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'1',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) +
-                   {macro.obj_ftx("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'2',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)){arg2} -
-                   {macro.obj_fsb("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'3',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)){arg2}
+        # * Fixed cost coefficient
+        coef_obfix[g.ObjFcur[r, v, p, cur]] = (1 / coef_crf[r, v, p, cur]).where[
+            coef_crf[r, v, p, cur]
+        ] * (
+            # * Case IV - Fixed O&M Cost and Taxes
+            Sum(
+                g.ObjSumiv[KEoh, r, v, p, jot, life].where[~g.RtpIshpr[r, v, p]],
+                Sum(
+                    g.Invspred[KEoh, jot, ll, k],
+                    g.obj_life[ll, r, jot, life, cur]
+                    * capwd
+                    * (
+                        macro.obj_fom_GP(r, k, p, cur)
+                        + (
+                            macro.obj_ftx_GP(r, k, p, cur)
+                            - macro.obj_fsb_GP(r, k, p, cur)
+                        )
+                        * arg2
+                    ),
                 )
-           ) / OBJ_DIVIV(R,V,P)
-         ) +
-
-* Case V - Decommissioning Surveillance
-      SUM(OBJ_SUMIVS(R,V,P,K,Y), OBJ_DISC(R,Y,CUR) * {macro.obj_dlagc("R", "K", "P", "CUR")})
-  );
-
-  COEF_OBFIX{arg1}(OBJ_FCUR(R,PASTMILE(V),P,CUR))$PRC_RESID(R,'0',P) =
-     COEF_OBFIX{arg1}(R,V,P,CUR) * COEF_CRF(R,V,P,CUR) /
-     SUM(VNT(V,T)$PRC_RESID(R,T,P),PRC_RESID(R,T,P)/NCAP_PASTI(R,V,P)*OBJ_PVT(R,T,CUR));
-*===============================================================================
-  OPTION CLEAR=OBJ_SUMSI,CLEAR=COEF_CRF;
-""",
+                / g.obj_diviv[r, v, p],
+            )
+            + Sum(
+                g.ObjSumiv[KEoh, g.RtpIshpr[r, v, p], jot, life],
+                Sum(
+                    Domain(
+                        g.Invspred[KEoh, jot, ll, k],
+                        g.Opyear[life, age],
+                        YEoh[ll + (Ord(age) - 1)],
+                    ),
+                    g.obj_disc[r, YEoh, cur]
+                    * (
+                        1
+                        + Sum(g.Periodyr[t, YEoh], g.rtp_cpx[r, v, p, t]).where[
+                            g.ncap_cpx[r, v, p]
+                        ]
+                    )
+                    * capwd
+                    * (
+                        macro.obj_fom_GP(r, k, p, cur)
+                        * (
+                            1
+                            + Sum(
+                                g.RtpShape[r, v, p, "1", j, jj],
+                                g.shape[j, age] * g.multi[jj, YEoh] - 1,
+                            )
+                        )
+                        + macro.obj_ftx_GP(r, k, p, cur)
+                        * (
+                            1
+                            + Sum(
+                                g.RtpShape[r, v, p, "2", j, jj],
+                                g.shape[j, age] * g.multi[jj, YEoh] - 1,
+                            )
+                        )
+                        * arg2
+                        - macro.obj_fsb_GP(r, k, p, cur)
+                        * (
+                            1
+                            + Sum(
+                                g.RtpShape[r, v, p, "3", j, jj],
+                                g.shape[j, age] * g.multi[jj, YEoh] - 1,
+                            )
+                        )
+                        * arg2
+                    ),
+                )
+                / g.obj_diviv[r, v, p],
+            )
+            # * Case V - Decommissioning Surveillance
+            + Sum(
+                g.ObjSumivs[r, v, p, k, y],
+                g.obj_disc[r, y, cur] * macro.obj_dlagc_GP(r, k, p, cur),
+            )
         )
+
+        coef_obfix[g.ObjFcur[r, g.Pastmile[v], p, cur]].where[
+            g.prc_resid[r, "0", p]
+        ] = (
+            coef_obfix[r, v, p, cur]
+            * coef_crf[r, v, p, cur]
+            / Sum(
+                g.Vnt[v, t].where[g.prc_resid[r, t, p]],
+                g.prc_resid[r, t, p] / g.ncap_pasti[r, v, p] * g.obj_pvt[r, t, cur],
+            )
+        )
+        # *=============================================================================
+        g.ObjSumsi.setRecords(None)
+        coef_crf.setRecords(None)
 
     def _label_coef(self) -> None:
         self.tc.enqueue(
             self.exec3,
-            arg1=self.arg1,
-            capjd=self.env.capjd,
-            arg2=self.arg2,
+            arg1=self.config.arg1,
+            capjd=self.env.capjd_GP,
+            arg2=self.config.arg2,
             anncost=self.env.anncost,
-            capwd=self.env.capwd,
+            capwd=self.env.capwd_GP,
         )

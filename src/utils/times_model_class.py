@@ -920,6 +920,7 @@ class TimesModelClass:
     vda_disc: Parameter = None  # type: ignore[assignment] # [r,allyear] VDA_DISC:
     dp_non: Parameter = None  # type: ignore[assignment] # [r,ll,p,upt,tsl,bd] DP_NON: Bounds on non-operational time between shut-down and next start-up
     obv: Set = None  # type: ignore[assignment] # [*] OBV:
+    Obvann: Set = None  # type: ignore[assignment] # [obv] OBVANN: Annualized objective components
     VAR_ACT: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,s] VAR_ACT: Overall activity of a process
     VAS_ACT: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,s] VAS_ACT: Overall activity of a process
     VAR_CAP: Variable = None  # type: ignore[assignment]# [r,allyear,p] VAR_CAP: Installed capacity of a process
@@ -966,6 +967,7 @@ class TimesModelClass:
     VAS_RLD: Variable = None  # type: ignore[assignment]  # [r,t,s,item] VAS_RLD: Residual loads
     VAR_BSPRS: Variable = None  # type: ignore[assignment]  # [r,year,t,p,c,s,l] VAR_BSPRS: Balancing services
     VAS_BSPRS: Variable = None  # type: ignore[assignment]  # [r,year,t,p,c,s,l] VAS_BSPRS: Balancing services
+    VAR_ANNCST: Variable = None  # type: ignore[assignment]# [obv,r,allyear,cur] VAR_ANNCST: Annualized objective costs
     VAR_OBJ: Variable = None  # type: ignore[assignment]# [r,obv,cur] VAR_OBJ: Objective costs INV,SAL,FIX,VAR,DAM
     VAS_OBJ: Variable = None  # type: ignore[assignment]# [r,obv,cur] VAS_OBJ: Objective costs INV,SAL,FIX,VAR,DAM
     VAR_OBJELS: Variable = None  # type: ignore[assignment]# [r,bd,cur] VAR_OBJELS: Change in Consumer surplus
@@ -991,6 +993,10 @@ class TimesModelClass:
     eq_dscncap: Equation = None  # type: ignore[assignment]  # [r,allyear,p] EQ_DSCNCAP
     eq_dscone: Equation = None  # type: ignore[assignment]  # [r,allyear,p] EQ_DSCONE
     eq_obj: Equation = None  # type: ignore[assignment]  #  EQ_OBJ: Overall Objective Function
+    eq_objann: Equation = None  # type: ignore[assignment]  # [Obvann,Reg,cur] EQ_OBJANN: Annualized objective components
+    eq_annfix: Equation = None  # type: ignore[assignment]  # [Reg,allyear,cur] EQ_ANNFIX: Annualized fixed costs
+    eq_anninv: Equation = None  # type: ignore[assignment]  # [Reg,allyear,cur] EQ_ANNINV: Annualized investment costs
+    eq_annvar: Equation = None  # type: ignore[assignment]  # [Reg,allyear,cur] EQ_ANNVAR: Annualized variable costs
     eq_objels: Equation = None  # type: ignore[assignment]  # [r,bd,cur] EQ_OBJELS: Costs of elastic demands
     es_objels: Equation = None  # type: ignore[assignment]
     eq_objfix: Equation = None  # type: ignore[assignment]  # [r,cur] EQ_OBJFIX: Fixed Costs
@@ -1341,6 +1347,8 @@ class TimesModelClass:
     coef_objinv: Parameter = None  # type: ignore[assignment] # [r,allyear,prc] COEF_OBJINV:
     coef_obinv: Parameter = None  # type: ignore[assignment] # [r,allyear,p,cur] COEF_OBINV:
     coef_obfix: Parameter = None  # type: ignore[assignment] # [r,allyear,p,cur] COEF_OBFIX:
+    coef_obinvn: Parameter = None  # type: ignore[assignment] # [r,year,p,cur] COEF_OBINVN:
+    coef_obfixn: Parameter = None  # type: ignore[assignment] # [r,year,p,cur] COEF_OBFIXN:
     coef_crf: Parameter = None  # type: ignore[assignment] # [r,allyear,p,cur] COEF_CRF:
     var_ncaprng: Parameter = None  # type: ignore[assignment] # [r,allyear,p,bd] VAR_NCAPRNG:
     cstvnt: Parameter = None  # type: ignore[assignment] # [j,r,ll,year,p,sysuc] CSTVNT:

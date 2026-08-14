@@ -336,12 +336,8 @@ LOOP(G_RCUR(R,CUR),
 
     def _label_dofix(self) -> None:
         g = self.tc
-
         self.env.set_global("capwd", "OBJ_WD(R,CUR,K_EOH,JOT,K)*")
-        self.env.set_global(
-            "capwd_GP",
-            g.obj_wd[g.r, g.cur, g.KEoh, g.jot, g.k],  # type: ignore[index]
-        )
+        self.env.set_global("capwd_GP", g.obj_wd[g.r, g.cur, g.KEoh, g.jot, g.k])
 
         self.tc.enqueue(self.exec11)
 
@@ -407,7 +403,9 @@ KAGE(FIL(LL-FLOOR(ORD(JOT)/2)),JOT)$((ORD(JOT) GT 1)$INVSTEP(FIL,JOT,FIL,JOT)$FI
         self.tc.enqueue(self._label_done)
 
     def _label_doinv(self) -> None:
+        g = self.tc
         self.env.set_global("capjd", "OBJ_JD(R,CUR,K_EOH,JOT)*")
+        self.env.set_global("capjd_GP", g.obj_jd[g.r, g.cur, g.KEoh, g.jot])
         self.tc.enqueue(self.exec8)
         self._label_dofix()
 

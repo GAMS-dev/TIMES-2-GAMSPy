@@ -49,12 +49,7 @@ class EqobjMod(GamsClass):
     module_name: str = "eqobj_mod"
     gams_source: str = "eqobj.mod"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str,
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment, arg1: str):
         self.env = env.fork()
         self.tc = tc
         self.arg1 = arg1
@@ -102,7 +97,7 @@ class EqobjMod(GamsClass):
 
         # Fixed O&M Cost and Tax components
         if self.arg1.upper() == "MOD":
-            self.include(EqobjfixMod(self.tc, self.env, arg1=self.arg1))
+            self.include(EqobjfixMod(self.tc, self.env, sense=self.arg1))
         elif self.arg1.upper() == "RPT":
             self.include(EqobjfixRpt(self.tc, self.env, arg1=self.arg1))
 
