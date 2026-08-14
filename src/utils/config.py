@@ -6,7 +6,8 @@ from typing import Any, Literal
 import pandas as pd
 from gamspy import Alias, Expression, Number, Set, Sum
 from gamspy._algebra.condition import Condition
-from gamspy._symbols.implicits import ImplicitSet
+from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
+from gamspy.math import MathOp
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -298,6 +299,9 @@ class EnvironmentVariableSchema(BaseModel):
     zhalf: str = Field(
         description="Discount factor lookback coefficient string mapping half-period parameters."
     )
+    zhalf_GP: MathOp = Field(
+        description="Discount factor lookback coefficient expression mapping half-period parameters."
+    )
     pass_: Expression | None = Field(
         alias="pass",
         description="Execution tracking code handling iterative loop counts.",
@@ -307,6 +311,9 @@ class EnvironmentVariableSchema(BaseModel):
     )
     capwd: str = Field(
         description="Capacity width adjustment parameter string mapping operating lifetimes."
+    )
+    capwd_GP: ImplicitParameter | Number = Field(
+        description="Capacity width adjustment factor mapping operating lifetimes."
     )
     sow: Literal["", ",SOW", ",WW", ",WW)", ",0", ",'0'", "1", "SOW.TL"] = Field(
         description="Stochastic World (Scenario State) active indexing identifier token."
@@ -442,6 +449,9 @@ class EnvironmentVariableSchema(BaseModel):
     )
     istep: str = Field(
         description="Iteration step count tracking identifier tracking multi-foresight steps."
+    )
+    istep_GP: MathOp | ImplicitParameter = Field(
+        description="Iteration step count expression tracking multi-foresight steps."
     )
     capjd: str = Field(
         description="Technical capacity retirement degradation tracking marker."

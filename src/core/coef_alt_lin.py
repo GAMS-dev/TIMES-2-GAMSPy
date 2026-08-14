@@ -66,22 +66,6 @@ class CoefAltLin(GamsClass):
                 m, name="OBJ_JD", domain=[g.Reg, g.cur, g.allyear, g.age]
             )
 
-            self.tc.add_gams_code(
-                module=self,
-                phase="init",
-                code="""
-    SET PERDINV(ALLYEAR,ALLYEAR);
-    SET TPULSEYR(T,ALLYEAR);
-    PARAMETER TPULSE(ALLYEAR,ALLYEAR);
-    PARAMETER OBJ_LINT(R,T,ALLYEAR,CUR);
-    PARAMETER OBJ_ALTV(R,T);
-    PARAMETER RTP_CAPVL(R,YEAR,P) //;
-    PARAMETER RB(R,T);
-    PARAMETER R_DF(R,ALLYEAR);
-    PARAMETER OBJ_WD(REG,CUR,ALLYEAR,AGE,ALLYEAR);
-    PARAMETER OBJ_JD(REG,CUR,ALLYEAR,AGE);
-    """,
-            )
         self._label_prepro()
 
     def _label_prepro(self) -> None:
@@ -351,7 +335,13 @@ LOOP(G_RCUR(R,CUR),
         self._label_done()
 
     def _label_dofix(self) -> None:
+        g = self.tc
+
         self.env.set_global("capwd", "OBJ_WD(R,CUR,K_EOH,JOT,K)*")
+        self.env.set_global(
+            "capwd_GP",
+            g.obj_wd[g.r, g.cur, g.KEoh, g.jot, g.k],  # type: ignore[index]
+        )
 
         self.tc.enqueue(self.exec11)
 

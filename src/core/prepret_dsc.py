@@ -12,9 +12,9 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Literal, get_args
+from typing import TYPE_CHECKING, Any, Literal, get_args
 
-from gamspy import Container, Parameter, Set, Sum
+from gamspy import Container, Domain, Parameter, Set, Sum
 
 from core.base_class import GamsClass
 from core.fillparm_gms import FillparmGms
@@ -22,6 +22,9 @@ from core.prepparm_gms import PrepparmGms, PrepparmGmsConfig
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
+    from gamspy import Alias, Number
+    from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -389,6 +392,70 @@ class PrepretDsc(GamsClass):
   OPTION CLEAR=COEF_CAP;
 """,
         )
+
+
+def objfix_GP(
+    g: TimesModelClass,
+    capwd: ImplicitParameter | Number,
+    vart: tuple[str, ImplicitSet | None],
+    sws: tuple[Set | Alias, ...] | tuple[()],
+) -> Any:
+    """GAMSPy counterpart of objfix(): the retirement credit terms of EQ_OBJFIX."""
+    r, v, t, p, cur, k, ll = g.r, g.v, g.t, g.p, g.cur, g.k, g.ll
+    age, jot, life, j, jj = g.age, g.jot, g.life, g.j, g.jj
+    KEoh, YEoh = g.KEoh, g.YEoh
+
+    vart_id, vart_set = vart
+    vart_scap = g.get_variable(f"{vart_id}_SCAP")
+    scap: Any = vart_scap[r, v, t, p, *sws]
+    if vart_set is not None:
+        scap = Sum(vart_set, scap)
+
+    def shaped(cost: Any, index: str, with_shape: bool) -> Any:
+        """cost * (1+SUM(RTP_SHAPE(R,V,P,index,J,JJ),[SHAPE(J,AGE)*]MULTI(JJ,Y_EOH)-1))"""
+        multiplier: Any = g.multi[jj, YEoh]
+        if with_shape:
+            multiplier = g.shape[j, age] * multiplier
+        return cost * (1 + Sum(g.RtpShape[r, v, p, index, j, jj], multiplier - 1))
+
+    def costs(with_shape: bool) -> Any:
+        return (
+            shaped(macro.obj_fom_GP(r, k, p, cur), "1", with_shape)
+            + shaped(macro.obj_ftx_GP(r, k, p, cur), "2", with_shape)
+            - shaped(macro.obj_fsb_GP(r, k, p, cur), "3", with_shape)
+        )
+
+    # * Credit retired capacity for the avoided fixed costs
+    credit = Sum(
+        Domain(g.ObjSumiv[KEoh, r, v, p, jot, life], g.Vnret[v, t]).where[
+            g.rvprl[r, v, p]
+        ],
+        Sum(
+            Domain(g.Invspred[KEoh, jot, ll, k], g.Ktyage[ll, t, YEoh, age]).where[
+                g.Opyear[life, age]
+            ],
+            -g.obj_disc[r, YEoh, cur]
+            * (1 + g.rtp_cpx[r, v, p, t].where[g.ncap_cpx[r, v, p]])
+            * capwd
+            * costs(with_shape=True),
+        )
+        * scap
+        / g.obj_diviv[r, v, p],
+    )
+
+    # * RESIDS require special handling
+    resid = Sum(
+        g.RtpCptyr[r, g.PyrS[v[k]], t, p].where[
+            (~g.rvprl[r, v, p]).where[g.PrcRcap[r, p]]
+        ],
+        Sum(
+            g.Periodyr[t, YEoh],
+            -g.obj_disc[r, YEoh, cur] * costs(with_shape=False),
+        )
+        * scap,
+    )
+
+    return credit + resid
 
 
 def objfix(capwd: str, vart: str, sws: str) -> str:

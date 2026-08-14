@@ -1372,6 +1372,7 @@ class SetglobsGms(GamsClass):
         # Objective function variants
         self.env.set_global("capjd", self.x1)
         self.env.set_global("capwd", self.x1)
+        self.env.set_global("capwd_GP", Number(1))
         capjd = self.env.capjd
         capwd = self.env.capwd
         if f"{capjd}{capwd}" != f"{self.x1}{self.x1}":
