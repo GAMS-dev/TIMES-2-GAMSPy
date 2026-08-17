@@ -14,6 +14,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter
+
 from core.base_class import GamsClass
 from core.bnd_cum_mod import bnd_cum_mod
 from core.bnd_ucw_mod import bnd_ucw_mod
@@ -73,6 +75,9 @@ class SolveStp(GamsClass):
             self.env.set_scoped("timestep", "999")
             self.env.set_scoped("stepped", "NO")
 
+        g = self.tc
+        g.stp_div = Parameter(g.container, name="STP_DIV", domain=[g.j, g.r, g.t, g.p])
+
         self.tc.add_gams_code(
             module=self,
             phase="init",
@@ -83,7 +88,6 @@ class SolveStp(GamsClass):
   SET IRE_RPR(R,P,R,IE) 'All regions REG linked to IRE process by equations in R';
   SET IRE_FXT(R,T,P) 'IRE with some linked regions fixed at T';
   PARAMETER STP_UCT(J,ALL_R,UCN,LL);
-  PARAMETER STP_DIV(J,R,T,P) //;
   PARAMETER UC_BND(J,ALL_R,UCN,LL,S,L);
   PARAMETER PAR_CUMFLOM(R,P,C,LL,LL), PAR_UCR(UC_N,ALL_R);
 """,

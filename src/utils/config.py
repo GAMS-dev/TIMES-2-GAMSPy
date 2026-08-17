@@ -423,6 +423,9 @@ class EnvironmentVariableSchema(BaseModel):
     iled: str = Field(
         description="Investment lag lead index variable tracking installation steps."
     )
+    iled_GP: bool = Field(
+        description="Investment lag lead index variable tracking installation steps."
+    )
     linflo: str = Field(
         description="Linear flow constraint tracking property mapped as text."
     )

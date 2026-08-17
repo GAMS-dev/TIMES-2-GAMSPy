@@ -1267,6 +1267,7 @@ class TimesModelClass:
     cor_salvd: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,cur] COR_SALVD:
     obj_divi: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] OBJ_DIVI:
     obj_diviii: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] OBJ_DIVIII:
+    stp_div: Parameter = None  # type: ignore[assignment] # [j,r,t,p] STP_DIV:
     ObjIdc: Set = None  # type: ignore[assignment] # [r,allyear,p,life,allyear,age] OBJ_IDC:
     obj_iad: Parameter = None  # type: ignore[assignment] # [r,cur] OBJ_IAD:
     ObjFcur: Set = None  # type: ignore[assignment] # [Reg,allyear,p,cur] OBJ_FCUR:
