@@ -405,10 +405,13 @@ class EnvironmentVariableSchema(BaseModel):
     sw1: str = Field(
         description="Primary configuration flag used in file inclusion loops."
     )
-    sw1_GP: tuple[Set | Alias | str | Literal[1]] | tuple[()] = Field(
+    sw1_GP: tuple[Set | Alias | str | Literal[1]] | tuple[()] | str = Field(
         description="Primary configuration flag used in file inclusion loops."
     )
     sw2: str = Field(
+        description="Secondary configuration flag used in file inclusion loops."
+    )
+    sw2_GP: tuple[str, Set] | tuple[()] = Field(
         description="Secondary configuration flag used in file inclusion loops."
     )
     uclim: str = Field(

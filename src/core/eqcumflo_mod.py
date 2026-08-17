@@ -17,9 +17,17 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Domain, Number, Ord, Sum
+from gamspy.math import MathOp, Max, Min, map_value, same_as
+
 from core.base_class import GamsClass
+from core.cal_red_red import CalRedRedConfig
+from core.utils import extract_var_domain, wrap_in_sum
 
 if TYPE_CHECKING:
+    from gamspy import Expression
+    from gamspy.math import MathOp
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -47,81 +55,142 @@ class EqcumfloMod(GamsClass):
         g = self.tc
 
         if self.env.cal_red == "cal_red.red":
-            from core.cal_red_red import cal_red_red as cal_red_func
+            from core.cal_red_red import cal_red_red_GP as cal_red_func
         else:
-            from core.cal_nored_red import cal_nored_red as cal_red_func
+            from core.cal_nored_red import cal_nored_red_GP as cal_red_func
 
-        equation = rf"""
-*$ONLISTING
-    {self.env.eq}_CUMFLO(RPC_CUMFLO(RP(R,P),C,ALLYEAR,LL) {self.env.sow}) ..
-* all commodity/activity flows within period range
-                 SUM(TT(T)$
-"""
-        self.env.set_local("sw1", "")
-        self.env.set_local("sw1_GP", ())
-        self.env.set_local("sw2", "")
+        # sow is changed after the equation domain declaration
+        # thus, sow_domain captures the state prior to the change
+        sow_domain = self.env.sow_GP
+
+        self.env.set_local("sw1_GP", "")
+        self.env.set_local("sw2_GP", ())
         if self.env.stages + self.env.scum == "YES":
-            self.env.set_scoped("sow", ",WW")
             self.env.set_scoped("sow_GP", (g.ww,))
-            self.env.set_scoped("swt", ",SOW")
             self.env.set_scoped("swt_GP", (g.Sow,))
-            self.env.set_scoped("sw1", "S_")
-            self.env.set_scoped(
-                "sw1_GP", ("S_",)
-            )  # NOTE: UPDATE THIS USAGE, AS REQUIRED
-            self.env.set_scoped("sw2", ",'1',SOW")
+            # will never take effect as the previous set_local
+            # overshadows the following set_scoped scope
+            # likely a "bug" in GAMS TIMES
+            self.env.set_scoped("sw1_GP", "S_")
+            self.env.set_scoped("sw2_GP", ("1", g.Sow))
+
+        sw1 = self.env.sw1_GP
+        sw2 = self.env.sw2_GP
+
+        VAR_CUMFLO = g.get_variable(f"{self.env.var}_CUMFLO")
+        VAR_IRE = g.get_variable(f"{self.env.var}_IRE")
+        VAR_ACT = g.get_variable(f"{self.env.var}_ACT")
+        var_id, domain = extract_var_domain(self.env.vartt_GP)
+        VARTT_ACT = wrap_in_sum(
+            target=g.get_variable(name=f"{var_id}_ACT"), domain=domain
+        )
+
+        sw1_flo_cum = g.get_parameter(f"{sw1}FLO_CUM")
+        eq_cumflo = g.get_equation(f"{self.env.eq}_CUMFLO")
+
         if self.env.obj.upper() != "LIN":
-            equation += "((E(T) >= YEARVAL(ALLYEAR))$(B(T) <= YEARVAL(LL))),"
+            condition = (g.e[g.t] >= g.yearval[g.allyear]).where[
+                (g.b[g.t] <= g.yearval[g.ll])
+            ]
         else:
-            equation += (
-                "((M(T)+LAGT(T) > YEARVAL(ALLYEAR))$(M(T)-LEAD(T) < YEARVAL(LL))),"
+            condition = (g.m[g.t] + g.lagt[g.t] > g.yearval[g.allyear]).where[
+                (g.m[g.t] - g.lead[g.t] < g.yearval[g.ll])
+            ]
+
+        term1: MathOp | Sum
+        if self.env.obj.upper() != "LIN":
+            term1 = Max(
+                0.0,
+                Min(g.e[g.t], g.yearval[g.ll])
+                - Max(g.b[g.t], g.yearval[g.allyear])
+                + 1.0,
+            )
+        else:
+            term1 = Sum(
+                g.Tpulseyr[g.t, g.year].where[
+                    ((Ord(g.year) >= Ord(g.allyear)).where[(Ord(g.year) <= Ord(g.ll))])
+                ],
+                g.tpulse[g.t, g.year],
             )
 
-        equation += "SUM((RTP_VINTYR(R,V,T,P),RTPCS_VARF(R,T,P,C,TS)),"
+        include_cal_red = cal_red_func(
+            g=g,
+            config=CalRedRedConfig(
+                arg1=g.c,
+                arg2=g.Com,
+                arg3=g.ts,
+                arg4=g.p,
+                arg5=g.t,
+                arg10=Number(1),
+                def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
+                var=self.env.var,
+                sow=self.env.sow_GP,
+                pgprim=self.env.pgprim,
+            ),
+        )
 
-        if self.env.obj.upper() != "LIN":
-            equation += "MAX(0,MIN(E(T),YEARVAL(LL))-MAX(B(T),YEARVAL(ALLYEAR))+1)"
-        else:
-            equation += "SUM(TPULSEYR(T,YEAR)$((ORD(YEAR) >= ORD(ALLYEAR))$(ORD(YEAR) <= ORD(LL))),TPULSE(T,YEAR))"
-
-        equation += "* ("
+        sow = self.env.sow_GP
+        swt = self.env.swt_GP
+        term2: Expression | Sum = (
+            include_cal_red.where[g.RpStd[g.r, g.p]]
+            + (
+                Sum(
+                    g.RpcIre[g.r, g.p, g.c, g.ie],
+                    VAR_IRE[g.r, g.v, g.t, g.p, g.c, g.ts, g.ie, *sow],
+                ).where[(~(g.RpcAire[g.r, g.p, g.c]))]
+                + (
+                    VAR_ACT[g.r, g.v, g.t, g.p, g.ts, *sow]
+                    * g.prc_actflo[g.r, g.v, g.p, g.c]
+                ).where[g.RpcAire[g.r, g.p, g.c]]
+            ).where[g.RpIre[g.r, g.p]]
+        )
 
         if self.env.stages == "YES":
-            equation += f"SUM({self.env.swsw} ("
+            term2 = Sum(Domain(*self.env.swsw_GP), term2)
 
-        equation += rf"""
-{cal_red_func(arg1="C", arg2="COM", arg3="TS", arg4="P", arg5="T", def_rtp_ffcs=self.tc.defined("RTP_FFCS"), var=self.env.var, sow=self.env.sow, pgprim=self.env.pgprim)}
-                         $RP_STD(R,P) +
-                         (SUM(RPC_IRE(R,P,C,IE),{self.env.var}_IRE(R,V,T,P,C,TS,IE{self.env.sow}))$(NOT RPC_AIRE(R,P,C)) +
-                          ({self.env.var}_ACT(R,V,T,P,TS{self.env.sow})*PRC_ACTFLO(R,V,P,C))$RPC_AIRE(R,P,C))$RP_IRE(R,P)
-"""
-
-        if self.env.stages == "YES":
-            equation += "))"
-
-        equation += """
-                    ))$RPC(R,P,C) +
-                    SUM((RTP_VINTYR(R,V,T,P),RTP_VARA(R,T,P),PRC_TS(R,P,TS)),
-"""
-
+        term3: MathOp | Sum
         if self.env.obj.upper() != "LIN":
-            equation += "MAX(0,MIN(E(T),YEARVAL(LL))-MAX(B(T),YEARVAL(ALLYEAR))+1)"
+            term3 = Max(
+                0.0,
+                Min(g.e[g.t], g.yearval[g.ll])
+                - Max(g.b[g.t], g.yearval[g.allyear])
+                + 1.0,
+            )
         else:
-            equation += "SUM(TPULSEYR(T,YEAR)$((ORD(YEAR) >= ORD(ALLYEAR))$(ORD(YEAR) <= ORD(LL))),TPULSE(T,YEAR))"
+            term3 = Sum(
+                g.Tpulseyr[g.t, g.year].where[
+                    ((Ord(g.year) >= Ord(g.allyear)).where[(Ord(g.year) <= Ord(g.ll))])
+                ],
+                g.tpulse[g.t, g.year],
+            )
 
-        equation += rf"""
-                      * {self.env.vartt}_ACT(R,V,T,P,TS {self.env.sws})
-                    )$SAMEAS('{self.env.pgprim}',C)
-
-                 ) / {self.env.cufscal}
-
-    =E=
-
-* bound range working on
-    {self.env.var}_CUMFLO(R,P,C,ALLYEAR,LL {self.env.swt})$(MAPVAL({self.env.sw1}FLO_CUM(R,P,C,ALLYEAR,LL,'UP'{self.env.sw2})) NE 8);
-    ;
-
-$OFFLISTING
-"""
-
-        self.tc.add_gams_code(module=self, phase="init", code=equation)
+        eq_cumflo[g.RpcCumflo[g.Rp[g.r, g.p], g.c, g.allyear, g.ll], *sow_domain] = (
+            # * all commodity/activity flows within period range
+            Sum(
+                g.tt[g.t].where[condition],
+                Sum(
+                    Domain(
+                        g.RtpVintyr[g.r, g.v, g.t, g.p],
+                        g.RtpcsVarf[g.r, g.t, g.p, g.c, g.ts],
+                    ),
+                    term1 * (term2),
+                ).where[g.Rpc[g.r, g.p, g.c]]
+                + Sum(
+                    Domain(
+                        g.RtpVintyr[g.r, g.v, g.t, g.p],
+                        g.RtpVara[g.r, g.t, g.p],
+                        g.PrcTs[g.r, g.p, g.ts],
+                    ),
+                    term3 * VARTT_ACT[g.r, g.v, g.t, g.p, g.ts, *self.env.sws_GP],
+                ).where[same_as(self.env.pgprim, g.c)],
+            )
+            / self.env.cufscal
+            ==
+            # * bound range working on
+            VAR_CUMFLO[g.r, g.p, g.c, g.allyear, g.ll, *swt].where[
+                (
+                    map_value(sw1_flo_cum[g.r, g.p, g.c, g.allyear, g.ll, "UP", *sw2])
+                    != 8.0
+                )
+            ]
+        )
