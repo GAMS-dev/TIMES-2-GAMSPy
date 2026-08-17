@@ -12,9 +12,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter, Sum, sparse
+
 from core.base_class import GamsClass
 
 if TYPE_CHECKING:
+    from gamspy import Alias, Set
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -49,59 +53,116 @@ class RptExtIer(GamsClass):
             self.env.set_scoped("sow", ",'0'")
             self.env.set_scoped("sow_GP", ("0",))
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
- PARAMETER PAR_BPTL(R,T,P);
- PARAMETER PAR_BPTM(R,T,P);
- PARAMETER PAR_CONDL(R,T,P) //;
- PARAMETER PAR_CONDM(R,T,P) //;
- PARAMETER PAR_HEATL(R,T,P) //;
- PARAMETER PAR_HEATM(R,T,P) //;
- PARAMETER ELE_CONDL(R,YEAR,YEAR,P,C,S) //;
- PARAMETER ELE_CONDM(R,YEAR,YEAR,P,C,S) //;
- PARAMETER ELE_BPTL(R,YEAR,YEAR,P,C,TS) //;
- PARAMETER ELE_BPTM(R,YEAR,YEAR,P,C,TS) //;
-""",
+        g = self.tc
+        m = g.container
+
+        g.par_bptl = Parameter(m, name="PAR_BPTL", domain=[g.r, g.t, g.p])
+        g.par_bptm = Parameter(m, name="PAR_BPTM", domain=[g.r, g.t, g.p])
+        g.par_condl = Parameter(m, name="PAR_CONDL", domain=[g.r, g.t, g.p])
+        g.par_condm = Parameter(m, name="PAR_CONDM", domain=[g.r, g.t, g.p])
+        g.par_heatl = Parameter(m, name="PAR_HEATL", domain=[g.r, g.t, g.p])
+        g.par_heatm = Parameter(m, name="PAR_HEATM", domain=[g.r, g.t, g.p])
+        g.ele_condl = Parameter(
+            m, name="ELE_CONDL", domain=[g.r, g.year, g.year, g.p, g.c, g.s]
+        )
+        g.ele_condm = Parameter(
+            m, name="ELE_CONDM", domain=[g.r, g.year, g.year, g.p, g.c, g.s]
+        )
+        g.ele_bptl = Parameter(
+            m, name="ELE_BPTL", domain=[g.r, g.year, g.year, g.p, g.c, g.ts]
+        )
+        g.ele_bptm = Parameter(
+            m, name="ELE_BPTM", domain=[g.r, g.year, g.year, g.p, g.c, g.ts]
         )
 
-        self.tc.enqueue(self.exec1, self.env.sow)
+        self.tc.enqueue(self.exec1, self.env.sow_GP)
 
-    def exec1(self: RptExtIer, sow: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-* PAR_ACTL(R,V,T,P,S)$ECT_CHP(R,P)                       $= PAR_ACTL(R,V,T,P,S)*ECT_INP2ELC(R,V,P);
-* PAR_ACTM(R,V,T,P,S)$(PAR_ACTM(R,V,T,P,S)$ECT_CHP(R,P)) $= PAR_ACTM(R,V,T,P,S)/ECT_INP2ELC(R,V,P);
+    def exec1(self: RptExtIer, sow: tuple[str | Set | Alias, ...]) -> None:
+        g = self.tc
+        r, t, v, p, c, ts = g.r, g.t, g.v, g.p, g.c, g.ts
+        VAR_NCAP, VAR_FLO = g.VAR_NCAP, g.VAR_FLO
 
-*---------------------------------------------------------------------
-* Output of VAR_CAP
-*---------------------------------------------------------------------
+        # PAR_ACTL(R,V,T,P,S)$ECT_CHP(R,P)                       $= PAR_ACTL(R,V,T,P,S)*ECT_INP2ELC(R,V,P);
+        # PAR_ACTM(R,V,T,P,S)$(PAR_ACTM(R,V,T,P,S)$ECT_CHP(R,P)) $= PAR_ACTM(R,V,T,P,S)/ECT_INP2ELC(R,V,P);
 
- PAR_BPTL(RTP(R,T,P))$ECT_CHP(R,P)  = SUM(RTP_CPTYR(R,V,T,P), ECT_INP2ELC(R,V,P)*COEF_CPT(R,V,T,P) * (VAR_NCAP.L(R,V,P)$T(V) + NCAP_PASTI(R,V,P)));
- PAR_BPTM(RTP(R,T,P))$ECT_CHP(R,P)  = SUM(RTP_CPTYR(R,V,T,P), COEF_CPT(R,V,T,P)/ECT_INP2ELC(R,V,P)* ((VAR_NCAP.M(R,V,P)/VDA_DISC(R,V))$T(V)));
+        # ---------------------------------------------------------------------
+        # Output of VAR_CAP
+        # ---------------------------------------------------------------------
 
- PAR_CAPL(RTP(R,T,P))$ECT_CHP(R,P)  = SUM(RTP_CPTYR(R,V,T,P), ECT_INP2ELC(R,V,P) * COEF_CPT(R,V,T,P) * (VAR_NCAP.L(R,V,P)$T(V) + NCAP_PASTI(R,V,P)));
- PAR_PASTI(RTP(R,T,P){sow})$ECT_CHP(R,P) = SUM(RTP_CPTYR(R,V,T,P), ECT_INP2ELC(R,V,P) * COEF_CPT(R,V,T,P) * NCAP_PASTI(R,V,P));
- PAR_CAPM(RTP(R,T,P))$ECT_CHP(R,P)  = SUM(RTP_CPTYR(R,V,T,P), COEF_CPT(R,V,T,P) /ECT_INP2ELC(R,V,P)* ((VAR_NCAP.M(R,V,P)/VDA_DISC(R,V))$T(V)));
+        # The backpressure/condensing capacities are expressed in electricity
+        # terms, so the input capacity is scaled by the ECT conversion factors.
+        capl = Sum(
+            g.RtpCptyr[r, v, t, p],
+            g.ect_inp2elc[r, v, p]
+            * g.coef_cpt[r, v, t, p]
+            * (VAR_NCAP.l[r, v, p].where[t[v]] + g.ncap_pasti[r, v, p]),
+        )
+        capm = Sum(
+            g.RtpCptyr[r, v, t, p],
+            g.coef_cpt[r, v, t, p]
+            / g.ect_inp2elc[r, v, p]
+            * (VAR_NCAP.m[r, v, p] / g.vda_disc[r, v]).where[t[v]],
+        )
 
- PAR_NCAPL(RTP(R,V,P))$ECT_CHP(R,P) = VAR_NCAP.L(R,V,P) * ECT_INP2ELC(R,V,P);
- PAR_NCAPM(RTP(R,T,P))$ECT_CHP(R,P) = (VAR_NCAP.M(R,T,P) / ECT_INP2ELC(R,T,P)/COEF_OBJINV(R,T,P))$COEF_OBJINV(R,T,P);
+        g.par_bptl[g.Rtp[r, t, p]].where[g.EctChp[r, p]] = capl
+        g.par_bptm[g.Rtp[r, t, p]].where[g.EctChp[r, p]] = capm
 
-*---------------------------------------------------------------------
-* ONLY for extraction condensing CHP plants
-*---------------------------------------------------------------------
+        g.par_capl[g.Rtp[r, t, p]].where[g.EctChp[r, p]] = capl
+        g.par_pasti[g.Rtp[r, t, p], *sow].where[g.EctChp[r, p]] = Sum(
+            g.RtpCptyr[r, v, t, p],
+            g.ect_inp2elc[r, v, p] * g.coef_cpt[r, v, t, p] * g.ncap_pasti[r, v, p],
+        )
+        g.par_capm[g.Rtp[r, t, p]].where[g.EctChp[r, p]] = capm
 
- PAR_CONDL(RTP(R,T,P))$ECT_CHP(R,P) = SUM(RTP_CPTYR(R,V,T,P), ECT_INP2CON(R,V,P)*COEF_CPT(R,V,T,P) * (VAR_NCAP.L(R,V,P)$T(V) + NCAP_PASTI(R,V,P)));
- PAR_CONDM(RTP(R,T,P))$ECT_CHP(R,P) = SUM(RTP_CPTYR(R,V,T,P), COEF_CPT(R,V,T,P)/ECT_INP2CON(R,V,P) * (VAR_NCAP.M(R,V,P)$T(V)));
- PAR_HEATL(RTP(R,T,P))$ECT_CHP(R,P) = SUM(RTP_CPTYR(R,V,T,P), ECT_INP2DHT(R,V,P)*COEF_CPT(R,V,T,P) * (VAR_NCAP.L(R,V,P)$T(V) + NCAP_PASTI(R,V,P)));
- PAR_HEATM(RTP(R,T,P))$ECT_CHP(R,P) = SUM(RTP_CPTYR(R,V,T,P), COEF_CPT(R,V,T,P)/ECT_INP2DHT(R,V,P) * (VAR_NCAP.M(R,V,P)$T(V)));
+        g.par_ncapl[g.Rtp[r, v, p]].where[g.EctChp[r, p]] = (
+            VAR_NCAP.l[r, v, p] * g.ect_inp2elc[r, v, p]
+        )
+        g.par_ncapm[g.Rtp[r, t, p]].where[g.EctChp[r, p]] = (
+            VAR_NCAP.m[r, t, p] / g.ect_inp2elc[r, t, p] / g.coef_objinv[r, t, p]
+        ).where[g.coef_objinv[r, t, p]]
 
- ELE_BPTL(RTP_VINTYR(R,V,T,P),C,TS)$(RTPCS_VARF(R,T,P,C,TS)$ECT_ELC(R,P,C)) $= SUM(ECT_DHT(R,P,COM), ECT_REH(R,V,P)*VAR_FLO.L(R,V,T,P,COM,TS));
- ELE_BPTM(RTP_VINTYR(R,V,T,P),C,TS)$(RTPCS_VARF(R,T,P,C,TS)$ECT_ELC(R,P,C)) $= SUM(ECT_DHT(R,P,COM), VAR_FLO.M(R,V,T,P,COM,TS)/ECT_REH(R,V,P));
- ELE_CONDL(RTP_VINTYR(R,V,T,P),C,TS)$(RTPCS_VARF(R,T,P,C,TS)$ECT_ELC(R,P,C)) = VAR_FLO.L(R,V,T,P,C,TS) - SUM(ECT_DHT(R,P,COM), ECT_REH(R,V,P)*VAR_FLO.L(R,V,T,P,COM,TS));
- ELE_CONDM(RTP_VINTYR(R,V,T,P),C,TS)$(RTPCS_VARF(R,T,P,C,TS)$ECT_ELC(R,P,C)) = VAR_FLO.M(R,V,T,P,C,TS) - SUM(ECT_DHT(R,P,COM), VAR_FLO.M(R,V,T,P,COM,TS)/ECT_REH(R,V,P));
-""",
+        # ---------------------------------------------------------------------
+        # ONLY for extraction condensing CHP plants
+        # ---------------------------------------------------------------------
+
+        g.par_condl[g.Rtp[r, t, p]].where[g.EctChp[r, p]] = Sum(
+            g.RtpCptyr[r, v, t, p],
+            g.ect_inp2con[r, v, p]
+            * g.coef_cpt[r, v, t, p]
+            * (VAR_NCAP.l[r, v, p].where[t[v]] + g.ncap_pasti[r, v, p]),
+        )
+        g.par_condm[g.Rtp[r, t, p]].where[g.EctChp[r, p]] = Sum(
+            g.RtpCptyr[r, v, t, p],
+            g.coef_cpt[r, v, t, p]
+            / g.ect_inp2con[r, v, p]
+            * VAR_NCAP.m[r, v, p].where[t[v]],
+        )
+        g.par_heatl[g.Rtp[r, t, p]].where[g.EctChp[r, p]] = Sum(
+            g.RtpCptyr[r, v, t, p],
+            g.ect_inp2dht[r, v, p]
+            * g.coef_cpt[r, v, t, p]
+            * (VAR_NCAP.l[r, v, p].where[t[v]] + g.ncap_pasti[r, v, p]),
+        )
+        g.par_heatm[g.Rtp[r, t, p]].where[g.EctChp[r, p]] = Sum(
+            g.RtpCptyr[r, v, t, p],
+            g.coef_cpt[r, v, t, p]
+            / g.ect_inp2dht[r, v, p]
+            * VAR_NCAP.m[r, v, p].where[t[v]],
+        )
+
+        varf = g.RtpcsVarf[r, t, p, c, ts].where[g.EctElc[r, p, c]]
+        heatl = Sum(
+            g.EctDht[r, p, g.Com], g.ect_reh[r, v, p] * VAR_FLO.l[r, v, t, p, g.Com, ts]
+        )
+        heatm = Sum(
+            g.EctDht[r, p, g.Com], VAR_FLO.m[r, v, t, p, g.Com, ts] / g.ect_reh[r, v, p]
+        )
+
+        g.ele_bptl[g.RtpVintyr[r, v, t, p], c, ts].where[varf] = sparse(heatl)
+        g.ele_bptm[g.RtpVintyr[r, v, t, p], c, ts].where[varf] = sparse(heatm)
+        g.ele_condl[g.RtpVintyr[r, v, t, p], c, ts].where[varf] = (
+            VAR_FLO.l[r, v, t, p, c, ts] - heatl
+        )
+        g.ele_condm[g.RtpVintyr[r, v, t, p], c, ts].where[varf] = (
+            VAR_FLO.m[r, v, t, p, c, ts] - heatm
         )

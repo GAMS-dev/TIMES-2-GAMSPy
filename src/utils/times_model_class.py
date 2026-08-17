@@ -1798,6 +1798,17 @@ class TimesModelClass:
     eql_chpbpt: Equation = None  # type: ignore[assignment] # [r, year, year, p, allsow] EQL_CHPBPT: Backpressure capacity constraint (=L=)
     eqe_chpcon: Equation = None  # type: ignore[assignment] # [r, year, year, p, allsow] EQE_CHPCON: Condensing capacity constraint (=E=)
     eqe_chpbpt: Equation = None  # type: ignore[assignment] # [r, year, year, p, allsow] EQE_CHPBPT: Backpressure capacity constraint (=E=)
+    par_bptl: Parameter = None  # type: ignore[assignment] # [r, t, p] PAR_BPTL:
+    par_bptm: Parameter = None  # type: ignore[assignment] # [r, t, p] PAR_BPTM:
+    par_condl: Parameter = None  # type: ignore[assignment] # [r, t, p] PAR_CONDL:
+    par_condm: Parameter = None  # type: ignore[assignment] # [r, t, p] PAR_CONDM:
+    par_heatl: Parameter = None  # type: ignore[assignment] # [r, t, p] PAR_HEATL:
+    par_heatm: Parameter = None  # type: ignore[assignment] # [r, t, p] PAR_HEATM:
+    ele_condl: Parameter = None  # type: ignore[assignment] # [r, year, year, p, c, s] ELE_CONDL:
+    ele_condm: Parameter = None  # type: ignore[assignment] # [r, year, year, p, c, s] ELE_CONDM:
+    ele_bptl: Parameter = None  # type: ignore[assignment] # [r, year, year, p, c, ts] ELE_BPTL:
+    ele_bptm: Parameter = None  # type: ignore[assignment] # [r, year, year, p, c, ts] ELE_BPTM:
+
     # endregion
 
     # region IER extension (equ_ext.ier market-share equations)
