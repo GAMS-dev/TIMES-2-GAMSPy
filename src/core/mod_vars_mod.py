@@ -19,7 +19,7 @@ from gamspy import Parameter, Set, Variable
 
 from core.base_class import GamsClass
 from core.powerflo_vda import PowerfloVda
-from core.prepret_dsc import PrepretDsc
+from core.prepret_dsc import PrepretDsc, PrepretDscConfig
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
@@ -416,7 +416,9 @@ class ModVarsMod(GamsClass):
         # * [AL] ETL variables automatically by extension manager
 
         if self.tc.declared("VNRET"):
-            self.include(PrepretDsc(self.tc, self.env, arg1="DECL"))
+            self.include(
+                PrepretDsc(self.tc, self.env, config=PrepretDscConfig(arg1="DECL"))
+            )
         if self.tc.defined("PRC_REACT"):
             self.include(PowerfloVda(self.tc, self.env, arg1="DECL"))
 
