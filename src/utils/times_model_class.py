@@ -1815,6 +1815,11 @@ class TimesModelClass:
     BsSupp: Set = None  # type: ignore[assignment] # [r,p] BS_SUPP: Reserve provision by generation
     BsPrs: Set = None  # type: ignore[assignment] # [r,p,s] BS_PRS: Process slices for reserve tracking
     BsUcmap: Set = None  # type: ignore[assignment] # [ucn,side,r,p,c] BS_UCMAP: Map to refer to reserves in UC_FLO
+    VAR_DRCAP: Variable = None  # type: ignore[assignment]  # [R, ALLYEAR, LL, P, *SWD, J] VAR_DRCAP
+    VAS_DRCAP: Variable = None  # type: ignore[assignment]  # [R, ALLYEAR, LL, P, *SWD, J] VAS_DRCAP
+    eq_dscret: Equation = None  # type: ignore[assignment]  # [R, ALLYEAR, ALLYEAR, P, *SWTD] EQ_DSCRET
+    es_dscret: Equation = None  # type: ignore[assignment]  # [R, ALLYEAR, ALLYEAR, P, *SWTD] ES_DSCRET
+
     # endregion
 
     def __post_init__(self) -> None:

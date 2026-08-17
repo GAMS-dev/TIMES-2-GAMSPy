@@ -29,7 +29,7 @@ from core.prep_ext_stc import PrepExtStc
 from core.prep_ext_tm import PrepExtTm
 from core.prep_ext_vda import PrepExtVda
 from core.prepparm_gms import PrepparmGms, PrepparmGmsConfig
-from core.prepret_dsc import PrepretDsc
+from core.prepret_dsc import PrepretDsc, PrepretDscConfig
 from core.prepxtra_mod import PrepxtraMod
 from core.preshape_gms import PreshapeGms
 
@@ -118,9 +118,9 @@ class PreppmMod(GamsClass):
                 PrepretDsc(
                     self.tc,
                     self.env,
-                    arg1="PREP",
-                    arg2="PRC_RCAP",
-                    arg3="RCAP_BND",
+                    config=PrepretDscConfig(
+                        arg1="PREP", arg2="PRC_RCAP", arg3="RCAP_BND"
+                    ),
                 )
             )
 

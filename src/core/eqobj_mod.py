@@ -33,7 +33,7 @@ from core.eqobjvar_mod import EqobjvarMod
 from core.eqobjvar_rpt import EqobjvarRpt
 from core.eqobsalv_mod import EqobsalvMod
 from core.eqobsalv_rpt import EqobsalvRpt
-from core.prepret_dsc import PrepretDsc
+from core.prepret_dsc import PrepretDsc, PrepretDscConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -80,7 +80,9 @@ class EqobjMod(GamsClass):
         g.ObjSumsi = Set(m, name="OBJ_SUMSI", domain=[r, allyear, p, allyear])
 
         if self.tc.declared("VNRET"):
-            self.include(PrepretDsc(self.tc, self.env, arg1="EQOBJ"))
+            self.include(
+                PrepretDsc(self.tc, self.env, config=PrepretDscConfig(arg1="EQOBJ"))
+            )
 
         # Elastic Demand costs
         if self.arg1.upper() == "MOD":

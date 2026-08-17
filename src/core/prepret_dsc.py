@@ -12,9 +12,29 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, get_args
 
-from gamspy import Container, Domain, Parameter, Set, Sum
+from gamspy import (
+    Container,
+    Domain,
+    Else,
+    Equation,
+    Expression,
+    If,
+    Loop,
+    Number,
+    Ord,
+    Parameter,
+    Set,
+    Smax,
+    Smin,
+    SpecialValues,
+    Sum,
+    Variable,
+    sparse,
+)
+from gamspy.math import Max, Min, Round, abs, floor, map_value, mod, project, same_as
 
 from core.base_class import GamsClass
 from core.fillparm_gms import FillparmGms
@@ -30,7 +50,18 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-PhaseArg = Literal["PREP", "DECL", "EQOBJ", "OBJFIX", "OBSALV", ""]
+
+@dataclass
+class PrepretDscConfig:
+    # NOTE: arg1 includes its own values and everything from arg2 and arg3 to satisfy type-checker
+    # This is due to the shift operation on argument values in comp_prep()
+    arg1: (
+        Literal["PREP", "DECL", "EQOBJ", "OBJFIX", "OBSALV", ""]  # ORGINAL arg1 values
+        | Literal["PRC_RCAP", "RCAP_BND"]
+    )
+    # arg2 includes its own values, PLUS arg3
+    arg2: Literal["PRC_RCAP", ""] | Literal["RCAP_BND"] = ""
+    arg3: Literal["RCAP_BND", ""] = ""
 
 
 class PrepretDsc(GamsClass):
@@ -41,25 +72,19 @@ class PrepretDsc(GamsClass):
     gams_source: str = "prepret.dsc"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: PhaseArg,
-        arg2: str = "",
-        arg3: str = "",
+        self, tc: TimesModelClass, env: CompileEnvironment, config: PrepretDscConfig
     ):
         self.env = env.fork()
         self.tc = tc
         self._sub_modules: dict[str, GamsClass] = {}
-        self.arg1: str = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
+        self.config = config
         self.compile()
 
     def compile(self) -> None:
         self.env.set_scoped("mip", f"{self.env.solmip}==YES")
+        cc = self.config
 
-        arg_upper = self.arg1.upper() if self.arg1 else ""
+        arg_upper = cc.arg1.upper() if cc.arg1 else ""
         if arg_upper == "PREP":
             self.comp_prep()
         elif arg_upper == "DECL":
@@ -74,49 +99,58 @@ class PrepretDsc(GamsClass):
                 var=self.env.var, varv=self.env.varv, sws=self.env.sws, sow=self.env.sow
             )
         else:
-            allowed = ", ".join(get_args(PhaseArg))
+            allowed = ", ".join(
+                repr(v)
+                for v in get_args(get_args(PrepretDscConfig.__annotations__["arg1"])[0])
+            )
             raise ValueError(
-                f"Unknown argument '{self.arg1}'. Expected one of: {allowed}"
+                f"Unknown argument '{cc.arg1}'. Expected one of: {allowed}"
             )
 
     def comp_prep(self: PrepretDsc) -> None:
         g = self.tc
+        cc = self.config
         m = g.container
 
         r, p, lA, v = g.r, g.p, g.lA, g.v
 
-        self.env.set_scoped("tst", self.arg2)
+        self.env.set_scoped("tst", cc.arg2)
         if self.tc.defined("PRC_REFIT"):
-            set = g.get_set(self.arg2)
-            if set is None:
-                set = Set(m, name=self.arg2)
-                g.set_set(name=self.arg2, set=set, domain=False)
-            g.register_assignment(set)
+            try:
+                arg2_set = g.get_set(cc.arg2)
+            except KeyError as e:
+                error_message = str(e.args[0])
+                if f"`{cc.arg2}` does not exist in the Container." in error_message:
+                    arg2_set = Set(m, name=cc.arg2)
+                    g.set_set(name=cc.arg2, set=arg2_set, domain=False)
+                else:
+                    raise
+            g.register_assignment(arg2_set)
 
             self.create_parameter_from_arg3(g, m)
 
         if self.env.retire.upper() == "NO":
-            self.tc.add_gams_code(module=self, phase="init", code=rf"$KILL {self.arg2}")
+            self.tc.add_gams_code(module=self, phase="init", code=rf"$KILL {cc.arg2}")
 
-        if self.tc.defined(self.arg2.upper()):
+        if self.tc.defined(cc.arg2.upper()):
             self.create_parameter_from_arg3(g, m)
-            self.tc.enqueue(self.exec_prep1, sym2=self.arg2, sym3=self.arg3)
+            self.tc.enqueue(self.exec_prep1, sym2=cc.arg2, sym3=cc.arg3)
 
         if self.env.retire.upper() == "YES":
-            self.arg1 = self.arg2
-            self.arg2 = self.arg3
-            self.arg3 = ""
+            cc.arg1 = cc.arg2
+            cc.arg2 = cc.arg3
+            cc.arg3 = ""
 
         self.tc.enqueue(self.exec_prep2)
 
-        if self.tc.defined(self.arg2.upper()):
+        if self.tc.defined(cc.arg2.upper()):
             # Declarations
             g.Vnret = Set(m, name="VNRET", domain=[g.year, g.ll])
             g.rp_rtf = Parameter(m, name="RP_RTF", domain=[g.r, g.p])
 
             # Interpolate RCAP_BND
-            if self.env.tst == self.arg1:
-                self.tc.enqueue(self.exec_prep3, tst=self.env.tst, arg2=self.arg2)
+            if self.env.tst == cc.arg1:
+                self.tc.enqueue(self.exec_prep3, tst=self.env.tst, arg2=cc.arg2)
             self.include(
                 FillparmGms(
                     self.tc,
@@ -169,108 +203,213 @@ class PrepretDsc(GamsClass):
                 self.env.set_global("solmip", "YES")
 
     def create_parameter_from_arg3(self, g: TimesModelClass, m: Container) -> None:
-        param = g.get_parameter(name=self.arg3)
+        cc = self.config
+        param = g.get_parameter(name=cc.arg3)
         if param is None:
-            param = Parameter(m, name=self.arg3)
-            g.set_parameter(name=self.arg3, parameter=param)
+            param = Parameter(m, name=cc.arg3)
+            g.set_parameter(name=cc.arg3, parameter=param)
         g.register_assignment(param)
 
     def exec_prep1(self: PrepretDsc, sym2: str, sym3: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"{sym3}(R,'0',P,'N')$({sym3}(R,'0',P,'N')=0)$={sym2}(R,P);",
-        )
+        g = self.tc
+
+        sym2_set: Set = g.get_set(name=sym2)
+        sym3_param: Parameter = g.get_parameter(name=sym3)
+
+        sym3_param[g.r, "0", g.p, "N"].where[
+            (sym3_param[g.r, "0", g.p, "N"] == 0.0) & sym2_set[g.r, g.p]
+        ] = sym2_set[g.r, g.p]
 
     def exec_prep2(self: PrepretDsc) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"PRC_REFIT(RP,P)$0=0;",
-        )
+        g = self.tc
+        g.prc_refit[g.Rp, g.p].where[False] = False  # type: ignore[index]
 
     def exec_prep3(self: PrepretDsc, tst: str, arg2: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"OPTION {tst} < {arg2};",
-        )
+        g = self.tc
+        set_tst: Set = g.get_set(name=tst)
+        set_arg2: Set = g.get_set(name=arg2)
+        project(set_arg2, set_tst)
 
     def exec_prep4(self: PrepretDsc) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"OPTION PRC_CAP < NCAP_ELIFE; NCAP_ELIFE(R,V,P)$(NOT PRC_CAP(R,P)) $= NCAP_OLIFE(R,V,P); PRC_CAP(R,P)=0;",
+        g = self.tc
+        project(source=g.ncap_elife, target=g.PrcCap)
+        g.ncap_elife[g.r, g.v, g.p].where[(~(g.PrcCap[g.r, g.p]))] = sparse(
+            g.ncap_olife[g.r, g.v, g.p]
         )
+        g.PrcCap[g.r, g.p] = 0.0  # type: ignore
 
     def exec_prep5(self: PrepretDsc) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Preprocess refits
-  LOOP((RP(R,PRC),P)$(RP(R,P)$PRC_REFIT(RP,P)),
-    NCAP_ILED(RTP(R,V,P)) = -ABS(NCAP_ILED(RTP));
-    PRC_RCAP(RP)=YES; TRACKP(R,P)$(PRC_REFIT(RP,P)<0)=YES);
-  RTP_VARP(RTP(R,T,P)) $= PRC_RCAP(R,P);
-  PRC_RCAP(TRACKP)=YES; OPTION CLEAR=TRACKP;
-""",
-        )
+        g = self.tc
+
+        with Loop(
+            Domain(g.Rp[g.r, g.prc], g.p).where[
+                (g.Rp[g.r, g.p].where[g.prc_refit[g.Rp, g.p]])
+            ]
+        ):
+            g.ncap_iled[g.Rtp[g.r, g.v, g.p]] = -abs(g.ncap_iled[g.Rtp])
+            g.PrcRcap[g.Rp] = True
+            g.Trackp[g.r, g.p].where[(g.prc_refit[g.Rp, g.p] < 0.0)] = True
+        g.RtpVarp[g.Rtp[g.r, g.t, g.p]] = sparse(g.PrcRcap[g.r, g.p])
+        g.PrcRcap[g.Trackp] = True
+        g.Trackp.setRecords(None)
 
     def comp_decl(self: PrepretDsc) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-{"INTEGER" if self.env.mip == "YES==YES" else ""}
-  VARIABLE {self.env.var}_DRCAP(R,ALLYEAR,LL,P{self.env.swd},J);
-  EQUATION {self.env.eq}_DSCRET(R,ALLYEAR,ALLYEAR,P{self.env.swtd});
-""",
+        g = self.tc
+        m = g.container
+
+        if self.env.mip == "YES==YES":
+            var = Variable(
+                m,
+                name=f"{self.env.var}_DRCAP",
+                type="integer",
+                domain=[g.r, g.allyear, g.ll, g.p, *self.env.swd_GP, g.j],
+            )
+        else:
+            var = Variable(
+                m,
+                name=f"{self.env.var}_DRCAP",
+                domain=[g.r, g.allyear, g.ll, g.p, *self.env.swd_GP, g.j],
+            )
+
+        g.set_variable(name=f"{self.env.var}_DRCAP", var=var)
+        g.set_equation(
+            name=f"{self.env.eq}_DSCRET",
+            eq=Equation(
+                m,
+                name=f"{self.env.eq}_DSCRET",
+                domain=[g.r, g.allyear, g.allyear, g.p, *self.env.swtd_GP],
+            ),
         )
 
         self.tc.register_assignment(self.tc.rcap_bnd)
         self.tc.register_assignment(self.tc.Vnret)
-        self.tc.enqueue(self.exec_decl1, sow=self.env.sow, var=self.env.var)
+        self.tc.enqueue(self.exec_decl1, var=self.env.var)
 
-    def exec_decl1(self: PrepretDsc, sow: str, var: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-* Maps for refit vintages & types
-  PRC_RCAP(PRC_RCAP(RP)) = PRC_CAP(RP);
-  LOOP(PRC_RCAP(R,PRC), F=0; MY_F=0; CNT=EPS;
-   LOOP(P$PRC_REFIT(R,PRC,P),Z=PRC_REFIT(R,PRC,P); CNT$CNT=CNT+1;
-    IF(ABS(Z)>2, F=F+1); IF(MOD(Z,2)=0,MY_F$(ABS(Z)-4)=3);
-    IF(Z<0,RTP_TT(R,T,TT,PRC)$COEF_CPT(R,T,TT,P)=YES;
-    ELSE RTP_TT(R,T,T,PRC)$RTP(R,T,P)=YES; CNT=0;));
-   IF(CNT,Z=(-1+2$(F=CNT))*MAX(1,MY_F); ELSE Z=-2);
-   IF(NOT MAPVAL(CNT),RP_RTF(R,PRC) = Z);
-   IF(F,RCAP_BND(RTP(R,T,PRC),'UP')$(NOT SUM(P$PRC_REFIT(R,PRC,P),RTP(R,T,P)$(ABS(PRC_REFIT(R,PRC,P))>2)))=EPS));
-* Force obj type 2a/2b
-  VNRET(VNT(V,T))$(NOT SAMEAS(V,T)) = YES;
-  RVPRL(RTP(R,V,P))$PRC_RCAP(R,P)=MAX(0,SMAX(RTP_CPTYR(R,VNRET(V,T),P),YEARVAL(T))-YEARVAL(V));
-  RVP(RTP) $= RVPRL(RTP);
-  NCAP_ILED(RVP) = NCAP_ILED(RVP)+EPS;
-* Set bounds for continuous retirements
-  RCAP_BND(R,T,P,BDNEQ) $= RCAP_BND(R,T,P,'FX');
-  PASTSUM(RVP(R,V,P))$RCAP_BND(RVP,'N') = -(B(V)+NCAP_ILED(RVP)+ABS(RCAP_BND(RVP,'N')));
-  PASTSUM(RVP)$((RCAP_BND(RVP,'N')<0)+MAPVAL(RCAP_BLK(RVP))) = MAX(1,ABS(PASTSUM(RVP)));
-  LOOP(TT(T--1),Z=ORD(T)-1;
-  {var}_RCAP.LO(RTP_CPTYR(R,VNRET(V,T),P){sow})$RVP(R,V,P) = RCAP_BND(R,T,P,'LO')$(NOT MAPVAL(RCAP_BLK(R,V,P)))+MIN(0,RTFORC(R,V,T,P)-RTFORC(R,V,TT,P)$Z);
-  {var}_RCAP.UP(RTP_CPTYR(R,VNRET(V,T),P){sow})$RCAP_BND(R,T,P,'UP') =
-    MIN(SMIN(PASTMILE(V),NCAP_PASTI(R,V,P)),RCAP_BND(R,T,P,'UP')+MAX(0,RTFORC(R,V,T,P)-RTFORC(R,V,TT,P)$Z)));
-  {var}_SCAP.LO(RTP_CPTYR(R,VNRET(V,T),P){sow})$RVP(R,V,P) = MAX(RCAP_BND(R,T,P,'LO'),RTFORC(R,V,T,P));
-  {var}_SCAP.UP(RTP_CPTYR(R,PASTMILE(V),T,P){sow})$RVP(R,V,P) = MAX(RTFORC(R,V,T,P),NCAP_PASTI(R,V,P));
-  LOOP(RVP(R,V,P),Z=1;LOOP(RTP_CPTYR(R,VNRET(V,T),P)$Z,Z=0; {var}_SCAP.UP(R,V,T,P{sow})=MIN({var}_RCAP.UP(R,V,T,P{sow}),{var}_SCAP.UP(R,V,T,P{sow}))));
-  {var}_SCAP.FX(RTP_CPTYR(R,V,T,P){sow})$(((M(T) LT ABS(PASTSUM(R,V,P)))+((M(T)-LEAD(T))/PASTSUM(R,V,P) GE 1))$PASTSUM(R,V,P)) = RTFORC(R,V,T,P);
-* Force refits = retirements on request
-  PRC_YMAX(PRC_RCAP(RP)) = MIN(0,SUM(P$PRC_REFIT(RP,P),MAX(EPS,3-ABS(PRC_REFIT(RP,P)))));
-  RVPRL(R,'0',P) $= PRC_YMAX(R,P);
-  {var}_RCAP.UP(RTP_TT(R,T(TT++1),T,P){sow})$((RP_RTF(R,P)<3)$PRC_YMAX(R,P))=MAX(0,SUM(RTP(R,PYR_S(V),P),RTFORC(R,V,T,P)-RTFORC(R,V,TT,P))$VNT(TT,T)$(MOD(RP_RTF(R,P),2)=0));
-  OPTION CLEAR=PASTSUM,CLEAR=RVP;
-""",
+    def exec_decl1(self: PrepretDsc, var: str) -> None:
+        g = self.tc
+        sow_GP = self.env.sow_GP
+
+        # * Maps for refit vintages & types
+        g.PrcRcap[g.PrcRcap[g.Rp]] = g.PrcCap[g.Rp]
+        with Loop(Domain(g.PrcRcap[g.r, g.prc])):
+            g.f[...] = 0.0
+            g.my_f[...] = 0.0
+            g.cnt[...] = SpecialValues.EPS
+            with Loop(g.p.where[g.prc_refit[g.r, g.prc, g.p]]):
+                g.z[...] = g.prc_refit[g.r, g.prc, g.p]
+                g.cnt[...].where[g.cnt] = g.cnt + 1.0
+                with If(abs(g.z) > 2.0):
+                    g.f[...] = g.f + 1.0
+                with If(mod(g.z, 2.0) == 0.0):
+                    g.my_f[...].where[(abs(g.z) - 4.0)] = 3.0
+                with If(g.z < 0.0):
+                    g.RtpTt[g.r, g.t, g.tt, g.prc].where[
+                        g.coef_cpt[g.r, g.t, g.tt, g.p]
+                    ] = True
+                with Else():  # type: ignore
+                    g.RtpTt[g.r, g.t, g.t, g.prc].where[g.Rtp[g.r, g.t, g.p]] = True
+                    g.cnt[...] = 0.0
+            with If(g.cnt):
+                g.z[...] = (-1.0 + Number(2.0).where[(g.f == g.cnt)]) * Max(1.0, g.my_f)
+            with Else():  # type: ignore
+                g.z[...] = -2.0
+            with If(~(map_value(g.cnt))):
+                g.rp_rtf[g.r, g.prc] = g.z
+            with If(g.f):
+                filter = g.prc_refit[g.r, g.prc, g.p]
+                g.rcap_bnd[g.Rtp[g.r, g.t, g.prc], "UP"].where[
+                    (
+                        ~(
+                            Sum(
+                                g.p.where[filter],
+                                g.Rtp[g.r, g.t, g.p].where[abs(filter) > 2.0],  # type: ignore
+                            )
+                        )
+                    )
+                ] = SpecialValues.EPS
+        # * Force obj type 2a/2b
+        g.Vnret[g.Vnt[g.v, g.t]].where[(~(same_as(g.v, g.t)))] = True
+        g.rvprl[g.Rtp[g.r, g.v, g.p]].where[g.PrcRcap[g.r, g.p]] = Max(
+            0.0,
+            Smax(g.RtpCptyr[g.r, g.Vnret[g.v, g.t], g.p], g.yearval[g.t])
+            - g.yearval[g.v],
         )
+        g.Rvp[g.Rtp] = sparse(g.rvprl[g.Rtp])
+        g.ncap_iled[g.Rvp] = g.ncap_iled[g.Rvp] + SpecialValues.EPS
+        # * Set bounds for continuous retirements
+        g.rcap_bnd[g.r, g.t, g.p, g.Bdneq] = sparse(g.rcap_bnd[g.r, g.t, g.p, "FX"])
+        g.pastsum[g.Rvp[g.r, g.v, g.p]].where[g.rcap_bnd[g.Rvp, "N"]] = (
+            g.b[g.v] + g.ncap_iled[g.Rvp] + abs(g.rcap_bnd[g.Rvp, "N"])
+        )
+        g.pastsum[g.Rvp].where[
+            ((g.rcap_bnd[g.Rvp, "N"] < 0.0) + map_value(g.rcap_blk[g.Rvp]))
+        ] = Max(1.0, abs(g.pastsum[g.Rvp]))
+        var_rcap = g.get_variable(name=f"{var}_RCAP")
+        var_scap = g.get_variable(name=f"{var}_SCAP")
+        with Loop(g.tt[g.t.lag(1, "circular")]):
+            g.z[...] = Ord(g.t) - 1.0
+            var_rcap.lo[g.RtpCptyr[g.r, g.Vnret[g.v, g.t], g.p], *sow_GP].where[
+                g.Rvp[g.r, g.v, g.p]
+            ] = g.rcap_bnd[g.r, g.t, g.p, "LO"].where[
+                (~(map_value(g.rcap_blk[g.r, g.v, g.p])))
+            ] + Min(
+                0.0,
+                g.rtforc[g.r, g.v, g.t, g.p] - g.rtforc[g.r, g.v, g.tt, g.p].where[g.z],
+            )
+            var_rcap.up[g.RtpCptyr[g.r, g.Vnret[g.v, g.t], g.p], *sow_GP].where[
+                g.rcap_bnd[g.r, g.t, g.p, "UP"]
+            ] = Min(
+                Smin(g.Pastmile[g.v], g.ncap_pasti[g.r, g.v, g.p]),
+                g.rcap_bnd[g.r, g.t, g.p, "UP"]
+                + Max(
+                    0.0,
+                    g.rtforc[g.r, g.v, g.t, g.p]
+                    - g.rtforc[g.r, g.v, g.tt, g.p].where[g.z],
+                ),
+            )
+        var_scap.lo[g.RtpCptyr[g.r, g.Vnret[g.v, g.t], g.p], *sow_GP].where[
+            g.Rvp[g.r, g.v, g.p]
+        ] = Max(g.rcap_bnd[g.r, g.t, g.p, "LO"], g.rtforc[g.r, g.v, g.t, g.p])
+        var_scap.up[g.RtpCptyr[g.r, g.Pastmile[g.v], g.t, g.p], *sow_GP].where[
+            g.Rvp[g.r, g.v, g.p]
+        ] = Max(g.rtforc[g.r, g.v, g.t, g.p], g.ncap_pasti[g.r, g.v, g.p])
+        dom = (g.r, g.v, g.t, g.p, *sow_GP)
+        with Loop(g.Rvp[g.r, g.v, g.p]):
+            g.z[...] = 1.0
+            with Loop(g.RtpCptyr[g.r, g.Vnret[g.v, g.t], g.p].where[g.z]):
+                g.z[...] = 0.0
+                var_scap.up[*dom] = Min(
+                    var_rcap.up[*dom],
+                    var_scap.up[*dom],
+                )
+        var_scap.fx[g.RtpCptyr[g.r, g.v, g.t, g.p], *sow_GP].where[
+            (
+                (
+                    (g.m[g.t] < abs(g.pastsum[g.r, g.v, g.p]))
+                    + ((g.m[g.t] - g.lead[g.t]) / g.pastsum[g.r, g.v, g.p] >= 1.0)
+                ).where[g.pastsum[g.r, g.v, g.p]]
+            )
+        ] = g.rtforc[g.r, g.v, g.t, g.p]
+        # * Force refits = retirements on request
+        g.prc_ymax[g.PrcRcap[g.Rp]] = Min(
+            0.0,
+            Sum(
+                g.p.where[g.prc_refit[g.Rp, g.p]],
+                Max(SpecialValues.EPS, 3.0 - abs(g.prc_refit[g.Rp, g.p])),
+            ),
+        )
+        g.rvprl[g.r, "0", g.p] = sparse(g.prc_ymax[g.r, g.p])
+        var_rcap.up[
+            g.RtpTt[g.r, g.t[g.tt.lead(1, "circular")], g.t, g.p], *sow_GP
+        ].where[((g.rp_rtf[g.r, g.p] < 3.0).where[g.prc_ymax[g.r, g.p]])] = Max(
+            0.0,
+            Sum(
+                Domain(g.Rtp[g.r, g.PyrS[g.v], g.p]),
+                g.rtforc[g.r, g.v, g.t, g.p] - g.rtforc[g.r, g.v, g.tt, g.p],
+            ).where[(g.Vnt[g.tt, g.t]) & (mod(g.rp_rtf[g.r, g.p], 2.0) == 0.0)],
+        )
+        g.pastsum.setRecords(None)
+        g.Rvp.setRecords(None)
 
     def comp_eqobj(self: PrepretDsc) -> None:
         g = self.tc
@@ -319,79 +458,242 @@ class PrepretDsc(GamsClass):
             self.exec_eqobj1,
             notmip=self.env.mip != "YES==YES",
             var=self.env.var,
-            sow=self.env.sow,
         )
 
     def dscret_equation(self: PrepretDsc) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-* Allow retirements in integer multiples of a user-defined block-size or the full residual capacity
-  {self.env.eq}_DSCRET(RTP_CPTYR({self.env.r_v_t},P){self.env.swt})$(VNRET(V,T)$RCAP_BLK(R,V,P))..
-   {self.env.var}_SCAP(R,V,T,P{self.env.sow}) - RTFORC(R,V,T,P)  =E=
-   RCAP_BLK(R,V,P) * {self.env.var}_DRCAP(R,V,T,P{self.env.sow},'2') + (NCAP_PASTI(R,V,P)-RTFORC(R,V,T,P)) * {self.env.var}_DRCAP(R,V,T,P{self.env.sow},'1');
-""",
+        g = self.tc
+        sow_GP = self.env.sow_GP
+
+        eq = g.get_equation(name=f"{self.env.eq}_DSCRET")
+        var_scap = g.get_variable(name=f"{self.env.var}_SCAP")
+        var_drcap = g.get_variable(name=f"{self.env.var}_DRCAP")
+        dom1 = (g.r, g.v, g.t, g.p)
+        dom2 = (g.r, g.v, g.p)
+
+        # * Allow retirements in integer multiples of a user-defined block-size or the full residual capacity
+        eq[g.RtpCptyr[*self.env.r_v_t_GP, g.p], *self.env.swt_GP].where[
+            (g.Vnret[g.v, g.t].where[g.rcap_blk[*dom2]])
+        ] = (
+            var_scap[*dom1, *sow_GP] - g.rtforc[*dom1]
+            == g.rcap_blk[*dom2] * var_drcap[*dom1, *sow_GP, "2"]
+            + (g.ncap_pasti[*dom2] - g.rtforc[*dom1]) * var_drcap[*dom1, *sow_GP, "1"]
         )
 
     def cumulative_retirments_equation(self: PrepretDsc) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-* Cumulative retirements
-  {self.env.eq}_CUMRET(R,VNRET(V,K(T-(1-1$RP_RTF(R,P)))),P{self.env.swt})$(RTP_CPTYR(R,V,T,P)$PRC_RCAP(R,P))..
-   SUM(RTP_CPTYR(R,V,K,P),{self.env.var}_SCAP(R,V,T,P{self.env.sow}) - {self.env.var}_RCAP(R,V,T,P{self.env.sow})) -
-   SUM(RTP_CPTYR(R,V,MODLYEAR(Y(T-1)),P)$VNRET(V,Y),{self.env.varm}_SCAP(R,V,Y,P{self.env.sws}))
-   =E= 0;
-""",
+        g = self.tc
+
+        eq_cumret: Equation = g.get_equation(f"{self.env.eq}_CUMRET")
+        var_scap = g.get_variable(name=f"{self.env.var}_SCAP")
+        var_rcap = g.get_variable(name=f"{self.env.var}_RCAP")
+
+        varm_id, varm_set = self.env.varm_GP
+        varm_scap = g.get_variable(name=f"{varm_id}_SCAP")
+
+        dom1 = (g.r, g.v, g.t, g.p)
+
+        sum_a = Sum(
+            g.RtpCptyr[g.r, g.v, g.k, g.p],
+            var_scap[*dom1, *self.env.sow_GP] - var_rcap[*dom1, *self.env.sow_GP],
         )
 
+        inner_sum = (
+            varm_scap[g.r, g.v, g.Y, g.p, *self.env.sws_GP]
+            if varm_set is None
+            else Sum(varm_set, varm_scap[g.r, g.v, g.Y, g.p, *self.env.sws_GP])
+        )
+
+        sum_b = Sum(
+            g.RtpCptyr[g.r, g.v, g.Modlyear[g.Y[g.t.lag(1)]], g.p].where[
+                g.Vnret[g.v, g.Y]
+            ],
+            inner_sum,
+        )
+        # * Cumulative retirements
+        eq_cumret[
+            g.r,
+            g.Vnret[g.v, g.k[g.t.lag(1 - Number(1).where[g.rp_rtf[g.r, g.p]])]],
+            g.p,
+            *self.env.swt_GP,
+        ].where[(g.RtpCptyr[*dom1].where[g.PrcRcap[g.r, g.p]])] = sum_a - sum_b == 0.0
+
     def max_salvage_capacity_equation(self: PrepretDsc) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-* Maximum salvage capacity
-  {self.env.eq}L_SCAP(RTP(R,V(LL),P),IPS{self.env.sow})$(((OBJ_SUMS(RTP)+(NOT PRC_VINT(R,P))$T(V))$RVPRL(RTP)$L(IPS) OR NCAP_OLIFE(RTP)$IO(IPS))$PRC_RCAP(R,P))..
-   SUM(IO(IPS),SUM((RTP_CPTYR(R,V,TT,P),PRC_TS(R,P,S)),{self.env.vartt}_ACT(R,V,TT,P,S{self.env.sws})*FPD(TT))/PRC_CAPACT(R,P)/NCAP_OLIFE(RTP)) +
-   SUM(VNRET(V,T(LL+RVPRL(RTP))),{self.env.vart}_SCAP(R,V,T,P{self.env.sws}))$LIM(IPS)
-   =L=  {self.env.varv}_NCAP(R,V,P{self.env.sws})$T(V) + NCAP_PASTI(R,V,P) - {self.env.var}_SCAP(R,V,'0',P{self.env.sow})$OBJ_SUMS(R,V,P)$RVPRL(R,V,P);
-""",
+        g = self.tc
+        sws_GP = self.env.sws_GP
+        sow_GP = self.env.sow_GP
+
+        eq_l_scap: Equation = g.get_equation(f"{self.env.eq}L_SCAP")
+        var_scap = g.get_variable(name=f"{self.env.var}_SCAP")
+
+        var_v_id, var_v_set = self.env.varv_GP
+        var_v_ncap = g.get_variable(name=f"{var_v_id}_NCAP")
+
+        var_t_id, var_t_set = self.env.vart_GP
+        var_t_scap = g.get_variable(name=f"{var_t_id}_SCAP")
+
+        vartt_id, vartt_set = self.env.vartt_GP
+        var_tt_act = g.get_variable(name=f"{vartt_id}_ACT")
+
+        inner_sum_1 = (
+            var_tt_act[g.r, g.v, g.tt, g.p, g.s, *sws_GP]
+            if vartt_set is None
+            else Sum(vartt_set, var_tt_act[g.r, g.v, g.tt, g.p, g.s, *sws_GP])
+        )
+
+        inner_sum_2 = (
+            var_t_scap[g.r, g.v, g.t, g.p, *sws_GP]
+            if var_t_set is None
+            else Sum(var_t_set, var_t_scap[g.r, g.v, g.t, g.p, *sws_GP])
+        )
+
+        inner_sum_3 = (
+            var_v_ncap[g.r, g.v, g.p, *sws_GP]
+            if var_v_set is None
+            else Sum(var_v_set, var_v_ncap[g.r, g.v, g.p, *sws_GP])
+        )
+        # * Maximum salvage capacity
+        eq_l_scap[g.Rtp[g.r, g.v[g.ll], g.p], g.ips, *sow_GP].where[
+            (
+                (
+                    (
+                        (
+                            g.ObjSums[g.Rtp] + (~(g.PrcVint[g.r, g.p])).where[g.t[g.v]]
+                        ).where[g.rvprl[g.Rtp] & g.lA[g.ips]]
+                    )
+                    | (g.ncap_olife[g.Rtp].where[g.io[g.ips]])
+                ).where[g.PrcRcap[g.r, g.p]]
+            )
+        ] = (
+            Sum(
+                g.io[g.ips],
+                Sum(
+                    [g.RtpCptyr[g.r, g.v, g.tt, g.p], g.PrcTs[g.r, g.p, g.s]],  # type: ignore
+                    inner_sum_1 * g.fpd[g.tt],
+                )
+                / g.prc_capact[g.r, g.p]
+                / g.ncap_olife[g.Rtp],
+            )
+            + Sum(
+                g.Vnret[g.v, g.t[g.ll + g.rvprl[g.Rtp]]],
+                inner_sum_2,
+            ).where[g.lim[g.ips]]
+            <= inner_sum_3.where[g.t[g.v]]
+            + g.ncap_pasti[g.r, g.v, g.p]
+            - var_scap[g.r, g.v, "0", g.p, *sow_GP].where[
+                g.ObjSums[g.r, g.v, g.p] & g.rvprl[g.r, g.v, g.p]
+            ]
         )
 
     def retrofit_equation(self: PrepretDsc) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-* Retrofits and life-extensions
-  {self.env.eq}L_REFIT(RTP_TT(R,TT,T,PRC),LNX(L){self.env.swt})$((BD(L)+VNT(T,TT)$(RP_RTF(R,PRC)=3))$RT_PP(R,T))..
-   SUM((V(TT),P)$((VNT(T,V) OR PRC_REFIT(R,PRC,P)<0)$PRC_REFIT(R,PRC,P)),COEF_CPT(R,V,T,P)*({self.env.varv}_NCAP(R,V,P{self.env.sws}){self.env.rcapsub}))+{self.env.var}_RCAP(R,T,TT,PRC{self.env.sow})$(RP_RTF(R,PRC)$VNT(T,TT)$BD(L)<3)
-   =E=
-   SUM(RTP_CPTYR(R,VNRET(V,TT),PRC),COEF_CPT(R,V,T,PRC) * ({self.env.vartt}_RCAP(R,V,TT,PRC{self.env.sws})-SUM(MODLYEAR(K(TT-1))$VNT(V,K),MIN(INF$MOD(RP_RTF(R,PRC),2),RTFORC(R,V,TT,PRC)-RTFORC(R,V,K,PRC)))))+
-   SUM(K(TT-1)$RTP_TT(R,K,T,PRC),{self.env.var}_RCAP(R,T,K,PRC{self.env.sow}))$(RP_RTF(R,PRC)$BD(L)>0);
-""",
+        g = self.tc
+
+        eq_l_refit: Equation = g.get_equation(f"{self.env.eq}L_REFIT")
+        var_rcap = g.get_variable(name=f"{self.env.var}_RCAP")
+
+        var_v_id, var_v_set = self.env.varv_GP
+        var_v_ncap = g.get_variable(name=f"{var_v_id}_NCAP")
+
+        vartt_id, vartt_set = self.env.vartt_GP
+        vartt_rcap = g.get_variable(name=f"{vartt_id}_RCAP")
+
+        inner_sum_1 = (
+            var_v_ncap[g.r, g.v, g.p, *self.env.sws_GP]
+            if var_v_set is None
+            else Sum(var_v_set, var_v_ncap[g.r, g.v, g.p, *self.env.sws_GP])
         )
 
-    def exec_eqobj1(self: PrepretDsc, notmip: bool, var: str, sow: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-{"OPTION CLEAR=RCAP_BLK;" if notmip else ""}
-* Set bounds for integer retirements
-  IF(CARD(RCAP_BLK), RCAP_BLK(RTP)$(RCAP_BLK(RTP) LE 0) = 0;
-*  Define upper bound of 1 for binary variable if past investments
-   COEF_CAP(RTP_CPTYR(R,V,T,P))$RCAP_BLK(R,V,P) = (NCAP_PASTI(R,V,P)-RTFORC(R,V,T,P))/RCAP_BLK(R,V,P);
-   {var}_DRCAP.UP(RTP_CPTYR(R,V,T,P){sow},'1')$PRC_RCAP(R,P) = 1$(ABS(COEF_CAP(R,V,T,P)-MIN(10,ROUND(COEF_CAP(R,V,T,P)))) >1E-9);
-*  Define upper bound for integer multiples
-   {var}_DRCAP.UP(RTP_CPTYR(R,V,T,P){sow},'2')$RCAP_BLK(R,V,P) = MIN(10,FLOOR({var}_SCAP.UP(R,V,T,P{sow})/RCAP_BLK(R,V,P)+1E-8));
-  );
-  RVPRL(R,PYR_S,P)$PRC_RESID(R,'0',P)=NO; NCAP_OLIFE(R,T,P)$(NOT PRC_VINT(R,P))=NO;
-  OPTION CLEAR=COEF_CAP;
-""",
+        inner_sum_2 = (
+            vartt_rcap[g.r, g.v, g.tt, g.prc, *self.env.sws_GP]
+            if vartt_set is None
+            else Sum(vartt_set, vartt_rcap[g.r, g.v, g.tt, g.prc, *self.env.sws_GP])
         )
+
+        # * Retrofits and life-extensions
+        eq_l_refit[g.RtpTt[g.r, g.tt, g.t, g.prc], g.Lnx[g.lA], *self.env.swt_GP].where[
+            (
+                (
+                    g.bd[g.lA] + g.Vnt[g.t, g.tt].where[(g.rp_rtf[g.r, g.prc] == 3.0)]
+                ).where[g.RtPp[g.r, g.t]]
+            )
+        ] = (
+            Sum(
+                Domain(g.v[g.tt], g.p).where[
+                    (
+                        (
+                            (g.Vnt[g.t, g.v]) | (g.prc_refit[g.r, g.prc, g.p] < 0.0)
+                        ).where[g.prc_refit[g.r, g.prc, g.p]]
+                    )
+                ],
+                g.coef_cpt[g.r, g.v, g.t, g.p] * (inner_sum_1 + self.env.rcapsub_GP),
+            )
+            + var_rcap[g.r, g.t, g.tt, g.prc, *self.env.sow_GP].where[
+                (g.rp_rtf[g.r, g.prc].where[g.Vnt[g.t, g.tt] & g.bd[g.lA]] < 3.0)
+            ]
+            == Sum(
+                g.RtpCptyr[g.r, g.Vnret[g.v, g.tt], g.prc],
+                g.coef_cpt[g.r, g.v, g.t, g.prc]
+                * (
+                    inner_sum_2
+                    - Sum(
+                        g.Modlyear[g.k[g.tt - 1]].where[g.Vnt[g.v, g.k]],
+                        Min(
+                            Number(SpecialValues.POSINF).where[
+                                mod(g.rp_rtf[g.r, g.prc], 2.0)
+                            ],
+                            g.rtforc[g.r, g.v, g.tt, g.prc]
+                            - g.rtforc[g.r, g.v, g.k, g.prc],
+                        ),
+                    )
+                ),
+            )
+            + Sum(
+                g.k[g.tt - 1].where[g.RtpTt[g.r, g.k, g.t, g.prc]],
+                var_rcap[g.r, g.t, g.k, g.prc, *self.env.sow_GP],
+            ).where[(g.rp_rtf[g.r, g.prc].where[g.bd[g.lA]] > 0.0)]
+        )
+
+    def exec_eqobj1(self: PrepretDsc, notmip: bool, var: str) -> None:
+        g = self.tc
+
+        if notmip:
+            g.rcap_blk.setRecords(None)
+
+        var_drcap = g.get_variable(name=f"{var}_DRCAP")
+        var_scap = g.get_variable(name=f"{var}_SCAP")
+
+        # * Set bounds for integer retirements
+        if g.rcap_blk.number_records:
+            g.rcap_blk[g.Rtp].where[(g.rcap_blk[g.Rtp] <= 0.0)] = 0.0
+            # *  Define upper bound of 1 for binary variable if past investments
+            g.coef_cap[g.RtpCptyr[g.r, g.v, g.t, g.p]].where[
+                g.rcap_blk[g.r, g.v, g.p]
+            ] = (
+                g.ncap_pasti[g.r, g.v, g.p] - g.rtforc[g.r, g.v, g.t, g.p]
+            ) / g.rcap_blk[g.r, g.v, g.p]
+            var_drcap.up[g.RtpCptyr[g.r, g.v, g.t, g.p], *self.env.sow_GP, "1"].where[
+                g.PrcRcap[g.r, g.p]
+            ] = Number(1.0).where[
+                (
+                    abs(
+                        g.coef_cap[g.r, g.v, g.t, g.p]
+                        - Min(10.0, Round(g.coef_cap[g.r, g.v, g.t, g.p]))
+                    )
+                    > 1e-09
+                )
+            ]
+            # *  Define upper bound for integer multiples
+            var_drcap.up[g.RtpCptyr[g.r, g.v, g.t, g.p], *self.env.sow_GP, "2"].where[
+                g.rcap_blk[g.r, g.v, g.p]
+            ] = Min(
+                10.0,
+                floor(
+                    var_scap.up[g.r, g.v, g.t, g.p, *self.env.sow_GP]
+                    / g.rcap_blk[g.r, g.v, g.p]
+                    + 1e-08
+                ),
+            )
+        g.rvprl[g.r, g.PyrS, g.p].where[g.prc_resid[g.r, "0", g.p]] = False
+        g.ncap_olife[g.r, g.t, g.p].where[(~(g.PrcVint[g.r, g.p]))] = False
+        g.coef_cap.setRecords(None)
 
 
 def objfix_GP(
@@ -491,6 +793,40 @@ def objsalv(var: str, varv: str, sws: str, sow: str) -> str:
      OBJSCC(R,V,P,CUR) * OBJ_DCEOH(R,CUR) *
      ({var}_SCAP(R,V,'0',P{sow})-{varv}_NCAP(R,V,P{sws})$T(V)-NCAP_PASTI(R,V,P))) +
 """
+
+
+def objsalv_GP(g: TimesModelClass, env: CompileEnvironment) -> Expression | Sum:
+    """
+    NOTE: The Original function returned the expression with a plus
+    """
+    var_scap = g.get_variable(name=f"{env.var}_SCAP")
+
+    varv_id, varv_set = env.varv_GP
+    varv_ncap = g.get_variable(name=f"{varv_id}_NCAP")
+
+    inner_sum = (
+        varv_ncap[g.r, g.v, g.p, *env.sws_GP].where[g.t[g.v]]
+        if varv_set is None
+        else Sum(varv_set, varv_ncap[g.r, g.v, g.p, *env.sws_GP].where[g.t[g.v]])
+    )
+
+    expression = Sum(
+        g.ObjSums[g.r, g.v, g.p].where[
+            (
+                (~(g.ncap_fdr[g.r, g.v, g.p].where[g.rvprl[g.r, "0", g.p]])).where[
+                    g.rvprl[g.r, g.v, g.p]
+                ]
+            )
+        ],
+        g.objscc[g.r, g.v, g.p, g.cur]
+        * g.obj_dceoh[g.r, g.cur]
+        * (
+            var_scap[g.r, g.v, "0", g.p, *env.sow_GP]
+            - inner_sum
+            - g.ncap_pasti[g.r, g.v, g.p]
+        ),
+    )
+    return expression
 
 
 def prepret_dsc() -> None:
