@@ -593,6 +593,18 @@ class EnvironmentVariableSchema(BaseModel):
     tmp: str = Field(
         description="Universal temporary string parameter utilized across structural loops."
     )
+    tmp_GP: Expression | int = Field(
+        default=1,
+        description="GAMSPy counterpart of tmp where it carries a multiplier, e.g. the levelization factor 1/OBJ_PVT of cost_ann.rpt.",
+    )
+    sic: str = Field(
+        default="1",
+        description="Stochastic investment cost scaling term of cost_ann.rpt, either 1 or 1+PASTSUM(R,V,P).",
+    )
+    sic_GP: Expression | int = Field(
+        default=1,
+        description="GAMSPy counterpart of sic.",
+    )
     maxsow: str = Field(
         description="Limits the maximum number of active Stochastic Worlds tracked in a single scenario run."
     )

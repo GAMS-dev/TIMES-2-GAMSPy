@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Parameter
+from gamspy import Parameter, Set
 
 from core.base_class import GamsClass
 from core.cal_nored_red import cal_nored_red
@@ -50,13 +50,14 @@ class EqbndcstMod(GamsClass):
         g = self.tc
         m = g.container
 
+        g.Ykk = Set(m, name="YKK", domain=[g.allyear, g.allyear, g.allyear])
+
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code="""
 * Need a few more aliases and sets
  SET SUPERYR(T,ALLYEAR) 'SUpremum PERiod YeaR'   //;
- SET YKK(ALLYEAR,ALLYEAR,ALLYEAR)                //;
  SET RTP_IAN(REG,T,P,CUR)                        //;
  SET RT_IAN(REG,ALLYEAR,ALLYEAR,CUR,COSTAGG)     //;
 """,

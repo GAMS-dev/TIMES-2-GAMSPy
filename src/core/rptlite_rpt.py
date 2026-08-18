@@ -18,7 +18,7 @@ from gamspy import Alias, Loop, Number, Parameter, Set, Sum
 from gamspy.math import project
 
 from core.base_class import GamsClass
-from core.cost_ann_rpt import cost_ann_rpt
+from core.cost_ann_rpt import CostAnnRpt, CostAnnRptConfig, cost_ann_rpt
 from core.par_uc_rpt import par_uc_rpt
 from core.rpt_obj_rpt import rpt_obj_rpt
 from core.rptmisc_rpt import rptmisc_rpt
@@ -610,15 +610,12 @@ class RptliteRpt(GamsClass):
 
     def _label_report(self, cc: RptliteRptConfig) -> None:
         self.tc.enqueue(
-            self.exec_label_report,
+            self.exec_label_report_part1,
             config=cc,
             sow=self.env.sow,
             sysprefix=self.env.sysprefix,
             sensis=self.env.sensis,
-            var_uc=self.env.var_uc,
             stages=self.env.stages,
-            obmac=self.env.obmac,
-            abs_=self.env.abs,
             var=self.env.var,
             pgprim=self.env.pgprim,
             bencost=self.env.bencost,
@@ -630,36 +627,56 @@ class RptliteRpt(GamsClass):
             obj=self.env.obj,
             varcost=self.env.varcost,
             vnret_defined=self.tc.defined("VNRET"),
-            invlif=self.env.invlif,
-            anncost=self.env.anncost,
             varv=self.env.varv,
             sws=self.env.sws,
             varm=self.env.varm,
-            obj_combal_defined=self.tc.defined("OBJ_COMBAL"),
+            mx=self.env.mx,
+            discshift=self.env.discshift,
+        )
+
+        # * Calculation of annual costs
+        # $ BATINCLUDE cost_ann.rpt '%1' "%3"
+        self.include(
+            CostAnnRpt(
+                self.tc,
+                self.env,
+                config=CostAnnRptConfig(
+                    arg1=next(iter(cc.arg1), ""),
+                    arg2=tuple(arg.strip("'") for arg in cc.arg3),
+                ),
+            )
+        )
+
+        self.tc.enqueue(
+            self.exec_label_report_part2,
+            config=cc,
+            sow=self.env.sow,
+            sysprefix=self.env.sysprefix,
+            sensis=self.env.sensis,
+            var_uc=self.env.var_uc,
+            stages=self.env.stages,
+            obmac=self.env.obmac,
+            abs_=self.env.abs,
+            var=self.env.var,
+            vnret_defined=self.tc.defined("VNRET"),
+            sws=self.env.sws,
             vart=self.env.vart,
-            micro=self.env.micro,
-            mi_agc_defined=self.tc.defined("MI_AGC"),
             cufscal=self.env.cufscal,
             model_name=self.env.model_name,
             eq=self.env.eq,
             rpt_flots=self.env.rpt_flots,
-            mx=self.env.mx,
             solans=self.env.solans,
-            discshift=self.env.discshift,
             eqe_ucrtp_defined=self.tc.defined("EQE_UCRTP"),
             eq_g_ucmax_not_defined=not self.tc.defined(f"{self.env.eq}G_UCMAX"),
         )
 
-    def exec_label_report(
+    def exec_label_report_part1(
         self: RptliteRpt,
         config: RptliteRptConfig,
         sow: str,
         sysprefix: str,
         sensis: str,
-        var_uc: str,
         stages: str,
-        obmac: str,
-        abs_: str,
         var: str,
         pgprim: str,
         rtp_ffcs_defined: bool,
@@ -670,38 +687,22 @@ class RptliteRpt(GamsClass):
         obj: str,
         varcost: str,
         vnret_defined: bool,
-        invlif: str,
-        anncost: str,
         varv: str,
         sws: str,
         bencost: str,
         varm: str,
-        obj_combal_defined: bool,
-        vart: str,
-        micro: str,
-        mi_agc_defined: bool,
-        cufscal: str,
-        model_name: str,
-        eq: str,
-        rpt_flots: str,
-        solans: str,
-        discshift: str,
         mx: str,
-        eqe_ucrtp_defined: bool,
-        eq_g_ucmax_not_defined: bool,
+        discshift: str,
     ) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rptlite_rpt(
+            code=rptlite_rpt_part1(
                 config=config,
                 sow=sow,
                 sysprefix=sysprefix,
                 sensis=sensis,
-                var_uc=var_uc,
                 stages=stages,
-                obmac=obmac,
-                abs_=abs_,
                 var=var,
                 pgprim=pgprim,
                 rtp_ffcs_defined=rtp_ffcs_defined,
@@ -713,22 +714,57 @@ class RptliteRpt(GamsClass):
                 obj=obj,
                 varcost=varcost,
                 vnret_defined=vnret_defined,
-                invlif=invlif,
-                anncost=anncost,
                 varv=varv,
                 sws=sws,
                 varm=varm,
-                obj_combal_defined=obj_combal_defined,
+                mx=mx,
+                discshift=discshift,
+            ),
+        )
+
+    def exec_label_report_part2(
+        self: RptliteRpt,
+        config: RptliteRptConfig,
+        sow: str,
+        sysprefix: str,
+        sensis: str,
+        var_uc: str,
+        stages: str,
+        obmac: str,
+        abs_: str,
+        var: str,
+        vnret_defined: bool,
+        sws: str,
+        vart: str,
+        cufscal: str,
+        model_name: str,
+        eq: str,
+        rpt_flots: str,
+        solans: str,
+        eqe_ucrtp_defined: bool,
+        eq_g_ucmax_not_defined: bool,
+    ) -> None:
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=rptlite_rpt_part2(
+                config=config,
+                sow=sow,
+                sysprefix=sysprefix,
+                sensis=sensis,
+                var_uc=var_uc,
+                stages=stages,
+                obmac=obmac,
+                abs_=abs_,
+                var=var,
+                vnret_defined=vnret_defined,
+                sws=sws,
                 vart=vart,
-                micro=micro,
-                mi_agc_defined=mi_agc_defined,
                 cufscal=cufscal,
                 model_name=model_name,
                 eq=eq,
                 rpt_flots=rpt_flots,
                 solans=solans,
-                mx=mx,
-                discshift=discshift,
                 eqe_ucrtp_defined=eqe_ucrtp_defined,
                 eq_g_ucmax_not_defined=eq_g_ucmax_not_defined,
             ),
@@ -839,11 +875,120 @@ def rptlite_rpt(
     eqe_ucrtp_defined: bool,
     eq_g_ucmax_not_defined: bool,
 ) -> str:
-    sensis_yes = sensis.upper() == "YES"
-    var_uc_yes = var_uc == "YES"
-    stages_yes = stages == "YES"
-    obmac_yes = obmac.upper() == "YES"
-    abs_yes = abs_.upper() == "YES"
+    """Legacy GAMS text of the rptlite.rpt REPORT block, cost_ann.rpt included.
+
+    Kept for solve.stc, which embeds the whole block into a GAMS ``LOOP`` it
+    builds itself. :class:`RptliteRpt` instead emits part 1, runs the translated
+    :class:`~core.cost_ann_rpt.CostAnnRpt` and then emits part 2.
+    """
+    arg1 = next(iter(config.arg1), "")
+    arg3 = next(iter(config.arg3), "")
+
+    return (
+        rptlite_rpt_part1(
+            config=config,
+            sow=sow,
+            sysprefix=sysprefix,
+            sensis=sensis,
+            stages=stages,
+            var=var,
+            pgprim=pgprim,
+            rtp_ffcs_defined=rtp_ffcs_defined,
+            etl=etl,
+            capjd=capjd,
+            capwd=capwd,
+            timesed=timesed,
+            obj=obj,
+            varcost=varcost,
+            vnret_defined=vnret_defined,
+            varv=varv,
+            sws=sws,
+            varm=varm,
+            bencost=bencost,
+            mx=mx,
+            discshift=discshift,
+        )
+        + cost_ann_rpt(
+            arg1=arg1,
+            arg2=arg3,
+            stages=stages,
+            etl=etl,
+            invlif=invlif,
+            anncost=anncost,
+            sysprefix=sysprefix,
+            pgprim=pgprim,
+            tpulse=tpulse_expression(obj=obj, varcost=varcost),
+            is_vnret_defined=vnret_defined,
+            varv=varv,
+            sws=sws,
+            varm=varm,
+            is_obj_combal_defined=obj_combal_defined,
+            sow=sow,
+            var=var,
+            vart=vart,
+            micro=micro,
+            is_mi_agc_defined=mi_agc_defined,
+        )
+        + rptlite_rpt_part2(
+            config=config,
+            sow=sow,
+            sysprefix=sysprefix,
+            sensis=sensis,
+            var_uc=var_uc,
+            stages=stages,
+            obmac=obmac,
+            abs_=abs_,
+            var=var,
+            vnret_defined=vnret_defined,
+            sws=sws,
+            vart=vart,
+            cufscal=cufscal,
+            model_name=model_name,
+            eq=eq,
+            rpt_flots=rpt_flots,
+            solans=solans,
+            eqe_ucrtp_defined=eqe_ucrtp_defined,
+            eq_g_ucmax_not_defined=eq_g_ucmax_not_defined,
+        )
+    )
+
+
+def tpulse_expression(obj: str, varcost: str) -> str:
+    """%TPULSE% of rptlite.rpt as passed on to cost_ann.rpt."""
+    if varcost.upper() == "LIN":
+        return "Y_EOH$OBJ_LINT(R,T,Y_EOH,CUR),OBJ_LINT(R,T,Y_EOH,CUR)*"
+    if obj.upper() == "LIN":
+        return "TPULSEYR(T,Y_EOH),TPULSE(T,Y_EOH)*OBJ_DISC(R,Y_EOH,CUR)*"
+    if obj.upper() == "ALT":
+        return "PERIODYR(T,Y_EOH),OBJ_DISC(R,Y_EOH,CUR)* OBJ_ALTV(R,T)*"
+    return "PERIODYR(T,Y_EOH),OBJ_DISC(R,Y_EOH,CUR)*"
+
+
+def rptlite_rpt_part1(
+    *,
+    config: RptliteRptConfig,
+    sow: str,
+    sysprefix: str,
+    sensis: str,
+    stages: str,
+    var: str,
+    pgprim: str,
+    rtp_ffcs_defined: bool,
+    etl: str,
+    capjd: str,
+    capwd: str,
+    timesed: str,
+    obj: str,
+    varcost: str,
+    vnret_defined: bool,
+    varv: str,
+    sws: str,
+    varm: str,
+    bencost: str,
+    mx: str,
+    discshift: str,
+) -> str:
+    """rptlite.rpt REPORT block up to the annual cost calculation."""
     arg1 = next(iter(config.arg1), "")
     arg3 = next(iter(config.arg3), "")
 
@@ -908,38 +1053,41 @@ def rptlite_rpt(
     }
 
 * Calculation of annual costs
-{
-        cost_ann_rpt(
-            arg1=arg1,
-            arg2=arg3,
-            stages=stages,
-            etl=etl,
-            invlif=invlif,
-            anncost=anncost,
-            sysprefix=sysprefix,
-            pgprim=pgprim,
-            tpulse=(
-                "Y_EOH$OBJ_LINT(R,T,Y_EOH,CUR),OBJ_LINT(R,T,Y_EOH,CUR)*"
-                if varcost.upper() == "LIN"
-                else "TPULSEYR(T,Y_EOH),TPULSE(T,Y_EOH)*OBJ_DISC(R,Y_EOH,CUR)*"
-                if obj.upper() == "LIN"
-                else "PERIODYR(T,Y_EOH),OBJ_DISC(R,Y_EOH,CUR)* OBJ_ALTV(R,T)*"
-                if obj.upper() == "ALT"
-                else "PERIODYR(T,Y_EOH),OBJ_DISC(R,Y_EOH,CUR)*"
-            ),
-            is_vnret_defined=vnret_defined,
-            varv=varv,
-            sws=sws,
-            varm=varm,
-            is_obj_combal_defined=obj_combal_defined,
-            sow=sow,
-            var=var,
-            vart=vart,
-            micro=micro,
-            is_mi_agc_defined=mi_agc_defined,
-        )
-    }
+"""
 
+
+def rptlite_rpt_part2(
+    *,
+    config: RptliteRptConfig,
+    sow: str,
+    sysprefix: str,
+    sensis: str,
+    var_uc: str,
+    stages: str,
+    obmac: str,
+    abs_: str,
+    var: str,
+    vnret_defined: bool,
+    sws: str,
+    vart: str,
+    cufscal: str,
+    model_name: str,
+    eq: str,
+    rpt_flots: str,
+    solans: str,
+    eqe_ucrtp_defined: bool,
+    eq_g_ucmax_not_defined: bool,
+) -> str:
+    """rptlite.rpt REPORT block from the miscellaneous reportings onwards."""
+    sensis_yes = sensis.upper() == "YES"
+    var_uc_yes = var_uc == "YES"
+    stages_yes = stages == "YES"
+    obmac_yes = obmac.upper() == "YES"
+    abs_yes = abs_.upper() == "YES"
+    arg1 = next(iter(config.arg1), "")
+    arg3 = next(iter(config.arg3), "")
+
+    return rf"""
 * Miscellaneous reportings
 {
         rptmisc_rpt(
