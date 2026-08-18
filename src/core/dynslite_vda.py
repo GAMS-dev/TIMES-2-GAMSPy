@@ -5,11 +5,15 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Number
+
 from core.base_class import GamsClass
-from core.fillparm_gms import fillparm
+from core.fillparm_gms import FillparmGmsConfig, fillparm
 from core.pp_qaput_mod import pp_qaput
 
 if TYPE_CHECKING:
+    from gamspy._symbols.implicits import ImplicitParameter
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -86,7 +90,7 @@ class DynsliteVda(GamsClass):
     def prelev_exec(self: DynsliteVda, ducyes: bool, tmp: str) -> None:
         if self.tc.container["NORTS"].number_records > 0:
             if ducyes:
-                raise Exception("TS_OFF cannot be used with DUC")
+                raise ValueError("TS_OFF cannot be used with DUC")
 
             self.tc.add_gams_code(
                 module=self,
@@ -185,32 +189,16 @@ class DynsliteVda(GamsClass):
 
     def run_fillparm(
         self: DynsliteVda,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-        arg4: str,
-        arg5: str,
-        arg6: str,
-        arg7: str,
-        arg8: str,
-        arg9: str,
+        config: FillparmGmsConfig,
         dflbl: str,
-        item: str,
-        data: str,
-        add: str,
+        item: ImplicitParameter,
+        data: ImplicitParameter,
         reset: str,
+        add: ImplicitParameter | None,
     ) -> None:
         fillparm(
             module=self,
-            arg1=arg1,
-            arg2=arg2,
-            arg3=arg3,
-            arg4=arg4,
-            arg5=arg5,
-            arg6=arg6,
-            arg7=arg7,
-            arg8=arg8,
-            arg9=arg9,
+            config=config,
             dflbl=dflbl,
             item=item,
             data=data,
@@ -221,11 +209,13 @@ class DynsliteVda(GamsClass):
     def postlev_exec(
         self: DynsliteVda,
         dflbl: str,
-        item: str,
-        data: str,
-        add: str,
+        item: ImplicitParameter,
+        data: ImplicitParameter,
+        add: ImplicitParameter | None,
         reset: str,
     ) -> None:
+        g = self.tc
+
         if self.tc.container["NORTS"].number_records > 0:
             self.tc.add_gams_code(
                 module=self,
@@ -237,24 +227,16 @@ class DynsliteVda(GamsClass):
 """,
             )
             # fmt: off
-            tl: list[tuple[str, str, str, str, str, str, str, str, str]] = [
-                ("FLO_FUNC", "R", "P,CG,CG2,ANNUAL",     ",'',''",    "V", "RVP(R,V,P)" ">0", "X_RPGGS",   "X_RPGGS"  , ""),
-                ("ACT_EFF",  "R", "P,CG,ANNUAL",         ",'','',''", "V", "RVP(R,V,P)" ">0", "X_RPGS",    "X_RPGS"   , ""),
-                ("ACT_FLO",  "R", "P,CG,ANNUAL",         ",'','',''", "V", "RVP(R,V,P)" ">0", "X_RPGS",    "X_RPGS"   , ""),
-                ("FLO_SUM",  "R", "P,CG1,C,CG2,ANNUAL",  ",''",       "V", "RVP(R,V,P)" ">0", "X_RPGCGS",  "X_RPGCGS" , "")
+            batincludes: list[FillparmGmsConfig] = [
+                FillparmGmsConfig(arg1=g.flo_func, arg2=(g.r,), arg3=(g.p, g.cg, g.cg2, g.Annual),       arg4=("",) * 2,    arg5=g.v, arg6=g.Rvp[g.r, g.v, g.p], arg7=Number(0), arg8="X_RPGGS",   arg9="X_RPGGS"  ),
+                FillparmGmsConfig(arg1=g.act_eff,  arg2=(g.r,), arg3=(g.p, g.cg, g.Annual),              arg4=("",) * 3,    arg5=g.v, arg6=g.Rvp[g.r, g.v, g.p], arg7=Number(0), arg8="X_RPGS",    arg9="X_RPGS"   ),
+                FillparmGmsConfig(arg1=g.act_flo,  arg2=(g.r,), arg3=(g.p, g.cg, g.Annual),              arg4=("",) * 3,    arg5=g.v, arg6=g.Rvp[g.r, g.v, g.p], arg7=Number(0), arg8="X_RPGS",    arg9="X_RPGS"   ),
+                FillparmGmsConfig(arg1=g.flo_sum,  arg2=(g.r,), arg3=(g.p, g.cg1, g.c, g.cg2, g.Annual), arg4=("",) * 1,    arg5=g.v, arg6=g.Rvp[g.r, g.v, g.p], arg7=Number(0), arg8="X_RPGCGS",  arg9="X_RPGCGS" )
             ]
             # fmt: on
-            a1, a2, a3, a4, a5, a6, a7, a8, a9 = tl[0]
+            config = batincludes.pop()
             self.run_fillparm(
-                arg1=a1,
-                arg2=a2,
-                arg3=a3,
-                arg4=a4,
-                arg5=a5,
-                arg6=a6,
-                arg7=a7,
-                arg8=a8,
-                arg9=a9,
+                config=config,
                 dflbl=dflbl,
                 item=item,
                 data=data,
@@ -271,18 +253,9 @@ class DynsliteVda(GamsClass):
     FLO_SUM(R,LL--ORD(LL),P,CG,C,CG2,ANNUAL)$(FLO_SUM(R,LL,P,CG,C,CG2,ANNUAL)$RVP(R,LL,P))=3;
 """,
             )
-            for i in range(3):
-                a1, a2, a3, a4, a5, a6, a7, a8, a9 = tl[i + 1]
+            for config in batincludes:
                 self.run_fillparm(
-                    arg1=a1,
-                    arg2=a2,
-                    arg3=a3,
-                    arg4=a4,
-                    arg5=a5,
-                    arg6=a6,
-                    arg7=a7,
-                    arg8=a8,
-                    arg9=a9,
+                    config=config,
                     dflbl=dflbl,
                     item=item,
                     data=data,

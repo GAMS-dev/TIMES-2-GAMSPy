@@ -12,8 +12,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Number
+
 from core.base_class import GamsClass
-from core.fillparm_gms import FillparmGms
+from core.fillparm_gms import FillparmGms, FillparmGmsConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -40,6 +42,7 @@ class PpmExtEcb(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
         self.comp1()
         if (
             self.env.stages.upper() == "YES"
@@ -54,25 +57,13 @@ class PpmExtEcb(GamsClass):
         self.env.set_scoped("reset", 0)
 
         # fmt: off
-        batincludes = [
-            ("COM_MSHGV", "R", "C", ",'','','','',''", "T", "RTC(R,T,C)", "GE 0"),
-            ("NCAP_MSPRF", "R", "C,P,L", ",'','',''", "T", "RTC(R,T,P)", "GE 0"),
+        batincludes: list[FillparmGmsConfig] = [
+            FillparmGmsConfig(g.com_mshgv,  (g.r,), (g.c,),             ("",) * 5, g.t, g.Rtc[g.r, g.t, g.c], Number(0)),
+            FillparmGmsConfig(g.ncap_msprf, (g.r,), (g.c, g.p, g.lA),   ("",) * 3, g.t, g.Rtc[g.r, g.t, g.p], Number(0)),
         ]
         # fmt: on
-        for arg in batincludes:
-            self.include(
-                FillparmGms(
-                    self.tc,
-                    self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
-                    arg5=arg[4],
-                    arg6=arg[5],
-                    arg7=arg[6],
-                )
-            )
+        for config in batincludes:
+            self.include(FillparmGms(self.tc, self.env, config=config))
 
         self.tc.enqueue(self.init_probing_shares)
 

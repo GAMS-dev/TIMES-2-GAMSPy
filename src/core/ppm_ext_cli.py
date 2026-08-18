@@ -13,11 +13,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Domain, Else, If, Loop, Ord, Set, Sum, set_options, sparse
+from gamspy import Domain, Else, If, Loop, Number, Ord, Set, Sum, set_options, sparse
 from gamspy.math import project
 
 from core.base_class import GamsClass
-from core.fillparm_gms import FillparmGms
+from core.fillparm_gms import FillparmGms, FillparmGmsConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -47,6 +47,7 @@ class PpmExtCli(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
         self.comp1()
         self.tc.enqueue(self.user_defined_emissions)
 
@@ -56,13 +57,15 @@ class PpmExtCli(GamsClass):
             FillparmGms(
                 self.tc,
                 self.env,
-                arg1="CM_COUPLE",
-                arg2="CG1",
-                arg3="CG,CM_Q",
-                arg4=",'0','0','0','0'",
-                arg5="T",
-                arg6="YES",
-                arg7=">=0",
+                FillparmGmsConfig(
+                    arg1=g.cm_couple,
+                    arg2=(g.cg1,),
+                    arg3=(g.cg, g.cmq),
+                    arg4=("0",) * 4,
+                    arg5=g.t,
+                    arg6=Number(1),
+                    arg7=Number(0),
+                ),
             )
         )
 

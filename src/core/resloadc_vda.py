@@ -12,8 +12,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Number
+
 from core.base_class import GamsClass
-from core.fillparm_gms import FillparmGms
+from core.fillparm_gms import FillparmGms, FillparmGmsConfig
 from utils.macros import macro_config as macro
 
 # from core.cal_nored_red import cal_nored_red
@@ -83,6 +85,7 @@ class ResloadcVda(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
         if not len(self.arg1):
             self.tc.add_gams_code(
                 module=self,
@@ -101,13 +104,15 @@ class ResloadcVda(GamsClass):
                 FillparmGms(
                     self.tc,
                     self.env.fork(),
-                    arg1="GR_THMIN",
-                    arg2="R",
-                    arg3="P",
-                    arg4=",'0','0','0','0','0'",
-                    arg5="T",
-                    arg6="RTP(R,T,P)",
-                    arg7="GE 0",
+                    FillparmGmsConfig(
+                        arg1=g.gr_thmin,
+                        arg2=(g.r,),
+                        arg3=(g.p,),
+                        arg4=("0",) * 5,
+                        arg5=g.t,
+                        arg6=g.Rtp[g.r, g.t, g.p],
+                        arg7=Number(0),
+                    ),
                 )
             )
         elif self.arg1.upper() == "COEF":

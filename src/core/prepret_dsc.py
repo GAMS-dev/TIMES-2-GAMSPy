@@ -37,12 +37,12 @@ from gamspy import (
 from gamspy.math import Max, Min, Round, abs, floor, map_value, mod, project, same_as
 
 from core.base_class import GamsClass
-from core.fillparm_gms import FillparmGms
+from core.fillparm_gms import FillparmGms, FillparmGmsConfig
 from core.prepparm_gms import PrepparmGms, PrepparmGmsConfig
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
-    from gamspy import Alias, Number
+    from gamspy import Alias
     from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
 
     from utils.compile_environment import CompileEnvironment
@@ -155,13 +155,15 @@ class PrepretDsc(GamsClass):
                 FillparmGms(
                     self.tc,
                     self.env,
-                    arg1="RCAP_BLK",
-                    arg2="R",
-                    arg3="P",
-                    arg4=",'','','','',''",
-                    arg5="V",
-                    arg6="RTP(R,V,P)",
-                    arg7="GE 0",
+                    FillparmGmsConfig(
+                        arg1=g.rcap_blk,
+                        arg2=(g.r,),
+                        arg3=(g.p,),
+                        arg4=("",) * 5,
+                        arg5=g.v,
+                        arg6=g.Rtp[g.r, g.v, g.p],
+                        arg7=Number(0),
+                    ),
                 )
             )
             self.include(
@@ -184,13 +186,15 @@ class PrepretDsc(GamsClass):
                     FillparmGms(
                         self.tc,
                         self.env,
-                        arg1="NCAP_OLIFE",
-                        arg2="R",
-                        arg3="P",
-                        arg4=",'','','','',''",
-                        arg5="V",
-                        arg6="RTP(R,V,P)",
-                        arg7="GE 0",
+                        FillparmGmsConfig(
+                            arg1=g.ncap_olife,
+                            arg2=(g.r,),
+                            arg3=(g.p,),
+                            arg4=("",) * 5,
+                            arg5=g.v,
+                            arg6=g.Rtp[g.r, g.v, g.p],
+                            arg7=Number(0),
+                        ),
                     )
                 )
                 self.tc.enqueue(self.exec_prep4)

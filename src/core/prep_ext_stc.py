@@ -17,7 +17,7 @@ from gamspy import Card, Domain, Loop, Number, Parameter, SpecialValues, Sum, sp
 from gamspy.math import project
 
 from core.base_class import GamsClass
-from core.fillparm_gms import FillparmGms
+from core.fillparm_gms import FillparmGms, FillparmGmsConfig
 from core.prepparm_gms import PrepparmGms, PrepparmGmsConfig
 from core.recurrin_stc import RecurrinStc
 
@@ -49,30 +49,17 @@ class PrepExtStc(GamsClass):
 
         exclude_list = ["S_DAM_COST", "S_FLO_FUNC", "S_NCAP_AFS", "S_COM_FR"]
         # fmt: off
-        batincludes = [
-            ("fp", "S_COM_PROJ",  "R",          "C,J,WW",               ",'0','0','0'", "MILESTONYR", "1",                   "GE 0", ""),
-            ("fp", "S_COM_TAX",   "R",          "C,S,COM_VAR,CUR,J,WW", "",             "MILESTONYR", "1",                   "GE 0", ""),
-            ("fp", "S_NCAP_COST", "R",          "P,J,WW",               ",'0','0','0'", "MILESTONYR", "1",                   "GE 0", ""),
+        batincludes: list[FillparmGmsConfig] = [
+            FillparmGmsConfig(g.s_com_proj,  (g.r,), (g.c,g.j,g.ww),                    ("0",) * 3, g.Milestonyr, Number(1), Number(0)),
+            FillparmGmsConfig(g.s_com_tax,   (g.r,), (g.c,g.s,g.comvar,g.cur,g.j,g.ww), (),         g.Milestonyr, Number(1), Number(0)),
+            FillparmGmsConfig(g.s_ncap_cost, (g.r,), (g.p,g.j,g.ww),                    ("0",) * 3, g.Milestonyr, Number(1), Number(0)),
         ]
         # fmt: on
 
-        for arg in batincludes:
-            if arg[1] in exclude_list and not self.tc.defined(arg[1]):
+        for config in batincludes:
+            if config.arg1.name in exclude_list and not self.tc.defined(config.arg1):
                 continue
-            self.include(
-                FillparmGms(
-                    self.tc,
-                    self.env,
-                    arg1=arg[1],
-                    arg2=arg[2],
-                    arg3=arg[3],
-                    arg4=arg[4],
-                    arg5=arg[5],
-                    arg6=arg[6],
-                    arg7=arg[7],
-                    arg8=arg[8],
-                )
-            )
+            self.include(FillparmGms(self.tc, self.env, config))
 
         prepparms: list[PrepparmGmsConfig] = [
             PrepparmGmsConfig(
@@ -132,35 +119,24 @@ class PrepExtStc(GamsClass):
             ),
         ]
 
-        for config in prepparms:
-            if config.arg1 in exclude_list and not self.tc.defined(config.arg1):
+        for prepparms_config in prepparms:
+            if prepparms_config.arg1 in exclude_list and not self.tc.defined(
+                prepparms_config.arg1
+            ):
                 continue
-            self.include(PrepparmGms(self.tc, self.env, config=config))
+            self.include(PrepparmGms(self.tc, self.env, config=prepparms_config))
 
         # fmt: off
         batincludes = [
-            ("fp", "S_FLO_FUNC",  "R",          "P,CG,CG2,J,WW",        ",'0'",         "MILESTONYR", "1",                   "GE 0", ""),
-            ("fp", "S_NCAP_AFS",  "R",          "P,TS,J,WW",            ",'0','0'",     "MILESTONYR", "1",                   "GE 0", ""),
-            ("fp", "S_COM_FR",    "R",          "C,TS,J,WW",            ",'0','0'",     "MILESTONYR", "1",                   "GE 0", ""),
+            FillparmGmsConfig(g.s_flo_func,  (g.r,), (g.p, g.cg, g.cg2, g.j, g.ww), ("0",) * 1, g.Milestonyr, Number(1), Number(0)),
+            FillparmGmsConfig(g.s_ncap_afs,  (g.r,), (g.p, g.ts, g.j,   g.ww),      ("0",) * 2, g.Milestonyr, Number(1), Number(0)),
+            FillparmGmsConfig(g.s_com_fr,    (g.r,), (g.c, g.ts, g.j,   g.ww),      ("0",) * 2, g.Milestonyr, Number(1), Number(0)),
         ]
         # fmt: on
-        for arg in batincludes:
-            if arg[1] in exclude_list and not self.tc.defined(arg[1]):
+        for config in batincludes:
+            if config.arg1.name in exclude_list and not self.tc.defined(config.arg1):
                 continue
-            self.include(
-                FillparmGms(
-                    self.tc,
-                    self.env,
-                    arg1=arg[1],
-                    arg2=arg[2],
-                    arg3=arg[3],
-                    arg4=arg[4],
-                    arg5=arg[5],
-                    arg6=arg[6],
-                    arg7=arg[7],
-                    arg8=arg[8],
-                )
-            )
+            self.include(FillparmGms(self.tc, self.env, config))
 
         self.include(RecurrinStc(self.tc, self.env, arg1="MXPAR"))
 

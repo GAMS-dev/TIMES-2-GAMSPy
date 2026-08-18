@@ -20,7 +20,7 @@ from gamspy.math import Max, Round, abs, map_value, project
 
 from core.base_class import GamsClass
 from core.equcrtp_vda import EqucrtpVda, EqucrtpVdaConfig
-from core.fillparm_gms import FillparmGms
+from core.fillparm_gms import FillparmGms, FillparmGmsConfig
 from core.fillvint_gms import FillvintGms, FillvintGmsConfig
 from core.powerflo_vda import PowerfloVda
 from core.resloadc_vda import ResloadcVda
@@ -59,42 +59,29 @@ class PrepExtVda(GamsClass):
         self.tc.enqueue(self.prepare_availabilities)
 
         # fmt: off
-        batincludes = [
-            ("VDA_EMCB",   "R",      "C,COM",        ",'0','0','0','0'",     "V", "1",          "GE 0",           ""),
-            ("NCAP_AFC",   "R",      "P,CG,STL",     ",'0','0','0'",         "V", "RTP(R,V,P)", "GE -1$ACTCG(CG)",""),
-            ("ACT_EFF",    "R",      "P,CG,TS",      ",'0','0','0'",         "V", "RVP(R,V,P)", "GE 0",           "X_RPGS"),
-            ("VDA_FLOP",   "R",      "P,CG,TS",      ",'0','0','0'",         "V", "RVP(R,V,P)", "GE 0",           "X_RPGS"),
-            ("FLO_EMIS",   "R",      "P,CG,COM,S",   ",'0','0'",             "V", "RVP(R,V,P)", "GE 0",           "X_RPGCS"),
-            ("ACT_UPS",    "R",      "P,S,BD",       ",'0','0','0'",         "V", "RVP(R,V,P)", "GE 0",           ""),
-            ("ACT_LOSPL",  "R",      "P,L",          ",'0','0','0','0'",     "V", "RVP(R,V,P)", "GE 0",           ""),
-            ("ACT_LOSSD",  "R",      "P,UPT,BD",     ",'0','0','0'",         "V", "RVP(R,V,P)", "GE 0",           ""),
-            ("ACT_SDTIME", "R",      "P,UPT,BD",     ",'0','0','0'",         "V", "RVP(R,V,P)", "GE 0",           ""),
-            ("ACT_MAXNON", "R",      "P,UPT",        ",'0','0','0','0'",     "V", "RVP(R,V,P)", "GE 0",           ""),
-            ("STG_MAXCYC", "R",      "P",            ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0",           ""),
+        batincludes : list[FillparmGmsConfig]= [
+            FillparmGmsConfig(g.vda_emcb,   (g.r,), (g.c,g.Com),          ("0",) * 4, g.v, Number(1),          Number(0),                        ""),
+            FillparmGmsConfig(g.ncap_afc,   (g.r,), (g.p,g.cg,g.stl),     ("0",) * 3, g.v, g.Rtp[g.r,g.v,g.p], Number(-1).where[g.Actcg[g.cg]],  ""),
+            FillparmGmsConfig(g.act_eff,    (g.r,), (g.p,g.cg,g.ts),      ("0",) * 3, g.v, g.Rvp[g.r,g.v,g.p], Number(0),                        "X_RPGS"),
+            FillparmGmsConfig(g.vda_flop,   (g.r,), (g.p,g.cg,g.ts),      ("0",) * 3, g.v, g.Rvp[g.r,g.v,g.p], Number(0),                        "X_RPGS"),
+            FillparmGmsConfig(g.flo_emis,   (g.r,), (g.p,g.cg,g.Com,g.s), ("0",) * 2, g.v, g.Rvp[g.r,g.v,g.p], Number(0),                        "X_RPGCS"),
+            FillparmGmsConfig(g.act_ups,    (g.r,), (g.p,g.s,g.bd),       ("0",) * 3, g.v, g.Rvp[g.r,g.v,g.p], Number(0),                        ""),
+            FillparmGmsConfig(g.act_lospl,  (g.r,), (g.p,g.lA),           ("0",) * 4, g.v, g.Rvp[g.r,g.v,g.p], Number(0),                        ""),
+            FillparmGmsConfig(g.act_lossd,  (g.r,), (g.p,g.upt,g.bd),     ("0",) * 3, g.v, g.Rvp[g.r,g.v,g.p], Number(0),                        ""),
+            FillparmGmsConfig(g.act_sdtime, (g.r,), (g.p,g.upt,g.bd),     ("0",) * 3, g.v, g.Rvp[g.r,g.v,g.p], Number(0),                        ""),
+            FillparmGmsConfig(g.act_maxnon, (g.r,), (g.p,g.upt),          ("0",) * 4, g.v, g.Rvp[g.r,g.v,g.p], Number(0),                        ""),
+            FillparmGmsConfig(g.stg_maxcyc, (g.r,), (g.p,),               ("0",) * 5, g.v, g.Rtp[g.r,g.v,g.p], Number(0),                        ""),
         ]
         # fmt: on
 
         if self.tc.defined("UC_FLOBET"):
-            batincludes.append(("UC_FLOBET", "UC_N,R", "P,C", ",'0','0','0'", "T", "1", "GE 0", ""))  # fmt: skip
+            batincludes.append(FillparmGmsConfig(g.uc_flobet, (g.ucn, g.r), (g.p, g.c), ("0",) * 3, g.t, Number(1), Number(0), ""))  # fmt: skip
 
         if self.tc.defined("COM_CSTBAL"):
-            batincludes.append(("COM_CSTBAL", "R", "C,S,ITEM,CUR", ",'0','0'", "T", "1", "GE 0", ""))  # fmt: skip
+            batincludes.append(FillparmGmsConfig(g.com_cstbal, (g.r,), (g.c, g.s, g.Item, g.cur), ("0",) * 2, g.t, Number(1), Number(0), ""))  # fmt: skip
 
-        for arg in batincludes:
-            self.include(
-                FillparmGms(
-                    self.tc,
-                    self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
-                    arg5=arg[4],
-                    arg6=arg[5],
-                    arg7=arg[6],
-                    arg8=arg[7],
-                )
-            )
+        for config in batincludes:
+            self.include(FillparmGms(self.tc, self.env, config))
 
         if self.env.powerflo.upper() == "YES":
             self.include(PowerfloVda(self.tc, self.env, arg1="PREP"))

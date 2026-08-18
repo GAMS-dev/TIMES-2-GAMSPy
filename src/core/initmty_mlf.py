@@ -12,6 +12,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter, Set
+
 from core.base_class import GamsClass
 from core.initmty_tm import InitmtyTm
 
@@ -38,64 +40,176 @@ class InitmtyMlf(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
         self.include(InitmtyTm(tc=self.tc, env=self.env))
         self.env.set_global("macro", "Yes")
         self.env.set_global("spoint", "")
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-*--- Redefined & Additional input parameters ---
-  PARAMETER TM_ARBM              'Arbitrary multiplier'                         /1/;
-  PARAMETER TM_SCALE_UTIL        'Scaling factor utility function'              /0.001/;
-  PARAMETER TM_SCALE_NRG         'Scaling factor demand units'                  /0.001/;
-  PARAMETER TM_SCALE_CST         'Scaling factor cost units'                    /0.001/;
-  PARAMETER TM_DESUB(R)          'Elasticity of substitution between demands'   //;
-  PARAMETER TM_STEP(R,CG,LIM)    'Steps in CES substitution'                    //;
-  PARAMETER TM_VOC(R,YEAR,CG,BD) 'Variance in CES component or utility'         //;
+        r, cg, lim, year, bd, UcCost, t, c, Reg, Item, Com = (
+            g.r,
+            g.cg,
+            g.lim,
+            g.year,
+            g.bd,
+            g.UcCost,
+            g.t,
+            g.c,
+            g.Reg,
+            g.Item,
+            g.Com,
+        )
 
-*--- Internal attributes ---
-  SET COM_GRP / AKL, LAB, KN, YN, CON, UTIL /;
-  SET NITER /1*18/;
-  SET TM_PP(R,YEAR) //;
-*  Initialized Scalar Defaults *
-  PARAMETER TM_DEFVAL /
-      DEPR     5
-      ESUB     0.25
-      KGDP     2.5
-      KPVS     0.25
-      DMTOL    0.1
-      IVETOL   0.5
-      NEGTOL   0.01
-      MACVOC   0.4
-      MACSTEP  200
-      LOGSTEP  550
-      USEHDF   1
-      ESC      1.028
-     /;
-  PARAMETER SOL_ACFR(R,UC_COST,T) Baseline annual cost data  //;
-* MACRO Sectoral Demands, marginals and AEEIs
-  PARAMETERS
-    TM_DEM(REG,YEAR,COM) Demand levels
-    TM_DMC(REG,YEAR,COM) Demand marginals
-    TM_DDF_Y(R,T)        Production growths
-    TM_DDF_DM(R,T,C)     Demand growth rate
-    TM_DDF_SP(R,T,C)     Demand marginals change rate
-    TM_F2(R,T,C)         Demand DDF calibration
-    TM_ANNC(REG,YEAR)    Estimate of annual energy system cost
-    TM_GDPGOAL(REG,YEAR) Projected Baseline GDP
-    TM_GDP(R,T)          Actualized gross domestic product
-    TM_QSFA(REG,T)       Quadratic supply function A
-    TM_QSFB(REG,T,COM)   Quadratic supply function B
-    TM_NWT(REG)          Negishi weights
-    TM_NWTIT(NITER,REG)  Negishi weights by iteration
-    TM_CIE(R,T,CG)       Expnditure rate           //
-    PAR_Y(R,T)           Production parameter      //
-    PAR_GRGDP(R,T)       Growth rate of GDP        //
-    PAR_MC(R,YEAR,C)     Marginal costs of demands //
-    TM_RESULT(ITEM,R,YEAR) MACRO Summary result parameters //
-;
-
-""",
+        # --- Redefined & Additional input parameters ---
+        g.tm_arbm = Parameter(
+            m, name="TM_ARBM", description="Arbitrary multiplier", records=1
+        )
+        g.tm_scale_util = Parameter(
+            m,
+            name="TM_SCALE_UTIL",
+            description="Scaling factor utility function",
+            records=0.001,
+        )
+        g.tm_scale_nrg = Parameter(
+            m,
+            name="TM_SCALE_NRG",
+            description="Scaling factor demand units",
+            records=0.001,
+        )
+        g.tm_scale_cst = Parameter(
+            m,
+            name="TM_SCALE_CST",
+            description="Scaling factor cost units",
+            records=0.001,
+        )
+        g.tm_desub = Parameter(
+            m,
+            name="TM_DESUB",
+            domain=[r],
+            description="Elasticity of substitution between demands",
+        )
+        g.tm_step = Parameter(
+            m,
+            name="TM_STEP",
+            domain=[r, cg, lim],
+            description="Steps in CES substitution",
+        )
+        g.tm_voc = Parameter(
+            m,
+            name="TM_VOC",
+            domain=[r, year, cg, bd],
+            description="Variance in CES component or utility",
+        )
+        # --- Internal attributes ---
+        g.comgrp = Set(
+            m, name="COM_GRP", records=["AKL", "LAB", "KN", "YN", "CON", "UTIL"]
+        )
+        g.niter = Set(m, name="NITER", records=["1*18"])
+        g.TmPp = Set(m, name="TM_PP", domain=[r, year])
+        # Initialized Scalar Defaults *
+        g.tm_defval = Parameter(
+            m,
+            name="TM_DEFVAL",
+            records={
+                "DEPR": 5,
+                "ESUB": 0.25,
+                "KGDP": 2.5,
+                "KPVS": 0.25,
+                "DMTOL": 0.1,
+                "IVETOL": 0.5,
+                "NEGTOL": 0.01,
+                "MACVOC": 0.4,
+                "MACSTEP": 200,
+                "LOGSTEP": 550,
+                "USEHDF": 1,
+                "ESC": 1.028,
+            },
+        )
+        g.sol_acfr = Parameter(
+            m,
+            name="SOL_ACFR",
+            domain=[r, UcCost, t],
+            description="Baseline annual cost data",
+        )
+        # MACRO Sectoral Demands, marginals and AEEIs
+        g.tm_dem = Parameter(
+            m, name="TM_DEM", domain=[Reg, year, Com], description="Demand levels"
+        )
+        g.tm_dmc = Parameter(
+            m, name="TM_DMC", domain=[Reg, year, Com], description="Demand marginals"
+        )
+        g.tm_ddf_y = Parameter(
+            m, name="TM_DDF_Y", domain=[r, t], description="Production growths"
+        )
+        g.tm_ddf_dm = Parameter(
+            m, name="TM_DDF_DM", domain=[r, t, c], description="Demand growth rate"
+        )
+        g.tm_ddf_sp = Parameter(
+            m,
+            name="TM_DDF_SP",
+            domain=[r, t, c],
+            description="Demand marginals change rate",
+        )
+        g.tm_f2 = Parameter(
+            m, name="TM_F2", domain=[r, t, c], description="Demand DDF calibration"
+        )
+        g.tm_annc = Parameter(
+            m,
+            name="TM_ANNC",
+            domain=[Reg, year],
+            description="Estimate of annual energy system cost",
+        )
+        g.tm_gdpgoal = Parameter(
+            m,
+            name="TM_GDPGOAL",
+            domain=[Reg, year],
+            description="Projected Baseline GDP",
+        )
+        g.tm_gdp = Parameter(
+            m,
+            name="TM_GDP",
+            domain=[r, t],
+            description="Actualized gross domestic product",
+        )
+        g.tm_qsfa = Parameter(
+            m,
+            name="TM_QSFA",
+            domain=[Reg, t],
+            description="Quadratic supply function A",
+        )
+        g.tm_qsfb = Parameter(
+            m,
+            name="TM_QSFB",
+            domain=[Reg, t, Com],
+            description="Quadratic supply function B",
+        )
+        g.tm_nwt = Parameter(
+            m, name="TM_NWT", domain=[Reg], description="Negishi weights"
+        )
+        g.tm_nwtit = Parameter(
+            m,
+            name="TM_NWTIT",
+            domain=[g.niter, Reg],
+            description="Negishi weights by iteration",
+        )
+        g.tm_cie = Parameter(
+            m, name="TM_CIE", domain=[r, t, cg], description="Expnditure rate"
+        )
+        g.par_y = Parameter(
+            m, name="PAR_Y", domain=[r, t], description="Production parameter"
+        )
+        g.par_grgdp = Parameter(
+            m, name="PAR_GRGDP", domain=[r, t], description="Growth rate of GDP"
+        )
+        g.par_mc = Parameter(
+            m,
+            name="PAR_MC",
+            domain=[r, year, c],
+            description="Marginal costs of demands",
+        )
+        g.tm_result = Parameter(
+            m,
+            name="TM_RESULT",
+            domain=[Item, r, year],
+            description="MACRO Summary result parameters",
         )

@@ -60,39 +60,99 @@ class InitmtyTm(GamsClass):
             description="Switch for market penetration penalty function",
         )
 
+        r, allyear, p, c, year, t = g.r, g.allyear, g.p, g.c, g.year, g.t
+
         def input_parameters() -> None:
-            self.tc.add_gams_code(
-                module=self,
-                phase=phase,
-                code=r"""
-PARAMETER TM_ARBM /1000/;
-PARAMETER TM_SCALE_UTIL                'Scaling factor utility function'                            /0/;
-PARAMETER TM_SCALE_NRG                 'Scaling factor demand units'                                /0/;
-PARAMETER TM_SCALE_CST                 'Scaling factor cost units'                                  /0/;
-PARAMETER TM_DEPR(R)                   'Depreciation rate'                                          //;
-PARAMETER TM_DMTOL(R)                  'Demand lower bound factor'                                  //;
-PARAMETER TM_ESUB(R)                   'Elasticity of substitution'                                 //;
-PARAMETER TM_GDP0(R)                   'GDP in the first period'                                    //;
-PARAMETER TM_GR(R,ALLYEAR)             'MACRO Projected Annual GDP Growth'                          //;
-PARAMETER TM_IVETOL(R)                 'Investment and enery tolerance'                             //;
-PARAMETER TM_KGDP(R)                   'Initial capital to GDP ratio'                               //;
-PARAMETER TM_KPVS(R)                   'Capital value share'                                        //;
-* PARAMETER TM_QFAC(R)                   'Switch for market penetration penalty function'             //;
-PARAMETER TM_EXPBND(R,ALLYEAR,P)       'Market Penetration Cutoff for Applying Cost Penalty'        //;
-PARAMETER TM_EXPF(R,ALLYEAR)           'Annual percent expansion factor'                            //;
-""",
+            g.tm_arbm = Parameter(m, name="TM_ARBM", records=1000)
+            g.tm_scale_util = Parameter(
+                m,
+                name="TM_SCALE_UTIL",
+                description="Scaling factor utility function",
+                records=0,
+            )
+            g.tm_scale_nrg = Parameter(
+                m,
+                name="TM_SCALE_NRG",
+                description="Scaling factor demand units",
+                records=0,
+            )
+            g.tm_scale_cst = Parameter(
+                m,
+                name="TM_SCALE_CST",
+                description="Scaling factor cost units",
+                records=0,
+            )
+            g.tm_depr = Parameter(
+                m, name="TM_DEPR", domain=[r], description="Depreciation rate"
+            )
+            g.tm_dmtol = Parameter(
+                m, name="TM_DMTOL", domain=[r], description="Demand lower bound factor"
+            )
+            g.tm_esub = Parameter(
+                m, name="TM_ESUB", domain=[r], description="Elasticity of substitution"
+            )
+            g.tm_gdp0 = Parameter(
+                m, name="TM_GDP0", domain=[r], description="GDP in the first period"
+            )
+            g.tm_gr = Parameter(
+                m,
+                name="TM_GR",
+                domain=[r, allyear],
+                description="MACRO Projected Annual GDP Growth",
+            )
+            g.tm_ivetol = Parameter(
+                m,
+                name="TM_IVETOL",
+                domain=[r],
+                description="Investment and enery tolerance",
+            )
+            g.tm_kgdp = Parameter(
+                m,
+                name="TM_KGDP",
+                domain=[r],
+                description="Initial capital to GDP ratio",
+            )
+            g.tm_kpvs = Parameter(
+                m, name="TM_KPVS", domain=[r], description="Capital value share"
+            )
+            # PARAMETER TM_QFAC(R)                   'Switch for market penetration penalty function'             //;
+            g.tm_expbnd = Parameter(
+                m,
+                name="TM_EXPBND",
+                domain=[r, allyear, p],
+                description="Market Penetration Cutoff for Applying Cost Penalty",
+            )
+            g.tm_expf = Parameter(
+                m,
+                name="TM_EXPF",
+                domain=[r, allyear],
+                description="Annual percent expansion factor",
             )
 
         def calibration_parameters() -> None:
-            self.tc.add_gams_code(
-                module=self,
-                phase=phase,
-                code=r"""
-PARAMETER TM_EC0(R)                    'Energy costs in the first period';
-PARAMETER TM_GROWV(R,ALLYEAR)          'Labour growth rate'                                         //;
-PARAMETER TM_DDATPREF(R,C)             'Reference marginal price for demand'                        //;
-PARAMETER TM_DDF(R,ALLYEAR,C)          'Demand decoupling factor'                                   //;
-   """,
+            g.tm_ec0 = Parameter(
+                m,
+                name="TM_EC0",
+                domain=[r],
+                description="Energy costs in the first period",
+            )
+            g.tm_growv = Parameter(
+                m,
+                name="TM_GROWV",
+                domain=[r, allyear],
+                description="Labour growth rate",
+            )
+            g.tm_ddatpref = Parameter(
+                m,
+                name="TM_DDATPREF",
+                domain=[r, c],
+                description="Reference marginal price for demand",
+            )
+            g.tm_ddf = Parameter(
+                m,
+                name="TM_DDF",
+                domain=[r, allyear, c],
+                description="Demand decoupling factor",
             )
 
         def internal_parameters() -> None:
@@ -103,34 +163,111 @@ PARAMETER TM_DDF(R,ALLYEAR,C)          'Demand decoupling factor'               
                 description="Cumulative quadratic capacity penalty level",
             )
 
-            self.tc.add_gams_code(
-                module=self,
-                phase=phase,
-                code=r"""
-PARAMETER TM_PWT(ALLYEAR)              'Period weight';
-PARAMETER TM_AMP(R,ALLYEAR)            'Amortisation of past investments (from CSA only)'           //;
-PARAMETER TM_AKL(R)                    'Production function constant'                               //;
-PARAMETER TM_ASRV(R)                   'Annual capital survival factor'                             //;
-PARAMETER TM_RHO(R)                    'Substitution constant'                                      //;
-PARAMETER TM_B(R,C)                    'Demand coefficient'                                         //;
-PARAMETER TM_D0(R,C)                   'Demand in first period'                                     //;
-PARAMETER TM_L(R,YEAR)                 'Annual labor index'                                         //;
-PARAMETER TM_TSRV(R,YEAR)              'Capital survival factor between two periods'                //;
-PARAMETER TM_AEEIV(R,YEAR,C)           'Annual Autonomous energy efficiency and demand decoupling factor'     //;
-PARAMETER TM_AEEIFAC(R,YEAR,C)         'Periodwise Autonomous energy efficiency and demand decoupling factor' //;
-PARAMETER TM_ADDER(R,T,C)              'Demand decoupling adder'                                    //;
-PARAMETER TM_C0(R)                     'Consume in the first period'                                //;
-PARAMETER TM_K0(R)                     'Capital stock in first period'                              //;
-PARAMETER TM_IV0(R)                    'Investment in the first period'                             //;
-PARAMETER TM_Y0(R)                     'Annual production in first period'                          //;
-PARAMETER TM_DFACT(R,YEAR)             'Utility discount factor'                                    //;
-PARAMETER TM_DFACTCURR(R,YEAR)         'Intermediate parameter for the utility discount factor'     //;
-PARAMETER TM_UDF(R,ALLYEAR)            'Utility discount factor'                                    //;
-PARAMETER TM_CAP(R,P)                  'Base year capacity values for expanding technologies'       //;
-* PARAMETER TM_CAPTB(R,P)                'Cumulative quadratic capacity penalty level'                //;
-PARAMETER TM_CSTINV(R,ALLYEAR,P)       'Annualized investment costs'                                //;
-PARAMETER TM_YCHECK(R)                 'Check'                                                      //;
-                              """,
+            g.tm_pwt = Parameter(
+                m, name="TM_PWT", domain=[allyear], description="Period weight"
+            )
+            g.tm_amp = Parameter(
+                m,
+                name="TM_AMP",
+                domain=[r, allyear],
+                description="Amortisation of past investments (from CSA only)",
+            )
+            g.tm_akl = Parameter(
+                m, name="TM_AKL", domain=[r], description="Production function constant"
+            )
+            g.tm_asrv = Parameter(
+                m,
+                name="TM_ASRV",
+                domain=[r],
+                description="Annual capital survival factor",
+            )
+            g.tm_rho = Parameter(
+                m, name="TM_RHO", domain=[r], description="Substitution constant"
+            )
+            g.tm_b = Parameter(
+                m, name="TM_B", domain=[r, c], description="Demand coefficient"
+            )
+            g.tm_d0 = Parameter(
+                m, name="TM_D0", domain=[r, c], description="Demand in first period"
+            )
+            g.tm_l = Parameter(
+                m, name="TM_L", domain=[r, year], description="Annual labor index"
+            )
+            g.tm_tsrv = Parameter(
+                m,
+                name="TM_TSRV",
+                domain=[r, year],
+                description="Capital survival factor between two periods",
+            )
+            g.tm_aeeiv = Parameter(
+                m,
+                name="TM_AEEIV",
+                domain=[r, year, c],
+                description="Annual Autonomous energy efficiency and demand decoupling factor",
+            )
+            g.tm_aeeifac = Parameter(
+                m,
+                name="TM_AEEIFAC",
+                domain=[r, year, c],
+                description="Periodwise Autonomous energy efficiency and demand decoupling factor",
+            )
+            g.tm_adder = Parameter(
+                m,
+                name="TM_ADDER",
+                domain=[r, t, c],
+                description="Demand decoupling adder",
+            )
+            g.tm_c0 = Parameter(
+                m, name="TM_C0", domain=[r], description="Consume in the first period"
+            )
+            g.tm_k0 = Parameter(
+                m, name="TM_K0", domain=[r], description="Capital stock in first period"
+            )
+            g.tm_iv0 = Parameter(
+                m,
+                name="TM_IV0",
+                domain=[r],
+                description="Investment in the first period",
+            )
+            g.tm_y0 = Parameter(
+                m,
+                name="TM_Y0",
+                domain=[r],
+                description="Annual production in first period",
+            )
+            g.tm_dfact = Parameter(
+                m,
+                name="TM_DFACT",
+                domain=[r, year],
+                description="Utility discount factor",
+            )
+            g.tm_dfactcurr = Parameter(
+                m,
+                name="TM_DFACTCURR",
+                domain=[r, year],
+                description="Intermediate parameter for the utility discount factor",
+            )
+            g.tm_udf = Parameter(
+                m,
+                name="TM_UDF",
+                domain=[r, allyear],
+                description="Utility discount factor",
+            )
+            g.tm_cap = Parameter(
+                m,
+                name="TM_CAP",
+                domain=[r, p],
+                description="Base year capacity values for expanding technologies",
+            )
+            # PARAMETER TM_CAPTB(R,P)                'Cumulative quadratic capacity penalty level'                //;
+            g.tm_cstinv = Parameter(
+                m,
+                name="TM_CSTINV",
+                domain=[r, allyear, p],
+                description="Annualized investment costs",
+            )
+            g.tm_ycheck = Parameter(
+                m, name="TM_YCHECK", domain=[r], description="Check"
             )
 
         input_parameters()

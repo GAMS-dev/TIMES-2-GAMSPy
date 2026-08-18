@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 from gamspy import Alias
 
 from core.base_class import GamsClass
-from core.fillparm_gms import FillparmGms
+from core.fillparm_gms import FillparmGms, FillparmGmsConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -52,26 +52,15 @@ class PrepExtMlf(GamsClass):
             self.tc.enqueue(self.prep_ext_mlf_exec)
         # Interpolate MACRO-specific parameters
         # fmt: off
-        batincludes = [
-            ("TM_EXPBND", "R,", "P",     ",'','','','',''", "DATAYEAR", "T"),
-            ("TM_EXPF",   "R,", "",      ",'','','','',''", "DATAYEAR", "T"),
-            ("TM_VOC",    "R,", "C,,BD", ",'','','',''",    "YEAR",     "T"),
-            ("TM_GR",     "R,", "",      ",'','','','',''", "YEAR",     "T"),
+        batincludes: list[FillparmGmsConfig] = [
+            FillparmGmsConfig(g.tm_expbnd, (g.r,), (g.p,),             ("",) * 5, g.Datayear, g.t),
+            FillparmGmsConfig(g.tm_expf,   (g.r,), (),                 ("",) * 5, g.Datayear, g.t),
+            FillparmGmsConfig(g.tm_voc,    (g.r,), (g.c, g.bd),        ("",) * 4, g.year,     g.t),
+            FillparmGmsConfig(g.tm_gr,     (g.r,), (),                 ("",) * 5, g.year,     g.t),
         ]
         # fmt: on
-        for arg in batincludes:
-            self.include(
-                FillparmGms(
-                    self.tc,
-                    self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
-                    arg5=arg[4],
-                    arg6=arg[5],
-                )
-            )
+        for config in batincludes:
+            self.include(FillparmGms(self.tc, self.env, config))
         self.tc.add_gams_code(
             module=self,
             phase="init",
