@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import pandas as pd
-from gamspy import Alias, Expression, Number, Set, Sum
+from gamspy import Alias, Domain, Expression, Number, Set, Sum
 from gamspy._algebra.condition import Condition
 from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
 from gamspy.math import MathOp
@@ -284,8 +284,12 @@ class EnvironmentVariableSchema(BaseModel):
     swsw: str = Field(
         description="Nested operational matrix state control flag identifier."
     )
-    swsw_GP: tuple[Set | Alias | ImplicitSet, ...] | tuple[()] = Field(
-        description="Nested operational matrix state control flag identifier."
+    swsw_GP: (
+        tuple[Set | Alias | ImplicitSet, ...]
+        | tuple[ImplicitSet, ImplicitParameter]
+        | tuple[()]
+    ) = Field(
+        description="Nested operational matrix state control flag identifier. The second entry, when given, weights the summand with the state probability."
     )
     swtd: str = Field(
         description="Time-step differentiation switch expression string mapped to parameters."
@@ -312,6 +316,11 @@ class EnvironmentVariableSchema(BaseModel):
     tpulse: str = Field(
         description="Pulse duration coefficient parameter mapping load peak curves."
     )
+    tpulse_GP: tuple[Condition | Domain, Expression | ImplicitParameter | Number] = (
+        Field(
+            description="tpulse is always a tuple with format <(sum domain, multiplier of the summand)>."
+        )
+    )
     capwd: str = Field(
         description="Capacity width adjustment parameter string mapping operating lifetimes."
     )
@@ -324,14 +333,8 @@ class EnvironmentVariableSchema(BaseModel):
     sow_GP: tuple[Literal["0", "1"] | Set | Alias] | tuple[()] = Field(
         description="Stochastic World (Scenario State) active indexing identifier token."
     )
-    sowend: str = Field(
-        description="Terminal slice identifier token for Stochastic World trees."
-    )
     sowtmp: str = Field(
         description="Temporary scenario tracking storage token utilized in nested loop blocks."
-    )
-    sowstart: str = Field(
-        description="Initial node identifier token for stochastic branch optimization structures."
     )
     sowtmpend: str = Field(
         description="Terminal scenario tracking validation token used within multi-stage loops."
@@ -363,11 +366,10 @@ class EnvironmentVariableSchema(BaseModel):
     vart: str = Field(
         description="Temporal indexing mapping string tracking current variable periods."
     )
-    vart_GP: tuple[str, ImplicitSet | None] = Field(
-        description="vart is always a tuple with format <(variable prefix, set identifier for sum statement)>."
-    )
-    vart1: str = Field(
-        description="First shift temporal index mapping string tracking period boundaries."
+    vart_GP: tuple[str, ImplicitSet | None] | tuple[ImplicitSet, ImplicitParameter] = (
+        Field(
+            description="vart is always a tuple with format <(variable prefix, set identifier for sum statement)>. A third entry weights the summand with the state probability."
+        )
     )
     vartt: str = Field(
         description="Nested temporal index mapping string tracking cumulative variable horizons."

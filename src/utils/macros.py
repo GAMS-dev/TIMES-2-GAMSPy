@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 from gamspy import Sum
 from gamspy.math import Max, power, sqrt
@@ -11,7 +11,7 @@ from gamspy.math import Max, power, sqrt
 from core.utils import SET_OR_ALIAS
 
 if TYPE_CHECKING:
-    from gamspy import Expression, Number
+    from gamspy import Equation, Expression, Number, Variable
     from gamspy._algebra.expression import ShiftExpression
     from gamspy._symbols.implicits import (
         ImplicitParameter,
@@ -162,6 +162,95 @@ class UpscapsContext:
             raise NotImplementedError
 
 
+@dataclass
+class RecurrinSymbol:
+    name: str
+    symbol: Equation | Variable
+
+    def __getitem__(self, indices: Any) -> Any:
+        keys = list(indices) if isinstance(indices, tuple) else [indices]
+        dimension = sum(getattr(key, "dimension", 1) for key in keys)
+        if dimension != self.symbol.dimension or (
+            keys and getattr(keys[-1], "dimension", 1) != 1
+        ):
+            raise ValueError(
+                f"$macro {self.name} expands to {self.symbol.name}, which needs "
+                f"{self.symbol.dimension} indices ending on the state, got: {keys}"
+            )
+        return self.symbol[(*keys[:-1], "1")]
+
+    def __getattr__(self, item: str) -> Any:
+        raise NotImplementedError(
+            f"$macro {self.name} is only translated for indexing, not for '.{item}'"
+        )
+
+
+@dataclass
+class RecurrinContext:
+    active: bool = False
+    solveda: bool = False
+
+    prefixes: ClassVar[dict[str, str]] = {"Q": "ES", "Z": "VAS"}
+    pinned_variables: ClassVar[frozenset[str]] = frozenset(
+        {"CAP", "NCAP", "RCAP", "SCAP", "SNCAP", "XCAP"}
+    )
+    pinned_solveda_variables: ClassVar[frozenset[str]] = frozenset(
+        {"CUMCOM", "CUMFLO", "CUMCST"}
+    )
+    pinned_solveda_equations: ClassVar[frozenset[str]] = frozenset(
+        {
+            "BNDCST",
+            "CUMNET",
+            "CUMPRD",
+            "CUMFLO",
+            "E_UC",
+            "E_UCR",
+            "E_UCSU",
+            "E_UCSUS",
+            "E_UCRSU",
+            "E_UCRSUS",
+            "L_SCAP",
+        }
+    )
+
+    def activate(self, g: TimesModelClass, solveda: bool) -> None:
+        self.g = g
+        self.active = True
+        self.solveda = solveda
+
+    def deactivate(self) -> None:
+        self.active = False
+        self.solveda = False
+
+    def equation_GP(self, name: str) -> Any:
+        """%EQ%_xxx of a SPINES run, i.e. the ES_xxx equation the Q_xxx $macro aliases."""
+        pinned = self.pinned_solveda_equations if self.solveda else frozenset()
+        return self._expand(name, pinned, is_equation=True)
+
+    def variable_GP(self, name: str) -> Any:
+        """%VAR%_xxx of a SPINES run, i.e. the VAS_xxx variable the Z_xxx $macro aliases."""
+        pinned = self.pinned_variables
+        if self.solveda:
+            pinned = pinned | self.pinned_solveda_variables
+        return self._expand(name, pinned, is_equation=False)
+
+    def _expand(self, name: str, pinned: frozenset[str], is_equation: bool) -> Any:
+        name = name.upper()
+        alias = self.prefixes.get(name[:1]) if self.active else None
+        if alias is None:
+            # not a macro of recurrin.stc, so report the symbol as the getters would
+            raise AttributeError(f"'TimesModelClass' object has no attribute '{name}'")
+        aliased = f"{alias}{name[1:]}"
+        symbol = (
+            self.g.get_equation(aliased)
+            if is_equation
+            else self.g.get_variable(aliased)
+        )
+        if name[1:].lstrip("_") not in pinned:
+            return symbol
+        return RecurrinSymbol(name=name, symbol=symbol)
+
+
 class Macros:
     def __init__(self) -> None:
         self._g: TimesModelClass
@@ -169,6 +258,7 @@ class Macros:
         self.var_sift = VarSiftContext()
         self.var_sts = VarStsContext()
         self.upscaps = UpscapsContext()
+        self.recurrin = RecurrinContext()
 
     # ICOST
     @property
