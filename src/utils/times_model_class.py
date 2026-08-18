@@ -61,6 +61,8 @@ class TimesModelClass:
     rts: Alias = None  # type: ignore[assignment] # [*] RTS
     phantom: Set = None  # type: ignore[assignment] # [*] PHANTOM:
     item: UniverseAlias = None  # type: ignore[assignment] # [*] ITEM: Aliased with *
+    Item: Set = None  # type: ignore[assignment] # [*] ITEM
+    Clvt: Set = None  # type: ignore[assignment] # [*] CLVT
     bohyear: Set = None  # type: ignore[assignment] # [*] BOHYEAR: BOH + years
     allyear: Set = None  # type: ignore[assignment] # [*] ALLYEAR: All Years
     yearval: Parameter = None  # type: ignore[assignment] # [allyear] YEARVAL: Value of each year
@@ -151,6 +153,55 @@ class TimesModelClass:
     g_iledno: Parameter = None  # type: ignore[assignment] # G_ILEDNO: 1/threshold at which to ignore ILED
     g_tlife: Parameter = None  # type: ignore[assignment] #  G_TLIFE: Default technology life if not provided
     g_vint: Parameter = None  # type: ignore[assignment] #  G_VINT: % annual change in input data for vintaging
+
+    bs_capact: Parameter = None  # type: ignore[assignment] # [r] BS_CAPACT: Conversion factor from exogenous reserve demand to activity
+    bs_rtype: Parameter = None  # type: ignore[assignment] # [r,c] BS_RTYPE: Types of reserve commodities, positive or negative 1-4
+    bs_demdet: Parameter = None  # type: ignore[assignment] # [r, year, rsp, c, s] BS_DEMDET: Deterministic demands of reserves - EXOGEN and WMAXSI
+    bs_stime: Parameter = None  # type: ignore[assignment] # [r, p, Com, bd] BS_STIME: Minimum times for reserve provision from storage (hours)
+    bs_detwt: Parameter = None  # type: ignore[assignment] # [r, year, c] BS_DETWT: Weights for deterministic reserve demands
+    bs_lambda: Parameter = None  # type: ignore[assignment] # [r, year, c] BS_LAMBDA: Fudge factors for dependencies in reserve requirements
+    bs_sigma: Parameter = None  # type: ignore[assignment] # [r, year, c, Item, s] BS_SIGMA: Standard deviation of imbalance source ITEM
+    bs_omega: Parameter = None  # type: ignore[assignment] # [Reg, year, Com, ts] BS_OMEGA: Indicator of how to define reserve demand from deterministic and probabilistic component
+    bs_maint: Parameter = None  # type: ignore[assignment] # [r, year, p, s] BS_MAINT: Continuous maintenance duration (hours)
+    bs_rmax: Parameter = None  # type: ignore[assignment] # [r, year, p, c, s] BS_RMAX: Maximum contribution of process p to provision of reserve c as a fraction of capacity
+    bs_delta: Parameter = None  # type: ignore[assignment] # [r, year, c, s] BS_DELTA: Calibration parameters for probabilistic reserve demands
+    bs_share: Parameter = None  # type: ignore[assignment] # [r, year, c, Item, lA] BS_SHARE: Share of group reserve provision
+    bs_bndprs: Parameter = None  # type: ignore[assignment] # [r, year, p, c, s, lA] BS_BNDPRS: Bound on process reserve provision
+
+    flo_mrkcon: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc, Com, ts, bd] FLO_MRKCON: Bound on the share of a flow in the total consumption of a commmodity
+    flo_mrkprd: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc, Com, ts, bd] FLO_MRKPRD: Bound on the share of a flow in the total production of a commmodity
+
+    EctChp: Set = None  # type: ignore[assignment]   # [Reg, prc] ECT_CHP: Set of extraction condensing CHP plants
+    EctElc: Set = None  # type: ignore[assignment]   # [Reg, prc, Com] ECT_ELC: Electricity commodity of extraction condensing CHP plants
+    EctDht: Set = None  # type: ignore[assignment]   # [Reg, prc, Com] ECT_DHT: Heat commodity of extraction condensing CHP plants
+    EctCgout: Set = None  # type: ignore[assignment] # [Reg, prc, comgrp] ECT_CGOUT: Output commodity group ELC+HEAT of ECT CHP plant
+    EctCgin: Set = None  # type: ignore[assignment] # [Reg, prc, comgrp] ECT_CGIN: Fuel input commodity group of ECT CHP plant
+
+    ect_inp2elc: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc] ECT_INP2ELC: Conversion factor from input capacity to ELC capacity in BPT point
+    ect_inp2dht: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc] ECT_INP2DHT: Conversion factor from input capacity to heat capacity in BPT point
+    ect_inp2con: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc] ECT_INP2CON: Conversion factor from input capacity to heat capacity in BPT point
+    ect_reh: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc] ECT_REH: Ratio of electricity to heat in brackpressure point
+    ect_afcon: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc, bd] ECT_AFCON: Availability of condensing mode operation of extraction condensing CHP
+    ect_afbpt: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc, bd] ECT_AFBPT: Availability of backpressure mode operation of extraction condensing CHP
+
+    BsK: Set = None  # type: ignore[assignment] # [Item] BS_K: Sources of imbalance or provision
+    BsRtk: Set = None  # type: ignore[assignment] # [r, t, Item] BS_RTK: Sources of imbalances by period
+    BsComts: Set = None  # type: ignore[assignment] # [r, c, s] BS_COMTS: Reserve commodity timeslices
+    BsApos: Set = None  # type: ignore[assignment] # [r, c] BS_APOS: Positive reserve commodities
+    BsAneg: Set = None  # type: ignore[assignment] # [r, c] BS_ANEG: Negative reserve commodities
+    BsAbd: Set = None  # type: ignore[assignment] # [r, c, lA] BS_ABD: Reserve commodities by direction
+    BsBsc: Set = None  # type: ignore[assignment] # [r, p, c] BS_BSC: Reserve provisions by process
+    BsUpl: Set = None  # type: ignore[assignment] # [r, p, lA] BS_UPL: Maximum ramping rate indicator
+    BsUpc: Set = None  # type: ignore[assignment] # [r, p, tsl, lA] BS_UPC: Minimum uptime/downtime indicator
+    BsTop: Set = None  # type: ignore[assignment] # [r, p, c, io] BS_TOP: Topology for imbalance process
+    BsEndp: Set = None  # type: ignore[assignment] # [r, p] BS_ENDP: Reserve providion by demand
+    BsSupp: Set = None  # type: ignore[assignment] # [r, p] BS_SUPP: Reserve provision by generation
+    BsStgp: Set = None  # type: ignore[assignment] # [r, p] BS_STGP: Reserve provision by storage
+    BsNegp: Set = None  # type: ignore[assignment] # [r, p] BS_NEGP: Processes with negative provision
+    BsPrs: Set = None  # type: ignore[assignment] # [r, p, s] BS_PRS: Process slices for reserve tracking
+    BsSbd: Set = None  # type: ignore[assignment] # [r, s, lA] BS_SBD: Timeslices for reserve provision
+    BsUcmap: Set = None  # type: ignore[assignment] # [ucnA, side, r, p, c] BS_UCMAP: Map to refer to reserves in UC_FLO
+    bs_rtcs: Parameter = None  # type: ignore[assignment] # [rsp, r, year, c, s] BS_RTCS: Temporary work parameter
 
     g_nointerp: Parameter = None  # type: ignore[assignment] # G_NOINTERP: Turn off interplation
     g_cycle: Parameter = None  # type: ignore[assignment]   # [tslvl] G_CYCLE: Number of cycles in average year
@@ -352,8 +403,6 @@ class TimesModelClass:
     com_pkrsv: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com] COM_PKRSV: Peaking reserve margin
     com_pkflx: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,ts] COM_PKFLX: Peaking flux ratio
     flo_pkcoi: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com,allts] FLO_PKCOI: Factor increasing the average demand
-    flo_mrkprd: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com,ts,bd] FLO_MRKPRD: Bound on the share of a flow in the total production of a commmodity
-    flo_mrkcon: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,Com,ts,bd] FLO_MRKCON: Bound on the share of a flow in the total consumption of a commmodity
     stg_eff: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] STG_EFF: Storage efficiency
     stg_loss: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,s] STG_LOSS: Annual energy loss from a storage technology
     stg_chrg: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc,s] STG_CHRG: Exogeneous charging of a storage technology
@@ -604,6 +653,7 @@ class TimesModelClass:
     RpcCumflo: Set = None  # type: ignore[assignment] # [Reg,prc,Com,allyear,allyear] RPC_CUMFLO: Cumulative process flows
     RsBelow: Set = None  # type: ignore[assignment] # [allreg,ts,ts] RS_BELOW: Timeslices stictly below a node
     RsBelow1: Set = None  # type: ignore[assignment] # [allreg,ts,ts] RS_BELOW1: Timeslices strictly one level below
+    Rsp: Set = None  # type: ignore[assignment] # [*] RSP:
     RsTree: Set = None  # type: ignore[assignment] # [allreg,ts,ts] RS_TREE: Timeslice subtree
     RsPrev: Set = None  # type: ignore[assignment] # [r,s,s] RS_PREV: Previous timeslice in parent cycle
     Finest: Set = None  # type: ignore[assignment] # [r,allts] FINEST: Set of the finest timeslices in use
@@ -1484,6 +1534,7 @@ class TimesModelClass:
     par_eout: Parameter = None  # type: ignore[assignment] # [r,allyear,t,p,c] PAR_EOUT:
     spar_eout: Parameter = None  # type: ignore[assignment] # [r,allyear,t,p,c] PAR_EOUT:
     niter: Set = None  # type: ignore[assignment] # NITER:
+    TmPp: Set = None  # type: ignore[assignment] # TM_PP:
     miter: Set = None  # type: ignore[assignment] # MITER:
     Tb: Set = None  # type: ignore[assignment] # [t] TB:
     Pp: Set = None  # type: ignore[assignment] # [t] PP:
@@ -1493,6 +1544,9 @@ class TimesModelClass:
     tm_scale_cst: Parameter = None  # type: ignore[assignment] # TM_SCALE_CST:
     tm_scale_nrg: Parameter = None  # type: ignore[assignment] # TM_SCALE_NRG:
     tm_scale_util: Parameter = None  # type: ignore[assignment] # TM_SCALE_UTIL:
+    tm_desub: Parameter = None  # type: ignore[assignment] # [r] TM_DESUB: Elasticity of substitution between demands
+    tm_step: Parameter = None  # type: ignore[assignment] # [r, cg, lim] TM_STEP: Steps in CES substitution
+    tm_voc: Parameter = None  # type: ignore[assignment] # [r, year, cg, bd] TM_VOC: Variance in CES component or utility
     tm_defval: Parameter = None  # type: ignore[assignment] # [*] TM_DEFVAL:
     Mr: Set = None  # type: ignore[assignment] # [REG] MR:
     Dm: Set = None  # type: ignore[assignment] # [COM] DM:
@@ -1524,6 +1578,8 @@ class TimesModelClass:
     tm_asrv: Parameter = None  # type: ignore[assignment] # [R] TM_ASRV(R) annual capital survival factor
     tm_tsrv: Parameter = None  # type: ignore[assignment] # [R,T] TM_TSRV(R,T) yearly capital survival factor
     tm_akl: Parameter = None  # type: ignore[assignment] # [REG] TM_AKL(REG) prod function constant for k-l index
+    tm_expbnd: Parameter = None  # type: ignore[assignment] # [r, allyear,p] TM_EXPBND: Market Penetration Cutoff for Applying Cost Penalty
+    tm_expf: Parameter = None  # type: ignore[assignment] # [r, allyear] TM_EXPF: Annual percent expansion factor
 
     # From src/core/initmty_etl.py
     Teg: Set = None  # type: ignore[assignment] # [PRC] TEG(PRC)
@@ -1567,6 +1623,7 @@ class TimesModelClass:
     # --- Intermediate Parameters for MACRO--2 ---
     tm_aeeiv: Parameter = None  # type: ignore[assignment] # [R,YEAR,C] TM_AEEIV Annual AEEI and demand decoupling factor
     tm_aeeifac: Parameter = None  # type: ignore[assignment] # [R,LL,C] TM_AEEIFAC Periodwise AEEI and demand decoupling factor
+    tm_adder: Parameter = None  # type: ignore[assignment] # [r, t, c] TM_ADDER: Demand decoupling adder
     tm_b: Parameter = None  # type: ignore[assignment] # [REG,COM] TM_B Prod function constant for demand of useful energy
     tm_d0: Parameter = None  # type: ignore[assignment] # [REG,COM] TM_D0 Base year useful demand - from TIMES
     tm_dfactcurr: Parameter = None  # type: ignore[assignment] # [R,LL] TM_DFACTCURR Current annual utility discount factor
@@ -1581,8 +1638,10 @@ class TimesModelClass:
     tm_qsfb: Parameter = None  # type: ignore[assignment] # [REG,TP,COM] TM_QSFB Quadratic supply function B
     tm_catt: Parameter = None  # type: ignore[assignment] # [R] TM_CATT Catastrophic temperature
     tm_udf: Parameter = None  # type: ignore[assignment] # [R,ALLYEAR] TM_UDF Utility discount factor
+    tm_cap: Parameter = None  # type: ignore[assignment] # [r, p] Base year capacity values for expanding technologies
     tm_nwt: Parameter = None  # type: ignore[assignment] # [REG] TM_NWT Negishi weights
     tm_nwtit: Parameter = None  # type: ignore[assignment] # [NITER,REG] TM_NWTIT Negishi weights by iteration
+    tm_cie: Parameter = None  # type: ignore[assignment] # [niter, reg] TM_CIE: Expnditure rate
     tm_pvpi: Parameter = None  # type: ignore[assignment] # [ITEM,TP] TM_PVPI Present value prices of tradeables
     par_y: Parameter = None  # type: ignore[assignment] # [R,T] PAR_Y Production parameter
     par_iv: Parameter = None  # type: ignore[assignment] # [R,YEAR] PAR_IV Investment parameter
@@ -1592,6 +1651,7 @@ class TimesModelClass:
     tm_ddf_dm: Parameter = None  # type: ignore[assignment] # [R,T,C] TM_DDF_DM
     tm_ddf_sp: Parameter = None  # type: ignore[assignment] # [R,T,C] TM_DDF_SP
     tm_f2: Parameter = None  # type: ignore[assignment] # [R,T,C] TM_F2
+    tm_cstinv: Parameter = None  # type: ignore[assignment] # [r, allyear, p] TM_CSTINV Annualized investment costs
     tm_ycheck: Parameter = None  # type: ignore[assignment] # [R] TM_YCHECK
     tm_dd: Parameter = None  # type: ignore[assignment] # [R,C,T] TM_DD Demand ratio MSA estimates to TED demand levels
     tm_gdp: Parameter = None  # type: ignore[assignment] # [REG,YEAR] TM_GDP Actualized gross domestic product
@@ -1783,17 +1843,6 @@ class TimesModelClass:
     rcs_ssfr: Parameter = None  # type: ignore[assignment] # RCS_SSFR
     Rcgrid: Set = None  # type: ignore[assignment] # [r, t, c] RC_GRID:
     obj_combal: Parameter = None  # type: ignore[assignment] # [r, t, c, s, item, cur] OBJ_COMBAL:
-    EctChp: Set = None  # type: ignore[assignment] # [Reg, prc] ECT_CHP: Set of extraction condensing CHP plants
-    EctElc: Set = None  # type: ignore[assignment] # [Reg, prc, Com] ECT_ELC: Electricity commodity of extraction condensing CHP plants
-    EctDht: Set = None  # type: ignore[assignment] # [Reg, prc, Com] ECT_DHT: Heat commodity of extraction condensing CHP plants
-    EctCgout: Set = None  # type: ignore[assignment] # [Reg, prc, comgrp] ECT_CGOUT: Output commodity group ELC+HEAT of ECT CHP plant
-    EctCgin: Set = None  # type: ignore[assignment] # [Reg, prc, comgrp] ECT_CGIN: Fuel input commodity group of ECT CHP plant
-    ect_inp2elc: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc] ECT_INP2ELC: Conversion factor from input capacity to ELC capacity in BPT point
-    ect_inp2dht: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc] ECT_INP2DHT: Conversion factor from input capacity to heat capacity in BPT point
-    ect_inp2con: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc] ECT_INP2CON: Conversion factor from input capacity to heat capacity in BPT point
-    ect_reh: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc] ECT_REH: Ratio of electricity to heat in brackpressure point
-    ect_afcon: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc, bd] ECT_AFCON: Availability of condensing mode operation of extraction condensing CHP
-    ect_afbpt: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc, bd] ECT_AFBPT: Availability of backpressure mode operation of extraction condensing CHP
     eql_chpcon: Equation = None  # type: ignore[assignment] # [r, year, year, p, allsow] EQL_CHPCON: Condensing capacity constraint (=L=)
     eql_chpbpt: Equation = None  # type: ignore[assignment] # [r, year, year, p, allsow] EQL_CHPBPT: Backpressure capacity constraint (=L=)
     eqe_chpcon: Equation = None  # type: ignore[assignment] # [r, year, year, p, allsow] EQE_CHPCON: Condensing capacity constraint (=E=)
@@ -1821,16 +1870,10 @@ class TimesModelClass:
     # endregion
 
     # region ABS extension (initmty.abs ancillary balancing services)
-    bs_rtype: Parameter = None  # type: ignore[assignment] # [r,c] BS_RTYPE: Types of reserve commodities, positive or negative 1-4
-    BsComts: Set = None  # type: ignore[assignment] # [r,c,s] BS_COMTS: Reserve commodity timeslices
-    BsSupp: Set = None  # type: ignore[assignment] # [r,p] BS_SUPP: Reserve provision by generation
-    BsPrs: Set = None  # type: ignore[assignment] # [r,p,s] BS_PRS: Process slices for reserve tracking
-    BsUcmap: Set = None  # type: ignore[assignment] # [ucn,side,r,p,c] BS_UCMAP: Map to refer to reserves in UC_FLO
     VAR_DRCAP: Variable = None  # type: ignore[assignment]  # [R, ALLYEAR, LL, P, *SWD, J] VAR_DRCAP
     VAS_DRCAP: Variable = None  # type: ignore[assignment]  # [R, ALLYEAR, LL, P, *SWD, J] VAS_DRCAP
     eq_dscret: Equation = None  # type: ignore[assignment]  # [R, ALLYEAR, ALLYEAR, P, *SWTD] EQ_DSCRET
     es_dscret: Equation = None  # type: ignore[assignment]  # [R, ALLYEAR, ALLYEAR, P, *SWTD] ES_DSCRET
-
     # endregion
 
     def __post_init__(self) -> None:

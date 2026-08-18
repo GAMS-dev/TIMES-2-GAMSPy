@@ -13,8 +13,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Number
+
 from core.base_class import GamsClass
-from core.fillparm_gms import FillparmGms
+from core.fillparm_gms import FillparmGms, FillparmGmsConfig
 from core.pp_chp_ier import PpChpIer
 
 if TYPE_CHECKING:
@@ -44,42 +46,31 @@ class PrepExtIer(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        batincludes = [
+        g = self.tc
+        batincludes: list[FillparmGmsConfig] = [
             # ("FLO_MRKCON", "R", "P,C,TS,BD", ",'0','0'",         "MODLYEAR", "RTP(R,MODLYEAR,P)", "GE 0"),
             # ("FLO_MRKPRD", "R", "P,C,TS,BD", ",'0','0'",         "MODLYEAR", "RTP(R,MODLYEAR,P)", "GE 0"),
-            (
-                "ECT_AFCON",
-                "R",
-                "P,BD",
-                ",'0','0','0','0'",
-                "MODLYEAR",
-                "RTP(R,MODLYEAR,P)",
-                "GE 0",
+            FillparmGmsConfig(
+                g.ect_afcon,
+                (g.r,),
+                (g.p, g.bd),
+                ("0",) * 4,
+                g.Modlyear,
+                g.Rtp[g.r, g.Modlyear, g.p],
+                Number(0),
             ),
-            (
-                "ECT_AFBPT",
-                "R",
-                "P,BD",
-                ",'0','0','0','0'",
-                "MODLYEAR",
-                "RTP(R,MODLYEAR,P)",
-                "GE 0",
+            FillparmGmsConfig(
+                g.ect_afbpt,
+                (g.r,),
+                (g.p, g.bd),
+                ("0",) * 4,
+                g.Modlyear,
+                g.Rtp[g.r, g.Modlyear, g.p],
+                Number(0),
             ),
         ]
-        for arg in batincludes:
-            self.include(
-                FillparmGms(
-                    self.tc,
-                    self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
-                    arg5=arg[4],
-                    arg6=arg[5],
-                    arg7=arg[6],
-                )
-            )
+        for config in batincludes:
+            self.include(FillparmGms(self.tc, self.env, config))
         # *-----------------------------------------------------------------------------
         # * Convert capacity related data for extraction condensing turbines
         # * from electricity commodity to input commodity grooup

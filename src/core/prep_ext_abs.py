@@ -13,8 +13,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Number
+
 from core.base_class import GamsClass
-from core.fillparm_gms import FillparmGms
+from core.fillparm_gms import FillparmGms, FillparmGmsConfig
+from core.prepparm_gms import PrepparmGms, PrepparmGmsConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -43,33 +46,37 @@ class PrepExtAbs(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
         self.tc.enqueue(self.add_reserve_commodities)
         # fmt: off
-        batincludes = [
-            ("BS_LAMBDA", "R",     "C",         ",'0','0','0','0','0'", "T", "YES",        ">=0"),
-            ("BS_DETWT",  "R",     "C",         ",'0','0','0','0','0'", "T", "YES",        ">=0"),
-            ("BS_SIGMA",  "R",     "C,BS_K,S",  ",'0','0','0'",         "T", "YES",        ">=0"),
-            ("BS_SHARE",  "R",     "C,BS_K,BD", ",'0','0','0'",         "T", "YES",        ">=0"),
-            ("BS_RTCS",   "RSP,R", "C,S",       ",'0','0','0'",         "T", "YES",        ">=0"),
-            ("BS_MAINT",  "R",     "P,S",       ",'0','0','0','0'",     "V", "RTP(R,V,P)", ">=0"),
-            ("BS_RMAX",   "R",     "P,C,S",     ",'0','0','0'",         "V", "RTP(R,V,P)", ">=0"),
-            ("BS_BNDPRS", "R",     "P,C,S,BD",  ",'0'",                 "T", "RTP(R,T,P)", "1"),
+        batincludes: list[FillparmGmsConfig] = [
+            FillparmGmsConfig(arg1=g.bs_lambda, arg2=(g.r,),      arg3=(g.c,),              arg4=("0",) * 5, arg5=g.t, arg6=Number(1),            arg7=Number(0)),
+            FillparmGmsConfig(arg1=g.bs_detwt,  arg2=(g.r,),      arg3=(g.c,),              arg4=("0",) * 5, arg5=g.t, arg6=Number(1),            arg7=Number(0)),
+            FillparmGmsConfig(arg1=g.bs_sigma,  arg2=(g.r,),      arg3=(g.c,g.BsK,g.s),     arg4=("0",) * 3, arg5=g.t, arg6=Number(1),            arg7=Number(0)),
+            FillparmGmsConfig(arg1=g.bs_share,  arg2=(g.r,),      arg3=(g.c,g.BsK,g.bd),    arg4=("0",) * 3, arg5=g.t, arg6=Number(1),            arg7=Number(0)),
+            FillparmGmsConfig(arg1=g.bs_rtcs,   arg2=(g.Rsp,g.r), arg3=(g.c,g.s),           arg4=("0",) * 3, arg5=g.t, arg6=Number(1),            arg7=Number(0)),
+            FillparmGmsConfig(arg1=g.bs_maint,  arg2=(g.r,),      arg3=(g.p,g.s),           arg4=("0",) * 4, arg5=g.v, arg6=g.Rtp[g.r, g.v, g.p], arg7=Number(0)),
+            FillparmGmsConfig(arg1=g.bs_rmax,   arg2=(g.r,),      arg3=(g.p,g.c,g.s),       arg4=("0",) * 3, arg5=g.v, arg6=g.Rtp[g.r, g.v, g.p], arg7=Number(0)),
         ]
         # fmt: on
-        for arg in batincludes:
-            self.include(
-                FillparmGms(
-                    self.tc,
-                    self.env,
-                    arg1=arg[0],
-                    arg2=arg[1],
-                    arg3=arg[2],
-                    arg4=arg[3],
-                    arg5=arg[4],
-                    arg6=arg[5],
-                    arg7=arg[6],
-                )
+        for config in batincludes:
+            self.include(FillparmGms(self.tc, self.env, config))
+
+        self.include(
+            PrepparmGms(
+                self.tc,
+                self.env,
+                PrepparmGmsConfig(
+                    arg1="BS_BNDPRS",
+                    arg2=(g.r,),
+                    arg3=(g.p, g.c, g.s, g.bd),
+                    arg4=("0",) * 1,
+                    arg5=g.t,
+                    arg6=g.Rtp[g.r, g.t, g.p],
+                    arg7=1,
+                ),
             )
+        )
         self.tc.enqueue(self.intermediate_qa_clean_up)
 
     def add_reserve_commodities(self: PrepExtAbs) -> None:

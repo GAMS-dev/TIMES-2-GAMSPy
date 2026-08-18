@@ -17,7 +17,7 @@ from gamspy.math import project
 
 from core.base_class import GamsClass
 from core.curex_gms import CurexGms, CurexGmsConfig
-from core.fillparm_gms import FillparmGms
+from core.fillparm_gms import FillparmGms, FillparmGmsConfig
 from core.fillvint_gms import FillvintGms, FillvintGmsConfig
 from core.filparam_gms import FilparamGms, FilparamGmsConfig
 from core.main_ext_mod import include_extension
@@ -221,72 +221,57 @@ class PreppmMod(GamsClass):
         # ***** REGULAR NON-COST PARAMETERS: Interpolated over DM_YEAR by default ******
 
         # fmt: off
-        batincludes2: list[tuple[str, str, str, str, str, str, str, str, str, str, str]] = [
+        batincludes2: list[FillparmGmsConfig] = [
             # *-----------------------------------------------------------------------------
             # * Capacity related attributes
             # *-----------------------------------------------------------------------------
-            ("fillparm", "NCAP_AF", "R", "P,TS,BD", ",'0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RPSB", "", ""),
-            ("fillparm", "NCAP_AFA", "R", "P,BD", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RPB", "", ""),
-            ("fillparm", "NCAP_AFS", "R", "P,TS,BD", ",'0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RPSB", "", ""),
-            ("fillparm", "NCAP_BPME", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
-            ("fillparm", "NCAP_CDME", "R", "P", ",'0','0','0','0','0'", "V", "RVP(R,V,P)", "GE 0", "", "", ""),
-            ("fillparm", "NCAP_CEH", "R", "P", ",'0','0','0','0','0'", "V", "RVP(R,V,P)", "GE 0", "X_RP", "", ""),
-            ("fillparm", "NCAP_CHPR", "R", "P,BD", ",'0','0','0','0'", "V", "RVP(R,V,P)", "GE 0", "X_RPB", "", ""),
-            ("fillparm", "NCAP_CLED", "R", "P,C", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
-            ("fillparm", "NCAP_CLAG", "R", "P,C,IO", ",'0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
-            ("fillparm", "NCAP_COM", "R", "P,C,IO", ",'0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
-            ("fillparm", "NCAP_DELIF", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", "", ""),
-            ("fillparm", "NCAP_DLAG", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", "", ""),
-            ("fillparm", "NCAP_DLIFE", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", "", ""),
-            ("fillparm", "NCAP_DRATE", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", "", ""),
-            ("fillparm", "NCAP_FDR", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", "", ""),
-            ("fillparm", "NCAP_ELIFE", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", "", ""),
-            ("fillparm", "NCAP_ICOM", "R", "P,C", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
-            ("fillparm", "NCAP_ILED", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", "", ""),
-            ("fillparm", "NCAP_OCOM", "R", "P,C", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
-            ("fillparm", "NCAP_PKCNT", "R", "P,TS", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
-            ("fillparm", "NCAP_TLIFE", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RP", "", ""),
+            FillparmGmsConfig(g.ncap_af,    (g.r,), (g.p,g.ts,g.bd), ("0",) * 3, g.v, g.Rtp[g.r, g.v, g.p], Number(0), "X_RPSB"),
+            FillparmGmsConfig(g.ncap_afa,   (g.r,), (g.p,g.bd),      ("0",) * 4, g.v, g.Rtp[g.r, g.v, g.p], Number(0), "X_RPB",),
+            FillparmGmsConfig(g.ncap_afs,   (g.r,), (g.p,g.ts,g.bd), ("0",) * 3, g.v, g.Rtp[g.r, g.v, g.p], Number(0), "X_RPSB"),
+            FillparmGmsConfig(g.ncap_bpme,  (g.r,), (g.p,),          ("0",) * 5, g.v, g.Rtp[g.r, g.v, g.p], Number(0), "",     ),
+            FillparmGmsConfig(g.ncap_cdme,  (g.r,), (g.p,),          ("0",) * 5, g.v, g.Rvp[g.r, g.v, g.p], Number(0), "",     ),
+            FillparmGmsConfig(g.ncap_ceh,   (g.r,), (g.p,),          ("0",) * 5, g.v, g.Rvp[g.r, g.v, g.p], Number(0), "X_RP", ),
+            FillparmGmsConfig(g.ncap_chpr,  (g.r,), (g.p,g.bd),      ("0",) * 4, g.v, g.Rvp[g.r, g.v, g.p], Number(0), "X_RPB",),
+            FillparmGmsConfig(g.ncap_cled,  (g.r,), (g.p,g.c),       ("0",) * 4, g.v, g.Rtp[g.r, g.v, g.p], Number(0), "",     ),
+            FillparmGmsConfig(g.ncap_clag,  (g.r,), (g.p,g.c,g.io),  ("0",) * 3, g.v, g.Rtp[g.r, g.v, g.p], Number(0), "",     ),
+            FillparmGmsConfig(g.ncap_com,   (g.r,), (g.p,g.c,g.io),  ("0",) * 3, g.v, g.Rtp[g.r, g.v, g.p], Number(0), "",     ),
+            FillparmGmsConfig(g.ncap_delif, (g.r,), (g.p,),          ("0",) * 5, g.v, g.Rtp[g.r, g.v, g.p], Number(0), "X_RP", ),
+            FillparmGmsConfig(g.ncap_dlag,  (g.r,), (g.p,),          ("0",) * 5, g.v, g.Rtp[g.r, g.v, g.p], Number(0), "X_RP", ),
+            FillparmGmsConfig(g.ncap_dlife, (g.r,), (g.p,),          ("0",) * 5, g.v, g.Rtp[g.r, g.v, g.p], Number(0), "X_RP", ),
+            FillparmGmsConfig(g.ncap_drate, (g.r,), (g.p,),          ("0",) * 5, g.v, g.Rtp[g.r, g.v, g.p], Number(0), "X_RP", ),
+            FillparmGmsConfig(g.ncap_fdr,   (g.r,), (g.p,),          ("0",) * 5, g.v, g.Rtp[g.r, g.v, g.p], Number(0), "X_RP", ),
+            FillparmGmsConfig(g.ncap_elife, (g.r,), (g.p,),          ("0",) * 5, g.v, g.Rtp[g.r, g.v, g.p], Number(0), "X_RP", ),
+            FillparmGmsConfig(g.ncap_icom,  (g.r,), (g.p,g.c),       ("0",) * 4, g.v, g.Rtp[g.r, g.v, g.p], Number(0), "",     ),
+            FillparmGmsConfig(g.ncap_iled,  (g.r,), (g.p,),          ("0",) * 5, g.v, g.Rtp[g.r, g.v, g.p], Number(0), "X_RP", ),
+            FillparmGmsConfig(g.ncap_ocom,  (g.r,), (g.p,g.c),       ("0",) * 4, g.v, g.Rtp[g.r, g.v, g.p], Number(0), "",     ),
+            FillparmGmsConfig(g.ncap_pkcnt, (g.r,), (g.p,g.ts),      ("0",) * 4, g.v, g.Rtp[g.r, g.v, g.p], Number(0), "",     ),
+            FillparmGmsConfig(g.ncap_tlife, (g.r,), (g.p,),          ("0",) * 5, g.v, g.Rtp[g.r, g.v, g.p], Number(0), "X_RP", ),
             # *-----------------------------------------------------------------------------
             # * Commodity related attributes
             # *-----------------------------------------------------------------------------
-            ("fillparm", "COM_AGG", "R", "C,COM", ",'0','0','0','0'", "T", "1", "GE 0", "", "", ""),
-            ("fillparm", "COM_ELAST", "R", "C,TS,L", ",'0','0','0'", "T", "1", "GE 0", "", "", ""),
-            ("fillparm", "COM_FR", "R", "C,TS", ",'0','0','0','0'", "T", "1", "GE 0", "X_RCS", "", ""),
-            ("fillparm", "COM_IE", "R", "C,TS", ",'0','0','0','0'", "T", "1", "GE 0", "", "", ""),
-            ("fillparm", "COM_PKFLX", "R", "C,TS", ",'0','0','0','0'", "T", "1", "GE 0", "", "", ""),
-            ("fillparm", "COM_PKRSV", "R", "C", ",'0','0','0','0','0'", "T", "1", "GE 0", "", "", ""),
-            ("fillparm", "COM_PROJ", "R", "C", ",'0','0','0','0','0'", "T", "1", "GE 0", "", "", ""),
-            ("fillparm", "COM_VOC", "R", "C,BD", ",'0','0','0','0'", "T", "1", "GE 0", "", "", ""),
+            FillparmGmsConfig(g.com_agg,   (g.r,), (g.c,g.Com),     ("0",) * 4, g.t, Number(1), Number(0), "",     ),
+            FillparmGmsConfig(g.com_elast, (g.r,), (g.c,g.ts,g.lA), ("0",) * 3, g.t, Number(1), Number(0), "",     ),
+            FillparmGmsConfig(g.com_fr,    (g.r,), (g.c,g.ts),      ("0",) * 4, g.t, Number(1), Number(0), "X_RCS",),
+            FillparmGmsConfig(g.com_ie,    (g.r,), (g.c,g.ts),      ("0",) * 4, g.t, Number(1), Number(0), "",     ),
+            FillparmGmsConfig(g.com_pkflx, (g.r,), (g.c,g.ts),      ("0",) * 4, g.t, Number(1), Number(0), "",     ),
+            FillparmGmsConfig(g.com_pkrsv, (g.r,), (g.c,),          ("0",) * 5, g.t, Number(1), Number(0), "",     ),
+            FillparmGmsConfig(g.com_proj,  (g.r,), (g.c,),          ("0",) * 5, g.t, Number(1), Number(0), "",     ),
+            FillparmGmsConfig(g.com_voc,   (g.r,), (g.c,g.bd),      ("0",) * 4, g.t, Number(1), Number(0), "",     ),
             # *-----------------------------------------------------------------------------
             # * Flow related attributes & inter-regional exchange
             # *-----------------------------------------------------------------------------
-            ("fillparm", "ACT_CSTUP", "R", "P,TSL,CUR", ",'0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
-            ("fillparm", "ACT_CSTSD", "R", "P,UPT,BD,CUR", ",'0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
-            ("fillparm", "ACT_CSTRMP", "R", "P,BD,CUR", ",'0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
-            ("fillparm", "ACT_TIME", "R", "P,LIM", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
-            ("fillparm", "FLO_FUNC", "R", "P,CG1,CG2,TS", ",'0','0'", "V", "RVP(R,V,P)", "GE 0", "X_RPGGS", "", ""),
-            ("fillparm", "FLO_PKCOI", "R", "P,C,TS", ",'0','0','0'", "V", "RVP(R,V,P)", "GE 0", "", "", ""),
-            ("fillparm", "FLO_SUM", "R", "P,CG1,C,CG2,TS", ",'0'", "V", "RVP(R,V,P)", "GE 0", "X_RPGCGS", "", ""),
-            ("fillparm", "PRC_ACTFLO", "R", "P,CG", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "X_RPG", "", ""),
+            FillparmGmsConfig(g.act_cstup, (g.r,),   (g.p,g.tsl,g.cur),          ("0",) * 3, g.v, g.Rtp[g.r, g.v, g.p], Number(0), "",        ),
+            FillparmGmsConfig(g.act_cstsd, (g.r,),   (g.p,g.upt,g.bd,g.cur),     ("0",) * 2, g.v, g.Rtp[g.r, g.v, g.p], Number(0), "",        ),
+            FillparmGmsConfig(g.act_cstrmp, (g.r,),  (g.p,g.bd,g.cur),           ("0",) * 3, g.v, g.Rtp[g.r, g.v, g.p], Number(0), "",        ),
+            FillparmGmsConfig(g.act_time, (g.r,),    (g.p,g.lim),                ("0",) * 4, g.v, g.Rtp[g.r, g.v, g.p], Number(0), "",        ),
+            FillparmGmsConfig(g.flo_func, (g.r,),    (g.p,g.cg1,g.cg2,g.ts),     ("0",) * 2, g.v, g.Rvp[g.r, g.v, g.p], Number(0), "X_RPGGS", ),
+            FillparmGmsConfig(g.flo_pkcoi, (g.r,),   (g.p,g.c,g.ts),             ("0",) * 3, g.v, g.Rvp[g.r, g.v, g.p], Number(0), "",        ),
+            FillparmGmsConfig(g.flo_sum, (g.r,),     (g.p,g.cg1,g.c,g.cg2,g.ts), ("0",) * 1, g.v, g.Rvp[g.r, g.v, g.p], Number(0), "X_RPGCGS",),
+            FillparmGmsConfig(g.prc_actflo, (g.r,),  (g.p,g.cg),                 ("0",) * 4, g.v, g.Rtp[g.r, g.v, g.p], Number(0), "X_RPG",   ),
         ]
         # fmt: on
-        for _, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10 in batincludes2:
-            self.include(
-                FillparmGms(
-                    self.tc,
-                    self.env,
-                    arg1=a1,
-                    arg2=a2,
-                    arg3=a3,
-                    arg4=a4,
-                    arg5=a5,
-                    arg6=a6,
-                    arg7=a7,
-                    arg8=a8,
-                    arg9=a9,
-                    arg10=a10,
-                )
-            )
+        for fillparm_config in batincludes2:
+            self.include(FillparmGms(self.tc, self.env, fillparm_config))
 
         batincludes3 = [
             PrepparmGmsConfig(
@@ -318,44 +303,29 @@ class PreppmMod(GamsClass):
 
         # fmt: off
         batincludes4 = [
-            ("fillparm", "IRE_FLO", "R", "P,C,REG,COM,TS", ",'0'", "V", "(RVP(R,V,P) OR RTP(REG,V,P))", "GE 0", "", "", ""),
-            ("fillparm", "IRE_FLOSUM", "R", "P,C,TS,IE,COM,IO", "", "V", "RVP(R,V,P)", "GE 0", "", "", ""),
+            FillparmGmsConfig(g.ire_flo,    (g.r,), (g.p,g.c,g.Reg,g.Com,g.ts),     ("0",), g.v, (g.Rvp[g.r,g.v,g.p] | g.Rtp[g.Reg,g.v,g.p]), Number(0), "", "", ""),
+            FillparmGmsConfig(g.ire_flosum, (g.r,), (g.p,g.c,g.ts,g.ie,g.Com,g.io), (),     g.v, g.Rvp[g.r,g.v,g.p], Number(0), "", "", ""),
             # *-----------------------------------------------------------------------------
             # * Storage attributes
             # *-----------------------------------------------------------------------------
-            ("fillparm", "STG_CHRG", "R", "P,S", ",'0','0','0','0'", "V", "(M(V) GE MIYR_V1-1)", "GE 0", "", "", ""),
-            ("fillparm", "STG_EFF", "R", "P", ",'0','0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
-            ("fillparm", "STG_LOSS", "R", "P,S", ",'0','0','0','0'", "V", "RTP(R,V,P)", "GE 0", "", "", ""),
-            ("fillparm", "STG_SIFT", "R", "P,C,S", ",'0','0','0'", "T", "RTP(R,T,P)", "GE 0", "", "", ""),
+            FillparmGmsConfig(g.stg_chrg, (g.r,), (g.p,g.s),     ("0",) * 4, g.v, (g.m[g.v] >= g.miyr_v1 - 1), Number(0),),
+            FillparmGmsConfig(g.stg_eff,  (g.r,), (g.p,),        ("0",) * 5, g.v, g.Rtp[g.r, g.v, g.p], Number(0), ),
+            FillparmGmsConfig(g.stg_loss, (g.r,), (g.p,g.s),     ("0",) * 4, g.v, g.Rtp[g.r, g.v, g.p], Number(0), ),
+            FillparmGmsConfig(g.stg_sift, (g.r,), (g.p,g.c,g.s), ("0",) * 3, g.t, g.Rtp[g.r, g.t, g.p], Number(0), ),
             # *-----------------------------------------------------------------------------
             # * User constraints
             # *-----------------------------------------------------------------------------
-            ("fillparm", "UC_ACT", "UC_N,SIDE,R", "P,TS", ",'0','0'", "T", "RTP(R,T,P)", "GE 0", "", "", ""),
-            ("fillparm", "UC_CAP", "UC_N,SIDE,R", "P", ",'0','0','0'", "T", "1", "GE 0", "", "", ""),
-            ("fillparm", "UC_COM", "UC_N,COM_VAR,SIDE,R", "C,TS,UC_GRPTYPE", "", "T", "1", "GE 0", "", "", ""),
-            ("fillparm", "UC_FLO", "UC_N,SIDE,R", "P,C,TS", ",'0'", "T", "1", "GE 0", "X_UZRPCS", "", ""),
-            ("fillparm", "UC_IRE", "UC_N,SIDE,R", "P,C,TS,IE", "", "T", "RTP(R,T,P)", "GE 0", "", "", ""),
-            ("fillparm", "UC_NCAP", "UC_N,SIDE,R", "P", ",'0','0','0'", "T", "RTP(R,T,P)", "GE 0", "", "", ""),
-            ("fillparm", "UC_UCN", "UC_N,SIDE,R", "UCN", ",'0','0','0'", "T", "1", "GE 0", "", "", ""),
+            FillparmGmsConfig(g.uc_act, (g.ucn, g.side, g.r),           (g.p,g.ts),              ("0",) * 2, g.t, g.Rtp[g.r,g.t,g.p], Number(0), "", "", ""),
+            FillparmGmsConfig(g.uc_cap, (g.ucn, g.side, g.r),           (g.p,),                  ("0",) * 3, g.t, Number(1), Number(0), "", "", ""),
+            FillparmGmsConfig(g.uc_com, (g.ucn, g.comvar, g.side, g.r), (g.c,g.ts,g.ucgrptype),  (),         g.t, Number(1), Number(0), "", "", ""),
+            FillparmGmsConfig(g.uc_flo, (g.ucn, g.side, g.r),           (g.p,g.c,g.ts),          ("0",) * 1, g.t, Number(1), Number(0), "X_UZRPCS", "", ""),
+            FillparmGmsConfig(g.uc_ire, (g.ucn, g.side, g.r),           (g.p,g.c,g.ts,g.ie),     (),         g.t, g.Rtp[g.r,g.t,g.p], Number(0), "", "", ""),
+            FillparmGmsConfig(g.uc_ncap, (g.ucn, g.side, g.r),          (g.p,),                  ("0",) * 3, g.t, g.Rtp[g.r,g.t,g.p], Number(0), "", "", ""),
+            FillparmGmsConfig(g.uc_ucn, (g.ucn, g.side, g.r),           (g.ucn,),                ("0",) * 3, g.t, Number(1), Number(0), "", "", ""),
         ]
         # fmt: on
-        for _, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10 in batincludes4:
-            self.include(
-                FillparmGms(
-                    self.tc,
-                    self.env,
-                    arg1=a1,
-                    arg2=a2,
-                    arg3=a3,
-                    arg4=a4,
-                    arg5=a5,
-                    arg6=a6,
-                    arg7=a7,
-                    arg8=a8,
-                    arg9=a9,
-                    arg10=a10,
-                )
-            )
+        for fillparm_config in batincludes4:
+            self.include(FillparmGms(self.tc, self.env, fillparm_config))
 
             self.include(
                 FilparamGms(
@@ -622,18 +592,18 @@ class PreppmMod(GamsClass):
             ("NCAP_CPX", "R", "P", "", "V", "RXX", "RTP(R,V,P)", ""),
         ]
 
-        for a1, a2, a3, a4, a5, a6, a7, a8 in preshapes:
+        for a1, a2, a3, a4, a5, a6, a7, a8 in preshapes:  # type: ignore[assignment]
             self.include(
                 PreshapeGms(
                     self.tc,
                     self.env,
-                    arg1=a1,
-                    arg2=a2,
-                    arg3=a3,
-                    arg4=a4,
+                    arg1=a1,  # type: ignore[arg-type]
+                    arg2=a2,  # type: ignore[arg-type]
+                    arg3=a3,  # type: ignore[arg-type]
+                    arg4=a4,  # type: ignore[arg-type]
                     arg5=a5,
-                    arg6=a6,
-                    arg7=a7,
+                    arg6=a6,  # type: ignore[arg-type]
+                    arg7=a7,  # type: ignore[arg-type]
                     arg8=a8,
                 )
             )

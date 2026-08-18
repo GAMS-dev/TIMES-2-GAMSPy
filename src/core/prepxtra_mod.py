@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 from gamspy import Else, If, Loop, Number, Ord, Smax, Smin, SpecialValues
 
 from core.base_class import GamsClass
-from core.fillparm_gms import FillparmGms
+from core.fillparm_gms import FillparmGms, FillparmGmsConfig
 from core.filparam_gms import FilparamGms, FilparamGmsConfig
 from core.prepparm_gms import PrepparmGms, PrepparmGmsConfig
 
@@ -274,29 +274,16 @@ class PrepxtraMod(GamsClass):
                 self.include(PrepparmGms(self.tc, self.env, config=config))
 
             # fmt: off
-            batincludes = [
-                ("IRE_PRICE", "R", "P,C,S,ALL_R,IE,CUR", "", "T", "RTP(R,T,P)", "GE 0", ""),
+            batincludes: list[FillparmGmsConfig] = [
+                FillparmGmsConfig(g.ire_price, (g.r,),                 (g.p, g.c, g.s, g.allr, g.ie, g.cur), (),        g.t, g.Rtp[g.r, g.t, g.p], Number(0)),
                 # * Components of merged UC attribs
-                ("UC_COMCON", "UC_N,SIDE,ALL_R", "C,S", ",'0','0'", "T", "1", "GE 0", ""),
-                ("UC_COMNET", "UC_N,SIDE,ALL_R", "C,S", ",'0','0'", "T", "1", "GE 0", ""),
-                ("UC_COMPRD", "UC_N,SIDE,ALL_R", "C,S", ",'0','0'", "T", "1", "GE 0", ""),
+                FillparmGmsConfig(g.uc_comcon, (g.ucn, g.side,g.allr), (g.c,g.s),                            ("0",) * 2, g.t, Number(1),            Number(0)),
+                FillparmGmsConfig(g.uc_comnet, (g.ucn, g.side,g.allr), (g.c,g.s),                            ("0",) * 2, g.t, Number(1),            Number(0)),
+                FillparmGmsConfig(g.uc_comprd, (g.ucn, g.side,g.allr), (g.c,g.s),                            ("0",) * 2, g.t, Number(1),            Number(0)),
             ]
             # fmt: on
-            for arg in batincludes:
-                self.include(
-                    FillparmGms(
-                        self.tc,
-                        self.env,
-                        arg1=arg[0],
-                        arg2=arg[1],
-                        arg3=arg[2],
-                        arg4=arg[3],
-                        arg5=arg[4],
-                        arg6=arg[5],
-                        arg7=arg[6],
-                        arg8=arg[7],
-                    )
-                )
+            for fillparm_config in batincludes:
+                self.include(FillparmGms(self.tc, self.env, fillparm_config))
 
             # * General attribs
             filparam_batincludes: list[FilparamGmsConfig] = [

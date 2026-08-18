@@ -23,15 +23,49 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
+
+from gamspy import (
+    Alias,
+    Else,
+    ElseIf,
+    Expression,
+    If,
+    Loop,
+    Number,
+    Parameter,
+    Set,
+    SpecialValues,
+    sparse,
+)
+from gamspy.math import Min, Round, mod, power
 
 from core.base_class import GamsClass
 
 if TYPE_CHECKING:
+    from gamspy import UniverseAlias
+    from gamspy._algebra.condition import Condition
+    from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class FillparmGmsConfig:
+    arg1: Parameter
+    arg2: tuple[Set | Alias, ...]
+    arg3: tuple[Set | Alias | UniverseAlias, ...]
+    arg4: tuple[str, ...]
+    arg5: Set | Alias
+    arg6: Number | ImplicitSet | Alias | Expression
+    arg7: Number | Condition | None = None
+    arg8: Parameter | str | None = ""
+    arg9: Parameter | str | None = ""
+    arg10: str = ""
 
 
 class FillparmGms(GamsClass):
@@ -42,129 +76,182 @@ class FillparmGms(GamsClass):
     gams_source: str = "fillparm.gms"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
-        arg4: str = "",
-        arg5: str = "",
-        arg6: str = "",
-        arg7: str = "",
-        arg8: str = "",
-        arg9: str = "",
-        arg10: str = "",
+        self, tc: TimesModelClass, env: CompileEnvironment, config: FillparmGmsConfig
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
-        self.arg4 = arg4
-        self.arg5 = arg5
-        self.arg6 = arg6
-        self.arg7 = arg7
-        self.arg8 = arg8
-        self.arg9 = arg9
-        self.arg10 = arg10
+        self.config = config
         self.compile()
 
     def compile(self) -> None:
-        self.env.set_local("data", f"{self.arg1}({self.arg2},{self.arg5},{self.arg3})")
-        self.env.set_local("item", f"{self.arg1}({self.arg2},{self.arg5},{self.arg3})")
-        self.env.set_local("add", "")
-        if len(self.arg8):
-            self.env.set_local(
-                "data", f"{self.arg8}({self.arg2},{self.arg3},{self.arg5})"
+        g = self.tc
+        m = g.container
+        cc = self.config
+
+        data = cc.arg1[*cc.arg2, cc.arg5, *cc.arg3]
+        item = cc.arg1[*cc.arg2, cc.arg5, *cc.arg3]
+        add = None
+
+        arg8_param = None
+        if isinstance(cc.arg8, str) and cc.arg8 != cc.arg9 and cc.arg8 not in {""}:
+            arg8_param = Parameter(
+                m, name=cc.arg8, domain=[*cc.arg2, *cc.arg3, g.allyear]
             )
-            self.env.set_local("item", f"MY_FIL2({self.arg5})")
-            self.env.set_local("add", f"+MY_FIL2({self.arg5})")
-        if self.arg8 != self.arg9:
-            self.tc.add_gams_code(
-                module=self,
-                phase="init",
-                code=f"PARAMETER {self.arg8}({self.arg2},{self.arg3},ALLYEAR);",
-            )
+            g.set_parameter(arg8_param.name, arg8_param)
+
+        if isinstance(cc.arg8, str) and cc.arg8 not in {""}:
+            arg8_param = g.get_parameter(cc.arg8)
+            data = arg8_param[*cc.arg2, *cc.arg3, cc.arg5]
+            item = g.my_fil2[cc.arg5]
+            add = g.my_fil2[cc.arg5]
+
         self.tc.enqueue(
             fillparm,
             self,
             dflbl=self.env.dflbl,
-            item=self.env.item,
-            data=self.env.data,
-            add=self.env.add,
+            item=item,
+            data=data,
+            add=add,
             reset=self.env.reset,
-            arg1=self.arg1,
-            arg2=self.arg2,
-            arg3=self.arg3,
-            arg4=self.arg4,
-            arg5=self.arg5,
-            arg6=self.arg6,
-            arg7=self.arg7,
-            arg8=self.arg8,
-            arg9=self.arg8,  # the arg9=arg8 is on purpose to have the execution part not fail
+            config=FillparmGmsConfig(
+                arg1=cc.arg1,
+                arg2=cc.arg2,
+                arg3=cc.arg3,
+                arg4=cc.arg4,
+                arg5=cc.arg5,
+                arg6=cc.arg6,
+                arg7=cc.arg7,
+                arg8=arg8_param,
+                arg9=cc.arg8,  # the arg9=arg8 is on purpose to have the execution part not fail
+            ),
         )
 
 
 def fillparm(
     module: GamsClass,
     dflbl: str,
-    item: str,
-    data: str,
-    add: str,
+    item: ImplicitParameter,
+    data: ImplicitParameter,
+    add: ImplicitParameter | None,
     reset: str,
-    arg1: str,
-    arg2: str,
-    arg3: str,
-    arg4: str,
-    arg5: str,
-    arg6: str,
-    arg7: str,
-    arg8: str,
-    arg9: str,
+    config: FillparmGmsConfig,
 ) -> None:
-    if not arg8 == arg9:
-        raise Exception(
-            f" {arg8} <> {arg9} requires parameter declaration and can't be used during execution only"
+    g = module.tc
+    (
+        g_nointerp,
+        Uncd7,
+        Datayear,
+        dfunc,
+        my_fil2,
+        cnt,
+        my_array,
+        DmYear,
+        last_val,
+        f,
+        z,
+        my_f,
+        yearval,
+        my_fyear,
+        first_val,
+    ) = (
+        g.g_nointerp,
+        g.Uncd7,
+        g.Datayear,
+        g.dfunc,
+        g.my_fil2,
+        g.cnt,
+        g.my_array,
+        g.DmYear,
+        g.last_val,
+        g.f,
+        g.z,
+        g.my_f,
+        g.yearval,
+        g.my_fyear,
+        g.first_val,
+    )
+
+    cc = config
+
+    # conditional interpolation flag
+    if g_nointerp.toValue() == 0:
+        Uncd7.setRecords(None)
+        with Loop(Datayear):
+            Uncd7[*cc.arg2, *cc.arg3, *cc.arg4].where[
+                cc.arg1[*cc.arg2, Datayear, *cc.arg3]
+            ] = True
+
+        with Loop(Uncd7[*cc.arg2, *cc.arg3, *cc.arg4]):
+            dfunc[...] = Round(cc.arg1[*cc.arg2, dflbl, *cc.arg3])
+
+            if_cond = dfunc >= cc.arg7 if cc.arg7 is not None else dfunc
+            with If(if_cond):
+                my_fil2.setRecords(None)
+                cnt[...] = dfunc <= 999
+                my_array[DmYear] = cc.arg1[*cc.arg2, DmYear, *cc.arg3]
+                last_val[...] = 0
+                f[...] = 0
+                z[...] = 0
+
+                # do interpolate
+                with Loop(DmYear.where[my_array[DmYear]]):
+                    my_f[...] = my_array[DmYear]
+                    z[...] = yearval[DmYear]
+                    with If(last_val):
+                        with If(cnt | (z <= dfunc)):
+                            item.where[
+                                (z > yearval[cc.arg5]).where[
+                                    yearval[cc.arg5] > my_fyear
+                                ]
+                            ] = last_val + (my_f - last_val) / (z - my_fyear) * (
+                                yearval[cc.arg5] - my_fyear
+                            )
+                        with Else():
+                            item.where[
+                                (z > yearval[cc.arg5]).where[
+                                    yearval[cc.arg5] > my_fyear
+                                ]
+                            ] = (
+                                last_val * power(1 + my_f, yearval[cc.arg5] - my_fyear)
+                                + SpecialValues.EPS
+                            )
+                            my_f[...] = (
+                                last_val * power(1 + my_f, z - my_fyear)
+                                + SpecialValues.EPS
+                            )
+                            cc.arg1[*cc.arg2, DmYear, *cc.arg3] = my_f
+                    with Else():
+                        f[...] = z
+                        first_val[...] = my_f
+                    last_val[...] = my_f
+                    my_fyear[...] = z
+                with If(dfunc > 1):  # noqa: SIM117
+                    with If(cnt):
+                        dfunc[...] = mod(dfunc, 10)
+                        with If(dfunc == 2):
+                            first_val[...] = SpecialValues.EPS
+                            last_val[...] = SpecialValues.EPS
+                        with ElseIf(dfunc == 4):
+                            z[...] = SpecialValues.POSINF
+                        with ElseIf(dfunc == 5):
+                            f[...] = 0
+                with If(dfunc != 1):
+                    # Do back/forward extrapolate, or fill in with EPS
+                    expr: Expression | Condition = first_val.where[yearval[cc.arg5] < f]
+                    if add is not None:
+                        expr += add
+
+                    expr += last_val.where[yearval[cc.arg5] > z]
+                    data.where[cc.arg6] = sparse(expr)  # type: ignore[index]
+
+                    if cc.arg8 is None:
+                        data.where[cc.arg6] = sparse(item)  # type: ignore[index]
+
+        cc.arg1[*cc.arg2, dflbl, *cc.arg3].where[cc.arg1[*cc.arg2, dflbl, *cc.arg3]] = (
+            Min(reset, cc.arg1[*cc.arg2, dflbl, *cc.arg3])
         )
 
-    # TODO: Add setlocal as local Python variables
-    module.tc.add_gams_code(
-        module=module,
-        phase="run",
-        code=rf"""
-* conditional interpolation flag
- IF(NOT G_NOINTERP, OPTION CLEAR = UNCD7;
-   LOOP(DATAYEAR, UNCD7({arg2},{arg3}{arg4})${arg1}({arg2},DATAYEAR,{arg3}) = YES;);
-   LOOP(UNCD7({arg2},{arg3}{arg4}), DFUNC = ROUND({arg1}({arg2},'{dflbl}',{arg3}));
-    IF(DFUNC {arg7}, OPTION CLEAR=MY_FIL2; CNT = (DFUNC LE 999);
-      MY_ARRAY(DM_YEAR) = {arg1}({arg2},DM_YEAR,{arg3}); LAST_VAL=0; F = 0; Z = 0;
-* do interpolate
-	LOOP(DM_YEAR$MY_ARRAY(DM_YEAR),                    {"! check for nonzero (including EPS)" if False else ""}
-           MY_F = MY_ARRAY(DM_YEAR); Z = YEARVAL(DM_YEAR);
-           IF(LAST_VAL,
-             IF(CNT OR (Z LE DFUNC),             {"! linear interpolation" if False else ""}
-                {item}$((Z GT YEARVAL({arg5}))$(YEARVAL({arg5}) GT MY_FYEAR))
-			= LAST_VAL + (MY_F-LAST_VAL)/(Z-MY_FYEAR)*(YEARVAL({arg5})-MY_FYEAR); {"! not the first one" if False else ""}
-             ELSE                                {"! exponential function" if False else ""}
-                {item}$((Z GT YEARVAL({arg5}))$(YEARVAL({arg5}) GT MY_FYEAR))
-			= LAST_VAL*POWER(1+MY_F,YEARVAL({arg5})-MY_FYEAR)+EPS;
-                MY_F = LAST_VAL*POWER(1+MY_F,Z-MY_FYEAR)+EPS;
-                {arg1}({arg2},DM_YEAR,{arg3}) = MY_F;);      {"! overwrite old data" if False else ""}
-           ELSE F = Z; FIRST_VAL = MY_F;);
-           LAST_VAL = MY_F; MY_FYEAR=Z;);        {"! remember the value and year" if False else ""}
-      IF(DFUNC GT 1,
-        IF(CNT,DFUNC=MOD(DFUNC,10);
-         IF(DFUNC EQ 2, FIRST_VAL = EPS; LAST_VAL = EPS; ELSEIF DFUNC EQ 4, Z = INF; ELSEIF DFUNC EQ 5, F = 0)));
-      IF((DFUNC NE 1),
-* Do back/forward extrapolate, or fill in with EPS
-       {data}${arg6} $= FIRST_VAL$(YEARVAL({arg5}) LT F) {add} + LAST_VAL$(YEARVAL({arg5}) GT Z);
-       {f"ELSE {data}${arg6} $= {item};" if len(arg8) else ""}
-   )));
-* Reset OPT and add DATA
-  {arg1}({arg2},'{dflbl}',{arg3})${arg1}({arg2},'{dflbl}',{arg3}) = MIN({reset},{arg1}({arg2},'{dflbl}',{arg3}));
-  {f"{arg1}({arg2},{arg5},{arg3}) $= {data}; OPTION KILL = {arg8};" if len(arg8) else ""}
-    );
-""",
-    )
+        if isinstance(cc.arg8, Parameter):
+            cc.arg1[*cc.arg2, cc.arg5, *cc.arg3] = sparse(data)
+            cc.arg8.setRecords(None)

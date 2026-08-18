@@ -28,6 +28,9 @@ class EnvironmentVariableSchema(BaseModel):
     ier: Literal["YES", "NO"] = Field(
         description="Activates the IER (Institute for the Rational Use of Energy) CHP/market-share extension. Unlike most extensions, TIMES has no %IER%==YES switch for it -- it is passed positionally as `IER` to initmty.mod's BATINCLUDE."
     )
+    abs_GP: Number = Field(
+        description="Option to use the Ancillary Balancing Services extension."
+    )
     cli: Literal["YES", "NO", "%cli%"] = Field(
         description="Activates the Climate Module to estimate atmospheric CO2 concentrations, changes in radiative forcing, and induced global mean surface temperature changes."
     )

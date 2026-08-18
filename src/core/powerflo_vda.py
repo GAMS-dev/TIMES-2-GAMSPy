@@ -12,11 +12,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Literal
 
-from gamspy import Equation, Parameter, Set, Sum, Variable
+from gamspy import Equation, Number, Parameter, Set, Sum, Variable
 
 from core.base_class import GamsClass
 from core.cal_red_red import cal_red_red
-from core.fillparm_gms import FillparmGms
+from core.fillparm_gms import FillparmGms, FillparmGmsConfig
 from core.filparam_gms import FilparamGms, FilparamGmsConfig
 from core.gasgrids_vda import GasgridsVda
 from core.pp_lvlfc_mod import PpLvlfcMod, PpLvlfcModConfig
@@ -139,28 +139,16 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
                         code=r"""$CLEAR PRC_REACT""",
                     )
                 # fmt: off
-                batincludes = [
-                    ("PRC_REACT", "R", "P", ",'0','0','0','0','0'", "T", "1", "GE 0"),
-                    ("GR_PTDF", "R", "P,C,REG,COM", ",'0','0'", "T", "1", "GE 0"),
-                    ("GR_DEMFR", "R", "C,S", ",'0','0','0','0'", "T", "1", "GE 0"),
-                    ("GR_ENDFR", "R", "C,COM", ",'0','0','0','0'", "T", "1", "GE 0"),
-                    ("GR_GENFR", "R", "C,ITEM", ",'0','0','0','0'", "T", "1", "GE 0"),
+                batincludes: list[FillparmGmsConfig] = [
+                    FillparmGmsConfig(g.prc_react, (g.r, ), (g.p,),                   ("0",) * 5, g.t, Number(1), Number(0)),
+                    FillparmGmsConfig(g.gr_ptdf,   (g.r, ), (g.p, g.c, g.Reg, g.Com), ("0",) * 2, g.t, Number(1), Number(0)),
+                    FillparmGmsConfig(g.gr_demfr,  (g.r, ), (g.c, g.s),               ("0",) * 4, g.t, Number(1), Number(0)),
+                    FillparmGmsConfig(g.gr_endfr,  (g.r, ), (g.c, g.Com),             ("0",) * 4, g.t, Number(1), Number(0)),
+                    FillparmGmsConfig(g.gr_genfr,  (g.r, ), (g.c, g.item),            ("0",) * 4, g.t, Number(1), Number(0)),
                 ]
                 # fmt: on
-                for arg in batincludes:
-                    self.include(
-                        FillparmGms(
-                            self.tc,
-                            self.env,
-                            arg1=arg[0],
-                            arg2=arg[1],
-                            arg3=arg[2],
-                            arg4=arg[3],
-                            arg5=arg[4],
-                            arg6=arg[5],
-                            arg7=arg[6],
-                        )
-                    )
+                for config in batincludes:
+                    self.include(FillparmGms(self.tc, self.env, config))
 
                 self.include(
                     FilparamGms(
@@ -181,28 +169,16 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
                     return
 
                 # fmt: off
-                batincludes = [
-                    ("GG_GAMMA", "R", "P,C", ",'0','0','0','0'", "T", "RTP(R,T,P)", "GE 0"),
-                    ("GG_KGF", "R", "P,C", ",'0','0','0','0'", "T", "RTP(R,T,P)", "GE 0"),
-                    ("GG_KLP", "R", "P,C", ",'0','0','0','0'", "T", "RTP(R,T,P)", "GE 0"),
-                    ("GG_PP", "R", "P,C,BD,J", ",'0','0'", "T", "RTP(R,T,P)", "GE 0"),
-                    ("GG_PRBD", "R", "C,L", ",'0','0','0','0'", "T", "1", "GE 0"),
+                fillparam_batincludes: list[FillparmGmsConfig] = [
+                    FillparmGmsConfig(g.gg_gamma,  (g.r,), (g.p, g.c),            ("0",) * 4, g.t, g.Rtp[g.r, g.t, g.p], Number(0)),
+                    FillparmGmsConfig(g.gg_kgf,    (g.r,), (g.p, g.c),            ("0",) * 4, g.t, g.Rtp[g.r, g.t, g.p], Number(0)),
+                    FillparmGmsConfig(g.gg_klp,    (g.r,), (g.p, g.c),            ("0",) * 4, g.t, g.Rtp[g.r, g.t, g.p], Number(0)),
+                    FillparmGmsConfig(g.gg_pp,     (g.r,), (g.p, g.c, g.bd, g.j), ("0",) * 2, g.t, g.Rtp[g.r, g.t, g.p], Number(0)),
+                    FillparmGmsConfig(g.gg_prbd,   (g.r,), (g.c, g.lA),           ("0",) * 4, g.t, Number(1),            Number(0)),
                 ]
                 # fmt: on
-                for arg in batincludes:
-                    self.include(
-                        FillparmGms(
-                            self.tc,
-                            self.env,
-                            arg1=arg[0],
-                            arg2=arg[1],
-                            arg3=arg[2],
-                            arg4=arg[3],
-                            arg5=arg[4],
-                            arg6=arg[5],
-                            arg7=arg[6],
-                        )
-                    )
+                for config in fillparam_batincludes:
+                    self.include(FillparmGms(self.tc, self.env, config))
 
             elif label == "DECL":
                 # ends with $EXIT
