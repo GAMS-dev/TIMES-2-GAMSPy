@@ -68,12 +68,8 @@ class RptmainStc(GamsClass):
         self.include(ClearsolStc(self.tc, self.env, arg1="DEF"))
 
         if self.env.etl == "YES":
-            self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code=r"""
-POSITIVE VARIABLES VAR_IC(R,YEAR,PRC)
-""",
+            g.VAR_IC = Variable(
+                g.container, name="VAR_IC", domain=[g.r, g.year, g.prc], type="positive"
             )
 
         self.tc.add_gams_code(
