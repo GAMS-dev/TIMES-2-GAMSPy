@@ -672,6 +672,7 @@ class UserConfig(BaseModel):
     anncost: Literal["LEV", "%anncost%"] = "%anncost%"
     macro: Literal["YES", "Yes", "MLF", "MSA", "CSA", "%macro%"] = "%macro%"
     cli: Literal["YES", "%cli%"] = "%cli%"
+    etl: Literal["YES", "NO", "%etl%"] = "%etl%"
     fixboh: int | Literal["%fixboh%"] = "%fixboh%"
     lpoint: str = "%lpoint%"
     dsc: str = "%dsc%"

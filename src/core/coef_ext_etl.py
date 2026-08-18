@@ -29,7 +29,9 @@ class CoefExtEtl(GamsClass):
     module_name: str = "coef_ext_etl"
     gams_source: str = "coef_ext.etl"
 
-    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
+    def __init__(
+        self, tc: TimesModelClass, env: CompileEnvironment, arg1: str, arg2: str
+    ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
