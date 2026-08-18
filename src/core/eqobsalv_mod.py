@@ -14,6 +14,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter, Set
+
 from core import prepret_dsc
 from core.base_class import GamsClass
 from utils.macros import macro_config as macro
@@ -43,20 +45,23 @@ class EqobsalvMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
+
         if self.tc.defined("OBJSCC"):
             self._label_prepro()
             return
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="""
-  PARAMETER SALV_DEC(REG,ALLYEAR,PRC,CUR) //;
-  PARAMETER OBJSCC(REG,ALLYEAR,PRC,CUR)   //;
-  PARAMETER OBJSIC(REG,ALLYEAR,PRC)       //;
-  PARAMETER OBJ_DCEOH(REG,CUR)            //;
-  SET OBJ_SALI(R,ALLYEAR,P,AGE,YEAR,AGE,ALLYEAR,YEAR) //;
-""",
+        g.salv_dec = Parameter(
+            m, name="SALV_DEC", domain=[g.Reg, g.allyear, g.prc, g.cur]
+        )
+        g.objscc = Parameter(m, name="OBJSCC", domain=[g.Reg, g.allyear, g.prc, g.cur])
+        g.objsic = Parameter(m, name="OBJSIC", domain=[g.Reg, g.allyear, g.prc])
+        g.obj_dceoh = Parameter(m, name="OBJ_DCEOH", domain=[g.Reg, g.cur])
+        g.ObjSali = Set(
+            m,
+            name="OBJ_SALI",
+            domain=[g.r, g.allyear, g.p, g.age, g.year, g.age, g.allyear, g.year],
         )
 
         self._label_prepro()

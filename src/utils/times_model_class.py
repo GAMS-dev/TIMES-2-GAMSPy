@@ -1616,6 +1616,24 @@ class TimesModelClass:
     mliterm: Parameter = None  # type: ignore[assignment] # MLITERM
     ccdifcrit: Parameter = None  # type: ignore[assignment] # CCDIFCRIT
 
+    # From src/core/mod_vars_etl.py
+    VAR_LAMBD: Variable = None  # type: ignore[assignment] # [R,ALLYEAR,PRC,KP,swd] VAR_LAMBD
+    VAR_CCAP: Variable = None  # type: ignore[assignment] # [R,ALLYEAR,PRC,swd] VAR_CCAP
+    VAR_CCOST: Variable = None  # type: ignore[assignment] # [R,ALLYEAR,PRC,swd] VAR_CCOST
+    VAR_DELTA: Variable = None  # type: ignore[assignment] # [R,ALLYEAR,PRC,KP,swd] VAR_DELTA (BINARY)
+    eq_cuinv: Equation = None  # type: ignore[assignment] # [R,ALLYEAR,PRC,swtd] EQ_CUINV: Cumulative Capacity Definition
+    eq_cc: Equation = None  # type: ignore[assignment] # [R,ALLYEAR,PRC,swtd] EQ_CC: Cumulative Capacity Interpolation
+    eq_del: Equation = None  # type: ignore[assignment] # [R,ALLYEAR,PRC,swtd] EQ_DEL: Delta to 1
+    eq_cos: Equation = None  # type: ignore[assignment] # [R,ALLYEAR,PRC,swtd] EQ_COS: Cumulative Cost
+    eq_la1: Equation = None  # type: ignore[assignment] # [R,ALLYEAR,PRC,KP,swtd] EQ_LA1: Constraints on lambda 1
+    eq_la2: Equation = None  # type: ignore[assignment] # [R,ALLYEAR,PRC,KP,swtd] EQ_LA2: Constraints on lambda 2
+    eq_expe1: Equation = None  # type: ignore[assignment] # [R,ALLYEAR,PRC,KP,swtd] EQ_EXPE1: Experience grows 1
+    eq_expe2: Equation = None  # type: ignore[assignment] # [R,ALLYEAR,PRC,KP,swtd] EQ_EXPE2: Experience grows 2
+    eq_ic1: Equation = None  # type: ignore[assignment] # [R,ALLYEAR,PRC,swtd] EQ_IC1: Investments tech. change 1st period
+    eq_ic2: Equation = None  # type: ignore[assignment] # [R,ALLYEAR,PRC,swtd] EQ_IC2: Investments tech. change other periods
+    eq_clu: Equation = None  # type: ignore[assignment] # [R,ALLYEAR,PRC,swtd] EQ_CLU: Cluster
+    eq_mrclu: Equation = None  # type: ignore[assignment] # [R,ALLYEAR,PRC,swtd] EQ_MRCLU: Multi-regional Cluster
+
     # From src/core/initmty_tm.py
     tm_qfac: Parameter = None  # type: ignore[assignment] # [R] TM_QFAC(R) Switch for market penetration penalty function
     tm_captb: Parameter = None  # type: ignore[assignment] # [R,P] TM_CAPTB(R,P) Cumulative quadratic capacity penalty level
