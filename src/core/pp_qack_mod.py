@@ -81,9 +81,9 @@ class PpQackMod(GamsClass):
 
     def compile(self) -> None:
         m = self.tc.container
-        UniverseAlias(m, name="U2")
-        UniverseAlias(m, name="U3")
-        UniverseAlias(m, name="U4")
+        self.tc.u2 = UniverseAlias(m, name="U2")
+        self.tc.u3 = UniverseAlias(m, name="U3")
+        self.tc.u4 = UniverseAlias(m, name="U4")
 
         self.tc.enqueue(
             self.exec1,

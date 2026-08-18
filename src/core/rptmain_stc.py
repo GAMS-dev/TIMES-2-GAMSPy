@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Variable
+from gamspy import Parameter, Variable
 
 from core.base_class import GamsClass
 from core.clearsol_stc import ClearsolStc, clearsol_stc
@@ -72,11 +72,12 @@ class RptmainStc(GamsClass):
                 g.container, name="VAR_IC", domain=[g.r, g.year, g.prc], type="positive"
             )
 
+        g.sw_unpb = Parameter(g.container, name="SW_UNPB", domain=[g.ll, g.ww])
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code=r"""
-PARAMETERS SW_UNPB(LL,WW), SW_UNPC(LL,WW);
+PARAMETERS SW_UNPC(LL,WW);
 """,
         )
 

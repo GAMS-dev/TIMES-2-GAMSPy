@@ -18,11 +18,16 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Domain, Equation, Loop, Sum, Variable, sparse
+
 from core.base_class import GamsClass
-from core.rpt_par_cli import rpt_par_cli
+from core.rpt_par_cli import rpt_par_cli_GP
 from core.utils import apply_sw_notags, apply_sw_tags
 
 if TYPE_CHECKING:
+    from gamspy import Alias, Number, Set
+    from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -55,21 +60,7 @@ class RptExtCli(GamsClass):
             return
 
         apply_sw_notags(env=self.env)
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-EQUATIONS
-  {self.env.eq}_CLITOT(CM_ITEM,T,LL {self.env.swd}) 'Balances for the total emissions or forcing'
-  {self.env.eq}_CLIMAX(ALLYEAR,CM_ITEM {self.env.swd}) 'Constraint for maximum climate quantities'
-;
-
-VARIABLES
-  {self.env.var}_CLITOT(CM_ITEM,LL {self.env.swd}) 'Total emissions or forcing by milestone year'
-POSITIVE VARIABLES
-  {self.env.var}_CLIBOX(CM_ITEM,CM_BOX,LL{self.env.swd}) 'Quantities in the climate reservoirs';
-""",
-        )
+        self.declarations(eq=self.env.eq, var=self.env.var, swd=self.env.swd_GP)
 
         if self.env.stages == "YES":
             apply_sw_tags(env=self.env, g=g)
@@ -80,57 +71,167 @@ POSITIVE VARIABLES
             self.env.set_scoped("swsw", "SW_T(T,WW),")
             self.env.set_scoped("swsw_GP", (g.SwT[g.t, g.ww],))
             self.env.set_scoped("scum", "*SW_TPROB(T,WW)")
+            self.env.set_scoped("scum_GP", g.sw_tprob[g.t, g.ww])
 
         self.add_records_to_universe_item(
             ["FORC+CO2", "FORC+TOT", "DELTA+ATM", "DELTA+LO"]
         )
         self.tc.enqueue(
             self.exec_loop,
-            self.env.stages,
-            self.env.swsw,
-            self.env.var,
-            self.env.swd,
-            self.env.scum,
-            self.env.eq,
+            stages=self.env.stages,
+            swsw=self.env.swsw_GP,
+            var=self.env.var,
+            swd=self.env.swd_GP,
+            scum=self.env.scum,
+            scum_GP=self.env.scum_GP,
+            eq=self.env.eq,
         )
+
+    def declarations(
+        self: RptExtCli, eq: str, var: str, swd: tuple[Set | Alias, ...] | tuple[()]
+    ) -> None:
+        """Untagged reporting copies of the climate variables and equations.
+
+        GAMS ignores a repeated declaration of a symbol, so for a deterministic run
+        mod_vars.cli has already declared these very names (as POSITIVE variables)
+        and this block is a no-op there. Only a stochastic run, where mod_vars.cli
+        tagged them ``VAS_``/``ES_``, actually creates them here.
+        """
+        g = self.tc
+        m = g.container
+
+        if not g.declared(f"{eq}_CLITOT"):
+            g.set_equation(
+                name=f"{eq}_CLITOT",
+                eq=Equation(
+                    m,
+                    name=f"{eq}_CLITOT",
+                    domain=[g.cmitem, g.t, g.ll, *swd],
+                    description="Balances for the total emissions or forcing",
+                ),
+            )
+        if not g.declared(f"{eq}_CLIMAX"):
+            g.set_equation(
+                name=f"{eq}_CLIMAX",
+                eq=Equation(
+                    m,
+                    name=f"{eq}_CLIMAX",
+                    domain=[g.allyear, g.cmitem, *swd],
+                    description="Constraint for maximum climate quantities",
+                ),
+            )
+        if not g.declared(f"{var}_CLITOT"):
+            g.set_variable(
+                name=f"{var}_CLITOT",
+                var=Variable(
+                    m,
+                    name=f"{var}_CLITOT",
+                    domain=[g.cmitem, g.ll, *swd],
+                    description="Total emissions or forcing by milestone year",
+                ),
+            )
+        if not g.declared(f"{var}_CLIBOX"):
+            g.set_variable(
+                name=f"{var}_CLIBOX",
+                var=Variable(
+                    m,
+                    name=f"{var}_CLIBOX",
+                    type="Positive",
+                    domain=[g.cmitem, g.CmBox, g.ll, *swd],
+                    description="Quantities in the climate reservoirs",
+                ),
+            )
 
     def exec_loop(
         self: RptExtCli,
         stages: str,
-        swsw: str,
+        swsw: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
         var: str,
-        swd: str,
+        swd: tuple[Set | Alias, ...] | tuple[()],
         scum: str,
+        scum_GP: ImplicitParameter | Number,
         eq: str,
     ) -> None:
+        g = self.tc
+        t, ll, ww = g.t, g.ll, g.ww
+        CmBox, CmVar = g.CmBox, g.CmVar
+        VAR_CLIBOX, VAR_CLITOT = g.VAR_CLIBOX, g.VAR_CLITOT
+        EQ_CLIMAX, EQ_CLITOT = g.eq_climax, g.eq_clitot
+
+        # $%SW_TAGS% ran after the declaration block, so %VAR%/%EQ% are the
+        # stochastic VAS_/ES_ symbols wherever the blocks below use these.
+        TAGGED_VAR_CLIBOX = g.get_variable(f"{var}_CLIBOX")
+        TAGGED_VAR_CLITOT = g.get_variable(f"{var}_CLITOT")
+        TAGGED_EQ_CLIMAX = g.get_equation(f"{eq}_CLIMAX")
+        TAGGED_EQ_CLITOT = g.get_equation(f"{eq}_CLITOT")
+
         # * Results for each SOW
-        code_str = "LOOP(SOW," if stages != "YES" else "LOOP(AUXSOW(SOW)$SW_PROB(SOW),"
-        # * Clear results from previous SOW
-        if stages == "YES":
-            code_str += rf"""
-   OPTION CLEAR=VAR_CLITOT,CLEAR=VAR_CLIBOX;
-   OPTION CLEAR=EQ_CLITOT, CLEAR=EQ_CLIMAX;
-   LOOP(SUPERYR(T,LL)$CM_LED(LL),
-    VAR_CLITOT.L(CM_VAR,LL) $= SUM({swsw} {var}_CLITOT.L(CM_VAR,LL{swd}){scum});
-    VAR_CLIBOX.L(CM_VAR,CM_BOX,LL) $= SUM({swsw} {var}_CLIBOX.L(CM_VAR,CM_BOX,LL{swd}){scum});
-{f"VAR_CLIBOX.L(CM_VAR,CM_BOX,LL) $= {var}_CLIBOX.L(CM_VAR,CM_BOX,LL,SOW);" if f"{stages}{scum}" == "YES" else ""}
-    EQ_CLIMAX.M(LL,CM_VAR)  $= SUM({swsw} {eq}_CLIMAX.M(LL,CM_VAR{swd})*SW_UNPB(T,WW)));
-   EQ_CLITOT.M(CM_VAR,T,T)  $= SUM({swsw} {eq}_CLITOT.M(CM_VAR,T,T{swd})*SW_UNPB(T,WW));
-"""
+        sow_loop = g.Sow if stages != "YES" else g.Auxsow[g.Sow].where[g.sw_prob[g.Sow]]
+        with Loop(sow_loop):
+            # * Clear results from previous SOW
+            if stages == "YES":
+                VAR_CLITOT.setRecords(None)
+                VAR_CLIBOX.setRecords(None)
+                EQ_CLITOT.setRecords(None)
+                EQ_CLIMAX.setRecords(None)
+                with Loop(g.Superyr[t, ll].where[g.cm_led[ll]]):
+                    VAR_CLITOT.l[CmVar, ll] = sparse(
+                        Sum(
+                            Domain(*swsw),
+                            TAGGED_VAR_CLITOT.l[(CmVar, ll, *swd)] * scum_GP,
+                        )
+                    )
+                    VAR_CLIBOX.l[CmVar, CmBox, ll] = sparse(
+                        Sum(
+                            Domain(*swsw),
+                            TAGGED_VAR_CLIBOX.l[(CmVar, CmBox, ll, *swd)] * scum_GP,
+                        )
+                    )
+                    if f"{stages}{scum}" == "YES":
+                        VAR_CLIBOX.l[CmVar, CmBox, ll] = sparse(
+                            TAGGED_VAR_CLIBOX.l[CmVar, CmBox, ll, g.Sow]
+                        )
+                    EQ_CLIMAX.m[ll, CmVar] = sparse(
+                        Sum(
+                            Domain(*swsw),
+                            TAGGED_EQ_CLIMAX.m[(ll, CmVar, *swd)] * g.sw_unpb[t, ww],
+                        )
+                    )
+                EQ_CLITOT.m[CmVar, t, t] = sparse(
+                    Sum(
+                        Domain(*swsw),
+                        TAGGED_EQ_CLITOT.m[(CmVar, t, t, *swd)] * g.sw_unpb[t, ww],
+                    )
+                )
 
-        code_str += rpt_par_cli()
-        code_str += """
-  );
-IF(CARD(SOW)=1,DISPLAY CM_RESULT,CM_MAXC_M; ELSE DISPLAY CM_SRESULT,CM_SMAXC_M);
-"""
-        if stages == "YES":
-            code_str += rf"""
-* Expected marginals
-  LOOP(SUPERYR(T,LL)$CM_LED(LL),
-    EQ_CLIMAX.M(LL,CM_VAR)  $= SUM(SW_T(T,W),{eq}_CLIMAX.M(LL,CM_VAR,W));
-    VAR_CLITOT.L(CM_VAR,LL) $= SUM(SW_T(T,W),SW_TPROB(T,W)*{var}_CLITOT.L(CM_VAR,LL,W));
-    VAR_CLIBOX.L(CM_VAR,CM_BOX,LL) $= SUM(SW_T(T,W),SW_TPROB(T,W)*{var}_CLIBOX.L(CM_VAR,CM_BOX,LL,W)));
+            rpt_par_cli_GP(g)
 
-"""
+        # Reading .records flushes the loop above to GAMS first, so the printed
+        # values are the ones GAMS would have DISPLAYed here.
+        if g.Sow.number_records == 1:
+            print(g.cm_result.records)
+            print(g.cm_maxc_m.records)
+        else:
+            print(g.cm_sresult.records)
+            print(g.cm_smaxc_m.records)
+        # *-----------------------------------------------------------------------------
+        if stages != "YES":
+            return
 
-        self.tc.add_gams_code(module=self, phase="run", code=code_str)
+        # * Expected marginals
+        with Loop(g.Superyr[t, ll].where[g.cm_led[ll]]):
+            EQ_CLIMAX.m[ll, CmVar] = sparse(
+                Sum(g.SwT[t, g.w], TAGGED_EQ_CLIMAX.m[ll, CmVar, g.w])
+            )
+            VAR_CLITOT.l[CmVar, ll] = sparse(
+                Sum(
+                    g.SwT[t, g.w],
+                    g.sw_tprob[t, g.w] * TAGGED_VAR_CLITOT.l[CmVar, ll, g.w],
+                )
+            )
+            VAR_CLIBOX.l[CmVar, CmBox, ll] = sparse(
+                Sum(
+                    g.SwT[t, g.w],
+                    g.sw_tprob[t, g.w] * TAGGED_VAR_CLIBOX.l[CmVar, CmBox, ll, g.w],
+                )
+            )

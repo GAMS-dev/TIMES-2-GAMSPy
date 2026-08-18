@@ -1362,6 +1362,10 @@ class SetglobsGms(GamsClass):
         mx = () if self.x1 == "" else ("1",)
         self.env.set_global("mx_GP", mx)
         self.env.set_global("scum", self.x1)
+        # SCUM is a multiplicative suffix in the source, so the empty string is a
+        # neutral factor of one for the GAMSPy twin (rpt_ext.cli replaces it with
+        # SW_TPROB(T,WW) when SCUM is set).
+        self.env.set_global("scum_GP", Number(1))
         self.env.set_global("sw_stvars", self.x1)
         mx = self.env.mx
         scum = self.env.scum
