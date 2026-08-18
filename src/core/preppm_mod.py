@@ -31,7 +31,7 @@ from core.prep_ext_vda import PrepExtVda
 from core.prepparm_gms import PrepparmGms, PrepparmGmsConfig
 from core.prepret_dsc import PrepretDsc, PrepretDscConfig
 from core.prepxtra_mod import PrepxtraMod
-from core.preshape_gms import PreshapeGms
+from core.preshape_gms import PreshapeGms, PreshapeGmsConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -577,36 +577,27 @@ class PreppmMod(GamsClass):
         # *=============================================================================
         # ***************************** SHAPE/MULTI INDEXES ****************************
         # *-----------------------------------------------------------------------------
-        preshapes: list[tuple[str, str, str, str, str, str, str, str]] = [
-            ("NCAP_AFX", "R", "P", "", "V", "RXX", "RTP(R,V,P)", ""),
-            ("NCAP_AFSX", "R", "P,BD", ",'0','0','0'", "V", "UNCD7", "RTP(R,V,P)", ""),
-            ("NCAP_AFM", "R", "P", "", "V", "RXX", "RTP(R,V,P)", ""),
-            ("NCAP_FOMX", "R", "P", "", "V", "RXX", "RTP(R,V,P)", ""),
-            ("NCAP_FSUBX", "R", "P", "", "V", "RXX", "RTP(R,V,P)", ""),
-            ("NCAP_FTAXX", "R", "P", "", "V", "RXX", "RTP(R,V,P)", ""),
-            ("FLO_FUNCX", "R", "P,CG1,CG2", ",'0','0'", "V", "UNCD7", "RTP(R,V,P)", ""),
-            ("COM_ELASTX", "R", "C,BD", ",'0','0','0'", "T", "UNCD7", "1", "15"),
-            ("NCAP_FOMM", "R", "P", "", "V", "RXX", "RTP(R,V,P)", ""),
-            ("NCAP_FSUBM", "R", "P", "", "V", "RXX", "RTP(R,V,P)", ""),
-            ("NCAP_FTAXM", "R", "P", "", "V", "RXX", "RTP(R,V,P)", ""),
-            ("NCAP_CPX", "R", "P", "", "V", "RXX", "RTP(R,V,P)", ""),
+        cg1, cg2 = g.cg1, g.cg2
+        rtp_rvp = g.Rtp[r, v, p]
+        # fmt: off
+        preshapes: list[PreshapeGmsConfig] = [
+            PreshapeGmsConfig(g.ncap_afx, (r,), (p,), (), v, g.Rxx, rtp_rvp),
+            PreshapeGmsConfig(g.ncap_afsx, (r,), (p, bd), ("0", "0", "0"), v, g.Uncd7, rtp_rvp),
+            PreshapeGmsConfig(g.ncap_afm, (r,), (p,), (), v, g.Rxx, rtp_rvp),
+            PreshapeGmsConfig(g.ncap_fomx, (r,), (p,), (), v, g.Rxx, rtp_rvp),
+            PreshapeGmsConfig(g.ncap_fsubx, (r,), (p,), (), v, g.Rxx, rtp_rvp),
+            PreshapeGmsConfig(g.ncap_ftaxx, (r,), (p,), (), v, g.Rxx, rtp_rvp),
+            PreshapeGmsConfig(g.flo_funcx, (r,), (p, cg1, cg2), ("0", "0"), v, g.Uncd7, rtp_rvp),
+            PreshapeGmsConfig(g.com_elastx, (r,), (c, bd), ("0", "0", "0"), t, g.Uncd7, Number(1), 15),
+            PreshapeGmsConfig(g.ncap_fomm, (r,), (p,), (), v, g.Rxx, rtp_rvp),
+            PreshapeGmsConfig(g.ncap_fsubm, (r,), (p,), (), v, g.Rxx, rtp_rvp),
+            PreshapeGmsConfig(g.ncap_ftaxm, (r,), (p,), (), v, g.Rxx, rtp_rvp),
+            PreshapeGmsConfig(g.ncap_cpx, (r,), (p,), (), v, g.Rxx, rtp_rvp),
         ]
+        # fmt: on
 
-        for a1, a2, a3, a4, a5, a6, a7, a8 in preshapes:  # type: ignore[assignment]
-            self.include(
-                PreshapeGms(
-                    self.tc,
-                    self.env,
-                    arg1=a1,  # type: ignore[arg-type]
-                    arg2=a2,  # type: ignore[arg-type]
-                    arg3=a3,  # type: ignore[arg-type]
-                    arg4=a4,  # type: ignore[arg-type]
-                    arg5=a5,
-                    arg6=a6,  # type: ignore[arg-type]
-                    arg7=a7,  # type: ignore[arg-type]
-                    arg8=a8,
-                )
-            )
+        for s_config in preshapes:
+            self.include(PreshapeGms(self.tc, self.env, config=s_config))
 
         self.tc.enqueue(self.exec6, dflbl=self.env.dflbl)
 
