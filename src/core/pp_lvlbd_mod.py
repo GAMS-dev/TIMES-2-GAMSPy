@@ -25,6 +25,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter, Set
+
 from core.base_class import GamsClass
 from core.pp_qaput_mod import pp_qaput
 
@@ -89,14 +91,11 @@ class PpLvlbdMod(GamsClass):
         )
 
     def comp1(self: PpLvlbdMod) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  SET BDVAL(BD);
-  PARAMETER TS_BD(S,BD);
-""",
-        )
+        g = self.tc
+        m = g.container
+
+        g.Bdval = Set(m, name="BDVAL", domain=[g.bd])
+        g.ts_bd = Parameter(m, name="TS_BD", domain=[g.s, g.bd])
 
     def exec1(
         self: PpLvlbdMod,

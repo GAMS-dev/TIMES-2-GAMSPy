@@ -356,7 +356,7 @@ class EqmainMod(GamsClass):
         if self.env.var_uc != "YES":
             ucbd = (g.bd,)
             tmp = (g.lim,)
-            take = g.uc_rhsrt[g.r, g.ucn, g.ts_bd]
+            take = g.uc_rhsrt[g.r, g.ucn, g.t, g.bd]
             self.env.set_local("uclim", ",BD")
 
         self.add_sets(ucbd=ucbd, tmp=tmp)

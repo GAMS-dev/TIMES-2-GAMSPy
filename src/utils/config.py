@@ -150,7 +150,7 @@ class EnvironmentVariableSchema(BaseModel):
         alias="validate",
         description="Requests a highly simplified objective function block emulating historical MARKAL configurations (Discouraged).",
     )
-    reduce: Literal["YES", "%reduce%"] = Field(
+    reduce: Literal["YES", "NO", "%reduce%"] = Field(
         description="Toggles equation reduction algorithms. Substitutes emission flows and purges redundant capacity variables to clear working memory."
     )
     solans: Literal["YES", "NO"] = Field(
@@ -169,7 +169,7 @@ class EnvironmentVariableSchema(BaseModel):
         default="TIMES",
         description="Identifies the core structural name string injected into the model tracking parameters.",
     )
-    var_uc: Literal["YES", "%var_uc%"] = Field(
+    var_uc: Literal["YES", "", "%var_uc%"] = Field(
         description="Forces explicit tracking variables for user constraints by introducing equality slacks, which is highly useful for stochastic ranges."
     )
     dscauto: Literal["YES", "Yes", "%dscauto%"] = Field(
@@ -666,7 +666,7 @@ class UserConfig(BaseModel):
     solve_now: Literal["YES", "NO"] = "YES"
     model_name: str = "TIMES"
     xtqa: Literal["YES", "%xtqa%"] = "%xtqa%"
-    var_uc: Literal["YES", "%var_uc%"] = "%var_uc%"
+    var_uc: Literal["YES", "", "%var_uc%"] = "%var_uc%"
     obj: Literal["ALT", "MOD", "LIN", "STD", "AUTO"] = "AUTO"
     mid_year: Literal["YES", "%mid_year%"] = "%mid_year%"
     oblong: Literal["YES", "NO", "%oblong%"] = "%oblong%"
