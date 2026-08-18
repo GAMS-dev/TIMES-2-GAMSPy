@@ -20,6 +20,7 @@ from gamspy import (
 
 from core.base_class import GamsClass
 from utils.config import RunConfig
+from utils.macros import macro_config
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -2022,13 +2023,21 @@ class TimesModelClass:
         setattr(self, name.lower(), eq)
 
     def get_equation(self, name: str) -> Equation:
-        return getattr(self, name.lower())  # type: ignore [no-any-return]
+        try:
+            return getattr(self, name.lower())  # type: ignore [no-any-return]
+        except AttributeError:
+            # Q_xxx is a $macro of recurrin.stc rather than an equation of its own
+            return macro_config.recurrin.equation_GP(name)  # type: ignore [no-any-return]
 
     def get_parameter(self, name: str) -> Any:
         return getattr(self, name.lower())
 
     def get_variable(self, name: str) -> Variable:
-        return getattr(self, name.upper())  # type: ignore [no-any-return]
+        try:
+            return getattr(self, name.upper())  # type: ignore [no-any-return]
+        except AttributeError:
+            # Z_xxx is a $macro of recurrin.stc rather than a variable of its own
+            return macro_config.recurrin.variable_GP(name)  # type: ignore [no-any-return]
 
     def set_parameter(self, name: str, parameter: Parameter) -> None:
         setattr(self, name.lower(), parameter)

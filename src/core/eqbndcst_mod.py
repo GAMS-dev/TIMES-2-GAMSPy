@@ -13,20 +13,77 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Literal, cast
 
-from gamspy import Parameter, Set
+from gamspy import Domain, Loop, Number, Ord, Parameter, Set, SpecialValues, Sum, sparse
+from gamspy.math import Max, Min, Round, same_as
 
 from core.base_class import GamsClass
-from core.cal_nored_red import cal_nored_red
-from core.cal_red_red import cal_red_red
+from core.cal_red_red import CalRedRedConfig
+from core.utils import extract_var_domain, wrap_in_sum
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from gamspy import Alias, Equation
+    from gamspy._algebra.condition import Condition
+    from gamspy._algebra.expression import Expression
+    from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+COST_GMAP_RECORDS: list[tuple[str, str, str]] = [
+    ("INVTAXSUB", "INVTAX", "TAX"),
+    ("INVTAXSUB", "INVSUB", "SUB"),
+    ("INVALL", "INV", "COST"),
+    ("INVALL", "INVTAX", "TAX"),
+    ("INVALL", "INVSUB", "SUB"),
+    ("FOMTAXSUB", "FOMTAX", "TAX"),
+    ("FOMTAXSUB", "FOMSUB", "SUB"),
+    ("FOMALL", "FOM", "COST"),
+    ("FOMALL", "FOMTAX", "TAX"),
+    ("FOMALL", "FOMSUB", "SUB"),
+    ("FIX", "INV", "COST"),
+    ("FIX", "FOM", "COST"),
+    ("FIXTAX", "INVTAX", "TAX"),
+    ("FIXTAX", "FOMTAX", "TAX"),
+    ("FIXSUB", "INVSUB", "TAX"),
+    ("FIXSUB", "FOMSUB", "TAX"),
+    ("FIXTAXSUB", "INVTAX", "TAX"),
+    ("FIXTAXSUB", "INVSUB", "SUB"),
+    ("FIXTAXSUB", "FOMTAX", "TAX"),
+    ("FIXTAXSUB", "FOMSUB", "SUB"),
+    ("FIXALL", "INV", "COST"),
+    ("FIXALL", "INVTAX", "TAX"),
+    ("FIXALL", "INVSUB", "SUB"),
+    ("FIXALL", "FOM", "COST"),
+    ("FIXALL", "FOMTAX", "TAX"),
+    ("FIXALL", "FOMSUB", "SUB"),
+    ("COMTAXSUB", "COMTAX", "TAX"),
+    ("COMTAXSUB", "COMSUB", "SUB"),
+    ("FLOTAXSUB", "FLOTAX", "TAX"),
+    ("FLOTAXSUB", "FLOSUB", "SUB"),
+    ("ALLTAX", "INVTAX", "TAX"),
+    ("ALLTAX", "FOMTAX", "TAX"),
+    ("ALLTAX", "COMTAX", "TAX"),
+    ("ALLTAX", "FLOTAX", "TAX"),
+    ("ALLSUB", "INVSUB", "TAX"),
+    ("ALLSUB", "FOMSUB", "TAX"),
+    ("ALLSUB", "COMSUB", "TAX"),
+    ("ALLSUB", "FLOSUB", "TAX"),
+    ("ALLTAXSUB", "INVTAX", "TAX"),
+    ("ALLTAXSUB", "INVSUB", "SUB"),
+    ("ALLTAXSUB", "FOMTAX", "TAX"),
+    ("ALLTAXSUB", "FOMSUB", "SUB"),
+    ("ALLTAXSUB", "COMTAX", "TAX"),
+    ("ALLTAXSUB", "COMSUB", "SUB"),
+    ("ALLTAXSUB", "FLOTAX", "TAX"),
+    ("ALLTAXSUB", "FLOSUB", "SUB"),
+]
 
 
 class EqbndcstMod(GamsClass):
@@ -50,17 +107,19 @@ class EqbndcstMod(GamsClass):
         g = self.tc
         m = g.container
 
+        # * Need a few more aliases and sets
+        g.Superyr = Set(
+            m,
+            name="SUPERYR",
+            domain=[g.t, g.allyear],
+            description="SUpremum PERiod YeaR",
+        )
         g.Ykk = Set(m, name="YKK", domain=[g.allyear, g.allyear, g.allyear])
-
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="""
-* Need a few more aliases and sets
- SET SUPERYR(T,ALLYEAR) 'SUpremum PERiod YeaR'   //;
- SET RTP_IAN(REG,T,P,CUR)                        //;
- SET RT_IAN(REG,ALLYEAR,ALLYEAR,CUR,COSTAGG)     //;
-""",
+        g.RtpIan = Set(m, name="RTP_IAN", domain=[g.Reg, g.t, g.p, g.cur])
+        g.RtIan = Set(
+            m,
+            name="RT_IAN",
+            domain=[g.Reg, g.allyear, g.allyear, g.cur, g.costagg],
         )
         g.cst_annc = Parameter(
             m,
@@ -68,30 +127,15 @@ class EqbndcstMod(GamsClass):
             domain=[g.r, g.allyear, g.p, g.allyear, g.ucname, g.cur],
         )
 
-        if "OBJ_SUMII" not in self.tc.container.listSymbols():
+        # $IF NOT DEFINED OBJ_SUMII $EXIT
+        if not g.declared("OBJ_SUMII"):
             return
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="""
- SET COST_GMAP(COSTAGG,COSTAGG,COSTYPE) /
-  INVTAXSUB.(INVTAX.TAX,INVSUB.SUB)
-  INVALL   .(INV.COST,INVTAX.TAX,INVSUB.SUB)
-  FOMTAXSUB.(FOMTAX.TAX,FOMSUB.SUB)
-  FOMALL   .(FOM.COST,FOMTAX.TAX,FOMSUB.SUB)
-  FIX      .(INV.COST,FOM.COST)
-  FIXTAX   .(INVTAX.TAX,FOMTAX.TAX)
-  FIXSUB   .(INVSUB.TAX,FOMSUB.TAX)
-  FIXTAXSUB.(INVTAX.TAX,INVSUB.SUB,FOMTAX.TAX,FOMSUB.SUB)
-  FIXALL   .(INV.COST,INVTAX.TAX,INVSUB.SUB,FOM.COST,FOMTAX.TAX,FOMSUB.SUB)
-  COMTAXSUB.(COMTAX.TAX,COMSUB.SUB)
-  FLOTAXSUB.(FLOTAX.TAX,FLOSUB.SUB)
-  ALLTAX   .(INVTAX.TAX,FOMTAX.TAX,COMTAX.TAX,FLOTAX.TAX)
-  ALLSUB   .(INVSUB.TAX,FOMSUB.TAX,COMSUB.TAX,FLOSUB.TAX)
-  ALLTAXSUB.(INVTAX.TAX,INVSUB.SUB,FOMTAX.TAX,FOMSUB.SUB,COMTAX.TAX,COMSUB.SUB,FLOTAX.TAX,FLOSUB.SUB)
-/;
-""",
+        g.CostGmap = Set(
+            m,
+            name="COST_GMAP",
+            domain=[g.costagg, g.costagg, g.costype],
+            records=COST_GMAP_RECORDS,
         )
 
         self.tc.enqueue(self.exec1, declif=self.env.declif)
@@ -105,7 +149,7 @@ class EqbndcstMod(GamsClass):
             self.env.set_scoped("swt", "")
             self.env.set_scoped("swt_GP", ())
 
-        self.env.set_scoped("sowstart", self.env.sow)
+        sowstart = self.env.sow_GP
 
         if self.env.stages == "YES":
             self.env.set_scoped("swd", self.env.sow)
@@ -113,56 +157,101 @@ class EqbndcstMod(GamsClass):
             self.env.set_scoped("sow", self.env.swd)
             self.env.set_scoped("sow_GP", self.env.swd_GP)
             self.env.set_scoped("swtd", "SUM")
-            self.env.set_scoped("swtd_GP", "SUM")  # ToDo: How to handle SUM here?
+            self.env.set_scoped("swtd_GP", "SUM")
 
+        # The domain (and multiplier) of the SUM over the pulse years
         if self.env.obj.upper() != "LIN":
             self.env.set_scoped(
                 "tpulse", "(PERIODYR(T,Y_EOH),YK(ALLYEAR,Y_EOH))$YK(Y_EOH,YEAR),"
+            )
+            self.env.set_scoped(
+                "tpulse_GP",
+                (
+                    Domain(g.Periodyr[g.t, g.YEoh], g.Yk[g.allyear, g.YEoh]).where[
+                        g.Yk[g.YEoh, g.year]
+                    ],
+                    Number(1),
+                ),
             )
         else:
             self.env.set_scoped(
                 "tpulse",
                 "(TPULSEYR(T,Y_EOH),YK(ALLYEAR,Y_EOH))$YK(Y_EOH,YEAR),TPULSE(T,Y_EOH)*",
             )
+            self.env.set_scoped(
+                "tpulse_GP",
+                (
+                    Domain(g.Tpulseyr[g.t, g.YEoh], g.Yk[g.allyear, g.YEoh]).where[
+                        g.Yk[g.YEoh, g.year]
+                    ],
+                    g.tpulse[g.t, g.YEoh],
+                ),
+            )
         if self.env.varcost.upper() == "LIN":
             self.env.set_scoped(
                 "tpulse",
                 "(PERIODYR(T,Y),MILESTONYR(Y_EOH),YK(ALLYEAR,Y))$(YK(Y,YEAR)$TPULSE(Y_EOH,Y)),TPULSE(Y_EOH,Y)*",
+            )
+            self.env.set_scoped(
+                "tpulse_GP",
+                (
+                    Domain(
+                        g.Periodyr[g.t, g.Y],
+                        g.Milestonyr[g.YEoh],
+                        g.Yk[g.allyear, g.Y],
+                    ).where[g.Yk[g.Y, g.year] & g.tpulse[g.YEoh, g.Y]],
+                    g.tpulse[g.YEoh, g.Y],
+                ),
             )
         if f"{self.env.obj.upper()}{self.env.varcost.upper()}" == "LINLIN":
             self.env.set_scoped(
                 "tpulse",
                 "(TPULSEYR(T,Y),MILESTONYR(Y_EOH),YK(ALLYEAR,Y))$(YK(Y,YEAR)$TPULSE(Y_EOH,Y)),TPULSE(Y_EOH,Y)*TPULSE(T,Y)*",
             )
+            self.env.set_scoped(
+                "tpulse_GP",
+                (
+                    Domain(
+                        g.Tpulseyr[g.t, g.Y],
+                        g.Milestonyr[g.YEoh],
+                        g.Yk[g.allyear, g.Y],
+                    ).where[g.Yk[g.Y, g.year] & g.tpulse[g.YEoh, g.Y]],
+                    g.tpulse[g.YEoh, g.Y] * g.tpulse[g.t, g.Y],
+                ),
+            )
 
-        # vart  & vart1 are only used in this file, not used in its children
-        # degradation to local
-        vart1 = self.env.vart
+        # $SET VART1 %VART%
+        temp_vart = self.env.vart_GP
+        # $IF %SCUM%==1 $SET VART SUM(SW_TSW(W,T,W),SW_TPROB(T,W)*Z
         if self.env.scum == "1":
-            vart = "SUM(SW_TSW(W,T,W),SW_TPROB(T,W)*Z"
-        else:
-            vart = self.env.vart
+            # The Z_xxx prefix is resolved by the $macros of recurrin.stc, which alias
+            # the stochastic VAS_xxx variables and pin the SOW index of the capacity and
+            # cumulative ones to '1'; that macro half belongs to recurrin.stc
+            self.env.set_scoped("vart", "SUM(SW_TSW(W,T,W),SW_TPROB(T,W)*Z")
+            self.env.set_scoped(
+                "vart_GP", (g.SwTsw[g.w, g.t, g.w], g.sw_tprob[g.t, g.w] * g.z)
+            )
 
-        self.env.set_scoped("sowend", self.env.sow)
+        sowend = self.env.sow_GP
         if self.env.stages == "YES":
-            self.env.set_scoped("sowend", self.env.swd)
+            sowend = self.env.swd_GP
 
         self.equation(
             eq=self.env.eq,
-            sowstart=self.env.sowstart,
-            swt=self.env.swt,
-            vart1=vart1,
-            sws=self.env.sws,
+            sowstart=sowstart,
+            swt=self.env.swt_GP,
+            vart1=temp_vart,
+            sws=self.env.sws_GP,
             declif=self.env.declif,
-            tpulse=self.env.tpulse,
-            vart=vart,
-            swtd=self.env.swtd,
-            swsw=self.env.swsw,
+            tpulse=self.env.tpulse_GP,
+            vart=self.env.vart_GP,
+            swtd=self.env.swtd_GP,
+            swsw=self.env.swsw_GP,
             cal_red=self.env.cal_red,
             var=self.env.var,
-            sowend=self.env.sowend,
+            sowend=sowend,
             pgprim=self.env.pgprim,
-            sow=self.env.sow,
+            sow=self.env.sow_GP,
             def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
         )
 
@@ -173,231 +262,462 @@ class EqbndcstMod(GamsClass):
     def equation(
         self: EqbndcstMod,
         eq: str,
-        sowstart: str,
-        swt: str,
-        vart1: str,
-        sws: str,
+        sowstart: tuple[Literal["0", "1"] | Set | Alias, ...] | tuple[()],
+        swt: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
+        vart1: tuple[str, ImplicitSet | None],
+        sws: tuple[Set | Alias, ...] | tuple[()],
         declif: str,
-        tpulse: str,
-        vart: str,
-        swtd: str,
-        swsw: str,
+        tpulse: tuple[Condition | Domain, Expression | ImplicitParameter | Number],
+        vart: tuple[str, Any],
+        swtd: tuple[Set | Alias | ImplicitSet, ...] | tuple[()] | str,
+        swsw: tuple[ImplicitSet] | tuple[ImplicitSet, ImplicitParameter] | tuple[()],
         cal_red: str,
         var: str,
-        sowend: str,
+        sowend: tuple[Literal["0", "1"] | Set | Alias, ...] | tuple[()],
         pgprim: str,
-        sow: str,
+        sow: tuple[Literal["0", "1"] | Set | Alias, ...] | tuple[()],
         def_rtp_ffcs: bool,
     ) -> None:
-        include_cal_red = ""
+        g = self.tc
+        r, t, tt, v, p, c, s, ts = g.r, g.t, g.tt, g.v, g.p, g.c, g.s, g.ts
+        year, allyear, ll, k, Y = g.year, g.allyear, g.ll, g.k, g.Y
+        age, jot, life, span = g.age, g.jot, g.life, g.span
+        j, jj, cur, costcat, costagg, costype = (
+            g.j,
+            g.jj,
+            g.cur,
+            g.costcat,
+            g.costagg,
+            g.costype,
+        )
+        Com, ie, io, YEoh, Yk = g.Com, g.ie, g.io, g.YEoh, g.Yk
+        # Declared by raw GAMS blocks (eqobj.mod / eqobjfix.mod), hence not on the
+        # model class yet
+        KEoh: Set = g.get_set("K_EOH")
+        ObjSumiv: Set = g.get_set("OBJ_SUMIV")
+        RtpShape: Set = g.get_set("RTP_SHAPE")
+        obj_diviv = cast("Parameter", g.container["OBJ_DIVIV"])
 
-        # only set in pp_reduce.red
+        eq_bndcst: Equation = g.get_equation(f"{eq}_BNDCST")
+        VAR_CUMCST = g.get_variable(f"{var}_CUMCST")
+        NCAP_DECLIF: Parameter = g.get_parameter(f"NCAP_{declif}")
+        tpulse_domain, tpulse_mult = tpulse
+
+        # %VART1%_NCAP(R,T,P %SWS%), the (stochastic) new capacity variable
+        vart1_id, vart1_set = extract_var_domain(vart1)
+        VART1_NCAP = g.get_variable(f"{vart1_id}_NCAP")
+        ncap1 = wrap_in_sum(target=VART1_NCAP[r, t, p, *sws], domain=vart1_set)
+
+        # Every %VART%_xxx occurrence closes its own SUM over the SOW mapping, weighted
+        # by the state probability when cumulating over the states (%SCUM%==1)
+        vart_id, vart_set = extract_var_domain(vart)
+        suffixes = ["COMNET", "COMPRD", "IRE", "ACT"]
+        VART_COMNET, VART_COMPRD, VART_IRE, VART_ACT = [
+            wrap_in_sum(target=g.get_variable(f"{vart_id}_{suffix}"), domain=vart_set)
+            for suffix in suffixes
+        ]
+
+        # ------------------------------------------------------------------------------
+        # Investment Costs
+        investment = (
+            Sum(
+                Domain(
+                    g.ObjSumii[r, t, p, age, KEoh[ll], jot],
+                    span[age + Min(Ord(ll) + Ord(jot) - Ord(year) - 1, 0)],
+                ).where[Yk[tt, t]],
+                Sum(
+                    g.Invspred[ll, jot, Y, k].where[Yk[allyear, Y]],
+                    macro.obj_icost_GP(r, k, p, cur)
+                    * Max(
+                        0,
+                        Min(g.yearval[allyear] + 1, g.yearval[Y] + Ord(age))
+                        - Max(g.yearval[year], g.yearval[Y]),
+                    ),
+                )
+                * ncap1
+                * g.obj_crf[r, t, p, cur]
+                / g.obj_divi[r, t, p],
+            ).where[~g.RtIan[r, year, allyear, cur, "INV"]]
+            + Sum(
+                Domain(t, p).where[g.cst_annc[r, t, p, tt, "INVCOST", cur]],
+                g.cst_annc[r, t, p, tt, "INVCOST", cur] * ncap1,
+            ).where[g.RtIan[r, year, allyear, cur, "INV"]]
+        ).where[same_as(costcat, "INV")]
+
+        # Decommissioning Costs
+        decommissioning = Sum(
+            g.Rtp[r, t, p].where[Yk[tt, t] & macro.obj_dcost_GP(r, t, p, cur)],
+            Sum(
+                g.ObjSumiii[r, t, p, KEoh, k, ll].where[Yk[allyear, ll]],
+                macro.obj_dcost_GP(r, k, p, cur)
+                * Max(
+                    0,
+                    Min(Ord(allyear) + 1, Ord(ll) + Round(NCAP_DECLIF[r, t, p]))
+                    - Max(Ord(year), Ord(ll)),
+                ),
+            )
+            * ncap1
+            * g.obj_crfd[r, t, p, cur]
+            / g.obj_diviii[r, t, p],
+        ).where[same_as(costcat, "INV")]
+
+        # Investment Taxes and Subsidies
+        def investment_taxsub(
+            obj_macro: Callable[..., ImplicitParameter],
+        ) -> Condition:
+            """The INVTAX / INVSUB components, driven by OBJ_ITAX / OBJ_ISUB."""
+            return Sum(
+                g.ObjSumii[r, t, p, age, KEoh, jot].where[
+                    Yk[tt, t] & obj_macro(r, t, p, cur)
+                ],
+                Sum(
+                    Domain(
+                        g.Invspred[KEoh, jot, ll, k],
+                        span[age + Min(Ord(ll) - Ord(year), 0)],
+                    ).where[Yk[allyear, ll]],
+                    obj_macro(r, k, p, cur)
+                    * (
+                        Min(Ord(allyear) + 1, Ord(ll) + Ord(age))
+                        - Max(Ord(year), Ord(ll))
+                    ),
+                )
+                * ncap1
+                * g.obj_crf[r, t, p, cur]
+                / g.obj_divi[r, t, p],
+            ).where[~g.RtIan[r, year, allyear, cur, "INVTAXSUB"]]
+
+        def investment_taxsub_annual(item: str) -> Condition:
+            """The pre-calculated annual INVTAX / INVSUB coefficients (see exec1)."""
+            return Sum(
+                Domain(t, p).where[g.cst_annc[r, t, p, tt, item, cur]],
+                g.cst_annc[r, t, p, tt, item, cur] * ncap1,
+            ).where[g.RtIan[r, year, allyear, cur, "INVTAXSUB"]]
+
+        invtax = (
+            investment_taxsub(macro.obj_itax_GP) + investment_taxsub_annual("INVTAX")
+        ).where[same_as(costcat, "INVTAX")]
+        # NB: CST_ANNC holds the subsidies with a negative sign, hence the minus
+        invsub = (
+            investment_taxsub(macro.obj_isub_GP) - investment_taxsub_annual("INVSUB")
+        ).where[same_as(costcat, "INVSUB")]
+
+        # ------------------------------------------------------------------------------
+        # Fixed O&M Cost / Taxes / Subsidies
+        def fom(
+            obj_macro: Callable[..., ImplicitParameter],
+            shape_index: str,
+            item: str,
+            condition: Expression | ImplicitSet,
+        ) -> Condition:
+            """FOM, FOMTAX and FOMSUB share one formulation, shaped or not."""
+            unshaped = Sum(
+                Domain(
+                    ObjSumiv[ll, r, t, p, jot, life],
+                    span[life + Min(Ord(ll) + Ord(jot) - Ord(year) - 1, 0)],
+                ).where[condition],
+                Sum(
+                    g.Invstep[ll, jot, k, jot].where[Yk[allyear, k]],
+                    obj_macro(r, k, p, cur)
+                    * Max(
+                        0,
+                        Min(g.yearval[allyear] + 1, g.yearval[k] + Ord(life))
+                        - Max(g.yearval[year], g.yearval[k]),
+                    ),
+                )
+                * ncap1
+                / obj_diviv[r, t, p],
+            )
+            shaped = Sum(
+                RtpShape[r, t, p, shape_index, j, jj].where[condition],
+                Sum(
+                    Domain(
+                        ObjSumiv[k, r, t, p, jot, life],
+                        g.Invstep[k, jot, ll, jot],
+                        span[life + Min(Ord(ll) - Ord(year), 0)],
+                    ).where[Yk[allyear, ll]],
+                    Sum(
+                        g.Opyear[life, age].where[
+                            (Ord(ll) + Ord(age) > Ord(year)).where[
+                                Ord(ll) + Ord(age) < Ord(allyear) + 2
+                            ]
+                        ],
+                        g.shape[j, age] * g.multi[jj, ll + (Ord(age) - 1)] - 1,
+                    )
+                    * obj_macro(r, ll, p, cur),
+                )
+                * ncap1
+                / obj_diviv[r, t, p],
+            )
+            return (unshaped + shaped).where[same_as(costcat, item)]
+
+        # NB: unlike the taxes and subsidies, FOM is not conditioned on its coefficient
+        fixed_om = fom(macro.obj_fom_GP, "1", "FOM", Yk[tt, t])
+        fixed_om_tax = fom(
+            macro.obj_ftx_GP,
+            "2",
+            "FOMTAX",
+            Yk[tt, t] & macro.obj_ftx_GP(r, t, p, cur),
+        )
+        fixed_om_sub = fom(
+            macro.obj_fsb_GP,
+            "3",
+            "FOMSUB",
+            Yk[tt, t] & macro.obj_fsb_GP(r, t, p, cur),
+        )
+
+        # ------------------------------------------------------------------------------
+        # Variable commodity taxes and subsidies
+        def commodity_taxsub(item: Literal["TAX", "SUB"]) -> Condition:
+            return Sum(
+                tpulse_domain,
+                tpulse_mult
+                * (
+                    Sum(
+                        g.RhsCombal[r, t, c, s],
+                        VART_COMNET[r, t, c, s, *sws]
+                        * g.obj_comnt[r, YEoh, c, s, item, cur],
+                    )
+                    + Sum(
+                        g.RhsComprd[r, t, c, s],
+                        VART_COMPRD[r, t, c, s, *sws]
+                        * g.obj_compd[r, YEoh, c, s, item, cur],
+                    )
+                ),
+            ).where[same_as(costcat, f"COM{item}")]
+
+        commodity_tax = commodity_taxsub("TAX")
+        commodity_sub = commodity_taxsub("SUB")
+
+        # ------------------------------------------------------------------------------
+        # Variable flow taxes and subsidies
         if cal_red == "cal_red.red":
-            include_cal_red = cal_red_red(
-                arg1="C",
-                arg2="COM",
-                arg3="S",
-                arg4="P",
-                arg5="T",
-                pgprim=pgprim,
-                def_rtp_ffcs=def_rtp_ffcs,
-                sow=sow,
-                var=var,
-            )
+            from core.cal_red_red import cal_red_red_GP as cal_red_func_GP
         elif cal_red == "cal_nored.red":
-            include_cal_red = cal_nored_red(
-                arg1="C",
-                arg2="COM",
-                arg3="S",
-                arg4="P",
-                arg5="T",
-                def_rtp_ffcs=def_rtp_ffcs,
-                sow=sow,
-                var=var,
-                pgprim=pgprim,
-            )
+            from core.cal_nored_red import cal_nored_red_GP as cal_red_func_GP
         else:
             raise ValueError(f"Unexpected value for cal_red: {cal_red}")
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-*-----------------------------------------------------------------------------
-  {eq}_BNDCST(R,YEAR,SUPERYR(TT,ALLYEAR),COSTCAT,CUR {sowstart})$({swt}REG_CUMCST(R,YEAR,ALLYEAR,COSTCAT,CUR,'UP')) ..
-*------------------------------------------------------------------------------
-* Investment Costs
-  (SUM((OBJ_SUMII(R,T,P,AGE,K_EOH(LL),JOT),SPAN(AGE+MIN(ORD(LL)+ORD(JOT)-ORD(YEAR)-1,0)))$YK(TT,T),
-    SUM(INVSPRED(K_EOH,JOT,Y,K)$YK(ALLYEAR,Y),
-      {macro.obj_icost("R", "K", "P", "CUR")} *
-      MAX(0,MIN(YEARVAL(ALLYEAR)+1,YEARVAL(Y)+ORD(AGE))-MAX(YEARVAL(YEAR),YEARVAL(Y)))) *
-    {vart1}_NCAP(R,T,P {sws}) * OBJ_CRF(R,T,P,CUR) / OBJ_DIVI(R,T,P))$(NOT RT_IAN(R,YEAR,ALLYEAR,CUR,'INV')) +
-   SUM((T,P)$CST_ANNC(R,T,P,TT,'INVCOST',CUR),CST_ANNC(R,T,P,TT,'INVCOST',CUR)*{vart1}_NCAP(R,T,P {sws}))$RT_IAN(R,YEAR,ALLYEAR,CUR,'INV')
-  )$SAMEAS(COSTCAT,'INV') +
+        # NB: without an index_set both cal_red variants build an Expression, which
+        # is the only return type of theirs that carries .where
+        include_cal_red = cast(
+            "Expression",
+            cal_red_func_GP(
+                g=g,
+                config=CalRedRedConfig(
+                    arg1=c,
+                    arg2=Com,
+                    arg3=s,
+                    arg4=p,
+                    arg5=t,
+                    arg10=Number(1),
+                    pgprim=pgprim,
+                    def_rtp_ffcs=def_rtp_ffcs,
+                    sow=sow,
+                    var=var,
+                ),
+            ),
+        )
+        # %SWTD%(%SWSW% ... ): SUM over the SOW mapping of %SWSW%, which carries the
+        # state probability when cumulating over the states, or plain parentheses
+        flows: Expression | Sum = include_cal_red
+        if swtd:
+            if not swsw:
+                raise ValueError(f"swtd needs the swsw domain: {swtd}")
+            swsw_prob: ImplicitParameter | None = swsw[1] if len(swsw) > 1 else None  # type: ignore[misc]
+            flows = Sum(
+                swsw[0],
+                include_cal_red if swsw_prob is None else swsw_prob * include_cal_red,
+            )
 
-* Decommissioning Costs
-  SUM(RTP(R,T,P)$(YK(TT,T)${macro.obj_dcost("R", "T", "P", "CUR")}),
-    SUM(OBJ_SUMIII(R,T,P,K_EOH,K,LL)$YK(ALLYEAR,LL), {macro.obj_dcost("R", "K", "P", "CUR")} *
-      MAX(0,MIN(ORD(ALLYEAR)+1,ORD(LL)+ROUND(NCAP_{declif}(R,T,P)))-MAX(ORD(YEAR),ORD(LL)))) *
-    {vart1}_NCAP(R,T,P {sws}) * OBJ_CRFD(R,T,P,CUR) / OBJ_DIVIII(R,T,P)
-    )$SAMEAS(COSTCAT,'INV') +
+        # * inter-regional trade
+        trade = (
+            Sum(
+                g.RpcIre[r, p, c, ie],
+                VART_IRE[r, v, t, p, c, s, ie, *sws].where[~g.RpcAire[r, p, c]]
+                + (VART_ACT[r, v, t, p, s, *sws] * g.prc_actflo[r, v, p, c]).where[
+                    g.RpcAire[r, p, c]
+                ],
+            )
+            + Sum(
+                Domain(g.RpcIre[r, p, Com, ie], io).where[
+                    g.RtpcsVarf[r, t, p, Com, s]
+                    & g.ire_flosum[r, t, p, Com, s, ie, c, io]
+                ],
+                g.ire_flosum[r, t, p, Com, s, ie, c, io]
+                * (
+                    VART_IRE[r, v, t, p, Com, s, ie, *sws].where[~g.RpcAire[r, p, Com]]
+                    + (
+                        VART_ACT[r, v, t, p, s, *sws] * g.prc_actflo[r, v, p, Com]
+                    ).where[g.RpcAire[r, p, Com]]
+                ),
+            )
+        ).where[g.RpIre[r, p]]
 
-* Investment Taxes and Subsidies
-  (SUM(OBJ_SUMII(R,T,P,AGE,K_EOH,JOT)$(YK(TT,T)${macro.obj_itax("R", "T", "P", "CUR")}),
-    SUM((INVSPRED(K_EOH,JOT,LL,K),SPAN(AGE+MIN(ORD(LL)-ORD(YEAR),0)))$YK(ALLYEAR,LL),
-      {macro.obj_itax("R", "K", "P", "CUR")} * (MIN(ORD(ALLYEAR)+1,ORD(LL)+ORD(AGE))-MAX(ORD(YEAR),ORD(LL)))) *
-    {vart1}_NCAP(R,T,P {sws}) * OBJ_CRF(R,T,P,CUR) / OBJ_DIVI(R,T,P))$(NOT RT_IAN(R,YEAR,ALLYEAR,CUR,'INVTAXSUB')) +
-   SUM((T,P)$CST_ANNC(R,T,P,TT,'INVTAX',CUR),CST_ANNC(R,T,P,TT,'INVTAX',CUR)*{vart1}_NCAP(R,T,P {sws}))$RT_IAN(R,YEAR,ALLYEAR,CUR,'INVTAXSUB')
-  )$SAMEAS(COSTCAT,'INVTAX') +
+        def flow_taxsub(item: Literal["TAX", "SUB"]) -> Condition:
+            ftax = macro.obj_ftax_GP(r, YEoh, p, c, ts, cur)
+            return Sum(
+                t.where[Yk[tt, t] * ((g.m[t] + g.lagt[t]) > g.yearval[year])],
+                Sum(
+                    g.RtpcsVarf[r, t, p, c, s].where[g.ObjVflo[r, p, c, cur, item]],
+                    Sum(
+                        g.TsAnn[s, ts],
+                        Sum(
+                            tpulse_domain,
+                            tpulse_mult * Max(0, ftax if item == "TAX" else -ftax),
+                        ),
+                    )
+                    * Sum(
+                        g.RtpVintyr[r, v, t, p],
+                        flows.where[~g.RpIre[r, p]] + trade,
+                    ),
+                ),
+            ).where[same_as(costcat, f"FLO{item}")]
 
-  (SUM(OBJ_SUMII(R,T,P,AGE,K_EOH,JOT)$(YK(TT,T)${macro.obj_isub("R", "T", "P", "CUR")}),
-    SUM((INVSPRED(K_EOH,JOT,LL,K),SPAN(AGE+MIN(ORD(LL)-ORD(YEAR),0)))$YK(ALLYEAR,LL),
-      {macro.obj_isub("R", "K", "P", "CUR")} * (MIN(ORD(ALLYEAR)+1,ORD(LL)+ORD(AGE))-MAX(ORD(YEAR),ORD(LL)))) *
-    {vart1}_NCAP(R,T,P {sws}) * OBJ_CRF(R,T,P,CUR) / OBJ_DIVI(R,T,P))$(NOT RT_IAN(R,YEAR,ALLYEAR,CUR,'INVTAXSUB')) -
-   SUM((T,P)$CST_ANNC(R,T,P,TT,'INVSUB',CUR),CST_ANNC(R,T,P,TT,'INVSUB',CUR)*{vart1}_NCAP(R,T,P {sws}))$RT_IAN(R,YEAR,ALLYEAR,CUR,'INVTAXSUB')
-  )$SAMEAS(COSTCAT,'INVSUB') +
-*------------------------------------------------------------------------------
-* Fixed O&M Cost - shaped or not
-  SUM((OBJ_SUMIV(LL,R,T,P,JOT,LIFE),SPAN(LIFE+MIN(ORD(LL)+ORD(JOT)-ORD(YEAR)-1,0)))$YK(TT,T),
-      SUM(INVSTEP(LL,JOT,K,JOT)$YK(ALLYEAR,K), {macro.obj_fom("R", "K", "P", "CUR")} *
-        MAX(0,MIN(YEARVAL(ALLYEAR)+1,YEARVAL(K)+ORD(LIFE))-MAX(YEARVAL(YEAR),YEARVAL(K)))) *
-      {vart1}_NCAP(R,T,P {sws}) / OBJ_DIVIV(R,T,P)
-     )$SAMEAS(COSTCAT,'FOM') +
-* Fixed O&M Cost - YES shaped
-  SUM(RTP_SHAPE(R,T,P,'1',J,JJ)$YK(TT,T),
-    SUM((OBJ_SUMIV(K,R,T,P,JOT,LIFE),INVSTEP(K,JOT,LL,JOT),SPAN(LIFE+MIN(ORD(LL)-ORD(YEAR),0)))$YK(ALLYEAR,LL),
-      SUM(OPYEAR(LIFE,AGE)$((ORD(LL)+ORD(AGE) > ORD(YEAR))$(ORD(LL)+ORD(AGE) < ORD(ALLYEAR)+2)),
-          SHAPE(J,AGE)*MULTI(JJ,LL+(ORD(AGE)-1))-1) * {macro.obj_fom("R", "LL", "P", "CUR")}) *
-    {vart1}_NCAP(R,T,P {sws}) / OBJ_DIVIV(R,T,P)
-  )$SAMEAS(COSTCAT,'FOM') +
+        flow_tax = flow_taxsub("TAX")
+        flow_sub = flow_taxsub("SUB")
 
-* Fixed O&M Taxes - shaped or not
-  SUM((OBJ_SUMIV(LL,R,T,P,JOT,LIFE),SPAN(LIFE+MIN(ORD(LL)+ORD(JOT)-ORD(YEAR)-1,0)))$(YK(TT,T)${macro.obj_ftx("R", "T", "P", "CUR")}),
-      SUM(INVSTEP(LL,JOT,K,JOT)$YK(ALLYEAR,K), {macro.obj_ftx("R", "K", "P", "CUR")} *
-        MAX(0,MIN(YEARVAL(ALLYEAR)+1,YEARVAL(K)+ORD(LIFE))-MAX(YEARVAL(YEAR),YEARVAL(K)))) *
-      {vart1}_NCAP(R,T,P {sws}) / OBJ_DIVIV(R,T,P)
-     )$SAMEAS(COSTCAT,'FOMTAX') +
-* Fixed O&M Taxes - Shaped
-  SUM(RTP_SHAPE(R,T,P,'2',J,JJ)$(YK(TT,T)${macro.obj_ftx("R", "T", "P", "CUR")}),
-    SUM((OBJ_SUMIV(K,R,T,P,JOT,LIFE),INVSTEP(K,JOT,LL,JOT),SPAN(LIFE+MIN(ORD(LL)-ORD(YEAR),0)))$YK(ALLYEAR,LL),
-      SUM(OPYEAR(LIFE,AGE)$((ORD(LL)+ORD(AGE) > ORD(YEAR))$(ORD(LL)+ORD(AGE) < ORD(ALLYEAR)+2)),
-          SHAPE(J,AGE)*MULTI(JJ,LL+(ORD(AGE)-1))-1) * {macro.obj_ftx("R", "LL", "P", "CUR")}) *
-    {vart1}_NCAP(R,T,P {sws}) / OBJ_DIVIV(R,T,P)
-  )$SAMEAS(COSTCAT,'FOMTAX') +
+        # ------------------------------------------------------------------------------
+        # DIAG(COSTYPE,'SUB') flips the sign of the subsidy components
+        components = Sum(
+            g.CostGmap[costcat, costagg, costype],
+            VAR_CUMCST[r, year, allyear, costagg, cur, *sowend]
+            * (1 - Number(2).where[same_as(costype, "SUB")]),
+        )
 
-* Fixed O&M Subsidies - shaped or not
-  SUM((OBJ_SUMIV(LL,R,T,P,JOT,LIFE),SPAN(LIFE+MIN(ORD(LL)+ORD(JOT)-ORD(YEAR)-1,0)))$(YK(TT,T)${macro.obj_fsb("R", "T", "P", "CUR")}),
-      SUM(INVSTEP(LL,JOT,K,JOT)$YK(ALLYEAR,K), {macro.obj_fsb("R", "K", "P", "CUR")} *
-        MAX(0,MIN(YEARVAL(ALLYEAR)+1,YEARVAL(K)+ORD(LIFE))-MAX(YEARVAL(YEAR),YEARVAL(K)))) *
-      {vart1}_NCAP(R,T,P {sws}) / OBJ_DIVIV(R,T,P)
-     )$SAMEAS(COSTCAT,'FOMSUB') +
-* Fixed O&M Subsidies - Shaped
-  SUM(RTP_SHAPE(R,T,P,'3',J,JJ)$(YK(TT,T)${macro.obj_fsb("R", "T", "P", "CUR")}),
-    SUM((OBJ_SUMIV(K,R,T,P,JOT,LIFE),INVSTEP(K,JOT,LL,JOT),SPAN(LIFE+MIN(ORD(LL)-ORD(YEAR),0)))$YK(ALLYEAR,LL),
-      SUM(OPYEAR(LIFE,AGE)$((ORD(LL)+ORD(AGE) > ORD(YEAR))$(ORD(LL)+ORD(AGE) < ORD(ALLYEAR)+2)),
-          SHAPE(J,AGE)*MULTI(JJ,LL+(ORD(AGE)-1))-1) * {macro.obj_fsb("R", "LL", "P", "CUR")}) *
-    {vart1}_NCAP(R,T,P {sws}) / OBJ_DIVIV(R,T,P)
-  )$SAMEAS(COSTCAT,'FOMSUB') +
-*------------------------------------------------------------------------------
-* Variable commodity taxes and subsidies
-  SUM({tpulse}
-     (SUM(RHS_COMBAL(R,T,C,S), {vart}_COMNET(R,T,C,S {sws}) * OBJ_COMNT(R,Y_EOH,C,S,'TAX',CUR)) +
-      SUM(RHS_COMPRD(R,T,C,S), {vart}_COMPRD(R,T,C,S {sws}) * OBJ_COMPD(R,Y_EOH,C,S,'TAX',CUR)))
-    )$SAMEAS(COSTCAT,'COMTAX') -
+        condition: Condition | Expression | ImplicitParameter = g.reg_cumcst[
+            r, year, allyear, costcat, cur, "UP"
+        ]
+        if swt:
+            condition = swt[0] & condition
 
-  SUM({tpulse}
-     (SUM(RHS_COMBAL(R,T,C,S), {vart}_COMNET(R,T,C,S {sws}) * OBJ_COMNT(R,Y_EOH,C,S,'SUB',CUR)) +
-      SUM(RHS_COMPRD(R,T,C,S), {vart}_COMPRD(R,T,C,S {sws}) * OBJ_COMPD(R,Y_EOH,C,S,'SUB',CUR)))
-    )$SAMEAS(COSTCAT,'COMSUB') +
-*------------------------------------------------------------------------------
-* Variable flow taxes and subsidies
-  SUM(T$(YK(TT,T)*(M(T)+LAGT(T) GT YEARVAL(YEAR))),
-     SUM(RTPCS_VARF(R,T,P,C,S)$OBJ_VFLO(R,P,C,CUR,'TAX'),
-        SUM(TS_ANN(S,TS), SUM({tpulse} MAX(0,{macro.obj_ftax("R", "Y_EOH", "P", "C", "TS", "CUR")}))) *
-        SUM(RTP_VINTYR(R,V,T,P),
-         {swtd}({swsw}
-{include_cal_red}
-            )$(NOT RP_IRE(R,P)) +
-            (SUM(RPC_IRE(R,P,C,IE),
-               {vart}_IRE(R,V,T,P,C,S,IE {sws})$(NOT RPC_AIRE(R,P,C))+({vart}_ACT(R,V,T,P,S {sws})*PRC_ACTFLO(R,V,P,C))$(RPC_AIRE(R,P,C))
-                ) +
-             SUM((RPC_IRE(R,P,COM,IE),IO)$(RTPCS_VARF(R,T,P,COM,S)$IRE_FLOSUM(R,T,P,COM,S,IE,C,IO)),
-                  IRE_FLOSUM(R,T,P,COM,S,IE,C,IO) *
-                  ({vart}_IRE(R,V,T,P,COM,S,IE {sws})$(NOT RPC_AIRE(R,P,COM))+({vart}_ACT(R,V,T,P,S {sws})*PRC_ACTFLO(R,V,P,COM))$(RPC_AIRE(R,P,COM)))
-             ))$RP_IRE(R,P)
-           )
-       ))$SAMEAS(COSTCAT,'FLOTAX') +
-
-  SUM(T$(YK(TT,T)*(M(T)+LAGT(T) GT YEARVAL(YEAR))),
-     SUM(RTPCS_VARF(R,T,P,C,S)$OBJ_VFLO(R,P,C,CUR,'SUB'),
-        SUM(TS_ANN(S,TS), SUM({tpulse} MAX(0,-{macro.obj_ftax("R", "Y_EOH", "P", "C", "TS", "CUR")}))) *
-        SUM(RTP_VINTYR(R,V,T,P),
-         {swtd}({swsw}
-{include_cal_red}
-            )$(NOT RP_IRE(R,P)) +
-            (SUM(RPC_IRE(R,P,C,IE),
-               {vart}_IRE(R,V,T,P,C,S,IE {sws})$(NOT RPC_AIRE(R,P,C))+({vart}_ACT(R,V,T,P,S {sws})*PRC_ACTFLO(R,V,P,C))$(RPC_AIRE(R,P,C))
-                ) +
-             SUM((RPC_IRE(R,P,COM,IE),IO)$(RTPCS_VARF(R,T,P,COM,S)$IRE_FLOSUM(R,T,P,COM,S,IE,C,IO)),
-                  IRE_FLOSUM(R,T,P,COM,S,IE,C,IO) *
-                  ({vart}_IRE(R,V,T,P,COM,S,IE {sws})$(NOT RPC_AIRE(R,P,COM))+({vart}_ACT(R,V,T,P,S {sws})*PRC_ACTFLO(R,V,P,COM))$(RPC_AIRE(R,P,COM)))
-             ))$RP_IRE(R,P)
-           )
-       ))$SAMEAS(COSTCAT,'FLOSUB') +
-*------------------------------------------------------------------------------
-  SUM(COST_GMAP(COSTCAT,COSTAGG,COSTYPE), {var}_CUMCST(R,YEAR,ALLYEAR,COSTAGG,CUR {sowend})*(1-2*DIAG(COSTYPE,'SUB')))
-*------------------------------------------------------------------------------
-
-   =E=   {var}_CUMCST(R,YEAR,ALLYEAR,COSTCAT,CUR {sowend});
-""",
+        eq_bndcst[r, year, g.Superyr[tt, allyear], costcat, cur, *sowstart].where[
+            condition
+        ] = (
+            investment
+            + decommissioning
+            + invtax
+            + invsub
+            + fixed_om
+            + fixed_om_tax
+            + fixed_om_sub
+            + commodity_tax
+            - commodity_sub
+            + flow_tax
+            + flow_sub
+            + components
+            == VAR_CUMCST[r, year, allyear, costcat, cur, *sowend]
         )
 
     def exec1(self: EqbndcstMod, declif: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-*-----------------------------------------------------------------------------
-* Construct SUPERYR (needed for filtering)
-  SUPERYR(PERIODYR(T,LL))$(YEARVAL(LL) LE YEARVAL(T)) = YES;
-  SUPERYR(T+1,LL)$((YEARVAL(LL) GT YEARVAL(T))$PERIODYR(T,LL)) = YES;
-  LOOP(MIYR_1(T++1),SUPERYR(T,LL)$(YEARVAL(LL) GT M(T)) = YES);
-* Add single MILESTONYR bounds to REG_CUMCST
-  REG_CUMCST(R,T,T,COSTAGG,CUR,BD) $= REG_BNDCST(R,T,COSTAGG,CUR,BD);
-* Add infinite bound for components if aggregate bound
-  LOOP((COST_GMAP(COSTCAT,COSTAGG,COSTYPE),BD),
-    REG_CUMCST(R,YEAR,LL,COSTAGG,CUR,'UP')$((NOT REG_CUMCST(R,YEAR,LL,COSTAGG,CUR,'UP'))$REG_CUMCST(R,YEAR,LL,COSTCAT,CUR,BD)) = INF);
-  LOOP(BDLOX(BD),
-    REG_CUMCST(R,YEAR,LL,COSTCAT,CUR,'UP')$((NOT REG_CUMCST(R,YEAR,LL,COSTCAT,CUR,'UP'))$REG_CUMCST(R,YEAR,LL,COSTCAT,CUR,BD)) = INF);
-*-----------------------------------------------------------------------------
-* Prepare INVCOST and ITAXSUB coefficients
-LOOP(UC_ATTR(R,UC_N,SIDE,'NCAP','INVCOST'),LOOP(T,TRACKP(R,P)$UC_NCAP(UC_N,SIDE,R,T,P)=YES));
-RT_IAN(R,T,T,CUR,'INV')$REG_CUMCST(R,T,T,'INV',CUR,'UP') = YES;
-RTP_IAN(OBJ_ICUR(R,T,P,CUR))$(RT_IAN(R,T,T,CUR,'INV')+TRACKP(R,P)) = YES;
-* Calculate annual undiscounted INVCOST coefficients
-OPTION CLEAR=YK1; YK1(TT,T)$YK(T,TT) = YES;
-CST_ANNC(R,TT,P,T(YEAR),'INVCOST',CUR)$(YK1(TT,T)$RTP_IAN(R,TT,P,CUR)) =
-  SUM(OBJ_SUMII(R,TT,P,AGE,K_EOH(LL),JOT)$((ORD(LL)+ORD(AGE)+ORD(JOT)-1 > ORD(YEAR))$YK(T,LL)),
-    SUM(INVSPRED(K_EOH,JOT,ALLYEAR,K)$((ORD(ALLYEAR)+ORD(AGE) > ORD(YEAR))$YK(T,ALLYEAR)),
-      {macro.obj_icost("R", "K", "P", "CUR")}) * OBJ_CRF(R,TT,P,CUR) / OBJ_DIVI(R,TT,P));
-* Add decommissioning costs when defined
-LOOP(RTP_IAN(R,TT,P,CUR)${macro.obj_dcost("R", "TT", "P", "CUR")},
- CST_ANNC(R,TT,P,T(YEAR),'INVCOST',CUR)$YK1(TT,T) =
-   CST_ANNC(R,TT,P,T,'INVCOST',CUR) + OBJ_CRFD(R,TT,P,CUR) / OBJ_DIVIII(R,TT,P) *
-   SUM(OBJ_SUMIII(R,TT,P,K_EOH,K,LL)$((ORD(LL)+ROUND(NCAP_{declif}(R,TT,P)) > ORD(YEAR))$YK(T,LL)),
-     {macro.obj_dcost("R", "K", "P", "CUR")}));
-* Calculate annual undiscounted INVTAXSUB coefficients
-OPTION CLEAR=TRACKP, CLEAR=RTP_IAN;
-LOOP(UC_ATTR(R,UC_N,SIDE,'NCAP',UC_ANNUL(UC_NAME(COSTCAT))),LOOP(T,TRACKP(R,P)$UC_NCAP(UC_N,SIDE,R,T,P)=YES));
-RT_IAN(R,T,T,CUR,'INVTAXSUB')$(REG_CUMCST(R,T,T,'INVTAX',CUR,'UP')+REG_CUMCST(R,T,T,'INVSUB',CUR,'UP')) = YES;
-RTP_IAN(OBJ_ICUR(R,T,P,CUR))$(RT_IAN(R,T,T,CUR,'INVTAXSUB')+TRACKP(R,P)) = YES;
-LOOP(RTP_IAN(R,TT,P,CUR)$({macro.obj_itax("R", "TT", "P", "CUR")}+{macro.obj_isub("R", "TT", "P", "CUR")}),
-  OPTION CLEAR=YKK; F = OBJ_CRF(R,TT,P,CUR)/OBJ_DIVI(R,TT,P);
-  LOOP(OBJ_SUMII(R,TT,P,LIFE,K_EOH,JOT), Z=ORD(LIFE);
-    YKK(YK(T(YEAR),LL),K)$((ORD(YEAR) < ORD(LL)+Z)$INVSPRED(K_EOH,JOT,LL,K)) = YES);
-  CST_ANNC(R,TT,P,T,'INVTAX',CUR)$YK1(TT,T) = SUM(YKK(T,LL,K), F * {macro.obj_itax("R", "K", "P", "CUR")});
-  CST_ANNC(R,TT,P,T,'INVSUB',CUR)$YK1(TT,T) = SUM(YKK(T,LL,K),-F * {macro.obj_isub("R", "K", "P", "CUR")});
-);
-OPTION CLEAR=TRACKP, CLEAR=RTP_IAN;
-""",
+        g = self.tc
+        r, t, tt, p, cur, bd = g.r, g.t, g.tt, g.p, g.cur, g.bd
+        year, allyear, ll, k = g.year, g.allyear, g.ll, g.k
+        age, life, jot, side, ucn = g.age, g.life, g.jot, g.side, g.ucn
+        costcat, costagg, costype = g.costcat, g.costagg, g.costype
+        f, z, Yk, Yk1, Ykk = g.f, g.z, g.Yk, g.Yk1, g.Ykk
+        reg_cumcst, Superyr, Trackp = g.reg_cumcst, g.Superyr, g.Trackp
+        # Declared by a raw GAMS block (eqobj.mod), hence not on the model class yet
+        KEoh: Set = g.get_set("K_EOH")
+        NCAP_DECLIF: Parameter = g.get_parameter(f"NCAP_{declif}")
+
+        # -----------------------------------------------------------------------------
+        # Construct SUPERYR (needed for filtering)
+        Superyr[g.Periodyr[t, ll]].where[g.yearval[ll] <= g.yearval[t]] = True
+        Superyr[t + 1, ll].where[
+            (g.yearval[ll] > g.yearval[t]).where[g.Periodyr[t, ll]]
+        ] = True
+        with Loop(g.Miyr1[t.lead(1, "circular")]):
+            Superyr[t, ll].where[g.yearval[ll] > g.m[t]] = True
+        # Add single MILESTONYR bounds to REG_CUMCST
+        reg_cumcst[r, t, t, costagg, cur, bd] = sparse(
+            g.reg_bndcst[r, t, costagg, cur, bd]
         )
+        # Add infinite bound for components if aggregate bound
+        with Loop(Domain(g.CostGmap[costcat, costagg, costype], bd)):
+            reg_cumcst[r, year, ll, costagg, cur, "UP"].where[
+                (~reg_cumcst[r, year, ll, costagg, cur, "UP"]).where[
+                    reg_cumcst[r, year, ll, costcat, cur, bd]
+                ]
+            ] = SpecialValues.POSINF
+        with Loop(g.Bdlox[bd]):
+            reg_cumcst[r, year, ll, costcat, cur, "UP"].where[
+                (~reg_cumcst[r, year, ll, costcat, cur, "UP"]).where[
+                    reg_cumcst[r, year, ll, costcat, cur, bd]
+                ]
+            ] = SpecialValues.POSINF
+        # -----------------------------------------------------------------------------
+        # Prepare INVCOST and ITAXSUB coefficients
+        with Loop(g.UcAttr[r, ucn, side, "NCAP", "INVCOST"]), Loop(t):
+            Trackp[r, p].where[g.uc_ncap[ucn, side, r, t, p]] = True
+        g.RtIan[r, t, t, cur, "INV"].where[reg_cumcst[r, t, t, "INV", cur, "UP"]] = True
+        g.RtpIan[g.ObjIcur[r, t, p, cur]].where[
+            g.RtIan[r, t, t, cur, "INV"] + Trackp[r, p]
+        ] = True
+        # Calculate annual undiscounted INVCOST coefficients
+        Yk1.setRecords(None)  # OPTION CLEAR=YK1
+        Yk1[tt, t].where[Yk[t, tt]] = True
+        g.cst_annc[r, tt, p, t[year], "INVCOST", cur].where[
+            Yk1[tt, t] & g.RtpIan[r, tt, p, cur]
+        ] = Sum(
+            g.ObjSumii[r, tt, p, age, KEoh[ll], jot].where[
+                (Ord(ll) + Ord(age) + Ord(jot) - 1 > Ord(year)).where[Yk[t, ll]]
+            ],
+            Sum(
+                g.Invspred[ll, jot, allyear, k].where[
+                    (Ord(allyear) + Ord(age) > Ord(year)).where[Yk[t, allyear]]
+                ],
+                macro.obj_icost_GP(r, k, p, cur),
+            )
+            * g.obj_crf[r, tt, p, cur]
+            / g.obj_divi[r, tt, p],
+        )
+        # Add decommissioning costs when defined
+        with Loop(g.RtpIan[r, tt, p, cur].where[macro.obj_dcost_GP(r, tt, p, cur)]):
+            g.cst_annc[r, tt, p, t[year], "INVCOST", cur].where[Yk1[tt, t]] = (
+                g.cst_annc[r, tt, p, t, "INVCOST", cur]
+                + g.obj_crfd[r, tt, p, cur]
+                / g.obj_diviii[r, tt, p]
+                * Sum(
+                    g.ObjSumiii[r, tt, p, KEoh, k, ll].where[
+                        (Ord(ll) + Round(NCAP_DECLIF[r, tt, p]) > Ord(year)).where[
+                            Yk[t, ll]
+                        ]
+                    ],
+                    macro.obj_dcost_GP(r, k, p, cur),
+                )
+            )
+        # Calculate annual undiscounted INVTAXSUB coefficients
+        Trackp.setRecords(None)  # OPTION CLEAR=TRACKP
+        g.RtpIan.setRecords(None)  # OPTION CLEAR=RTP_IAN
+        with (
+            Loop(g.UcAttr[r, ucn, side, "NCAP", g.UcAnnul[g.ucname[costcat]]]),
+            Loop(t),
+        ):
+            Trackp[r, p].where[g.uc_ncap[ucn, side, r, t, p]] = True
+        g.RtIan[r, t, t, cur, "INVTAXSUB"].where[
+            reg_cumcst[r, t, t, "INVTAX", cur, "UP"]
+            + reg_cumcst[r, t, t, "INVSUB", cur, "UP"]
+        ] = True
+        g.RtpIan[g.ObjIcur[r, t, p, cur]].where[
+            g.RtIan[r, t, t, cur, "INVTAXSUB"] + Trackp[r, p]
+        ] = True
+        with Loop(
+            g.RtpIan[r, tt, p, cur].where[
+                macro.obj_itax_GP(r, tt, p, cur) + macro.obj_isub_GP(r, tt, p, cur)
+            ]
+        ):
+            Ykk[allyear, ll, year] = False  # OPTION CLEAR=YKK
+            f[...] = g.obj_crf[r, tt, p, cur] / g.obj_divi[r, tt, p]
+            with Loop(g.ObjSumii[r, tt, p, life, KEoh, jot]):
+                z[...] = Ord(life)
+                Ykk[Yk[t[year], ll], k].where[
+                    (Ord(year) < Ord(ll) + z).where[g.Invspred[KEoh, jot, ll, k]]
+                ] = True
+            g.cst_annc[r, tt, p, t, "INVTAX", cur].where[Yk1[tt, t]] = Sum(
+                Ykk[t, ll, k], f * macro.obj_itax_GP(r, k, p, cur)
+            )
+            g.cst_annc[r, tt, p, t, "INVSUB", cur].where[Yk1[tt, t]] = Sum(
+                Ykk[t, ll, k], -f * macro.obj_isub_GP(r, k, p, cur)
+            )
+        Trackp.setRecords(None)  # OPTION CLEAR=TRACKP
+        g.RtpIan.setRecords(None)  # OPTION CLEAR=RTP_IAN

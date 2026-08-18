@@ -15,6 +15,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from core.base_class import GamsClass
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -264,6 +265,7 @@ $macro Z_CUMFLO(r,p,cv,y1,y2,w) VAS_CUMFLO(r,p,cv,y1,y2,'1')
 $macro Z_CUMCST(r,y1,y2,cg,m,w) VAS_CUMCST(r,y1,y2,cg,m,'1')
 """,
                     )
+                macro.recurrin.activate(g=self.tc, solveda=self.env.solveda == "1")
                 self.tc.add_gams_code(
                     module=self,
                     phase="init",
