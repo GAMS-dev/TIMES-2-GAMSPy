@@ -49,30 +49,37 @@ class PpCleanMod(GamsClass):
             shutil.move("timesrng_inc.py", "timesrng_inc_bak.py")
 
     def exec_pp_clean_mod(self: PpCleanMod, memclean: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=pp_clean_mod(memclean=memclean),
-        )
+        pp_clean_mod(tc=self.tc, memclean=memclean)
 
 
-def pp_clean_mod(memclean: str) -> str:
+def pp_clean_mod(tc: TimesModelClass, memclean: str) -> None:
     # TODO: in pp_clean.mod there is $IF NOT SET BENCOST $SETGLOBAL BENCOST NO
     # how should this be done in this string-returning function?
     if memclean == "NO":
-        return ""
+        return
 
-    return """
-FLO_SUM(R,ALLYEAR,P,CG1,C,CG2,S) = 0;
-FLO_FUNC(R,ALLYEAR,P,CG1,CG2,S) = 0;
-NCAP_AF(R,ALLYEAR,P,S,BD) = 0;
-NCAP_AFA(R,ALLYEAR,P,BD) = 0;
-NCAP_AFS(R,ALLYEAR,P,S,BD) = 0;
-NCAP_COST(R,ALLYEAR,P,CUR) = 0;
-NCAP_FOM(R,ALLYEAR,P,CUR) = 0;
-ACT_COST(R,ALLYEAR,P,CUR) = 0;
-FLO_TAX(R,ALLYEAR,P,C,S,CUR) = 0;
-FLO_SUB(R,ALLYEAR,P,C,S,CUR) = 0;
-FLO_COST(R,ALLYEAR,P,C,S,CUR) = 0;
-FLO_DELIV(R,ALLYEAR,P,C,S,CUR) = 0;
-"""
+    g = tc
+    (r, allyear, p, cg1, c, cg2, s, bd, cur) = (
+        g.r,
+        g.allyear,
+        g.p,
+        g.cg1,
+        g.c,
+        g.cg2,
+        g.s,
+        g.bd,
+        g.cur,
+    )
+
+    g.flo_sum[r, allyear, p, cg1, c, cg2, s] = 0
+    g.flo_func[r, allyear, p, cg1, cg2, s] = 0
+    g.ncap_af[r, allyear, p, s, bd] = 0
+    g.ncap_afa[r, allyear, p, bd] = 0
+    g.ncap_afs[r, allyear, p, s, bd] = 0
+    g.ncap_cost[r, allyear, p, cur] = 0
+    g.ncap_fom[r, allyear, p, cur] = 0
+    g.act_cost[r, allyear, p, cur] = 0
+    g.flo_tax[r, allyear, p, c, s, cur] = 0
+    g.flo_sub[r, allyear, p, c, s, cur] = 0
+    g.flo_cost[r, allyear, p, c, s, cur] = 0
+    g.flo_deliv[r, allyear, p, c, s, cur] = 0

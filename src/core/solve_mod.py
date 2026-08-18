@@ -209,9 +209,7 @@ def solve_mod_GP(
     solmip: str,
 ) -> None:
     # Release some memory
-    module.tc.add_gams_code(
-        module=module, phase="run", code=pp_clean_mod(memclean=memclean)
-    )
+    pp_clean_mod(tc=module.tc, memclean=memclean)
     set_model_param(module=module, model_name=model_name)
 
     if solve_now != "NO":
@@ -292,10 +290,9 @@ SOLVE {model_name} MINIMIZING objZ USING {method};
   $$include {modelstat_path}
 """
 
+    # Release some memory
+    pp_clean_mod(tc=g, memclean=memclean)
     return rf"""
-* Release some memory
-{pp_clean_mod(memclean=memclean)}
-
 *  get the optimizer directive file
 {model_name}.OPTFILE = OPTFILEID;
 {model_name}.PRIOROPT=(OPTFILEID=2);
