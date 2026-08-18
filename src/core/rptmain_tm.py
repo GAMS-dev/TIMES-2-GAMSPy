@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 from core.base_class import GamsClass
 
 # from core.rpt_chp_ire import RrpChpIre
-from core.cost_ann_rpt import CostAnnRpt
+from core.cost_ann_rpt import CostAnnRpt, CostAnnRptConfig
 from core.ddfupd_msa import ddfupd_msa
 from core.par_uc_rpt import ParUcRpt
 from core.rpt_obj_rpt import RptObjRpt
@@ -106,7 +106,14 @@ class RptmainTm(GamsClass):
                 arg5="0",
             )
         )
-        self.include(CostAnnRpt(self.tc, self.env, arg1=self.arg1, arg2=self.arg3))
+        # $ BATINCLUDE cost_ann.rpt '%1' "%3"
+        if self.arg3 != "":
+            raise NotImplementedError(
+                "rptmain.tm: a SOW index (%3) for cost_ann.rpt is not supported."
+            )
+        self.include(
+            CostAnnRpt(self.tc, self.env, config=CostAnnRptConfig(arg1=self.arg1))
+        )
 
         # * Miscellaneous reportings
         self.include(RptmiscRpt(self.tc, self.env, arg1=self.arg1, arg2=self.arg3))
