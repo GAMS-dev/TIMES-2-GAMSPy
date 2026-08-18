@@ -2721,6 +2721,28 @@ REGISTRY.update(
         "demos_007b_micro": derive_from(
             "demos_007b", run_name="demos_007b_micro", micro="YES"
         ),
+        # reaches: readbprice.mod, bnd_elas.mod (the TIMESED=="YES" branch in
+        # bndmain.mod that calls bnd_elas.mod -- no registered instance sets
+        # TIMESED directly; requires a bootstrapped com_bprice.gdx produced by
+        # a prior TIMESED='NO' run of the same dataset in the same idir2).
+        "demos_007b_timesed": derive_from(
+            "demos_007b", run_name="demos_007b_timesed", timesed="YES"
+        ),
+        # reaches: bnd_flo.mod's VAR_ACT-bound-adjustment skip path and
+        # eqflobnd.mod's plain (non IRE/ACT-split) VAR_IRE branch -- every
+        # other registered instance sets REDUCE='YES'.
+        "demos_012e_noreduce": derive_from(
+            "demos_012e", run_name="demos_012e_noreduce", reduce="NO"
+        ),
+        # reaches: bndmain.mod's VAR_UC-skip branch (bnd_ucw.mod/bnd_ucv.mod
+        # never included) and dynslite_vda_bounds' var_uc_yes=False path --
+        # every other registered instance sets VAR_UC='YES'. VAR_UC has no
+        # explicit "NO" value in TIMES; leaving it undefined (commented out
+        # in the .run file) is the only way to hit this branch, confirmed
+        # against real GAMS via bndmain.mod's `$IF %VAR_UC%==YES` check.
+        "demos_012e_novaruc": derive_from(
+            "demos_012e", run_name="demos_012e_novaruc", var_uc=""
+        ),
         # reaches: solputta.ans, solsubta.ans -- the ANSWER-shell report writer
         "demos_012e_solans": derive_from(
             "demos_012e", run_name="demos_012e_solans", solans="YES"
