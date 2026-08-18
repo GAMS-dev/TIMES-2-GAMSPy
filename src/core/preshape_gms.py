@@ -18,15 +18,32 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
+
+from gamspy import Else, ElseIf, If, Loop, Ord, SpecialValues, sparse
+from gamspy.math import Min, Round, mod
 
 from core.base_class import GamsClass
 
 if TYPE_CHECKING:
+    from gamspy import Alias, Number, Parameter, Set
+    from gamspy._symbols.implicits import ImplicitSet
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+class PreshapeGmsConfig(NamedTuple):
+    arg1: Parameter
+    arg2: tuple[Alias | Set, ...]
+    arg3: tuple[Alias | Set, ...]
+    arg4: tuple[str, ...] | tuple[()]
+    arg5: Alias | Set
+    arg6: Set
+    arg7: ImplicitSet | Number
+    arg8: int = 0
 
 
 class PreshapeGms(GamsClass):
@@ -37,116 +54,104 @@ class PreshapeGms(GamsClass):
     gams_source: str = "preshape.gms"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
-        arg4: str = "",
-        arg5: str = "",
-        arg6: str = "",
-        arg7: str = "",
-        arg8: str = "",
+        self, tc: TimesModelClass, env: CompileEnvironment, config: PreshapeGmsConfig
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
-        self.arg4 = arg4
-        self.arg5 = arg5
-        self.arg6 = arg6
-        self.arg7 = arg7
-        self.arg8 = arg8
+        self.config = config
         self.compile()
 
     def compile(self) -> None:
-        self.env.set_local("tail", f",{self.arg3}")
-        self.env.set_local("def", "10")
-        if not len(self.arg3):
-            self.env.set_local("tail", "")
+        cc = self.config
 
-        if len(self.arg8):
-            self.env.set_local("def", f"{self.arg8}")
+        # $SETLOCAL DEF 10 / $IF NOT '%8'=='' $SETLOCAL DEF %8
+        default = cc.arg8 if cc.arg8 else 10
 
-        self.tc.enqueue(
-            self.exec1,
-            tail=self.env.tail,
-            arg1=self.arg1,
-            arg2=self.arg2,
-            arg6=self.arg6,
-            arg4=self.arg4,
-        )
-        self.tc.enqueue(
-            self.main_loop,
-            tail=self.env.tail,
-            dflbl=self.env.dflbl,
-            DEF=self.env.__getattr__("def"),
-            arg1=self.arg1,
-            arg2=self.arg2,
-            arg4=self.arg4,
-            arg5=self.arg5,
-            arg6=self.arg6,
-            arg7=self.arg7,
-        )
+        self.tc.enqueue(self.exec1, cc=cc)
+        self.tc.enqueue(self.main_loop, cc=cc, default=default, dflbl=self.env.dflbl)
 
-    def exec1(
-        self: PreshapeGms, tail: str, arg1: str, arg2: str, arg6: str, arg4: str
-    ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-OPTION CLEAR = {arg6};
-{arg6}({arg2},LL--ORD(LL){tail}{arg4}) $= {arg1}({arg2},LL{tail});
-""",
+    def exec1(self: PreshapeGms, cc: PreshapeGmsConfig) -> None:
+        g = self.tc
+        ll = g.ll
+
+        cc.arg6.setRecords(None)
+        cc.arg6[*cc.arg2, ll.lag(Ord(ll), "circular"), *cc.arg3, *cc.arg4] = sparse(
+            cc.arg1[*cc.arg2, ll, *cc.arg3]
         )
 
     def main_loop(
-        self: PreshapeGms,
-        tail: str,
-        dflbl: str,
-        DEF: str,  # def is a keyword
-        arg1: str,
-        arg2: str,
-        arg4: str,
-        arg5: str,
-        arg6: str,
-        arg7: str,
+        self: PreshapeGms, cc: PreshapeGmsConfig, default: int, dflbl: str
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-LOOP({arg6}({arg2},'{dflbl}'{tail}{arg4}),
-  DFUNC={DEF}; DFUNC $= MOD(ROUND({arg1}({arg2},'{dflbl}'{tail})),1000);
-  MY_ARRAY(DM_YEAR) = {arg1}({arg2},DM_YEAR{tail});
-  IF(DFUNC NE 10, F=0; LAST_VAL=0;
-* do interpolate
-   LOOP(DM_YEAR$MY_ARRAY(DM_YEAR),          {"! check for nonzero (including EPS)" if False else ""}
-     MY_F = MY_ARRAY(DM_YEAR); Z = YEARVAL(DM_YEAR);
-     IF(LAST_VAL, {arg1}({arg2},{arg5}{tail})$((Z>YEARVAL({arg5}))$(YEARVAL({arg5})>MY_FYEAR)) = LAST_VAL;
-     ELSE F = Z; FIRST_VAL = MY_F);
-     LAST_VAL = ROUND(MY_F); MY_FYEAR=Z;);  {"! remember the value and year" if False else ""}
-  ELSE FIRST_VAL = 0; MY_FYEAR = 0;         {"! intra-period I/E" if False else ""}
-   LOOP(MY_FIL(LL)$MY_ARRAY(MY_FIL),        {"! check for data values" if False else ""}
-     MY_F = MY_ARRAY(LL); Z = YEARVAL(MY_FIL); F = FIL2(MY_FIL);
-     IF(MY_FYEAR<F, IF(F>MIN(FIRST_VAL,Z), LAST_VAL = MY_F; FIRST_VAL = F;);
-     {arg1}({arg2},{arg5}(LL+(F-YEARVAL(LL))){tail})$(NOT MY_ARRAY({arg5})) = LAST_VAL);
-     LAST_VAL = MY_F; MY_FYEAR=Z;);         {"! remember the value and year" if False else ""}
-     DFUNC=0;
-   );
-   IF(ROUND(DFUNC-5,-1)=10,
-     {arg1}({arg2},{arg5}{tail})${arg7} $= FIRST_VAL$(YEARVAL({arg5})<F)$(E({arg5}) GE F) + LAST_VAL$(YEARVAL({arg5})>Z)$(B({arg5}) LE Z);
-     DFUNC=DFUNC-10);
-   IF(DFUNC GE 2,
-* Do back/forward extrapolate
-     IF(DFUNC=4, Z = INF; ELSEIF DFUNC=5, F = 0; ELSEIF DFUNC=(2-F), LAST_VAL=EPS; Z=0);
-     {arg1}({arg2},{arg5}{tail})${arg7} $= FIRST_VAL$(YEARVAL({arg5})<F) + LAST_VAL$(YEARVAL({arg5})>Z);
-   );
-  );
+        g = self.tc
+        ll = g.ll
 
-""",
-        )
+        with Loop(cc.arg6[*cc.arg2, dflbl, *cc.arg3, *cc.arg4]):
+            g.dfunc[...] = default
+            g.dfunc[...] = sparse(mod(Round(cc.arg1[*cc.arg2, dflbl, *cc.arg3]), 1000))
+            g.my_array[g.DmYear] = cc.arg1[*cc.arg2, g.DmYear, *cc.arg3]
+            with If(g.dfunc != 10):
+                g.f[...] = 0
+                g.last_val[...] = 0
+                # do interpolate
+                with Loop(
+                    g.DmYear.where[g.my_array[g.DmYear]]
+                ):  # check for nonzero (including EPS)
+                    g.my_f[...] = g.my_array[g.DmYear]
+                    g.z[...] = g.yearval[g.DmYear]
+                    with If(g.last_val):
+                        cc.arg1[*cc.arg2, cc.arg5, *cc.arg3].where[
+                            (g.z > g.yearval[cc.arg5]).where[
+                                g.yearval[cc.arg5] > g.my_fyear
+                            ]
+                        ] = g.last_val
+                    with Else():
+                        g.f[...] = g.z
+                        g.first_val[...] = g.my_f
+                    g.last_val[...] = Round(g.my_f)
+                    g.my_fyear[...] = g.z  # remember the value and year
+            with Else():  # intra-period I/E
+                g.first_val[...] = 0
+                g.my_fyear[...] = 0
+                with Loop(
+                    g.MyFil[ll].where[g.my_array[g.MyFil]]
+                ):  # check for data values
+                    g.my_f[...] = g.my_array[ll]
+                    g.z[...] = g.yearval[g.MyFil]
+                    g.f[...] = g.fil2[g.MyFil]
+                    with If(g.my_fyear < g.f):
+                        with If(g.f > Min(g.first_val, g.z)):
+                            g.last_val[...] = g.my_f
+                            g.first_val[...] = g.f
+                        cc.arg1[
+                            *cc.arg2, cc.arg5[ll.lead(g.f - g.yearval[ll])], *cc.arg3
+                        ].where[~g.my_array[cc.arg5]] = g.last_val
+                    g.last_val[...] = g.my_f
+                    g.my_fyear[...] = g.z  # remember the value and year
+                g.dfunc[...] = 0
+
+            with If(Round(g.dfunc - 5, -1) == 10):
+                cc.arg1[*cc.arg2, cc.arg5, *cc.arg3].where[cc.arg7] = sparse(
+                    g.first_val.where[
+                        (g.yearval[cc.arg5] < g.f).where[g.e[cc.arg5] >= g.f]
+                    ]
+                    + g.last_val.where[
+                        (g.yearval[cc.arg5] > g.z).where[g.b[cc.arg5] <= g.z]
+                    ]
+                )
+                g.dfunc[...] = g.dfunc - 10
+
+            with If(g.dfunc >= 2):
+                # Do back/forward extrapolate
+                with If(g.dfunc == 4):
+                    g.z[...] = SpecialValues.POSINF
+                with ElseIf(g.dfunc == 5):
+                    g.f[...] = 0
+                with ElseIf(g.dfunc == (2 - g.f)):
+                    g.last_val[...] = SpecialValues.EPS
+                    g.z[...] = 0
+
+                cc.arg1[*cc.arg2, cc.arg5, *cc.arg3].where[cc.arg7] = sparse(
+                    g.first_val.where[g.yearval[cc.arg5] < g.f]
+                    + g.last_val.where[g.yearval[cc.arg5] > g.z]
+                )
