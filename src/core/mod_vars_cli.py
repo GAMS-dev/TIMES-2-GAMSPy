@@ -14,6 +14,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Equation, Variable
+
 from core.base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -43,24 +45,86 @@ class ModVarsCli(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-POSITIVE VARIABLES
-  {self.env.var}_CLITOT(CM_ITEM,LL {self.env.swd}) 'Total emissions or forcing by milestone year'
-  {self.env.var}_CLIBOX(CM_ITEM,CM_BOX,LL {self.env.swd}) 'Quantities in the climate reservoirs'
-;
-*-----------------------------------------------------------------------------
-EQUATIONS
-  {self.env.eq}_CLITOT(CM_ITEM,T,LL {self.env.swd}) 'Balances for the total emissions or forcing'
-  {self.env.eq}_CLICONC(CM_ITEM,CM_BOX,T {self.env.swd}) 'Balances for the concentration in the reservoirs'
-  {self.env.eq}_CLITEMP(CM_ITEM,CM_BOX,T {self.env.swd}) 'Balances for the temperature in the reservoirs'
-  {self.env.eq}_CLIBEOH(CM_ITEM,CM_BOX,T,LL {self.env.swd}) 'Balances for the quantities in the BEOH reservoirs'
-  {self.env.eq}_CLIMAX(ALLYEAR,CM_ITEM {self.env.swd}) 'Constraint for maximum climate quantities'
-;
-""",
+        g = self.tc
+        m = g.container
+
+        eq = self.env.eq
+        var = self.env.var
+        swd = self.env.swd_GP
+
+        # *-----------------------------------------------------------------------------
+        # POSITIVE VARIABLES
+        # *-----------------------------------------------------------------------------
+        g.set_variable(
+            name=f"{var}_CLITOT",
+            var=Variable(
+                m,
+                name=f"{var}_CLITOT",
+                type="Positive",
+                domain=[g.cmitem, g.ll, *swd],
+                description="Total emissions or forcing by milestone year",
+            ),
         )
+        g.set_variable(
+            name=f"{var}_CLIBOX",
+            var=Variable(
+                m,
+                name=f"{var}_CLIBOX",
+                type="Positive",
+                domain=[g.cmitem, g.CmBox, g.ll, *swd],
+                description="Quantities in the climate reservoirs",
+            ),
+        )
+
+        # *-----------------------------------------------------------------------------
+        # EQUATIONS
+        # *-----------------------------------------------------------------------------
+        g.set_equation(
+            name=f"{eq}_CLITOT",
+            eq=Equation(
+                m,
+                name=f"{eq}_CLITOT",
+                domain=[g.cmitem, g.t, g.ll, *swd],
+                description="Balances for the total emissions or forcing",
+            ),
+        )
+        g.set_equation(
+            name=f"{eq}_CLICONC",
+            eq=Equation(
+                m,
+                name=f"{eq}_CLICONC",
+                domain=[g.cmitem, g.CmBox, g.t, *swd],
+                description="Balances for the concentration in the reservoirs",
+            ),
+        )
+        g.set_equation(
+            name=f"{eq}_CLITEMP",
+            eq=Equation(
+                m,
+                name=f"{eq}_CLITEMP",
+                domain=[g.cmitem, g.CmBox, g.t, *swd],
+                description="Balances for the temperature in the reservoirs",
+            ),
+        )
+        g.set_equation(
+            name=f"{eq}_CLIBEOH",
+            eq=Equation(
+                m,
+                name=f"{eq}_CLIBEOH",
+                domain=[g.cmitem, g.CmBox, g.t, g.ll, *swd],
+                description="Balances for the quantities in the BEOH reservoirs",
+            ),
+        )
+        g.set_equation(
+            name=f"{eq}_CLIMAX",
+            eq=Equation(
+                m,
+                name=f"{eq}_CLIMAX",
+                domain=[g.allyear, g.cmitem, *swd],
+                description="Constraint for maximum climate quantities",
+            ),
+        )
+
         self.tc.enqueue(
             self.mod_vars_cli_exec,
             eq=self.env.eq,

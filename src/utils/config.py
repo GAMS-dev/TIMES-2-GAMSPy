@@ -566,6 +566,9 @@ class EnvironmentVariableSchema(BaseModel):
     scum: str = Field(
         description="Cumulative scaling parameters check array parameter tracking strings."
     )
+    scum_GP: ImplicitParameter | Number = Field(
+        description="Cumulative scaling parameters check array parameter tracking strings."
+    )
     ControlAbort: str = Field(
         description="System termination signal parameter matching execution logs."
     )

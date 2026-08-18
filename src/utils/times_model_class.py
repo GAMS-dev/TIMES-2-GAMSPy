@@ -682,9 +682,9 @@ class TimesModelClass:
     Rtpx: Set = None  # type: ignore[assignment] # [r,t,p] RTPX:
     SwTsw: Set = None  # type: ignore[assignment] #  [ALLSOW, ALLYEAR, ALLSOW] SW_TSW: 'Mapping from finest SOWs to unique SOW at each period'
     RtPp: Set = None  # type: ignore[assignment] # [r,t] RT_PP:
-    u2: Set = None  # type: ignore[assignment] # [*] U2
-    u3: Set = None  # type: ignore[assignment] # [*] U3
-    u4: Set = None  # type: ignore[assignment] # [*] U4
+    u2: UniverseAlias = None  # type: ignore[assignment] # [*] U2: Aliased with *
+    u3: UniverseAlias = None  # type: ignore[assignment] # [*] U3: Aliased with *
+    u4: UniverseAlias = None  # type: ignore[assignment] # [*] U4: Aliased with *
     no_rt: Parameter = None  # type: ignore[assignment] # [allr,t] NO_RT:
     lead: Parameter = None  # type: ignore[assignment] # [allyear] LEAD:
     lagt: Parameter = None  # type: ignore[assignment] # [allyear] LAGT:
@@ -1040,6 +1040,10 @@ class TimesModelClass:
     VAS_DNCAP: Variable = None  # type: ignore[assignment]  # [r,allyear,p,unit] VAS_DNCAP:
     VAR_SNCAP: Variable = None  # type: ignore[assignment]  # [r,allyear,p] VAR_SNCAP:
     VAS_SNCAP: Variable = None  # type: ignore[assignment]  # [r,allyear,p] VAS_SNCAP:
+    VAR_CLITOT: Variable = None  # type: ignore[assignment]  # [cmitem,ll] VAR_CLITOT: Total emissions or forcing by milestone year
+    VAS_CLITOT: Variable = None  # type: ignore[assignment]  # [cmitem,ll] VAS_CLITOT: Total emissions or forcing by milestone year
+    VAR_CLIBOX: Variable = None  # type: ignore[assignment]  # [cmitem,CmBox,ll] VAR_CLIBOX: Quantities in the climate reservoirs
+    VAS_CLIBOX: Variable = None  # type: ignore[assignment]  # [cmitem,CmBox,ll] VAS_CLIBOX: Quantities in the climate reservoirs
     eq_dscncap: Equation = None  # type: ignore[assignment]  # [r,allyear,p] EQ_DSCNCAP
     eq_dscone: Equation = None  # type: ignore[assignment]  # [r,allyear,p] EQ_DSCONE
     eq_obj: Equation = None  # type: ignore[assignment]  #  EQ_OBJ: Overall Objective Function
@@ -1059,6 +1063,16 @@ class TimesModelClass:
     es_objvar: Equation = None  # type: ignore[assignment]  # [r,cur] EQ_OBJVAR: Variable operating costs
     eq_objdam: Equation = None  # type: ignore[assignment]  # [r,cur] EQ_OBJDAM: Damage costs
     es_objdam: Equation = None  # type: ignore[assignment]  # [r,cur] EQ_OBJDAM: Damage costs
+    eq_clitot: Equation = None  # type: ignore[assignment]  # [cmitem,t,ll] EQ_CLITOT: Balances for the total emissions or forcing
+    es_clitot: Equation = None  # type: ignore[assignment]  # [cmitem,t,ll] ES_CLITOT: Balances for the total emissions or forcing
+    eq_cliconc: Equation = None  # type: ignore[assignment]  # [cmitem,CmBox,t] EQ_CLICONC: Balances for the concentration in the reservoirs
+    es_cliconc: Equation = None  # type: ignore[assignment]  # [cmitem,CmBox,t] ES_CLICONC: Balances for the concentration in the reservoirs
+    eq_clitemp: Equation = None  # type: ignore[assignment]  # [cmitem,CmBox,t] EQ_CLITEMP: Balances for the temperature in the reservoirs
+    es_clitemp: Equation = None  # type: ignore[assignment]  # [cmitem,CmBox,t] ES_CLITEMP: Balances for the temperature in the reservoirs
+    eq_clibeoh: Equation = None  # type: ignore[assignment]  # [cmitem,CmBox,t,ll] EQ_CLIBEOH: Balances for the quantities in the BEOH reservoirs
+    es_clibeoh: Equation = None  # type: ignore[assignment]  # [cmitem,CmBox,t,ll] ES_CLIBEOH: Balances for the quantities in the BEOH reservoirs
+    eq_climax: Equation = None  # type: ignore[assignment]  # [allyear,cmitem] EQ_CLIMAX: Constraint for maximum climate quantities
+    es_climax: Equation = None  # type: ignore[assignment]  # [allyear,cmitem] ES_CLIMAX: Constraint for maximum climate quantities
     eq_actflo: Equation = None  # type: ignore[assignment]# [r,allyear,allyear,p,s] EQ_ACTFLO: Process Activity/Primary Commodity Flows
     es_actflo: Equation = None  # type: ignore[assignment]# [r,allyear,allyear,p,s] ES_ACTFLO: Process Activity/Primary Commodity Flows
     eqg_actbnd: Equation = None  # type: ignore[assignment]# [r,allyear,p,s] EQG_ACTBND: Process activity Bound in a Period (=G=)
@@ -1733,6 +1747,7 @@ class TimesModelClass:
     gg_ppw: Parameter = None  # type: ignore[assignment] # GG_PPW
     cru: Alias = None  # type: ignore[assignment] #
     sw_tprob: Parameter = None  # type: ignore[assignment] # [T,ALLSOW] SW_TPROB
+    sw_unpb: Parameter = None  # type: ignore[assignment] # [LL,WW] SW_UNPB
     rypm: Parameter = None  # type: ignore[assignment] #
     rycsm: Parameter = None  # type: ignore[assignment] #
     rypcsm: Parameter = None  # type: ignore[assignment] #

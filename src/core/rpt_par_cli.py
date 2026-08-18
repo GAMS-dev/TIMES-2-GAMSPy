@@ -16,55 +16,198 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from core.base_class import GamsClass
+from gamspy import Card, Domain, For, Loop, Smin, Sum, sparse
+from gamspy.math import Max, abs, diag, log
 
 if TYPE_CHECKING:
-    from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
 
 
-class RptParCli(GamsClass):
-    """Translation unit for rpt_par.cli."""
+def rpt_par_cli_GP(g: TimesModelClass) -> None:
+    """Calculate Reporting parameters for Climate Module.
 
-    module_name: str = "rpt_par_cli"
-    gams_source: str = "rpt_par.cli"
+    ``%1``/``%2`` are the ``LOOP(SOW,`` / ``);`` pair that both call sites wrap the
+    whole file in, so the caller owns the ``gp.Loop(g.Sow)`` context and this
+    function only emits its body.
+    """
+    t, ll, cmq, item, u2, Sow = g.t, g.ll, g.cmq, g.item, g.u2, g.Sow
+    CmVar, CmBox, CmBuck = g.CmVar, g.CmBox, g.CmBuck
+    CmEmis, CmOfor, CmTkind, CmHists = g.CmEmis, g.CmOfor, g.CmTkind, g.CmHists
+    CmAtmap, CmBoxmap, CmForcmap, CmRebox = (
+        g.CmAtmap,
+        g.CmBoxmap,
+        g.CmForcmap,
+        g.CmRebox,
+    )
+    Miyr1, Superyr = g.Miyr1, g.Superyr
+    cm_const, cm_exoforc, cm_led, cm_linfor = (
+        g.cm_const,
+        g.cm_exoforc,
+        g.cm_led,
+        g.cm_linfor,
+    )
+    cm_phi, cm_ppm, cm_rr, cm_sig, cm_sig1, cm_stat0 = (
+        g.cm_phi,
+        g.cm_ppm,
+        g.cm_rr,
+        g.cm_sig,
+        g.cm_sig1,
+        g.cm_stat0,
+    )
+    cm_deltat, cm_dt_forc, cm_maxc_m, cm_result = (
+        g.cm_deltat,
+        g.cm_dt_forc,
+        g.cm_maxc_m,
+        g.cm_result,
+    )
+    cm_smaxc_m, cm_sresult = g.cm_smaxc_m, g.cm_sresult
+    attlvl, cnt, f, first_val, last_val = g.attlvl, g.cnt, g.f, g.first_val, g.last_val
+    my_array, my_f, my_fil2, vallvl, z = g.my_array, g.my_f, g.my_fil2, g.vallvl, g.z
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-    ):
-        self.env = env.fork()
-        self._sub_modules = {}
-        self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.compile()
+    VAR_CLIBOX, VAR_CLITOT = g.VAR_CLIBOX, g.VAR_CLITOT
+    EQ_CLIMAX, EQ_CLITOT = g.eq_climax, g.eq_clitot
 
-    def compile(self) -> None:
-        self.tc.enqueue(
-            self.exec_rpt_par_cli,
-            arg1=self.arg1,
-            arg2=self.arg2,
+    cm_result.setRecords(None)
+    cm_maxc_m.setRecords(None)
+    # *-----------------------------------------------------------------------------
+    # * Calculate incremental radiative forcing in each year
+    my_array.setRecords(None)
+    my_f[...] = (
+        Sum(
+            CmBoxmap["CO2-GTC", CmVar, CmBox].where[
+                cm_phi["CO2-GTC", CmBox, "CO2-GTC"]
+            ],
+            cm_stat0[CmVar, CmBox],
         )
-
-    def exec_rpt_par_cli(
-        self: RptParCli,
-        arg1: str,
-        arg2: str,
-    ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rpt_par_cli(
-                arg1=arg1,
-                arg2=arg2,
+        / cm_const["CO2-PREIND"]
+    )
+    vallvl[...] = cm_const["GAMMA"] / log(2)
+    # Card accepts a Variable at run time; only its annotation is narrower.
+    z[...] = Smin(t, g.m[t] - g.cm_calib).where[
+        Card(VAR_CLIBOX)  # type: ignore[arg-type, index]
+    ]
+    with Loop(ll.where[z.where[cm_led[ll]]]):
+        cnt[...] = Max(1, cm_led[ll])
+        attlvl[...] = (
+            Sum(
+                CmBoxmap["CO2-GTC", CmVar, CmBox].where[
+                    cm_phi["CO2-GTC", CmBox, "CO2-GTC"]
+                ],
+                VAR_CLIBOX.l[CmVar, CmBox, ll],
+            )
+            / cm_const["CO2-PREIND"]
+        )
+        z[...] = (attlvl - my_f) / cnt
+        with For(f, start=0, end=cnt - 1):
+            my_array[ll - f] = vallvl * log(attlvl - f * z) + cm_exoforc[ll - f]
+        my_f[...] = attlvl
+    cm_result["FORC+CO2", "CM-FORC", ll].where[cm_led[ll]] = (
+        my_array[ll] - cm_exoforc[ll]
+    )
+    # *-----------------------------------------------------------------------------
+    # * Calculate radiative forcing from other emissions in each year
+    with Loop(Superyr[t, ll].where[cm_led[ll]]):
+        cm_result[CmOfor, "CM-FORC", ll] = Sum(
+            CmForcmap[CmOfor, CmEmis],
+            cm_linfor[ll, CmEmis, "FX"]
+            + cm_linfor[ll, CmEmis, "N"]
+            / cm_ppm[CmEmis]
+            * Sum(
+                CmBoxmap[CmEmis, CmVar, CmBox].where[cm_phi[CmEmis, CmBox, CmEmis]],
+                VAR_CLIBOX.l[CmVar, CmBox, ll],
             ),
+        ) + Sum(
+            CmForcmap[CmTkind[CmOfor], CmVar].where[
+                (~CmEmis[CmVar]).where[CmTkind[CmVar]]
+            ],
+            VAR_CLITOT.l[CmOfor, ll],
         )
+    with Loop(Miyr1[t]):
+        first_val[...] = Sum(
+            CmForcmap[CmOfor, CmEmis],
+            cm_linfor[t, CmEmis, "FX"]
+            + cm_linfor[t, CmEmis, "N"]
+            / cm_ppm[CmEmis]
+            * Sum(
+                CmBoxmap[CmEmis, CmVar, CmBox].where[cm_phi[CmEmis, CmBox, CmEmis]],
+                cm_stat0[CmVar, CmBox],
+            ),
+        ) + Sum(
+            CmForcmap[CmTkind, CmVar].where[(~CmEmis[CmVar]).where[CmTkind[CmVar]]],
+            VAR_CLITOT.l[CmTkind, t],
+        )
+    with Loop(ll.where[cm_led[ll]]):
+        cnt[...] = Max(1, cm_led[ll])
+        last_val[...] = Sum(
+            CmForcmap[CmOfor, CmTkind[CmVar]], cm_result[CmOfor, "CM-FORC", ll]
+        )
+        with For(f, start=0, end=cnt - 1):
+            my_f[...] = f / cnt
+            my_fil2[ll - f] = my_f * first_val + (1 - my_f) * last_val
+        first_val[...] = last_val
+    my_array[ll].where[my_array[ll]] = my_array[ll] + my_fil2[ll]
+    # *-----------------------------------------------------------------------------
+    cm_dt_forc[ll] = my_array[ll]
+    # *-----------------------------------------------------------------------------
+    # * Calculate the ith powers of SIG, i=1...Z, where Z = LEAD(T)
+    # * First intialize CM_DD to the identity matrix, CM_EE to zero
+    with Loop(Domain(CmVar["FORCING"], ll).where[cm_led[ll]]):
+        z[...] = cm_led[ll]
+        cm_rr.setRecords(None)
+        cm_rr["1", CmBuck, CmBox] = diag(CmBuck, CmBox)
+        with For(f, start=0, end=z - 1):
+            cm_rr["2", CmBox, "LO"] = (
+                cm_rr["2", CmBox, "LO"] + my_array[ll - f] * cm_rr["1", CmBox, "ATM"]
+            )
+            cm_rr["1", CmBuck, CmBox] = Sum(
+                cmq.where[CmBox[cmq]],
+                cm_rr["1", CmBuck, cmq] * cm_sig[Sow, cmq, CmBox],
+            )
+        # * Calculate temperature changes
+        cm_deltat[ll, CmBox] = (
+            cm_rr["1", CmBox, "ATM"] * cm_deltat[ll - cm_led[ll], "ATM"]
+            + cm_rr["1", CmBox, "LO"] * cm_deltat[ll - cm_led[ll], "LO"]
+            + cm_rr["2", CmBox, "LO"] * cm_sig1[Sow]
+            + (
+                cm_rr["1", CmBox, "ATM"] * cm_stat0["FORCING", "ATM"]
+                + cm_rr["1", CmBox, "LO"] * cm_stat0["FORCING", "LO"]
+            ).where[Miyr1[ll]]
+        )
+    # *-----------------------------------------------------------------------------
+    # * Shadow price of total and maximum constraints
+    cm_maxc_m[CmVar, t] = sparse(abs(EQ_CLITOT.m[CmVar, t, t]))
+    cm_maxc_m[CmVar, ll] = sparse(
+        Max(cm_maxc_m[CmVar, ll], abs(EQ_CLIMAX.m[ll, CmVar])).where[
+            EQ_CLIMAX.m[ll, CmVar]
+        ]
+    )
+
+    # *-----------------------------------------------------------------------------
+    # * Collect all basic results
+    cm_result[CmVar, "CM-EMIS", ll].where[CmEmis[CmVar]] = sparse(
+        VAR_CLITOT.l[CmVar, ll]
+    )
+    cm_result[CmVar, "CM-FORC", ll].where[~CmEmis[CmVar]] = sparse(
+        VAR_CLITOT.l[CmVar, ll]
+    )
+    cm_result[CmVar, cmq, ll] = sparse(
+        Sum(CmRebox[cmq, CmBox], VAR_CLIBOX.l[CmVar, CmBox, ll])
+    )
+    with Loop(CmAtmap[CmEmis, CmHists]):
+        cm_result[CmHists, "CM-PPX", ll].where[cm_led[ll]] = (
+            Sum(
+                CmBoxmap[CmEmis, CmVar, CmBox].where[cm_phi[CmEmis, CmBox, CmEmis]],
+                VAR_CLIBOX.l[CmVar, CmBox, ll],
+            )
+            / cm_ppm[CmEmis]
+        )
+    cm_result["FORC+TOT", "CM-FORC", ll].where[cm_led[ll]] = sparse(cm_dt_forc[ll])
+    cm_result["DELTA+ATM", "CM-DT", ll] = sparse(cm_deltat[ll, "ATM"])
+    cm_result["DELTA+LO", "CM-DT", ll] = sparse(cm_deltat[ll, "LO"])
+    cm_sresult[Sow, item, u2, ll] = sparse(cm_result[item, u2, ll])
+    cm_smaxc_m[Sow, item, ll] = sparse(cm_maxc_m[item, ll])
 
 
 def rpt_par_cli(
@@ -72,6 +215,13 @@ def rpt_par_cli(
     arg1: str = "",
     arg2: str = "",
 ) -> str:
+    """Raw GAMS variant of :func:`rpt_par_cli_GP`.
+
+    A module whose body is ``$BATINCLUDE``d inside GAMS control flow cannot be
+    translated to GAMSPy statements until the enclosing block is translated too.
+    This variant only serves solve_stc.py, which inlines it into an untranslated
+    ``IF(...)``/``LOOP(...)``, and can be removed once that module is translated.
+    """
     return rf"""
 {arg1}
   OPTION CLEAR=CM_RESULT, CLEAR=CM_MAXC_M;
