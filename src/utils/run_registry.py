@@ -2761,5 +2761,16 @@ REGISTRY.update(
         "demos_012e_etl": derive_from(
             "demos_012e", run_name="demos_012e_etl", etl="YES"
         ),
+        # reaches: eqobjvar.mod/eqobjvar_mod.py (OBJ_ALTV multiplier),
+        # coef_alt.lin/coef_alt_lin.py, initmty.mod/initmty_mod.py
+        # (ALTOBJ=2 branch), eqobjinv.mod, eqobjfix.mod, ppmain.mod
+        # (ALTOBJ-gated branches).
+        "demos_012e_objalt": derive_from(
+            "demos_012e",
+            run_name="demos_012e_objalt",
+            obj="ALT",
+            oblong="NO",
+            varcost="NO",
+        ),
     }
 )
