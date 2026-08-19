@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 from core.base_class import GamsClass
 from core.bnd_ucw_mod import bnd_ucw_mod
+from core.par_uc_rpt import declare_par_uc_rpt_params
 from core.rpt_dam_mod import rpt_dam_mod
 from core.rpt_par_cli import rpt_par_cli
 from core.rptlite_rpt import RptliteRpt, RptliteRptConfig, rptlite_rpt
@@ -88,6 +89,10 @@ class SolveStc(GamsClass):
             and self.env.is_set("gams_gdir")  # Solution for now
         ):
             gdl_init = "GDL=3;"
+
+        if self.env.stages != "YES" and self.env.var_uc != "YES":
+            # rptlite_rpt() below embeds par_uc_rpt()'s assignments into "run"-phase code
+            declare_par_uc_rpt_params(self)
 
         rptlite_no_code = (
             rptlite_rpt(

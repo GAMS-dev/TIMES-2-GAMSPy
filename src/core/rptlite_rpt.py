@@ -19,7 +19,7 @@ from gamspy.math import project
 
 from core.base_class import GamsClass
 from core.cost_ann_rpt import CostAnnRpt, CostAnnRptConfig, cost_ann_rpt
-from core.par_uc_rpt import par_uc_rpt
+from core.par_uc_rpt import declare_par_uc_rpt_params, par_uc_rpt
 from core.rpt_obj_rpt import rpt_obj_rpt
 from core.rptmisc_rpt import rptmisc_rpt
 from core.sol_flo_red import sol_flo_red
@@ -609,6 +609,9 @@ class RptliteRpt(GamsClass):
         self._label_report(cc=cc)
 
     def _label_report(self, cc: RptliteRptConfig) -> None:
+        if self.env.var_uc != "YES":
+            declare_par_uc_rpt_params(self)
+
         self.tc.enqueue(
             self.exec_label_report_part1,
             config=cc,
