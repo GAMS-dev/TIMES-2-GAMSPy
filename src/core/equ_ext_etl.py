@@ -13,9 +13,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Ord, Sum
+
 from core.base_class import GamsClass
 
 if TYPE_CHECKING:
+    from gamspy._symbols.implicits import ImplicitVariable
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -38,74 +42,157 @@ class EquExtEtl(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-*-----------------------------------------------------------------------------
-* Cumulative capacity definition
-* [AL] May-2006: Added COEF_RPTI multiplier; It is also added to EQ_IC1 and EQ_IC2.
-{self.env.eq}_CUINV({self.env.r_t},TEG {self.env.swt})$(RTP(R,T,TEG)*SEG(R,TEG)) ..
-    {self.env.var}_CCAP(R,T,TEG {self.env.sow}) =E= SUM(RTP(R,V(MILESTONYR),TEG)$(ORD(MILESTONYR) LE ORD(T)),
-              {self.env.varv}_NCAP(R,V,TEG {self.env.sws}) * COEF_RPTI(R,V,TEG)) + CCAP0(R,TEG);
+        g = self.tc
 
-* Cumulative Capacity Interpolation
-{self.env.eq}_CC(RTP({self.env.r_t},TEG) {self.env.swt})$SEG(R,TEG) ..
-    {self.env.var}_CCAP(R,T,TEG {self.env.sow}) =E= SUM(KP$((ORD(KP) GE 2)$(ORD(KP) LE SEG(R,TEG)+1)), {self.env.var}_LAMBD(R,T,TEG,KP {self.env.sow}));
+        r, t, v, p, prc, Reg = g.r, g.t, g.v, g.p, g.prc, g.Reg
+        kp, kp2, Teg, Rtp, Milestonyr = g.kp, g.kp2, g.Teg, g.Rtp, g.Milestonyr
+        seg, ccap0, ccost0, beta, alph, ccapk = (
+            g.seg,
+            g.ccap0,
+            g.ccost0,
+            g.beta,
+            g.alph,
+            g.ccapk,
+        )
+        coef_rpti, ntchteg, cluster = g.coef_rpti, g.ntchteg, g.cluster
+        tl_start, tl_rp_kc, tl_rp_ct, tl_mrclust = (
+            g.tl_start,
+            g.tl_rp_kc,
+            g.tl_rp_ct,
+            g.tl_mrclust,
+        )
 
-* Force sum of binary variables delta to 1
-{self.env.eq}_DEL(RTP({self.env.r_t},TEG) {self.env.swt})$SEG(R,TEG) ..
-    SUM(KP$((ORD(KP) GE 2)$(ORD(KP) LE SEG(R,TEG)+1)), {self.env.var}_DELTA(R,T,TEG,KP {self.env.sow})) =E= 1;
+        eq = self.env.eq
+        var = self.env.var
+        r_t = self.env.r_t_GP
+        swt = self.env.swt_GP
+        sow = self.env.sow_GP
+        sws = self.env.sws_GP
+        varv_id, varv_set = self.env.varv_GP
 
-* Cumulative Cost Interpolation
-{self.env.eq}_COS(RTP({self.env.r_t},TEG) {self.env.swt})$SEG(R,TEG) ..
-    {self.env.var}_CCOST(R,T,TEG {self.env.sow}) =E= SUM(KP$((ORD(KP) GE 2)$(ORD(KP) LE SEG(R,TEG)+1)), {self.env.var}_LAMBD(R,T,TEG,KP {self.env.sow})*BETA(R,KP,TEG) + {self.env.var}_DELTA(R,T,TEG,KP {self.env.sow})*ALPH(R,KP,TEG));
+        VAR_CCAP = g.get_variable(f"{var}_CCAP")
+        VAR_CCOST = g.get_variable(f"{var}_CCOST")
+        VAR_LAMBD = g.get_variable(f"{var}_LAMBD")
+        VAR_DELTA = g.get_variable(f"{var}_DELTA")
+        VAR_IC = g.get_variable(f"{var}_IC")
+        VAR_NCAP = g.get_variable(f"{var}_NCAP")
+        VARV_CCOST = g.get_variable(f"{varv_id}_CCOST")
+        VARV_DELTA = g.get_variable(f"{varv_id}_DELTA")
+        VARV_NCAP = g.get_variable(f"{varv_id}_NCAP")
 
-* Constraints on lambda
-{self.env.eq}_LA1(RTP({self.env.r_t},TEG),KP {self.env.swt})$(((ORD(KP) GE 2)$(ORD(KP) LE SEG(R,TEG)+1))$SEG(R,TEG)) ..
-    {self.env.var}_LAMBD(R,T,TEG,KP {self.env.sow}) =G= CCAPK(R,KP-1,TEG)*{self.env.var}_DELTA(R,T,TEG,KP {self.env.sow});
+        eq_cuinv = g.get_equation(f"{eq}_CUINV")
+        eq_cc = g.get_equation(f"{eq}_CC")
+        eq_del = g.get_equation(f"{eq}_DEL")
+        eq_cos = g.get_equation(f"{eq}_COS")
+        eq_la1 = g.get_equation(f"{eq}_LA1")
+        eq_la2 = g.get_equation(f"{eq}_LA2")
+        eq_expe1 = g.get_equation(f"{eq}_EXPE1")
+        eq_expe2 = g.get_equation(f"{eq}_EXPE2")
+        eq_ic1 = g.get_equation(f"{eq}_IC1")
+        eq_ic2 = g.get_equation(f"{eq}_IC2")
+        eq_clu = g.get_equation(f"{eq}_CLU")
+        eq_mrclu = g.get_equation(f"{eq}_MRCLU")
 
-{self.env.eq}_LA2(RTP({self.env.r_t},TEG),KP {self.env.swt})$(((ORD(KP) GE 2)$(ORD(KP) LE SEG(R,TEG)+1))$SEG(R,TEG)) ..
-    {self.env.var}_LAMBD(R,T,TEG,KP {self.env.sow}) =L= CCAPK(R,KP,TEG)*{self.env.var}_DELTA(R,T,TEG,KP {self.env.sow});
+        # %VARV%_<var>(...%SWS%) is either the plain vintage-indexed variable or,
+        # under STAGES, the state-of-the-world weighted SUM(SW_TSW(SOW,V,W),VAS_...(...,W)).
+        ncap_v: ImplicitVariable | Sum = VARV_NCAP[r, v, Teg, *sws]
+        ccost_v: ImplicitVariable | Sum = VARV_CCOST[r, v, Teg, *sws]
+        delta_v: ImplicitVariable | Sum = VARV_DELTA[r, v, Teg, kp2, *sws]
+        if varv_set is not None:
+            ncap_v = Sum(varv_set, ncap_v)
+            ccost_v = Sum(varv_set, ccost_v)
+            delta_v = Sum(varv_set, delta_v)
 
-* Additional constraints to improve solution time
-* {self.env.eq}_EXPE1(RTP({self.env.r_t},TEG),KP {self.env.swt})$((ORD(KP) GE 2)$(ORD(KP) LE SEG(R,TEG)+1)) ..
-*    SUM(KP2$((ORD(KP2) LE ORD(KP))$(ORD(KP2) GE 2)), {self.env.var}_DELTA(R,T,TEG, KP2 {self.env.sow})) =G=
-*    SUM(KP2$(ORD(KP2) LE ORD(KP)$(ORD(KP2) GE 2)),   {self.env.var}_DELTA(R,T+1,TEG, KP2 {self.env.sow}));
- {self.env.eq}_EXPE1(RTP(R,V(T-1),TEG),KP {self.env.swt})$(((ORD(KP) GE 2)$(ORD(KP) LE SEG(R,TEG)+1))$SEG(R,TEG)) ..
-    SUM(KP2$((ORD(KP2) LE ORD(KP))$(ORD(KP2) GE 2)), {self.env.varv}_DELTA(R,V,TEG,KP2 {self.env.sws}))
-        =G= SUM(KP2$(ORD(KP2) LE ORD(KP)$(ORD(KP2) GE 2)), {self.env.var}_DELTA(R,T,TEG, KP2 {self.env.sow}));
+        # ORD(KP) GE 2 and below the number of segments of the learning curve
+        kp_active = (Ord(kp) >= 2) & (Ord(kp) <= seg[r, Teg] + 1)
 
-* {self.env.eq}_EXPE2(RTP({self.env.r_t},TEG),KP {self.env.swt})$(((ORD(KP) GE 2) AND (NOT (E(T) EQ MIYR_VL)))$(ORD(KP) LE SEG(R,TEG)+1)) ..
-*    SUM(KP2$(ORD(KP2) GE ORD(KP)), {self.env.var}_DELTA(R,T,TEG, KP2)) =L= SUM(KP2$(ORD(KP2) GE ORD(KP)), {self.env.var}_DELTA(R,T+1,TEG, KP2));
- {self.env.eq}_EXPE2(RTP(R,V(T-1),TEG),KP {self.env.swt})$(((ORD(KP) GE 2)$(ORD(KP) LE SEG(R,TEG)+1))$SEG(R,TEG)) ..
-    SUM(KP2$(ORD(KP2) GE ORD(KP)), {self.env.varv}_DELTA(R,V,TEG,KP2 {self.env.sws}))
-        =L= SUM(KP2$(ORD(KP2) GE ORD(KP)), {self.env.var}_DELTA(R,T,TEG, KP2 {self.env.sow}));
+        # *-----------------------------------------------------------------------------
+        # * Cumulative capacity definition
+        # * [AL] May-2006: Added COEF_RPTI multiplier; It is also added to EQ_IC1 and EQ_IC2.
+        eq_cuinv[*r_t, Teg, *swt].where[Rtp[r, t, Teg] * seg[r, Teg]] = VAR_CCAP[
+            r, t, Teg, *sow
+        ] == (
+            Sum(
+                Rtp[r, v[Milestonyr], Teg].where[Ord(Milestonyr) <= Ord(t)],
+                ncap_v * coef_rpti[r, v, Teg],
+            )
+            + ccap0[r, Teg]
+        )
 
+        # * Cumulative Capacity Interpolation
+        eq_cc[Rtp[*r_t, Teg], *swt].where[seg[r, Teg]] = VAR_CCAP[
+            r, t, Teg, *sow
+        ] == Sum(kp.where[kp_active], VAR_LAMBD[r, t, Teg, kp, *sow])
 
-* Investments 1st period
-* {self.env.eq}_IC1(RTP(R,T,TEG))$(YEARVAL(T) EQ MIYR_V1) .. {self.env.var}_IC(R,T,TEG {self.env.sow}) =E= {self.env.var}_CCOST(R,T,TEG {self.env.sow}) - CCOST0(R,TEG);
- {self.env.eq}_IC1(TL_START({self.env.r_t},TEG) {self.env.swt})$SEG(R,TEG) ..
-    {self.env.var}_IC(R,T,TEG {self.env.sow})*COEF_RPTI(R,T,TEG) =E= {self.env.var}_CCOST(R,T,TEG {self.env.sow}) - CCOST0(R,TEG);
+        # * Force sum of binary variables delta to 1
+        eq_del[Rtp[*r_t, Teg], *swt].where[seg[r, Teg]] = (
+            Sum(kp.where[kp_active], VAR_DELTA[r, t, Teg, kp, *sow]) == 1
+        )
 
-* Investments other periods
-*{self.env.eq}_IC2(RTP(R,T,TEG))$(YEARVAL(T) GT MIYR_V1) .. {self.env.var}_IC(R,T,TEG) =E= {self.env.var}_CCOST(R,T,TEG)- {self.env.var}_CCOST(R,T-1,TEG);
-{self.env.eq}_IC2(RTP({self.env.r_t},TEG) {self.env.swt})$((NOT TL_START(R,T,TEG))$SEG(R,TEG)) ..
-    {self.env.var}_IC(R,T,TEG {self.env.sow})*COEF_RPTI(R,T,TEG) =E= {self.env.var}_CCOST(R,T,TEG {self.env.sow}) - SUM(V(T-1),{self.env.varv}_CCOST(R,V,TEG {self.env.sws}));
+        # * Cumulative Cost Interpolation
+        eq_cos[Rtp[*r_t, Teg], *swt].where[seg[r, Teg]] = VAR_CCOST[
+            r, t, Teg, *sow
+        ] == Sum(
+            kp.where[kp_active],
+            VAR_LAMBD[r, t, Teg, kp, *sow] * beta[r, kp, Teg]
+            + VAR_DELTA[r, t, Teg, kp, *sow] * alph[r, kp, Teg],
+        )
 
-* Salvage of learning investments: Handled in TIMES by EQOBSALV.mod
+        # * Constraints on lambda
+        eq_la1[Rtp[*r_t, Teg], kp, *swt].where[kp_active & seg[r, Teg]] = (
+            VAR_LAMBD[r, t, Teg, kp, *sow]
+            >= ccapk[r, kp.lag(1), Teg] * VAR_DELTA[r, t, Teg, kp, *sow]
+        )
 
-* Coupling equation for key in TEG to cluster TCH's, only if TCH in cluster TEG and TEG NE TCH
-{self.env.eq}_CLU(RTP({self.env.r_t},TEG) {self.env.swt})$NTCHTEG(R,TEG) ..
-   {self.env.var}_NCAP(R,T,TEG {self.env.sow}) =E=
-   SUM(PRC$(RTP(R,T,PRC) * CLUSTER(R,TEG,PRC)), CLUSTER(R,TEG,PRC) * {self.env.var}_NCAP(R,T,PRC {self.env.sow}));
+        eq_la2[Rtp[*r_t, Teg], kp, *swt].where[kp_active & seg[r, Teg]] = (
+            VAR_LAMBD[r, t, Teg, kp, *sow]
+            <= ccapk[r, kp, Teg] * VAR_DELTA[r, t, Teg, kp, *sow]
+        )
 
-*-----------------------------------------------------------------------------
-* new clustering equation
-{self.env.eq}_MRCLU(RTP({self.env.r_t},TEG) {self.env.swt})$TL_RP_KC(R,TEG) ..
-   {self.env.var}_NCAP(R,T,TEG {self.env.sow}) =E=
-   SUM(TL_RP_CT(REG,P)$RTP(REG,T,P), TL_MRCLUST(R,TEG,REG,P) * {self.env.var}_NCAP(REG,T,P {self.env.sow}));
+        # * Additional constraints to improve solution time
+        # * The GAMS source spells the right-hand-side filter as
+        # *   ORD(KP2) LE ORD(KP)$(ORD(KP2) GE 2)
+        # * which zeroes out ORD(KP) for KP2='1' and is therefore the very same
+        # * condition as the left-hand side; both use kp2_le_kp here.
+        kp2_le_kp = (Ord(kp2) <= Ord(kp)) & (Ord(kp2) >= 2)
+        eq_expe1[Rtp[r, v[t.lag(1)], Teg], kp, *swt].where[kp_active & seg[r, Teg]] = (
+            Sum(kp2.where[kp2_le_kp], delta_v)
+            >= Sum(kp2.where[kp2_le_kp], VAR_DELTA[r, t, Teg, kp2, *sow])
+        )
 
-*-----------------------------------------------------------------------------
-        """,
+        eq_expe2[Rtp[r, v[t.lag(1)], Teg], kp, *swt].where[kp_active & seg[r, Teg]] = (
+            Sum(kp2.where[Ord(kp2) >= Ord(kp)], delta_v)
+            <= Sum(kp2.where[Ord(kp2) >= Ord(kp)], VAR_DELTA[r, t, Teg, kp2, *sow])
+        )
+
+        # * Investments 1st period
+        eq_ic1[tl_start[*r_t, Teg], *swt].where[seg[r, Teg]] = (
+            VAR_IC[r, t, Teg, *sow] * coef_rpti[r, t, Teg]
+            == VAR_CCOST[r, t, Teg, *sow] - ccost0[r, Teg]
+        )
+
+        # * Investments other periods
+        eq_ic2[Rtp[*r_t, Teg], *swt].where[~tl_start[r, t, Teg] & seg[r, Teg]] = VAR_IC[
+            r, t, Teg, *sow
+        ] * coef_rpti[r, t, Teg] == VAR_CCOST[r, t, Teg, *sow] - Sum(
+            v[t.lag(1)], ccost_v
+        )
+
+        # * Salvage of learning investments: Handled in TIMES by EQOBSALV.mod
+
+        # * Coupling equation for key in TEG to cluster TCH's, only if TCH in cluster TEG and TEG NE TCH
+        eq_clu[Rtp[*r_t, Teg], *swt].where[ntchteg[r, Teg]] = VAR_NCAP[
+            r, t, Teg, *sow
+        ] == Sum(
+            prc.where[Rtp[r, t, prc] * cluster[r, Teg, prc]],
+            cluster[r, Teg, prc] * VAR_NCAP[r, t, prc, *sow],
+        )
+
+        # *-----------------------------------------------------------------------------
+        # * new clustering equation
+        eq_mrclu[Rtp[*r_t, Teg], *swt].where[tl_rp_kc[r, Teg]] = VAR_NCAP[
+            r, t, Teg, *sow
+        ] == Sum(
+            tl_rp_ct[Reg, p].where[Rtp[Reg, t, p]],
+            tl_mrclust[r, Teg, Reg, p] * VAR_NCAP[Reg, t, p, *sow],
         )
