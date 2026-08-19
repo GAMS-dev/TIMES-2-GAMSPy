@@ -15,10 +15,13 @@ import logging
 from typing import TYPE_CHECKING
 
 from gamspy import Equation, Variable
+from gamspy.math import Min
 
 from core.base_class import GamsClass
 
 if TYPE_CHECKING:
+    from gamspy import Alias, Set
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -129,23 +132,25 @@ class ModVarsCli(GamsClass):
             self.mod_vars_cli_exec,
             eq=self.env.eq,
             var=self.env.var,
-            sow=self.env.sow,
+            sow=self.env.sow_GP,
         )
 
     def mod_vars_cli_exec(
         self: ModVarsCli,
         eq: str,
         var: str,
-        sow: str,
+        sow: tuple[Set | Alias, ...] | tuple[()],
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-OPTION CLEAR={eq}_CLITOT;
-*-----------------------------------------------------------------------------
-* Allow some negative emissions
-  {var}_CLITOT.LO(CM_VAR,LL {sow})$CM_LED(LL) = MIN(-15,CM_BEMI(CM_VAR,LL));
-  {var}_CLITOT.LO(CM_VAR('FORCING'),LL{sow})$CM_LED(LL) = -2;
-""",
-        )
+        g = self.tc
+
+        CmVar, ll = g.CmVar, g.ll
+        cm_led, cm_bemi = g.cm_led, g.cm_bemi
+
+        VAR_CLITOT = g.get_variable(f"{var}_CLITOT")
+
+        g.get_equation(f"{eq}_CLITOT").setRecords(None)
+
+        # *-----------------------------------------------------------------------------
+        # * Allow some negative emissions
+        VAR_CLITOT.lo[CmVar, ll, *sow].where[cm_led[ll]] = Min(-15, cm_bemi[CmVar, ll])
+        VAR_CLITOT.lo[CmVar["FORCING"], ll, *sow].where[cm_led[ll]] = -2
