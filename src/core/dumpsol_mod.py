@@ -14,6 +14,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter, Sum, set_options
+
 from core.base_class import GamsClass
 from core.dumpsol1_mod import Dumpsol1Mod
 from core.dumpsolv_mod import DumpsolvMod
@@ -46,9 +48,10 @@ class DumpsolMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        # TODO: we need a new phase after solving the model for reporting
-        self.tc.enqueue(self.exec_begin_dump)
-
+        # dumpsol.mod's `FILE SOLDUMP; PUT SOLDUMP; SOLDUMP.PW=255;` and the
+        # closing `PUTCLOSE SOLDUMP;` are dropped: dumpsol1.mod and dumpsolv.mod
+        # now write the dump from Python (see their `out=Path("SOLDUMP")`), so
+        # nothing puts to the GAMS file handle any more.
         self.env.set_scoped("no_emty", self.arg2)
 
         self.include(
@@ -117,35 +120,25 @@ class DumpsolMod(GamsClass):
             )
         )
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="PARAMETER VARACT(R,T,P) / EMPTY.EMPTY.EMPTY 0 /;",
-        )
+        g = self.tc
+
+        # No description: dumpsol1.mod prints the symbol text into the dump, and
+        # the GAMS declaration carries none.
+        g.varact = Parameter(g.container, name="VARACT", domain=[g.r, g.t, g.p])
+        # / EMPTY.EMPTY.EMPTY 0 / seeds the phantom record so that the header of
+        # the dump is written even when the parameter stays empty. 'EMPTY' is not
+        # a member of R/T/P, which $ONWARNING (set by the .dd files) downgrades to
+        # a warning in GAMS; VALIDATION is switched off for GAMSPy's own check.
+        set_options({"VALIDATION": 0})  # TODO: Remove in future GAMSPY version
+        g.varact["EMPTY", "EMPTY", "EMPTY"] = 0
+        set_options({"VALIDATION": 1})  # TODO: Remove in future GAMSPY version
 
         self.tc.enqueue(self.exec_varact)
 
         self.include(Dumpsol1Mod(self.tc, self.env, arg1="T", arg2="VARACT"))
 
-        self.tc.enqueue(self.exec_end_dump)
-
-    def exec_begin_dump(self: DumpsolMod) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""
-        FILE SOLDUMP / SOLDUMP.TXT /;
-        PUT SOLDUMP;
-        SOLDUMP.PW=255;
-        """,
-        )
-
     def exec_varact(self: DumpsolMod) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="VARACT(RTP(R,T,P)) = SUM((V,S), VAR_ACT.L(R,V,T,P,S));",
-        )
+        g = self.tc
+        r, t, p, v, s = g.r, g.t, g.p, g.v, g.s
 
-    def exec_end_dump(self: DumpsolMod) -> None:
-        self.tc.add_gams_code(module=self, phase="run", code="PUTCLOSE SOLDUMP;")
+        g.varact[g.Rtp[r, t, p]] = Sum([v, s], g.VAR_ACT.l[r, v, t, p, s])
