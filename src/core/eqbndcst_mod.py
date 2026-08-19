@@ -26,7 +26,7 @@ from utils.macros import macro_config as macro
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from gamspy import Alias, Equation
+    from gamspy import Alias
     from gamspy._algebra.condition import Condition
     from gamspy._algebra.expression import Expression
     from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
@@ -93,11 +93,7 @@ class EqbndcstMod(GamsClass):
     module_name: str = "eqbndcst_mod"
     gams_source: str = "eqbndcst.mod"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
@@ -291,16 +287,16 @@ class EqbndcstMod(GamsClass):
             g.costype,
         )
         Com, ie, io, YEoh, Yk = g.Com, g.ie, g.io, g.YEoh, g.Yk
-        # Declared by raw GAMS blocks (eqobj.mod / eqobjfix.mod), hence not on the
-        # model class yet
-        KEoh: Set = g.get_set("K_EOH")
-        ObjSumiv: Set = g.get_set("OBJ_SUMIV")
-        RtpShape: Set = g.get_set("RTP_SHAPE")
-        obj_diviv = cast("Parameter", g.container["OBJ_DIVIV"])
+        KEoh, ObjSumiv, RtpShape, obj_diviv = (
+            g.KEoh,
+            g.ObjSumiv,
+            g.RtpShape,
+            g.obj_diviv,
+        )
 
-        eq_bndcst: Equation = g.get_equation(f"{eq}_BNDCST")
+        eq_bndcst = g.get_equation(f"{eq}_BNDCST")
         VAR_CUMCST = g.get_variable(f"{var}_CUMCST")
-        NCAP_DECLIF: Parameter = g.get_parameter(f"NCAP_{declif}")
+        ncap_declif = g.get_parameter(f"NCAP_{declif}")
         tpulse_domain, tpulse_mult = tpulse
 
         # %VART1%_NCAP(R,T,P %SWS%), the (stochastic) new capacity variable
@@ -352,7 +348,7 @@ class EqbndcstMod(GamsClass):
                 macro.obj_dcost_GP(r, k, p, cur)
                 * Max(
                     0,
-                    Min(Ord(allyear) + 1, Ord(ll) + Round(NCAP_DECLIF[r, t, p]))
+                    Min(Ord(allyear) + 1, Ord(ll) + Round(ncap_declif[r, t, p]))
                     - Max(Ord(year), Ord(ll)),
                 ),
             )
@@ -614,11 +610,9 @@ class EqbndcstMod(GamsClass):
         year, allyear, ll, k = g.year, g.allyear, g.ll, g.k
         age, life, jot, side, ucn = g.age, g.life, g.jot, g.side, g.ucn
         costcat, costagg, costype = g.costcat, g.costagg, g.costype
-        f, z, Yk, Yk1, Ykk = g.f, g.z, g.Yk, g.Yk1, g.Ykk
+        f, z, Yk, Yk1, Ykk, KEoh = g.f, g.z, g.Yk, g.Yk1, g.Ykk, g.KEoh
         reg_cumcst, Superyr, Trackp = g.reg_cumcst, g.Superyr, g.Trackp
-        # Declared by a raw GAMS block (eqobj.mod), hence not on the model class yet
-        KEoh: Set = g.get_set("K_EOH")
-        NCAP_DECLIF: Parameter = g.get_parameter(f"NCAP_{declif}")
+        ncap_declif = g.get_parameter(f"NCAP_{declif}")
 
         # -----------------------------------------------------------------------------
         # Construct SUPERYR (needed for filtering)
@@ -654,7 +648,7 @@ class EqbndcstMod(GamsClass):
             g.RtIan[r, t, t, cur, "INV"] + Trackp[r, p]
         ] = True
         # Calculate annual undiscounted INVCOST coefficients
-        Yk1.setRecords(None)  # OPTION CLEAR=YK1
+        Yk1.setRecords(None)
         Yk1[tt, t].where[Yk[t, tt]] = True
         g.cst_annc[r, tt, p, t[year], "INVCOST", cur].where[
             Yk1[tt, t] & g.RtpIan[r, tt, p, cur]
@@ -679,7 +673,7 @@ class EqbndcstMod(GamsClass):
                 / g.obj_diviii[r, tt, p]
                 * Sum(
                     g.ObjSumiii[r, tt, p, KEoh, k, ll].where[
-                        (Ord(ll) + Round(NCAP_DECLIF[r, tt, p]) > Ord(year)).where[
+                        (Ord(ll) + Round(ncap_declif[r, tt, p]) > Ord(year)).where[
                             Yk[t, ll]
                         ]
                     ],
@@ -687,8 +681,8 @@ class EqbndcstMod(GamsClass):
                 )
             )
         # Calculate annual undiscounted INVTAXSUB coefficients
-        Trackp.setRecords(None)  # OPTION CLEAR=TRACKP
-        g.RtpIan.setRecords(None)  # OPTION CLEAR=RTP_IAN
+        Trackp.setRecords(None)
+        g.RtpIan.setRecords(None)
         with (
             Loop(g.UcAttr[r, ucn, side, "NCAP", g.UcAnnul[g.ucname[costcat]]]),
             Loop(t),
@@ -719,5 +713,5 @@ class EqbndcstMod(GamsClass):
             g.cst_annc[r, tt, p, t, "INVSUB", cur].where[Yk1[tt, t]] = Sum(
                 Ykk[t, ll, k], -f * macro.obj_isub_GP(r, k, p, cur)
             )
-        Trackp.setRecords(None)  # OPTION CLEAR=TRACKP
-        g.RtpIan.setRecords(None)  # OPTION CLEAR=RTP_IAN
+        Trackp.setRecords(None)
+        g.RtpIan.setRecords(None)
