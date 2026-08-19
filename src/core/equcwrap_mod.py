@@ -140,25 +140,23 @@ class EqucwrapMod(GamsClass):
 
         condition1: Condition | bool = True
         condition2: Condition | bool = True
+        innermost_sum = Sum(g.UcTSum[g.r, g.ucn, g.t], 1.0)
+        expr1 = Sum(g.UcTsSum[set_uc_r_sum, g.s], 1.0).where[innermost_sum]
+        expr2 = Sum(set_uc_ts_sum, 1.0).where[innermost_sum]
         if cc.arg4 is not None and cc.arg5 is not None:
-            condition1 = Sum(  # type: ignore[assignment]
-                cc.arg4.where[g.uc_rhs[g.ucn, cc.arg2]], cc.arg5
-            ).where[
-                (
-                    Sum(g.UcTsSum[set_uc_r_sum, g.s], 1.0).where[
-                        Sum(g.UcTSum[g.r, g.ucn, g.t], 1.0)
-                    ]
-                )
+            condition1 = Sum(cc.arg4.where[g.uc_rhs[g.ucn, cc.arg2]], cc.arg5).where[
+                expr1
             ]
-            condition2 = Sum(  # type: ignore[assignment]
-                cc.arg4.where[g.uc_rhsr[g.r, g.ucn, cc.arg2]],
-                cc.arg5,
-            ).where[
-                (Sum(set_uc_ts_sum, 1.0).where[Sum(g.UcTSum[g.r, g.ucn, g.t], 1.0)])
-            ]
+            condition2 = Sum(
+                cc.arg4.where[g.uc_rhsr[g.r, g.ucn, cc.arg2]], cc.arg5
+            ).where[expr2]
+        elif cc.arg4 is None and cc.arg5 is None:
+            condition1 = g.uc_rhs[g.ucn, cc.arg2].where[expr1]
+            condition2 = g.uc_rhsr[g.r, g.ucn, cc.arg2].where[expr2]
         else:
             raise ValueError(
-                f"arg4 and arg5 must both be not None. They are {cc.arg4=} and {cc.arg5=}"
+                f"arg4 and arg5 must either both be None or both be not None. "
+                f"They are {cc.arg4=} and {cc.arg5=}"
             )
 
         rts_GP = macro.rts_GP(s=g.s, g=self.tc, env=self.env)

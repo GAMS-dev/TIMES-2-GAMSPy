@@ -23,6 +23,26 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def declare_par_uc_rpt_params(module: GamsClass) -> None:
+    """Declare PAR_RTUS/PAR_URTS immediately (init phase).
+
+    PAR_RTUS/PAR_URTS are declarative statements -- in real GAMS they are part
+    of the single compile pass and exist regardless of when %BATINCLUDE
+    par_uc.rpt happens to be lexically reached. Callers that embed
+    par_uc_rpt()'s output in "run"-phase code must call this once themselves
+    beforehand (rather than letting the declaration ride along with the rest
+    of the block).
+    """
+    module.tc.add_gams_code(
+        module=module,
+        phase="init",
+        code="""
+  PARAMETER PAR_RTUS(R,YEAR,UC_N,S) //;
+  PARAMETER PAR_URTS(UC_N,R,YEAR,S) //;
+""",
+    )
+
+
 class ParUcRpt(GamsClass):
     """Translation unit for par_uc.rpt."""
 
@@ -49,6 +69,7 @@ class ParUcRpt(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        declare_par_uc_rpt_params(self)
         self.tc.enqueue(
             self.exec_par_uc_rpt,
             arg1=self.arg1,
@@ -82,11 +103,7 @@ def par_uc_rpt(
     arg3: str,
     arg4: str,
 ) -> str:
-    # TODO: this cannot be valid in execution time.
-    # # par_uc_rpt() is called in rptlite_rpt() only if var_uc != YES. So ParUcRpt might not need a string returning function but only a class after all.
     return rf"""
-  PARAMETER PAR_RTUS(R,YEAR,UC_N,S) //;
-  PARAMETER PAR_URTS(UC_N,R,YEAR,S) //;
   {arg3}PAR_UC{arg1}({arg4}UC_N,'NONE','NONE','NONE') $= {arg2}_UC.M(UC_N);
   {arg3}PAR_UC{arg1}({arg4}UC_N,'NONE',T,'NONE')      $= {arg2}_UCT.M(UC_N,T);
   {arg3}PAR_UC{arg1}({arg4}UC_N,'NONE',T,S)           $= {arg2}_UCTS.M(UC_N,T,S);
