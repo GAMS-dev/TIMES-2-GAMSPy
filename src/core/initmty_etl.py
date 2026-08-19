@@ -71,7 +71,7 @@ class InitmtyEtl(GamsClass):
         # KP up to 6 as default, can be re-assigned in *.RUN file if desired
         g.kp = Set(m, name="KP", records=range(1, 7))
 
-        Alias(container=self.tc.container, name="KP2", alias_with=g.kp)
+        g.kp2 = Alias(container=self.tc.container, name="KP2", alias_with=g.kp)
 
         g.pat = Parameter(m, name="PAT", domain=[g.r, g.prc])
         g.pbt = Parameter(m, name="PBT", domain=[g.r, g.prc])
