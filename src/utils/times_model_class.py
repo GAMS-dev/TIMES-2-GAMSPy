@@ -1903,6 +1903,10 @@ class TimesModelClass:
     eqg_mrkcon: Equation = None  # type: ignore[assignment] # [r,t,p,c,s,allsow] EQG_MRKCON: Consumption share (=G=)
     # endregion
 
+    # region DUMPSOL extension (dumpsol.mod solution dump)
+    varact: Parameter = None  # type: ignore[assignment] # [r,t,p] VARACT
+    # endregion
+
     # region ABS extension (initmty.abs ancillary balancing services)
     VAR_DRCAP: Variable = None  # type: ignore[assignment]  # [R, ALLYEAR, LL, P, *SWD, J] VAR_DRCAP
     VAS_DRCAP: Variable = None  # type: ignore[assignment]  # [R, ALLYEAR, LL, P, *SWD, J] VAS_DRCAP
