@@ -194,13 +194,14 @@ class WrtbpriceMod(GamsClass):
                 g.UcCost,
                 g.t,
                 g.rb,
-                g.Sysucmap,
+                m["SYSUCMAP"],
                 g.sysuc,
                 g.item,
                 g.reg_acost,
                 g.Ancat,
                 g.sol_acfr,
             )
+            assert isinstance(Sysucmap, Set)
             sol_acfr[r, UcCost, t].where[rb[r, t]] = (
                 Sum(
                     Sysucmap[sysuc, item].where[Ancat[UcCost, item]],
