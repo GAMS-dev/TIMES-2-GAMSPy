@@ -43,7 +43,7 @@ class CalCapsModConfig:
     varm: tuple[str, ImplicitSet | None]
     arg1: SET_OR_ALIAS
     # coefficient expression for EQOBJVAR / UC_FLO
-    arg2: Condition | Expression | ImplicitParameter | MathOp | Number
+    arg2: Condition | Expression | ImplicitParameter | MathOp | Number | Sum
     arg3: SET_OR_ALIAS
     is_output: bool = False  # old arg4, the '.L' suffix
 

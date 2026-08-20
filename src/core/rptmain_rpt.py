@@ -26,7 +26,7 @@ from core.base_class import GamsClass
 from core.eqobjels_rpt import EqobjelsRpt
 from core.eqobjfix_rpt import EqobjfixRpt
 from core.eqobjinv_rpt import EqobjinvRpt
-from core.eqobjvar_rpt import EqobjvarRpt
+from core.eqobjvar_rpt import EqobjvarRpt, EqobjvarRptConfig
 from core.eqobsalv_rpt import EqobsalvRpt
 from core.par_uc_rpt import ParUcRpt
 from core.sol_flo_red import SolFloRed
@@ -69,7 +69,9 @@ class RptmainRpt(GamsClass):
         self.include(EqobjinvRpt(self.tc, self.env))
         self.include(EqobjfixRpt(self.tc, self.env, arg1="mod"))
         self.include(EqobsalvRpt(self.tc, self.env, arg1="rpt"))
-        self.include(EqobjvarRpt(self.tc, self.env, arg1="mod"))
+        self.include(
+            EqobjvarRpt(self.tc, self.env, config=EqobjvarRptConfig(arg1="mod"))
+        )
         self.include(
             EqobjelsRpt(
                 self.tc,
