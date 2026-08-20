@@ -30,7 +30,7 @@ from core.eqobjfix_rpt import EqobjfixRpt
 from core.eqobjinv_mod import EqobjinvMod
 from core.eqobjinv_rpt import EqobjinvRpt
 from core.eqobjvar_mod import EqobjvarMod
-from core.eqobjvar_rpt import EqobjvarRpt
+from core.eqobjvar_rpt import EqobjvarRpt, EqobjvarRptConfig
 from core.eqobsalv_mod import EqobsalvMod
 from core.eqobsalv_rpt import EqobsalvRpt
 from core.prepret_dsc import PrepretDsc, PrepretDscConfig
@@ -111,7 +111,13 @@ class EqobjMod(GamsClass):
         if self.arg1.upper() == "MOD":
             self.include(EqobjvarMod(self.tc, self.env))
         elif self.arg1.upper() == "RPT":
-            self.include(EqobjvarRpt(self.tc, self.env, arg1=self.arg1))
+            self.include(
+                EqobjvarRpt(
+                    self.tc,
+                    self.env,
+                    config=EqobjvarRptConfig(arg1=self.arg1),
+                )
+            )
 
         # Salvage value of investment and decommissioning costs
         if self.arg1.upper() == "MOD":

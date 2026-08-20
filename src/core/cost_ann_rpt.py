@@ -25,7 +25,7 @@ from gamspy.math import Max, Round, abs, aggregate, project
 
 from core.base_class import GamsClass
 from core.eqobjels_rpt import EqobjelsRpt, eqobjels_rpt
-from core.eqobjvar_rpt import EqobjvarRpt, eqobjvar_rpt
+from core.eqobjvar_rpt import EqobjvarRpt, EqobjvarRptConfig, eqobjvar_rpt
 from core.powerflo_vda import PowerfloVda, powerflo_vda_rptb
 from utils.macros import macro_config as macro
 
@@ -130,11 +130,12 @@ class CostAnnRpt(GamsClass):
                 EqobjvarRpt(
                     self.tc,
                     self.env,
-                    arg1="PAR",
-                    arg2="J('1'),",
-                    arg3="J('2'),",
-                    arg4="T",
-                    arg5="",
+                    config=EqobjvarRptConfig(
+                        arg1="PAR",
+                        arg2=(g.j["1"],),
+                        arg3=(g.j["2"],),
+                        arg4=g.t,
+                    ),
                 )
             )
 
