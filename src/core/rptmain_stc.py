@@ -299,7 +299,7 @@ OPTION CLEAR=RPC_EMIS,CLEAR=RPC_FFUNC,CLEAR=F_IOSET; SOW(W)=AUXSOW(W);
         var_uc: str,
         solans: str,
         mx: str,
-        discshift: str,
+        discshift: float,
         model_name: str,
         is_mi_agc_defined: bool,
         if_not_defined_eq_g_ucmax: bool,

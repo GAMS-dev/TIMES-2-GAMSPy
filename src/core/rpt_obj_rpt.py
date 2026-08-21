@@ -100,7 +100,7 @@ class RptObjRpt(GamsClass):
         varm: str,
         sws: str,
         bencost: str,
-        discshift: str,
+        discshift: float,
         vnret_defined: bool,
     ) -> None:
         self.tc.add_gams_code(
@@ -153,7 +153,7 @@ def rpt_obj_rpt(
     varcost: str,
     pgprim: str,
     bencost: str,
-    discshift: str,
+    discshift: float,
     vnret_defined: bool,
 ) -> str:
     sic = "*(1+PASTSUM(R,V,P))" if stages.upper() == "YES" else ""

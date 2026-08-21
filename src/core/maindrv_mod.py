@@ -235,7 +235,7 @@ class MainDrvMod(GamsClass):
         # * build the coefficients
         # *-----------------------------------------------------------------------------
         if self.env.mid_year.upper() == "YES":
-            self.env.set_scoped("discshift", "0.5")
+            self.env.set_scoped("discshift", 0.5)
         self.include(CoefmainMod(tc=self.tc, env=self.env, arg1=self.arg1))
 
         if self.env.extend != "":

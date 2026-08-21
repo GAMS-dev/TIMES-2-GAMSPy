@@ -695,7 +695,7 @@ class RptliteRpt(GamsClass):
         bencost: str,
         varm: str,
         mx: str,
-        discshift: str,
+        discshift: float,
     ) -> None:
         self.tc.add_gams_code(
             module=self,
@@ -874,7 +874,7 @@ def rptlite_rpt(
     solans: str,
     bencost: str,
     mx: str,
-    discshift: str,
+    discshift: float,
     eqe_ucrtp_defined: bool,
     eq_g_ucmax_not_defined: bool,
 ) -> str:
@@ -989,7 +989,7 @@ def rptlite_rpt_part1(
     varm: str,
     bencost: str,
     mx: str,
-    discshift: str,
+    discshift: float,
 ) -> str:
     """rptlite.rpt REPORT block up to the annual cost calculation."""
     arg1 = next(iter(config.arg1), "")

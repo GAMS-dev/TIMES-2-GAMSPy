@@ -246,7 +246,7 @@ class SolveMsa(GamsClass):
         objann: str,
         dflbl: str,
         bencost: str,
-        discshift: str,
+        discshift: float,
     ) -> None:
         self.tc.add_gams_code(
             module=self,
@@ -424,7 +424,7 @@ class SolveMsa(GamsClass):
         dflbl: str,
         bencost: str,
         mx: str,
-        discshift: str,
+        discshift: float,
     ) -> None:
         include_solprep = solprep_msa(
             arg1="",
@@ -524,7 +524,7 @@ class SolveMsa(GamsClass):
         objann: str,
         dflbl: str,
         bencost: str,
-        discshift: str,
+        discshift: float,
     ) -> None:
         include_clearsol_stp = clearsol_stp(
             var=var,

@@ -59,7 +59,7 @@ def solprep_msa(
     mx: str,
     dflbl: str,
     bencost: str,
-    discshift: str,
+    discshift: float,
 ) -> str:
     execution_str: str = ""
 
@@ -150,7 +150,7 @@ def _solprep_msa_init(
     objann: str,
     dflbl: str,
     bencost: str,
-    discshift: str,
+    discshift: float,
 ) -> str:
     execution_str = "OPTION CLEAR=PAR_FLO,CLEAR=PAR_IRE;"
 

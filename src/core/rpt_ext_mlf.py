@@ -146,7 +146,7 @@ class RptExtMlf(GamsClass):
         micro: str,
         is_mi_agc_defined: bool,
         bencost: str,
-        discshift: str,
+        discshift: float,
     ) -> None:
         include_sol_flo_red = sol_flo_red(
             arg1="PAR_FLO",

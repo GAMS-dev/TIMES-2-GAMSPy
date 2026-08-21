@@ -71,7 +71,7 @@ class EnvironmentVariableSchema(BaseModel):
     objann: Literal["YES", "NO"] = Field(
         description="Requests a period-wise objective formulation, useful for iterative updates of period-wise discount factors (e.g., in MACRO MSA decomposition)."
     )
-    discshift: int | float | Literal["0"] = Field(
+    discshift: float = Field(
         description="Generalization of time-of-year discounting. Shifts payment streams forward in years relative to operation (e.g., 0.5 equals MID_YEAR, 1.0 equals end-of-year)."
     )
     varcost: Literal["LIN", "NO", "%varcost%"] = Field(
