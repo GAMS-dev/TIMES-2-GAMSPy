@@ -22,6 +22,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Domain, Loop, Sum
+
 from core.atlearn1_etl import atlearn1_etl
 from core.atlearn8_etl import atlearn8_etl
 from core.atsc_etl import atsc_etl
@@ -76,6 +78,11 @@ class AtlearnEtl(GamsClass):
 
         self.tc.enqueue(self.exec_export_capital_cost)
 
+    # The .ETL report itself is written with GAMS PUT statements, which GAMSPy
+    # has no counterpart for, so exec1/exec_loop stay raw GAMS. Porting them
+    # means re-implementing the whole report in Python file I/O (the
+    # dumpsol1.mod approach), which also covers atlearn1.etl, atsc.etl,
+    # atlearn8.etl and atlearn9.etl -- each tracked by its own issue.
     def exec1(self: AtlearnEtl, run_name: str) -> None:
         self.tc.add_gams_code(
             module=self,
@@ -207,24 +214,45 @@ LOOP(SOW,
         )
 
     def exec_export_capital_cost(self: AtlearnEtl) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=f"""
-* Exporting capital cost data for clustered technologies
+        # * Exporting capital cost data for clustered technologies
+        g = self.tc
 
-* Create a set of all key components
-* Create a set of all clustered technologies
-  LOOP((RP(R,P),PRC)$((CLUSTER(R,P,PRC) > 0.0)$CLUSTER(R,P,PRC)),
-     TL_RP_KC(R,P) = YES; TL_RP_CT(R,PRC) = YES);
+        r, p, prc, cur, Reg, Milestonyr = g.r, g.p, g.prc, g.cur, g.Reg, g.Milestonyr
+        Rp, cluster, invc_unit, tl_mrclust = (
+            g.Rp,
+            g.cluster,
+            g.invc_unit,
+            g.tl_mrclust,
+        )
+        tl_ct_cost, tl_rp_ct, tl_rp_kc = g.tl_ct_cost, g.tl_rp_ct, g.tl_rp_kc
 
-  TL_CT_COST(REG,MILESTONYR,PRC,CUR)$TL_RP_CT(REG,PRC) = {macro.obj_icost("REG", "MILESTONYR", "PRC", "CUR")} +
-     INVC_UNIT(REG,MILESTONYR,PRC) +
-* Costs of key components in same region
-     SUM(P$CLUSTER(REG,P,PRC), ({macro.obj_icost("REG", "MILESTONYR", "P", "CUR")} + INVC_UNIT(REG,MILESTONYR,P)) * CLUSTER(REG,P,PRC)) +
-* Costs of multi-regional key components
-     SUM(RP(R,P)$TL_MRCLUST(R,P,REG,PRC), ({macro.obj_icost("R", "MILESTONYR", "P", "CUR")} + INVC_UNIT(R,MILESTONYR,P)) * TL_MRCLUST(R,P,REG,PRC));
-*-----------------------------------------------------------------------------
+        # * Create a set of all key components
+        # * Create a set of all clustered technologies
+        with Loop(
+            Domain(Rp[r, p], prc).where[(cluster[r, p, prc] > 0.0) & cluster[r, p, prc]]
+        ):
+            tl_rp_kc[r, p] = True
+            tl_rp_ct[r, prc] = True
 
-""",
+        tl_ct_cost[Reg, Milestonyr, prc, cur].where[tl_rp_ct[Reg, prc]] = (
+            macro.obj_icost_GP(Reg, Milestonyr, prc, cur)
+            + invc_unit[Reg, Milestonyr, prc]
+            # * Costs of key components in same region
+            + Sum(
+                p.where[cluster[Reg, p, prc]],
+                (
+                    macro.obj_icost_GP(Reg, Milestonyr, p, cur)
+                    + invc_unit[Reg, Milestonyr, p]
+                )
+                * cluster[Reg, p, prc],
+            )
+            # * Costs of multi-regional key components
+            + Sum(
+                Rp[r, p].where[tl_mrclust[r, p, Reg, prc]],
+                (
+                    macro.obj_icost_GP(r, Milestonyr, p, cur)
+                    + invc_unit[r, Milestonyr, p]
+                )
+                * tl_mrclust[r, p, Reg, prc],
+            )
         )
