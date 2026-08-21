@@ -240,7 +240,7 @@ class RptExtMsa(GamsClass):
         objann: str,
         dflbl: str,
         bencost: str,
-        discshift: str,
+        discshift: float,
     ) -> None:
         code = solprep_msa(
             arg1=arg1,
