@@ -1892,6 +1892,7 @@ class TimesModelClass:
     ele_bptl: Parameter = None  # type: ignore[assignment] # [r, year, year, p, c, ts] ELE_BPTL:
     ele_bptm: Parameter = None  # type: ignore[assignment] # [r, year, year, p, c, ts] ELE_BPTM:
 
+    RtpEqstk: Set = None  # type: ignore[assignment] # [r, allyear, t, p, item] RTP_EQSTK:
     # endregion
 
     # region IER extension (equ_ext.ier market-share equations)
