@@ -19,7 +19,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Set
+from gamspy import Domain, Loop, Number, Ord, Set, Sum
+from gamspy.math import Min, abs, diag, same_as
 
 from core.base_class import GamsClass
 from core.eqobjann_tm import EqobjannTm
@@ -34,8 +35,14 @@ from core.eqobjvar_rpt import EqobjvarRpt, EqobjvarRptConfig
 from core.eqobsalv_mod import EqobsalvMod
 from core.eqobsalv_rpt import EqobsalvRpt
 from core.prepret_dsc import PrepretDsc, PrepretDscConfig
+from core.utils import extract_var_domain, generate_equation, wrap_in_sum
 
 if TYPE_CHECKING:
+    from typing import Any
+
+    from gamspy import Alias, Expression
+    from gamspy._algebra.condition import Condition
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -84,23 +91,27 @@ class EqobjMod(GamsClass):
                 PrepretDsc(self.tc, self.env, config=PrepretDscConfig(arg1="EQOBJ"))
             )
 
-        # Elastic Demand costs
-        if self.arg1.upper() == "MOD":
+        arg_mode = self.arg1.upper()
+        if arg_mode == "MOD":
+            # Elastic Demand costs
             self.include(EqobjinvMod(self.tc, self.env, arg1="EQOBJ", arg2=""))
-        elif self.arg1.upper() == "RPT":
+
+            # Fixed O&M Cost and Tax components (Conditional)
+            if self.env.timesed == "YES":
+                self.include(EqobjelsMod(self.tc, self.env))
+
+            # Fixed O&M Cost and Tax components
+            self.include(EqobjfixMod(self.tc, self.env))
+
+        elif arg_mode == "RPT":
+            # Elastic Demand costs
             self.include(EqobjinvRpt(self.tc, self.env))
 
-        # Fixed O&M Cost and Tax components
-        if self.env.timesed == "YES":
-            if self.arg1.upper() == "MOD":
-                self.include(EqobjelsMod(self.tc, self.env))
-            elif self.arg1.upper() == "RPT":
+            # Fixed O&M Cost and Tax components (Conditional)
+            if self.env.timesed == "YES":
                 self.include(EqobjelsRpt(self.tc, self.env))
 
-        # Fixed O&M Cost and Tax components
-        if self.arg1.upper() == "MOD":
-            self.include(EqobjfixMod(self.tc, self.env, sense=self.arg1))
-        elif self.arg1.upper() == "RPT":
+            # Fixed O&M Cost and Tax components
             self.include(EqobjfixRpt(self.tc, self.env, arg1=self.arg1))
 
         # Variable O&M and direct commodity related cost components
@@ -108,21 +119,18 @@ class EqobjMod(GamsClass):
             self.env.set_scoped("obj", "LIN")
             self.env.set_scoped("varcost", "LIN")
 
-        if self.arg1.upper() == "MOD":
+        if arg_mode == "MOD":
             self.include(EqobjvarMod(self.tc, self.env))
-        elif self.arg1.upper() == "RPT":
+
+            # Salvage value of investment and decommissioning costs
+            self.include(EqobsalvMod(self.tc, self.env, arg1=self.arg1))
+
+        elif arg_mode == "RPT":
             self.include(
-                EqobjvarRpt(
-                    self.tc,
-                    self.env,
-                    config=EqobjvarRptConfig(arg1=self.arg1),
-                )
+                EqobjvarRpt(self.tc, self.env, config=EqobjvarRptConfig(arg1=self.arg1))
             )
 
-        # Salvage value of investment and decommissioning costs
-        if self.arg1.upper() == "MOD":
-            self.include(EqobsalvMod(self.tc, self.env, arg1=self.arg1))
-        elif self.arg1.upper() == "RPT":
+            # Salvage value of investment and decommissioning costs
             self.include(EqobsalvRpt(self.tc, self.env, arg1=self.arg1))
 
         # Annualized objective formulation
@@ -134,13 +142,21 @@ class EqobjMod(GamsClass):
         is_timesed = self.env.timesed == "YES"
         is_micro = self.env.micro.upper() == "YES"
 
-        eq_lhs = (
-            f"{self.env.eq}_ROBJ(REG(R){self.env.sow}) .. -{self.env.var}_UCR('OBJZ',R{self.env.sow}) +"
-            if is_stages
-            else f"{self.env.eq}_OBJ .. -objZ +"
-        )
+        sow = self.env.sow_GP
+        eq = self.env.eq
+        var_id, var_set = extract_var_domain(self.env.var)
+        _ucr = g.get_variable(name=f"{var_id}_UCR")
+        VAR_UCR = wrap_in_sum(target=_ucr["OBJZ", g.r, *sow], domain=var_set)
+        if is_stages:
+            main_eq = g.get_equation(name=f"{eq}_ROBJ")
+            main_eq_domain: tuple[Any, ...] = (g.Reg[g.r], *sow)
+            lhs1 = -VAR_UCR
+        else:
+            main_eq = g.get_equation(name=f"{eq}_OBJ")
+            main_eq_domain = (...,)
+            lhs1 = -g.OBJZ
 
-        include_main_ext = ""
+        # include_main_ext = ""
         # TODO: no obj_ext files present -> remove code
         # if self.env.extend != "":
         #     extensions = {}
@@ -155,90 +171,134 @@ class EqobjMod(GamsClass):
         if is_timesed or is_micro:
             self.add_records_to_universe_item(["OBJELS"])
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-{eq_lhs}
-
-      SUM(RDCUR(R,CUR),
-
-* Investment Costs, Tax/Subsidies and Decommissioning
-* Salvage value of investment and decommissioning costs
-* Fixed O&M and Tax/Subsidies
-* Variable O&M and direct commodity costs
-* Damages
-
-        SUM((ITEM,OBV)$SUM_OBJ(ITEM,OBV),{self.env.var}_OBJ(R,OBV,CUR {self.env.sow})*SUM_OBJ(ITEM,OBV))
-
-* Elastic Demand costs
-{" +SUM(BD," + self.env.var + "_OBJELS(R,BD,CUR " + self.env.sow + ")*BDSIG(BD))$SUM_OBJ(R,'OBJELS')" if is_timesed else ""}
-{" -" + self.env.var + "_OBJELS(R,'FX',CUR " + self.env.sow + ")$SUM_OBJ(R,'OBJELS')" if is_micro else ""}
-
-         )
-
-* Extensions to objective function
-{include_main_ext}
-
-    =E= 0
-;
-""",
+        VAR_OBJ = wrap_in_sum(
+            target=g.get_variable(name=f"{var_id}_OBJ"), domain=var_set
         )
+
+        if is_timesed:
+            VAR_OBJELS1 = wrap_in_sum(
+                target=g.get_variable(name=f"{var_id}_OBJELS"), domain=var_set
+            )
+            sum_expr1: Condition | int = Sum(
+                g.bd, VAR_OBJELS1[g.r, g.bd, g.cur, *sow] * g.bdsig[g.bd]
+            ).where[g.sum_obj[g.r, "OBJELS"]]
+        else:
+            sum_expr1 = 0
+
+        if is_micro:
+            VAR_OBJELS2 = wrap_in_sum(
+                target=g.get_variable(name=f"{var_id}_OBJELS"), domain=var_set
+            )
+            sum_expr2: Expression | int = -VAR_OBJELS2[g.r, "FX", g.cur, *sow].where[
+                g.sum_obj[g.r, "OBJELS"]
+            ]
+        else:
+            sum_expr2 = 0
+
+        lhs2 = Sum(
+            g.Rdcur[g.r, g.cur],
+            # * Investment Costs, Tax/Subsidies and Decommissioning
+            # * Salvage value of investment and decommissioning costs
+            # * Fixed O&M and Tax/Subsidies
+            # * Variable O&M and direct commodity costs
+            # * Damages
+            Sum(
+                Domain(g.item, g.obv).where[g.sum_obj[g.item, g.obv]],  # type: ignore[arg-type]
+                VAR_OBJ[g.r, g.obv, g.cur, *sow] * g.sum_obj[g.item, g.obv],
+            )
+            # * Elastic Demand costs
+            + sum_expr1
+            + sum_expr2,
+        )
+        # * Extensions to objective function # NOTE: include_main_ext here if any
+
+        main_eq[main_eq_domain] = generate_equation(lhs=lhs1 + lhs2, type="E", rhs=0)
 
         # Stochastic objective function
         if not is_stages:
             return
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-  EQ_EXPOBJ(AUXSOW(WW))..
-     (SUM(SOW, SW_PROB(SOW) * {self.env.var}_UC('OBJZ'{self.env.sow}))/SW_NORM - VAS_EXPOBJ)$(NOT SW_PHASE) +
-     SUM(SOW,SUM(UC_N$(SUM(UC_T_SUM(UC_R_SUM(R,UC_N),T),1)$S_UCOBJ(UC_N,SOW)),
-               S_UCOBJ(UC_N,SOW)*{self.env.var}_UC(UC_N{self.env.sow})) - {self.env.var}_UC('OBJ1'{self.env.sow}))$(SW_PHASE GT 0) +
-     SUM(SOW,SUM(UC_N$(SUM(UC_T_SUM(UC_R_SUM(R,UC_N),T),1)$S_UCOBJ(UC_N,WW)),
-               S_UCOBJ(UC_N,WW)*{self.env.var}_UC(UC_N{self.env.sow})) - {self.env.var}_UC('OBJ1'{self.env.swd}))$(SW_PHASE LT 0)
+        VAR_UC = wrap_in_sum(target=g.get_variable(name=f"{var_id}_UC"), domain=var_set)
 
-   =E=  0;
+        def fetch_inner_sum(arg_set: Set | Alias) -> Sum:
+            return Sum(
+                g.ucn.where[
+                    (
+                        Sum(g.UcTSum[g.UcRSum[g.r, g.ucn], g.t], 1.0).where[
+                            g.s_ucobj[g.ucn, arg_set]
+                        ]
+                    )
+                ],
+                g.s_ucobj[g.ucn, arg_set] * VAR_UC[g.ucn, *sow],
+            )
 
-  EQ_UPDEV(SOW)$SW_LAMBDA..
-     {self.env.var}_UC('OBJZ'{self.env.sow}) - VAS_EXPOBJ$(SW_LAMBDA GT 0) - {self.env.var}_UC('OBJ1'{self.env.sow})$(SW_LAMBDA LT 0)
-     =L=                     VAS_UPDEV(SOW)$(SW_LAMBDA GT 0) + VAS_UPDEV('1')$(SW_LAMBDA LT 0);
+        # ------- EQ 1 -------
+        g.eq_expobj[g.Auxsow[g.ww]] = (
+            Sum(g.Sow, g.sw_prob[g.Sow] * VAR_UC["OBJZ", *sow]) / g.sw_norm
+            - g.VAS_EXPOBJ
+        ).where[(~(g.sw_phase))] + Sum(
+            g.Sow,
+            fetch_inner_sum(g.Sow) - VAR_UC["OBJ1", *sow],
+        ).where[(g.sw_phase > 0.0)] + Sum(
+            g.Sow,
+            fetch_inner_sum(g.ww) - VAR_UC["OBJ1", *self.env.swd_GP],
+        ).where[(g.sw_phase < 0.0)] == 0
 
-  {self.env.eq}_SOBJ('N'{self.env.sow}).. -{self.env.var}_UC('OBJZ'{self.env.sow}) + SUM(R,{self.env.var}_UCR('OBJZ',R{self.env.sow})) =E= 0;
-
-  EQ_OBJ..
-     ((VAS_EXPOBJ + SW_LAMBDA * SUM(SOW, SW_PROB(SOW) * VAS_UPDEV(SOW))/SW_NORM)$(SW_LAMBDA GE 0)
-      - MIN(0,SW_LAMBDA)*VAS_UPDEV('1'))$(NOT SW_PHASE) +
-     SUM(SOW,{self.env.var}_UC('OBJ1'{self.env.sow})$(ABS(SW_PHASE) EQ 1) + {self.env.var}_UC('OBJZ'{self.env.sow})$(ABS(SW_PHASE) EQ 2))
-
-   =E=  objZ;
-""",
+        # ------- EQ 2 -------
+        g.eq_updev[g.Sow].where[g.sw_lambda] = (
+            VAR_UC["OBJZ", *sow]
+            - g.VAS_EXPOBJ.where[(g.sw_lambda > 0.0)]
+            - VAR_UC["OBJ1", *sow].where[(g.sw_lambda < 0.0)]
+        ) <= (
+            g.VAS_UPDEV[g.Sow].where[(g.sw_lambda > 0.0)]
+            + g.VAS_UPDEV["1"].where[(g.sw_lambda < 0.0)]
         )
+
+        # ------- EQ 3 -------
+        eq_sobj = g.get_equation(name=f"{eq}_SOBJ")
+        eq_sobj["N", *sow] = -VAR_UC["OBJZ", *sow] + Sum(g.r, VAR_UCR) == 0.0
+
+        # ------- EQ 4 -------
+        g.eq_obj[...] = (
+            (
+                g.VAS_EXPOBJ
+                + g.sw_lambda
+                * Sum(g.Sow, g.sw_prob[g.Sow] * g.VAS_UPDEV[g.Sow])
+                / g.sw_norm
+            ).where[(g.sw_lambda >= 0.0)]
+            - Min(0.0, g.sw_lambda) * g.VAS_UPDEV["1"]
+        ).where[(~(g.sw_phase))] + Sum(
+            g.Sow,
+            VAR_UC["OBJ1", *sow].where[(abs(g.sw_phase) == 1.0)]
+            + VAR_UC["OBJZ", *sow].where[(abs(g.sw_phase) == 2.0)],
+        ) == g.OBJZ
 
     def exec1(self: EqobjMod) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* [UR] 21.06.2003: K_EOH must include pastyears, since it links to past vintages
-  K_EOH(EACHYEAR)$((YEARVAL(EACHYEAR) >= PYR_V1) * (YEARVAL(EACHYEAR) <= MIYR_VL)) = YES;
-""",
-        )
+        g = self.tc
+
+        # * [UR] 21.06.2003: K_EOH must include pastyears, since it links to past vintages
+        g.KEoh[g.Eachyear].where[
+            ((g.yearval[g.Eachyear] >= g.pyr_v1) * (g.yearval[g.Eachyear] <= g.miyr_vl))
+        ] = True
 
     def exec2(self: EqobjMod) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-  LOOP(SAMEAS('1',AGE),
-    KTYAGE(K(LL),PERIODYR(T,Y_EOH(YEAR)),AGE+(ORD(YEAR)-ORD(LL)))$YK(YEAR,LL)=YES;
-    KTYAGE(K(LL),YK(PYR_S,Y_EOH(YEAR)),AGE+(ORD(YEAR)-ORD(LL)))$YK(YEAR,LL)=YES);
+        g = self.tc
 
-* Set up summing of OBJ component variables
-  SUM_OBJ(OBV,ITEM) = DIAG(OBV,ITEM);
-  SUM_OBJ(OBV('OBJSAL'),OBV)  =  -1;
-  SUM_OBJ(R,'OBJELS') = 1$SUM(RCJ(R,C,J,BD),1);
-""",
-        )
+        with Loop(same_as("1", g.age)):
+            g.Ktyage[
+                g.k[g.ll],
+                g.Periodyr[g.t, g.YEoh[g.year]],
+                g.age + (Ord(g.year) - Ord(g.ll)),
+            ].where[g.Yk[g.year, g.ll]] = True
+            g.Ktyage[
+                g.k[g.ll],
+                g.Yk[g.PyrS, g.YEoh[g.year]],
+                g.age + (Ord(g.year) - Ord(g.ll)),
+            ].where[g.Yk[g.year, g.ll]] = True
+
+        # * Set up summing of OBJ component variables
+        g.sum_obj[g.obv, g.item] = diag(g.obv, g.item)  # type: ignore[arg-type]
+        g.sum_obj[g.obv["OBJSAL"], g.obv] = -1.0
+        g.sum_obj[g.r, "OBJELS"] = Number(1.0).where[
+            Sum(g.Rcj[g.r, g.c, g.j, g.bd], 1.0)
+        ]

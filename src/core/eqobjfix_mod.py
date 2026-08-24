@@ -66,14 +66,12 @@ class EqobjfixMod(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        sense: str = "",
-        arg2: str = "",
+        arg1: Literal["exit", ""] = "",
     ):
         self.env = env.fork()
         self.tc = tc
         self._sub_modules: dict[str, GamsClass] = {}
-        self.arg1 = sense
-        self.arg2 = arg2
+        self.arg1 = arg1
         self.compile()
 
     def compile(self) -> None:
@@ -124,12 +122,12 @@ class EqobjfixMod(GamsClass):
                 condition=self.env.validate == "YES",
             )
 
-        assert self.arg2.upper() in {
+        assert self.arg1.upper() in {
             "",
             "EXIT",
-        }, f"Expected empty string or 'exit', but got '{self.arg2}'"
+        }, f"Expected empty string or 'exit', but got '{self.arg1}'"
 
-        if self.arg2.upper() == "EXIT":
+        if self.arg1.upper() == "EXIT":
             return
 
         self.define_equation(
