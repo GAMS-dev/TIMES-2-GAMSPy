@@ -18,6 +18,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Alias
+
 from core.atlearn_etl import AtlearnEtl
 from core.base_class import GamsClass
 from core.dumpsol_mod import DumpsolMod
@@ -66,6 +68,8 @@ class RptmainMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+
         if self.env.stages != "YES" and self.env.dumpsol == "YES":
             self.include(DumpsolMod(self.tc, self.env, arg1=self.arg1))
 
@@ -85,6 +89,9 @@ class RptmainMod(GamsClass):
                 pass  # GOTO to OTHER_REP
 
             if not skip_to_finish:
+                # moved up from rptlite.rpt
+                g.ww = Alias(g.container, name="WW", alias_with=g.allsow)
+
                 if self.env.macro.upper() != "YES" and self.env.stages.upper() != "YES":
                     if self.env.solveda.upper() == "YES":
                         self.include(RptmainRpt(self.tc, self.env, arg1="", arg2=""))

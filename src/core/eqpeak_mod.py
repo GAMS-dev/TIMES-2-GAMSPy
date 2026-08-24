@@ -68,7 +68,7 @@ class EqpeakMod(GamsClass):
         sws_local: Product | Number = Number(1)
         if self.env.stages.upper() == "YES":
             sws_local = Product(
-                g.SwMap[g.t, *self.env.sow_GP, g.j, g.ww].where[
+                g.SwMap[g.t, g.Sow, g.j, g.ww].where[
                     g.s_com_proj[g.r, g.t, g.c, g.j, g.ww]
                 ],
                 g.s_com_proj[g.r, g.t, g.c, g.j, g.ww],
