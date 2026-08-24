@@ -12,26 +12,83 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Literal
 
-from gamspy import Parameter
+from gamspy import (
+    Domain,
+    If,
+    Loop,
+    Number,
+    Ord,
+    Parameter,
+    Set,
+    Smax,
+    Smin,
+    SpecialValues,
+    Sum,
+    sparse,
+)
+from gamspy.math import Max, Min, abs, floor, power, project, same_as
 
 from core.base_class import GamsClass
-from core.bnd_cum_mod import bnd_cum_mod
+from core.bnd_cum_mod import bnd_cum_mod_GP
 from core.bnd_ucw_mod import bnd_ucw_mod
 from core.bndmain_mod import bndmain_mod
 from core.clearsol_stc import ClearsolStc
-from core.clearsol_stp import clearsol_stp
-from core.coef_alt_lin import coef_alt_lin_stp
-from core.eqobsalv_mod import eqobsalv_prepro
+from core.clearsol_stp import clearsol_stp_GP
+from core.coef_alt_lin import CoefAltLin
+from core.eqobsalv_mod import eqobsalv_prepro_GP
 from core.pextlevs_stc import pextlevs_stc
 from core.solve_mod import solve_mod_GP
 
 if TYPE_CHECKING:
+    from gamspy import Alias
+    from gamspy._symbols.implicits import ImplicitParameter
+
+    from core.utils import SET_OR_ALIAS, SowGPType
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+# The queue entries a compile-time $BATINCLUDE left behind, replayed once per
+# pass of the stepped solution loop.
+DeferredQueue = list[tuple[Callable[..., Any], tuple[Any, ...], dict[str, Any]]]
+
+
+def scalar_value(param: Parameter) -> float:
+    """Read a GAMS scalar the way GAMS does.
+
+    ``Parameter.toValue()`` raises ``ValidationError`` while the scalar has never
+    been assigned; GAMS reads that state as ``0``.
+    """
+    if param.records is None:
+        return 0.0
+    return float(param.toValue())
+
+
+def capture_deferred(
+    tc: TimesModelClass, build: Callable[[], GamsClass]
+) -> tuple[GamsClass, DeferredQueue]:
+    """Compile a sub-module now, but keep its execution-time statements for later.
+
+    ``solve.stp`` ``$BATINCLUDE``s modules from inside its ``WHILE`` body: GAMS
+    expands the include once at compile time and re-executes the statements on
+    every pass. ``TimesModelClass.run`` iterates ``execution_list``, so a child
+    cannot enqueue while the loop is running - its entries are lifted out of the
+    queue here and replayed per iteration instead.
+    """
+    start = len(tc.execution_list)
+    module = build()
+    pending = tc.execution_list[start:]
+    del tc.execution_list[start:]
+    return module, pending
+
+
+def replay(pending: DeferredQueue) -> None:
+    for func, args, kwargs in pending:
+        func(*args, **kwargs)
 
 
 class SolveStp(GamsClass):
@@ -75,34 +132,21 @@ class SolveStp(GamsClass):
             self.env.set_scoped("timestep", "999")
             self.env.set_scoped("stepped", "NO")
 
-        g = self.tc
-        g.stp_div = Parameter(g.container, name="STP_DIV", domain=[g.j, g.r, g.t, g.p])
+        self.declarations()
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  SCALAR PRESOL / 1 /;
-  SET UC_RN(UC_N,ALL_R) //;
-  SET RTP_IRE(R,T,P,IE) 'IRE equations with fixed regions';
-  SET IRE_RPR(R,P,R,IE) 'All regions REG linked to IRE process by equations in R';
-  SET IRE_FXT(R,T,P) 'IRE with some linked regions fixed at T';
-  PARAMETER STP_UCT(J,ALL_R,UCN,LL);
-  PARAMETER UC_BND(J,ALL_R,UCN,LL,S,L);
-  PARAMETER PAR_CUMFLOM(R,P,C,LL,LL), PAR_UCR(UC_N,ALL_R);
-""",
-        )
-
-        if (self.env.is_set("fixboh")) or (self.env.stages == "YES"):
+        # * Copy previous marginals to preseve freezed results
+        if self.env.is_set("fixboh") and self.env.stages == "YES":
             self.tc.enqueue(
-                self.set_previous_marginals, eq=self.env.eq, swt=self.env.swt
+                self.set_previous_marginals, eq=self.env.eq, swt=self.env.swt_GP
             )
 
+        g = self.tc
+        # $ SETLOCAL SW1 '' SETLOCAL SW2
+        # $ IFI %STAGES%==YES $SETLOCAL SW2 ",'1',SOW" SETLOCAL SW1 S_
         sw1 = ""
-        sw2 = ""
-
+        sw2: tuple[str | Set | Alias, ...] = ()
         if self.env.stages.upper() == "YES":
-            sw2 = ",'1',SOW"
+            sw2 = ("1", g.Sow)
             sw1 = "S_"
 
         if self.env.spines.upper() == "YES":
@@ -111,8 +155,8 @@ class SolveStp(GamsClass):
         var = self.env.var
         self.tc.enqueue(
             self.exec_solve_stp_before_solve,
-            timestep=self.env.timestep,
-            fixboh=self.env.fixboh if self.env.is_set("fixboh") else "",
+            timestep=int(self.env.timestep),
+            fixboh=self.env.fixboh if self.env.is_set("fixboh") else 0,
             fixboh_is_set=self.env.is_set("fixboh"),
             rtpx=self.env.rtpx,
             cli=self.env.cli,
@@ -120,14 +164,23 @@ class SolveStp(GamsClass):
             sw1=sw1,
             sw2=sw2,
             var=var,
-            sow=self.env.sow,
+            sow=self.env.sow_GP,
             stages=self.env.stages,
             uc_cli_defined=self.tc.defined("UC_CLI"),
             macro=self.env.macro,
             eq=self.env.eq,
-            swt=self.env.swt,
+            swt=self.env.swt_GP,
             abs_=self.env.abs,
         )
+
+        # $IF NOT '%CTST%'=='' $BATINCLUDE coef_alt.lin STP
+        coef_alt_lin_stp: DeferredQueue = []
+        if self.env.ctst != "":
+            module, coef_alt_lin_stp = capture_deferred(
+                self.tc,
+                lambda: CoefAltLin(tc=self.tc, env=self.env, arg1="STP"),
+            )
+            self.include(module)
 
         self.tc.enqueue(
             self.exec_solve_stp_stepped_solve_and_tail,
@@ -136,9 +189,7 @@ class SolveStp(GamsClass):
             cli=self.env.cli,
             sensis=self.env.sensis,
             ctst=self.env.ctst,
-            obj=self.env.obj,
-            oblong=self.env.oblong,
-            capjd=self.env.capjd,
+            capjd=self.env.capjd_GP,
             declif=self.env.declif,
             vnret_defined=self.tc.defined("VNRET"),
             rtpx=self.env.rtpx,
@@ -157,8 +208,10 @@ class SolveStp(GamsClass):
             timesed=self.env.timesed,
             var_dam_defined=self.tc.defined(f"{var}_DAM"),
             var_scap_defined=self.tc.defined(f"{self.env.var}_SCAP"),
-            sow=self.env.sow,
-            swt=self.env.swt,
+            sow=self.env.sow_GP,
+            sow_raw=self.env.sow,
+            swt=self.env.swt_GP,
+            swt_raw=self.env.swt,
             reduce=self.env.reduce,
             dflbl=self.env.dflbl,
             mx=self.env.mx,
@@ -188,156 +241,273 @@ class SolveStp(GamsClass):
             tm_hsx_defined=self.tc.defined("TM_HSX"),
             sw1=sw1,
             sw2=sw2,
+            coef_alt_lin_stp=coef_alt_lin_stp,
         )
-
-        if self.env.stepped != "YES":
-            self.tc.enqueue(self.exec_solve_stp_nonstepped_after_solve)
 
         self.tc.enqueue(
             self.exec_solve_stp_cleanup,
             var=self.env.var,
-            sow=self.env.sow,
-            swt=self.env.swt,
+            sow=self.env.sow_GP,
+            swt=self.env.swt_GP,
             eq=self.env.eq,
         )
 
-    def set_previous_marginals(self: SolveStp, eq: str, swt: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-  {eq}G_COMBAL.M(RTC,S{swt}) $= EQG_COMBAL.M(RTC,S);
-  {eq}E_COMBAL.M(RTC,S{swt}) $= EQE_COMBAL.M(RTC,S);
-  {eq}_PEAK.M(RTC,S{swt})    $= EQ_PEAK.M(RTC,S);
-""",
+    def declarations(self) -> None:
+        g = self.tc
+        m = g.container
+
+        g.presol = Parameter(m, name="PRESOL", records=1)
+        g.UcRn = Set(m, name="UC_RN", domain=[g.ucn, g.allr])
+        g.RtpIre = Set(
+            m,
+            name="RTP_IRE",
+            domain=[g.r, g.t, g.p, g.ie],
+            description="IRE equations with fixed regions",
         )
+        g.IreRpr = Set(
+            m,
+            name="IRE_RPR",
+            domain=[g.r, g.p, g.r, g.ie],
+            description="All regions REG linked to IRE process by equations in R",
+        )
+        g.IreFxt = Set(
+            m,
+            name="IRE_FXT",
+            domain=[g.r, g.t, g.p],
+            description="IRE with some linked regions fixed at T",
+        )
+        g.stp_uct = Parameter(m, name="STP_UCT", domain=[g.j, g.allr, g.ucnA, g.ll])
+        g.stp_div = Parameter(m, name="STP_DIV", domain=[g.j, g.r, g.t, g.p])
+        g.uc_bnd = Parameter(
+            m, name="UC_BND", domain=[g.j, g.allr, g.ucnA, g.ll, g.s, g.lA]
+        )
+        g.par_cumflom = Parameter(
+            m, name="PAR_CUMFLOM", domain=[g.r, g.p, g.c, g.ll, g.ll]
+        )
+        g.par_ucr = Parameter(m, name="PAR_UCR", domain=[g.ucn, g.allr])
+
+    def set_previous_marginals(
+        self: SolveStp,
+        eq: str,
+        swt: tuple[SET_OR_ALIAS, ...] | tuple[()],
+    ) -> None:
+        g = self.tc
+        Rtc, s = g.Rtc, g.s
+        g.get_equation(f"{eq}G_COMBAL").m[Rtc, s, *swt] = sparse(g.eqg_combal.m[Rtc, s])
+        g.get_equation(f"{eq}E_COMBAL").m[Rtc, s, *swt] = sparse(g.eqe_combal.m[Rtc, s])
+        g.get_equation(f"{eq}_PEAK").m[Rtc, s, *swt] = sparse(g.eq_peak.m[Rtc, s])
 
     def exec_solve_stp_before_solve(
         self,
-        timestep: str,
-        fixboh: str,
+        timestep: int,
+        fixboh: int,
         fixboh_is_set: bool,
         rtpx: str,
         cli: str,
         sysprefix: str,
         sw1: str,
-        sw2: str,
+        sw2: tuple[str | Set | Alias, ...],
         var: str,
-        sow: str,
+        sow: SowGPType,
         stages: str,
         uc_cli_defined: bool,
         macro: str,
         eq: str,
-        swt: str,
+        swt: tuple[SET_OR_ALIAS, ...] | tuple[()],
         abs_: str,
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-*-----------------------------------------------------------------------------
-* Establish partitioning of T into fixed, current, and pending
-* BACKWARD(T) = fixed T
-* SUBT(T) = current T
-* FORWARD(T) = pending T
-  YR_V1 = 0; YR_VL = {timestep}; MY_FYEAR = 0; REG_FIXT(R)$NO = 0;
-  IF(G_OVERLAP, G_OVERLAP = MAX(EPS,G_OVERLAP); ELSE G_OVERLAP = FLOOR(YR_VL/2));
-{
-                "  YR_V1 = ABS(" + fixboh + "); REG_FIXT(R)$(NOT REG_FIXT(R)) = YR_V1;"
-                if fixboh_is_set
-                else ""
-            }
-{"  MY_FYEAR = 1;" if rtpx == "X" else ""}
-  F = SUM(MIYR_1(T),M(T));
-  REG_FIXT(R)$(REG_FIXT(R) < F) = 0;
-  YR_V1 = SMIN((R,T)$(M(T) > REG_FIXT(R)),M(T));
-  Z = YR_V1 + YR_VL;
-  SUBT(T)$(M(T) < YR_V1) = NO;
-  SUBT(T)$(M(T) GE Z)    = NO;
-  OPTION CLEAR=BACKWARD, CLEAR=FORWARD, RTC_NET<RHS_COMBAL, RTC_PRD<RHS_COMPRD;
-  BACKWARD(T)$(M(T) < YR_V1) = YES;
-  FORWARD(T) = TT(T)-BACKWARD(T)-SUBT(T);
-  RT_PP(R,T) = (M(T) > REG_FIXT(R));
-  NO_RT(R,T) = NOT RT_PP(R,T);
-*-----------------------------------------------------------------------------
-* Clear previous solution for projection years & ensure VAR_ACT loadpoint
-{
-                clearsol_stp(
-                    arg1="",
-                    var=var,
-                    sow=sow,
-                    eq=eq,
-                    swt=swt,
-                    cli=cli,
-                    abs_=abs_,
-                    macro=macro,
-                    stages=stages,
-                )
-            }
-  VAR_ACT.M(RVT,P,S)=0;
-  IF(VAR_UC.L('{
-                sysprefix
-            }SOLVE_STATUS')=0, OPTION TRACKP<VAR_ACT, RP_PRC<VAR_FLO; RP_PRC(TRACKP)=NO;
-   VAR_ACT.L(RTP_VINTYR(R,V,T,P),S)$RP_PRC(R,P) $= SUM(RPC_PG(RP_STD(R,P),C),VAR_FLO.L(R,V,T,P,C,S)*(1/PRC_ACTFLO(R,V,P,C)));
-   VAR_ACT.L(RTP_VINTYR(R,V,T,P),S)$(NOT TRACKP(R,P)) $= SUM(RPC_IRE(RPC_PG(R,P,C),IE)$RP_AIRE(R,P,IE),VAR_IRE.L(R,V,T,P,C,S,IE)*(1/PRC_ACTFLO(R,V,P,C)))
-   OPTION CLEAR=TRACKP,CLEAR=RP_PRC);
-  VAR_COMNET.L(RHS_COMBAL(RTC,S))$(NOT COM_PROJ(RTC)) $= EQG_COMBAL.L(RTC,S);
-*-----------------------------------------------------------------------------
-* Copy FX UC RHS, COM_CUM and CAP_BND to UP/LO to support relaxation, removing FX bounds at the same time
-   {sw1}CAP_BND(R,T,P,BD{sw2})${sw1}CAP_BND(R,T,P,'FX'{sw2}) = {sw1}CAP_BND(R,T,P,'FX'{
-                sw2
-            })$BDNEQ(BD);
-   UC_RHS(UC_N,BD)$UC_RHS(UC_N,'FX') = UC_RHS(UC_N,'FX')$BDNEQ(BD);
-   UC_RHSR(R,UC_N,BD)$UC_RHSR(R,UC_N,'FX') = UC_RHSR(R,UC_N,'FX')$BDNEQ(BD);
-   UC_RHST(UC_N,T,BD)$UC_RHST(UC_N,T,'FX') = UC_RHST(UC_N,T,'FX')$BDNEQ(BD);
-   UC_RHSTS(UC_N,T,S,BD)$UC_RHSTS(UC_N,T,S,'FX') = UC_RHSTS(UC_N,T,S,'FX')$BDNEQ(BD);
-   UC_RHSRT(R,UC_N,T,BD)$UC_RHSRT(R,UC_N,T,'FX') = UC_RHSRT(R,UC_N,T,'FX')$BDNEQ(BD);
-   UC_RHSRTS(R,UC_N,T,S,BD)$UC_RHSRTS(R,UC_N,T,S,'FX') = UC_RHSRTS(R,UC_N,T,S,'FX')$BDNEQ(BD);
-   PRC_DYNUC(UC_N,SIDE,R,LL,P,UC_GRPTYPE,BD)$PRC_DYNUC(UC_N,'RHS',R,LL,P,UC_GRPTYPE,'FX') = PRC_DYNUC(UC_N,SIDE,R,LL,P,UC_GRPTYPE,'FX')$BDNEQ(BD);
-* Find UC equations with negative coefficients
-  LOOP((UC_N,SIDE,R,T,P)$((NOT UC_RN(UC_N,R))$UC_CAP(UC_N,SIDE,R,T,P)),
-    IF(UC_CAP(UC_N,SIDE,R,T,P)*UC_SIGN(SIDE) < 0, UC_RN(UC_N,R) = YES));
-  LOOP((UC_N,SIDE,R,T,P)$((NOT UC_RN(UC_N,R))$UC_NCAP(UC_N,SIDE,R,T,P)),
-    IF(UC_NCAP(UC_N,SIDE,R,T,P)*UC_SIGN(SIDE) < 0, UC_RN(UC_N,R) = YES));
-  LOOP((UC_N,SIDE,R,T,P,S)$((NOT UC_RN(UC_N,R))$UC_ACT(UC_N,SIDE,R,T,P,S)),
-    IF(UC_ACT(UC_N,SIDE,R,T,P,S)*UC_SIGN(SIDE) < 0, UC_RN(UC_N,R) = YES));
-  LOOP((UC_N,SIDE,R,T,P,C,S)$((NOT UC_RN(UC_N,R))$UC_FLO(UC_N,SIDE,R,T,P,C,S)),
-    IF(UC_FLO(UC_N,SIDE,R,T,P,C,S)*UC_SIGN(SIDE) < 0, UC_RN(UC_N,R) = YES));
-  LOOP((UC_N,SIDE,R,T,P,C,S,IE)$((NOT UC_RN(UC_N,R))$UC_IRE(UC_N,SIDE,R,T,P,C,S,IE)),
-    IF(UC_IRE(UC_N,SIDE,R,T,P,C,S,IE)*UC_SIGN(SIDE) < 0, UC_RN(UC_N,R) = YES));
-  LOOP((UC_N,COM_VAR,SIDE,R,T,C,S,UC_GRPTYPE)$((NOT UC_RN(UC_N,R))$UC_COM(UC_N,COM_VAR,SIDE,R,T,C,S,UC_GRPTYPE)),
-    IF(UC_COM(UC_N,COM_VAR,SIDE,R,T,C,S,UC_GRPTYPE)*UC_SIGN(SIDE) < 0, UC_RN(UC_N,R) = YES));
-  LOOP(UC_MAP_IRE(UC_N,R,P,C,'IMP')$COM_UNIT(R,C,'UCU'),UC_RN(UC_N,R)=YES);
-{
-                "  LOOP((UC_N,SIDE,R,T,CM_VAR)$UC_CLI(UC_N,SIDE,R,T,CM_VAR),IF(UC_CLI(UC_N,SIDE,R,T,CM_VAR)*UC_SIGN(SIDE)<0,UC_RN(UC_N,R)=YES));"
-                if uc_cli_defined
-                else ""
-            }
-  UC_RN(UC_N,'IMPEXP') $= SUM(UC_RN(UC_N,R),1);
-* Collect all capacity-related UCs
-  LOOP((UC_N,SIDE,R,T,P)$UC_CAP(UC_N,SIDE,R,T,P),R_UC(R,UC_N) = YES);
-* Flag to use variables for all CAP_BND
-  RTP_VARP(RTP(R,T,P))$(CAP_BND(RTP,'UP')+CAP_BND(RTP,'LO')) = YES;
-  OPTION CLEAR=RTP_CAPYR; RTP_CAPYR(RTP_CPTYR(R,V,T,P))$(VAR_NCAP.L(R,V,P)+NCAP_PASTI(R,V,P)) = YES;
-  VAR_CAP.L(RTP_VARP(RT_PP(R,T),P)) = SUM(RTP_CAPYR(R,V,T,P),COEF_CPT(R,V,T,P)*(VAR_NCAP.L(R,V,P)$TT(V)+NCAP_PASTI(R,V,P)));
-*-----------------------------------------------------------------------------
-* Save some original data
-  STP_UCT('1',UC_T_SUM) = YES;
-  STP_UCT('2',UC_T_SUCC) = YES;
-  STP_UCT('3',UC_T_EACH) = YES;
-  IF(ALTOBJ > 1,
-    STP_DIV('1',R,T,P)  $= OBJ_DIVI(R,T,P);
-    STP_DIV('2',R,T,P)  $= OBJ_DIVIV(R,T,P);
-    STP_DIV('3',R,T,P)  $= OBJ_DIVIII(R,T,P));
-""",
+        g = self.tc
+        (r, v, t, tt, p, c, s, ie, ll, bd, side, ucn) = (
+            g.r,
+            g.v,
+            g.t,
+            g.tt,
+            g.p,
+            g.c,
+            g.s,
+            g.ie,
+            g.ll,
+            g.bd,
+            g.side,
+            g.ucn,
         )
+        (Subt, Backward, Forward, RtPp, no_rt, reg_fixt, Bdneq) = (
+            g.Subt,
+            g.Backward,
+            g.Forward,
+            g.RtPp,
+            g.no_rt,
+            g.reg_fixt,
+            g.Bdneq,
+        )
+        UcRn, ucgrptype, comvar = g.UcRn, g.ucgrptype, g.comvar
+
+        # *---------------------------------------------------------------------
+        # * Establish partitioning of T into fixed, current, and pending
+        # * BACKWARD(T) = fixed T
+        # * SUBT(T) = current T
+        # * FORWARD(T) = pending T
+        g.yr_v1[...] = 0
+        g.yr_vl[...] = timestep
+        g.my_fyear[...] = 0
+        reg_fixt[r].where[Number(0)] = 0
+        if scalar_value(g.g_overlap):
+            g.g_overlap[...] = Max(SpecialValues.EPS, g.g_overlap)
+        else:
+            g.g_overlap[...] = floor(g.yr_vl / 2)
+        if fixboh_is_set:
+            g.yr_v1[...] = abs(fixboh)
+            reg_fixt[r].where[~reg_fixt[r]] = g.yr_v1
+        if rtpx == "X":
+            g.my_fyear[...] = 1
+        g.f[...] = Sum(g.Miyr1[t], g.m[t])
+        reg_fixt[r].where[reg_fixt[r] < g.f] = 0
+        g.yr_v1[...] = Smin(Domain(r, t).where[g.m[t] > reg_fixt[r]], g.m[t])
+        g.z[...] = g.yr_v1 + g.yr_vl
+        Subt[t].where[g.m[t] < g.yr_v1] = False
+        Subt[t].where[g.m[t] >= g.z] = False
+        Backward.setRecords(None)
+        Forward.setRecords(None)
+        project(source=g.RhsCombal, target=g.RtcNet)  # type: ignore[arg-type]
+        project(source=g.RhsComprd, target=g.RtcPrd)  # type: ignore[arg-type]
+        Backward[t].where[g.m[t] < g.yr_v1] = True
+        Forward[t] = tt[t] - Backward[t] - Subt[t]
+        RtPp[r, t] = g.m[t] > reg_fixt[r]
+        no_rt[r, t] = ~RtPp[r, t]
+
+        # *---------------------------------------------------------------------
+        # * Clear previous solution for projection years & ensure VAR_ACT loadpoint
+        clearsol_stp_GP(
+            tc=g,
+            arg1="",
+            var=var,
+            sow=sow,
+            eq=eq,
+            swt=swt,
+            cli=cli,
+            abs_=abs_,
+            macro=macro,
+            stages=stages,
+        )
+        g.VAR_ACT.m[g.Rvt, p, s] = 0
+        if (g.VAR_UC.l[f"{sysprefix}SOLVE_STATUS"] + 0).toValue() == 0:
+            Trackp, RpPrc = g.Trackp, g.RpPrc
+            project(source=g.VAR_ACT, target=Trackp)  # type: ignore[arg-type]
+            project(source=g.VAR_FLO, target=RpPrc)  # type: ignore[arg-type]
+            RpPrc[Trackp] = False
+            g.VAR_ACT.l[g.RtpVintyr[r, v, t, p], s].where[RpPrc[r, p]] = sparse(
+                Sum(
+                    g.RpcPg[g.RpStd[r, p], c],
+                    g.VAR_FLO.l[r, v, t, p, c, s] * (1 / g.prc_actflo[r, v, p, c]),
+                )
+            )
+            g.VAR_ACT.l[g.RtpVintyr[r, v, t, p], s].where[~Trackp[r, p]] = sparse(
+                Sum(
+                    g.RpcIre[g.RpcPg[r, p, c], ie].where[g.RpAire[r, p, ie]],
+                    g.VAR_IRE.l[r, v, t, p, c, s, ie] * (1 / g.prc_actflo[r, v, p, c]),
+                )
+            )
+            Trackp.setRecords(None)
+            RpPrc.setRecords(None)
+        g.VAR_COMNET.l[g.RhsCombal[g.Rtc, s]].where[~g.com_proj[g.Rtc]] = sparse(
+            g.eqg_combal.l[g.Rtc, s]
+        )
+
+        # *---------------------------------------------------------------------
+        # * Copy FX UC RHS, COM_CUM and CAP_BND to UP/LO to support relaxation,
+        # * removing FX bounds at the same time
+        sw1_cap_bnd = g.get_parameter(f"{sw1}CAP_BND")
+        sw1_cap_bnd[r, t, p, bd, *sw2].where[sw1_cap_bnd[r, t, p, "FX", *sw2]] = (
+            sw1_cap_bnd[r, t, p, "FX", *sw2].where[Bdneq[bd]]
+        )
+        g.uc_rhs[ucn, bd].where[g.uc_rhs[ucn, "FX"]] = g.uc_rhs[ucn, "FX"].where[
+            Bdneq[bd]
+        ]
+        g.uc_rhsr[r, ucn, bd].where[g.uc_rhsr[r, ucn, "FX"]] = g.uc_rhsr[
+            r, ucn, "FX"
+        ].where[Bdneq[bd]]
+        g.uc_rhst[ucn, t, bd].where[g.uc_rhst[ucn, t, "FX"]] = g.uc_rhst[
+            ucn, t, "FX"
+        ].where[Bdneq[bd]]
+        g.uc_rhsts[ucn, t, s, bd].where[g.uc_rhsts[ucn, t, s, "FX"]] = g.uc_rhsts[
+            ucn, t, s, "FX"
+        ].where[Bdneq[bd]]
+        g.uc_rhsrt[r, ucn, t, bd].where[g.uc_rhsrt[r, ucn, t, "FX"]] = g.uc_rhsrt[
+            r, ucn, t, "FX"
+        ].where[Bdneq[bd]]
+        g.uc_rhsrts[r, ucn, t, s, bd].where[g.uc_rhsrts[r, ucn, t, s, "FX"]] = (
+            g.uc_rhsrts[r, ucn, t, s, "FX"].where[Bdneq[bd]]
+        )
+        g.prc_dynuc[ucn, side, r, ll, p, ucgrptype, bd].where[
+            g.prc_dynuc[ucn, "RHS", r, ll, p, ucgrptype, "FX"]
+        ] = g.prc_dynuc[ucn, side, r, ll, p, ucgrptype, "FX"].where[Bdneq[bd]]
+
+        # * Find UC equations with negative coefficients
+        uc_coefficients: list[tuple[Parameter, tuple[SET_OR_ALIAS, ...]]] = [
+            (g.uc_cap, (ucn, side, r, t, p)),
+            (g.uc_ncap, (ucn, side, r, t, p)),
+            (g.uc_act, (ucn, side, r, t, p, s)),
+            (g.uc_flo, (ucn, side, r, t, p, c, s)),
+            (g.uc_ire, (ucn, side, r, t, p, c, s, ie)),
+            (g.uc_com, (ucn, comvar, side, r, t, c, s, ucgrptype)),
+        ]
+        for coefficient, indices in uc_coefficients:
+            with (
+                Loop(
+                    Domain(*indices).where[(~UcRn[ucn, r]).where[coefficient[*indices]]]
+                ),
+                If(coefficient[*indices] * g.uc_sign[side] < 0),
+            ):
+                UcRn[ucn, r] = True
+        with Loop(g.UcMapIre[ucn, r, p, c, "IMP"].where[g.ComUnit[r, c, "UCU"]]):
+            UcRn[ucn, r] = True
+        if uc_cli_defined:
+            cmvar = g.CmVar
+            with (
+                Loop(
+                    Domain(ucn, side, r, t, cmvar).where[
+                        g.uc_cli[ucn, side, r, t, cmvar]
+                    ]
+                ),
+                If(g.uc_cli[ucn, side, r, t, cmvar] * g.uc_sign[side] < 0),
+            ):
+                UcRn[ucn, r] = True
+        UcRn[ucn, "IMPEXP"] = sparse(Sum(UcRn[ucn, r], Number(1)))
+
+        # * Collect all capacity-related UCs
+        with Loop(Domain(ucn, side, r, t, p).where[g.uc_cap[ucn, side, r, t, p]]):
+            g.RUc[r, ucn] = True
+        # * Flag to use variables for all CAP_BND
+        Rtp = g.Rtp
+        g.RtpVarp[Rtp[r, t, p]].where[g.cap_bnd[Rtp, "UP"] + g.cap_bnd[Rtp, "LO"]] = (
+            True
+        )
+        g.RtpCapyr.setRecords(None)
+        g.RtpCapyr[g.RtpCptyr[r, v, t, p]].where[
+            g.VAR_NCAP.l[r, v, p] + g.ncap_pasti[r, v, p]
+        ] = True
+        g.VAR_CAP.l[g.RtpVarp[RtPp[r, t], p]] = Sum(
+            g.RtpCptyr[r, v, t, p],
+            g.coef_cpt[r, v, t, p]
+            * (g.VAR_NCAP.l[r, v, p].where[tt[v]] + g.ncap_pasti[r, v, p]),
+        )
+
+        # *---------------------------------------------------------------------
+        # * Save some original data
+        g.stp_uct["1", g.UcTSum] = 1
+        g.stp_uct["2", g.UcTSucc] = 1
+        g.stp_uct["3", g.UcTEach] = 1
+        if scalar_value(g.altobj) > 1:
+            g.stp_div["1", r, t, p] = sparse(g.obj_divi[r, t, p])
+            g.stp_div["2", r, t, p] = sparse(g.obj_diviv[r, t, p])
+            g.stp_div["3", r, t, p] = sparse(g.obj_diviii[r, t, p])
 
     def exec_solve_stp_stepped_solve_and_tail(
         self,
         arg1: str,
         swd: str,
-        cufscal: str,
-        cucscal: str,
+        cufscal: int,
+        cucscal: int,
         stepped: str,
         rtpx: str,
         spines: str,
@@ -355,8 +525,10 @@ class SolveStp(GamsClass):
         timesed: str,
         var_dam_defined: bool,
         var_scap_defined: bool,
-        sow: str,
-        swt: str,
+        sow: SowGPType,
+        sow_raw: str,
+        swt: tuple[SET_OR_ALIAS, ...] | tuple[()],
+        swt_raw: str,
         reduce: str,
         mx: str,
         pgprim: str,
@@ -365,243 +537,498 @@ class SolveStp(GamsClass):
         rts: str,
         stochastic_symbols_declared: dict[str, bool],
         stages: str,
-        eotime: str,
+        eotime: int,
         dflbl: str,
         bnd_ucw_defined: dict[str, bool],
-        ctst: str,
-        capjd: str,
+        ctst: Literal["", "**EPS", "**0", "1"],
+        capjd: ImplicitParameter | Number,
         declif: str,
         vnret_defined: bool,
-        obj: str,
-        oblong: str,
         sensis: str,
         tm_hsx_defined: bool,
         sw1: str,
-        sw2: str,
+        sw2: tuple[str | Set | Alias, ...],
         cli: str,
+        coef_alt_lin_stp: DeferredQueue,
     ) -> None:
         g = self.tc
-        tolr = "1E-7" if tm_hsx_defined else "3E-6"
-        tola = "1E-6" if tm_hsx_defined else "1E-4"
-        tolx = "1E-5"
+        # $ SETLOCAL TOLR '3E-6' SETLOCAL TOLA '1E-4' SETLOCAL TOLX '1E-5'
+        # $IF DEFINED TM_HSX $SETLOCAL TOLR '1E-7' SETLOCAL TOLA 1E-6
+        tolr = 1e-7 if tm_hsx_defined else 3e-6
+        tola = 1e-6 if tm_hsx_defined else 1e-4
+        tolx = 1e-5
 
-        # {"WHILE(CARD(SUBT)," if stepped == "YES" else ""} breaks for stepped != 'YES'
-        # thus, removed the condition
+        (r, v, t, tt, p, c, s, ie, j, ll, year, bd, lA, ucn, cur) = (
+            g.r,
+            g.v,
+            g.t,
+            g.tt,
+            g.p,
+            g.c,
+            g.s,
+            g.ie,
+            g.j,
+            g.ll,
+            g.year,
+            g.bd,
+            g.lA,
+            g.ucn,
+            g.cur,
+        )
+        (cg, k, jot, life, age, allr, allreg, upt, comvar, ucgrptype) = (
+            g.cg,
+            g.k,
+            g.jot,
+            g.life,
+            g.age,
+            g.allr,
+            g.allreg,
+            g.upt,
+            g.comvar,
+            g.ucgrptype,
+        )
+        (Subt, Backward, Forward, RtPp, no_rt, reg_fixt, Fil, Rtp, Bdneq) = (
+            g.Subt,
+            g.Backward,
+            g.Forward,
+            g.RtPp,
+            g.no_rt,
+            g.reg_fixt,
+            g.Fil,
+            g.Rtp,
+            g.Bdneq,
+        )
+        (UcT, UcTSum, UcTSucc, UcTEach, UcRSum, UcREach, RUc, RUct) = (
+            g.UcT,
+            g.UcTSum,
+            g.UcTSucc,
+            g.UcTEach,
+            g.UcRSum,
+            g.UcREach,
+            g.RUc,
+            g.RUct,
+        )
+        (uc_bnd, uc_rhs, uc_rhsr, uc_rhst, uc_rhsts, uc_rhsrt, uc_rhsrts) = (
+            g.uc_bnd,
+            g.uc_rhs,
+            g.uc_rhsr,
+            g.uc_rhst,
+            g.uc_rhsts,
+            g.uc_rhsrt,
+            g.uc_rhsrts,
+        )
+        (RtpVintyr, RtpCptyr, RpcsVar, PrcTs, ComTs, Rtc) = (
+            g.RtpVintyr,
+            g.RtpCptyr,
+            g.RpcsVar,
+            g.PrcTs,
+            g.ComTs,
+            g.Rtc,
+        )
+        sw1_cap_bnd = g.get_parameter(f"{sw1}CAP_BND")
+        sw1_com_cum = g.get_parameter(f"{sw1}COM_CUM")
+        sw1_flo_cum = g.get_parameter(f"{sw1}FLO_CUM")
 
+        (VAR_ACT, VAR_FLO, VAR_IRE, VAR_SIN, VAR_SOUT, VAR_UPS, VAR_UPT, VAR_UDP) = (
+            g.get_variable(f"{var}_ACT"),
+            g.get_variable(f"{var}_FLO"),
+            g.get_variable(f"{var}_IRE"),
+            g.get_variable(f"{var}_SIN"),
+            g.get_variable(f"{var}_SOUT"),
+            g.get_variable(f"{var}_UPS"),
+            g.get_variable(f"{var}_UPT"),
+            g.get_variable(f"{var}_UDP"),
+        )
+        (VAR_COMNET, VAR_COMPRD, VAR_ELAST, VAR_NCAP, VAR_CAP, VAR_SCAP) = (
+            g.get_variable(f"{var}_COMNET"),
+            g.get_variable(f"{var}_COMPRD"),
+            g.get_variable(f"{var}_ELAST"),
+            g.get_variable(f"{var}_NCAP"),
+            g.get_variable(f"{var}_CAP"),
+            g.get_variable(f"{var}_SCAP"),
+        )
+        (VAR_CUMFLO, VAR_CUMCOM, VAR_BLND) = (
+            g.get_variable(f"{var}_CUMFLO"),
+            g.get_variable(f"{var}_CUMCOM"),
+            g.get_variable(f"{var}_BLND"),
+        )
+
+        # $IF %STEPPED%==YES WHILE(CARD(SUBT),
+        # A GAMSPy `While` cannot hold a `Model.solve()`, so the GAMS WHILE is a
+        # Python loop over SUBT instead: each pass solves, which synchronises the
+        # container, so SUBT shrinks exactly as the GAMS loop makes it. For
+        # STEPPED != YES, GAMS never compiles the WHILE wrapper at all - the body
+        # runs once as straight-line code and `$GOTO ENDSTEP` (solve.stp:295)
+        # skips the post-solve tail below. We mirror that with an explicit
+        # `break` right after the solve instead of relying on SUBT to empty.
         while len(g.Subt):
-            print(len(g.Subt))
+            Backward[t] = g.m[t] < g.yr_v1
+            Forward[Subt] = False
+            no_rt[r, t[Backward]] = 1
+            RtPp[r, t] = Subt[t].where[~no_rt[r, t]]
+            v[Forward] = False
+            # * Re-define End-of-Horizon
+            if Subt.number_records:
+                g.miyr_vl[...] = Smax(Subt[t], g.e[t])
+            g.YEoh.setRecords(None)
+            g.MiyrL.setRecords(None)
+            g.YEoh[g.Eohyears].where[
+                (g.yearval[g.Eohyears] <= g.miyr_vl).where[
+                    g.yearval[g.Eohyears] >= g.minyr
+                ]
+            ] = True
+            with Loop(g.Miyr1[year]):
+                g.z[...] = g.miyr_vl - g.yearval[year]
+                g.MiyrL[year + g.z] = True
+
+            # *-----------------------------------------------------------------
+            # * Complete adjusted model
+            # * Adjust divisor data when appropriate
+            replay(coef_alt_lin_stp)
+            # * We must recompute OBJ_LIFE and salvage values
+            g.obj_life[k[ll], r, jot, life, cur].where[
+                g.obj_life[k, r, jot, life, cur]
+            ] = (
+                Sum(
+                    Domain(g.Opyear[life, age], g.YEoh[ll + (Ord(age) - 1)]),
+                    g.obj_disc[r, g.YEoh, cur],
+                )
+                + SpecialValues.EPS
+            )
+            if stepped == "YES":
+                eqobsalv_prepro_GP(
+                    tc=g,
+                    arg1="STP",
+                    timestep_is_set=True,
+                    stepped=stepped,
+                    ctst=ctst,
+                    capjd=capjd,
+                    etl=etl,
+                    declif=declif,
+                    vnret_defined=vnret_defined,
+                )
+            g.rvprl[r, k, p].where[g.rvprl[r, k, p]] = Max(
+                1,
+                Smax(RtpCptyr[r, g.Vnt[k, v[t]], p], g.yearval[v]) - g.yearval[k],
+            )
+
+            # *-----------------------------------------------------------------
+            # * Handle Dynamic constraints and Multi-regional UC relaxation
+            # * Remove UC_T_SUM if it does not overlap with SUBT
+            Rxx, uncd1 = g.Rxx, g.uncd1
+            Rxx.setRecords(None)
+            uncd1.setRecords(None)
+            Rxx[UcREach[r, ucn], r].where[
+                Sum(UcTSum[r, ucn, t].where[RtPp[r, t]], Number(1))
+            ] = True
+            uncd1[ucn].where[
+                Sum(UcTSum[UcRSum[r, ucn], t].where[RtPp[r, t]], Number(1))
+            ] = True
+            UcTSum[r, ucn, t].where[Forward[t]] = False
+            UcTSum[r, ucn, t].where[(~uncd1[ucn]).where[~Rxx[r, ucn, r]]] = False
+            if scalar_value(g.presol):
+                g.VAR_UC.l[ucn[uncd1]] = 0
+                g.VAR_UCR.l[ucn, r].where[Rxx[r, ucn, r]] = 0
+            # * Remove UC_T_EACH for all but SUBT
+            # * Remove UC_T_SUCC until not completely fixed or if even partly pending
+            UcT.setRecords(None)
+            with Loop(UcTEach[UcRSum[r, ucn], t].where[RtPp[r, t]]):
+                UcT[ucn, t] = True
+            with Loop(UcTSucc[UcRSum[r, ucn], t].where[RtPp[r, t]]):
+                UcT[ucn, t] = True
+            UcTEach[UcRSum[r, ucn], t].where[~UcT[ucn, t]] = False
+            UcTSucc[UcRSum[r, ucn], t].where[
+                g.UcDyndir[r, ucn, "RHS"].where[~UcT[ucn, t]]
+            ] = False
+            UcTEach[UcREach[r, ucn], t].where[~RtPp[r, t]] = False
+            UcTSucc[UcREach[r, ucn], t].where[
+                g.UcDyndir[r, ucn, "RHS"].where[~RtPp[r, t]]
+            ] = False
+            UcTSucc[UcTSucc[r, ucn, t - 1]] = g.UcDyndir[r, ucn, "RHS"] + RtPp[r, t]
+            UcT[ucn, t].where[~Sum(r.where[no_rt[r, t]], 1)] = False
+            if cli.upper() == "YES":
+                with Loop(t.where[~Sum(r, ~no_rt[r, t])]):
+                    g.cm_maxc[ll, cg].where[g.Superyr[t, ll]] = 0
+
+            with Loop(bd):
+                UcTSucc[r, ucn, t].where[g.UcDynbnd[ucn, bd]] = RtPp[r, t]
+
+            # * RHS and Bounds Relaxation
+            if Backward.number_records or scalar_value(g.my_fyear):
+                uc_bnd.setRecords(None)
+                RUct.setRecords(None)
+                RUct[RUc[r, ucn], t].where[UcTEach[r, ucn, t] + UcTSucc[r, ucn, t]] = (
+                    True
+                )
+                with Loop(UcRSum[RUc[r, ucn]]):
+                    UcT[ucn, t].where[RUct[r, ucn, t]] = True
+                RUct[r, ucn, t].where[~reg_fixt[r]] = False
+                # * Set into UC_BND the RHS corrected by actual slack level,
+                # * if RHS already violated
+                uc_bnd["1", "IMPEXP", ucn, "0", "ANNUAL", "UP"].where[
+                    uc_rhs[ucn, "UP"]
+                ] = Max(
+                    uc_rhs[ucn, "UP"],
+                    g.VAR_UC.l[ucn]
+                    - Number(SpecialValues.POSINF).where[~g.VAR_UC.l[ucn]],
+                )
+                uc_bnd["2", r, ucn, "0", "ANNUAL", "UP"].where[
+                    uc_rhsr[r, ucn, "UP"]
+                ] = Max(
+                    uc_rhsr[r, ucn, "UP"],
+                    g.VAR_UCR.l[ucn, r]
+                    - Number(SpecialValues.POSINF).where[~g.VAR_UCR.l[ucn, r]],
+                )
+                uc_bnd["3", "IMPEXP", ucn, t, "ANNUAL", "UP"].where[
+                    uc_rhst[ucn, t, "UP"]
+                ] = Max(
+                    uc_rhst[ucn, t, "UP"],
+                    g.VAR_UCT.l[ucn, t]
+                    - Number(SpecialValues.POSINF).where[~g.VAR_UCT.l[ucn, t]],
+                )
+                uc_bnd["4", "IMPEXP", ucn, t, s, "UP"].where[
+                    uc_rhsts[ucn, t, s, "UP"]
+                ] = Max(
+                    uc_rhsts[ucn, t, s, "UP"],
+                    g.VAR_UCTS.l[ucn, t, s]
+                    - Number(SpecialValues.POSINF).where[~g.VAR_UCTS.l[ucn, t, s]],
+                )
+                uc_bnd["5", r, ucn, t, "ANNUAL", "UP"].where[
+                    uc_rhsrt[r, ucn, t, "UP"]
+                ] = Max(
+                    uc_rhsrt[r, ucn, t, "UP"],
+                    g.VAR_UCRT.l[ucn, r, t]
+                    - Number(SpecialValues.POSINF).where[~g.VAR_UCRT.l[ucn, r, t]],
+                )
+                uc_bnd["6", r, ucn, t, s, "UP"].where[uc_rhsrts[r, ucn, t, s, "UP"]] = (
+                    Max(
+                        uc_rhsrts[r, ucn, t, s, "UP"],
+                        g.VAR_UCRTS.l[ucn, r, t, s]
+                        - Number(SpecialValues.POSINF).where[
+                            ~g.VAR_UCRTS.l[ucn, r, t, s]
+                        ],
+                    )
+                )
+                uc_bnd["1", "IMPEXP", ucn, "0", "ANNUAL", "LO"].where[
+                    uc_rhs[ucn, "LO"]
+                ] = Min(
+                    uc_rhs[ucn, "LO"],
+                    g.VAR_UC.l[ucn]
+                    + Number(SpecialValues.POSINF).where[~g.VAR_UC.l[ucn]],
+                )
+                uc_bnd["2", r, ucn, "0", "ANNUAL", "LO"].where[
+                    uc_rhsr[r, ucn, "LO"]
+                ] = Min(
+                    uc_rhsr[r, ucn, "LO"],
+                    g.VAR_UCR.l[ucn, r]
+                    + Number(SpecialValues.POSINF).where[~g.VAR_UCR.l[ucn, r]],
+                )
+                uc_bnd["3", "IMPEXP", ucn, t, "ANNUAL", "LO"].where[
+                    uc_rhst[ucn, t, "LO"]
+                ] = Min(
+                    uc_rhst[ucn, t, "LO"],
+                    g.VAR_UCT.l[ucn, t]
+                    + Number(SpecialValues.POSINF).where[~g.VAR_UCT.l[ucn, t]],
+                )
+                uc_bnd["4", "IMPEXP", ucn, t, s, "LO"].where[
+                    uc_rhsts[ucn, t, s, "LO"]
+                ] = Min(
+                    uc_rhsts[ucn, t, s, "LO"],
+                    g.VAR_UCTS.l[ucn, t, s]
+                    + Number(SpecialValues.POSINF).where[~g.VAR_UCTS.l[ucn, t, s]],
+                )
+                uc_bnd["5", r, ucn, t, "ANNUAL", "LO"].where[
+                    uc_rhsrt[r, ucn, t, "LO"]
+                ] = Min(
+                    uc_rhsrt[r, ucn, t, "LO"],
+                    g.VAR_UCRT.l[ucn, r, t]
+                    + Number(SpecialValues.POSINF).where[~g.VAR_UCRT.l[ucn, r, t]],
+                )
+                uc_bnd["6", r, ucn, t, s, "LO"].where[uc_rhsrts[r, ucn, t, s, "LO"]] = (
+                    Min(
+                        uc_rhsrts[r, ucn, t, s, "LO"],
+                        g.VAR_UCRTS.l[ucn, r, t, s]
+                        + Number(SpecialValues.POSINF).where[
+                            ~g.VAR_UCRTS.l[ucn, r, t, s]
+                        ],
+                    )
+                )
+                # * Add relaxation tolerances;
+                # * absolute only if both positive+negative coefficients
+                uc_bnd[j, allr, ucn, ll, s, "UP"].where[
+                    uc_bnd[j, allr, ucn, ll, s, "UP"]
+                ] = (
+                    uc_bnd[j, allr, ucn, ll, s, "UP"]
+                    + abs(uc_bnd[j, allr, ucn, ll, s, "UP"]) * tolr
+                    + Number(tola).where[g.UcRn[ucn, allr]]
+                )
+                uc_bnd[j, allr, ucn, ll, s, "LO"].where[
+                    uc_bnd[j, allr, ucn, ll, s, "LO"]
+                ] = (
+                    uc_bnd[j, allr, ucn, ll, s, "LO"]
+                    - abs(uc_bnd[j, allr, ucn, ll, s, "LO"]) * tolr
+                    - Number(tola).where[g.UcRn[ucn, allr]]
+                )
+                # * Copy back to RHS
+                # * (VAR bounds would be cleared in sensitivity analysis)
+                uc_rhs[ucn, Bdneq[bd]] = sparse(
+                    uc_bnd["1", "IMPEXP", ucn, "0", "ANNUAL", bd]
+                )
+                uc_rhsr[r, ucn, Bdneq[bd]].where[reg_fixt[r]] = sparse(
+                    uc_bnd["2", r, ucn, "0", "ANNUAL", bd]
+                )
+                uc_rhst[UcT[ucn, t], Bdneq[bd]] = sparse(
+                    uc_bnd["3", "IMPEXP", ucn, t, "ANNUAL", bd]
+                )
+                uc_rhsts[UcT[ucn, t], s, Bdneq[bd]] = sparse(
+                    uc_bnd["4", "IMPEXP", ucn, t, s, bd]
+                )
+                uc_rhsrt[RUct[r, ucn, t], Bdneq[bd]] = sparse(
+                    uc_bnd["5", r, ucn, t, "ANNUAL", bd]
+                )
+                uc_rhsrts[RUct[r, ucn, t], s, Bdneq[bd]] = sparse(
+                    uc_bnd["6", r, ucn, t, s, bd]
+                )
+                # * Handle other important dynamic constraints
+                with Loop(
+                    Domain(r, t, tt).where[no_rt[r, t].where[same_as(t + 1, tt)]]
+                ):
+                    g.prc_dynuc[ucn, "LHS", Rtp[r, tt, p], ucgrptype, "UP"].where[
+                        g.prc_dynuc[ucn, "RHS", r, "0", p, ucgrptype, "UP"]
+                    ] = g.prc_dynuc[ucn, "LHS", r, tt, p, ucgrptype, "UP"] * (1 + tolr)
+                    g.prc_dynuc[ucn, "LHS", Rtp[r, tt, p], ucgrptype, "LO"].where[
+                        g.prc_dynuc[ucn, "RHS", r, "0", p, ucgrptype, "LO"]
+                    ] = g.prc_dynuc[ucn, "LHS", r, tt, p, ucgrptype, "LO"] * (1 - tolx)
+                sw1_com_cum[r, comvar, year, ll, c, "UP", *sw2].where[
+                    reg_fixt[r].where[sw1_com_cum[r, comvar, year, ll, c, "UP", *sw2]]
+                ] = Max(
+                    sw1_com_cum[r, comvar, year, ll, c, "UP", *sw2],
+                    Min(
+                        sw1_com_cum[r, comvar, year, ll, c, "UP", *sw2],
+                        g.VAR_CUMCOM.l[r, c, comvar, year, ll] * cucscal,
+                    )
+                    * (1 + tolr),
+                )
+                sw1_com_cum[r, comvar, year, ll, c, "LO", *sw2].where[reg_fixt[r]] = (
+                    sparse(sw1_com_cum[r, comvar, year, ll, c, "LO", *sw2] * (1 - tolr))
+                )
+                sw1_flo_cum[r, p, c, year, ll, "UP", *sw2].where[
+                    reg_fixt[r].where[sw1_flo_cum[r, p, c, year, ll, "UP", *sw2]]
+                ] = Max(
+                    sw1_flo_cum[r, p, c, year, ll, "UP", *sw2],
+                    Min(
+                        sw1_flo_cum[r, p, c, year, ll, "UP", *sw2],
+                        g.VAR_CUMFLO.l[r, p, c, year, ll] * cufscal,
+                    )
+                    * (1 + tolr),
+                )
+                sw1_flo_cum[r, p, c, year, ll, "LO", *sw2].where[reg_fixt[r]] = sparse(
+                    sw1_flo_cum[r, p, c, year, ll, "LO", *sw2] * (1 - tolr)
+                )
+                sw1_cap_bnd[r, t, p, "UP", *sw2].where[
+                    sw1_cap_bnd[r, t, p, "UP", *sw2]
+                ] = Max(
+                    sw1_cap_bnd[r, t, p, "UP", *sw2],
+                    g.VAR_CAP.l[r, t, p] * (1 + tolr),
+                )
+                sw1_cap_bnd[r, t, p, "LO", *sw2] = sparse(
+                    sw1_cap_bnd[r, t, p, "LO", *sw2] * (1 - tolr)
+                )
+
+            # $BATINCLUDE bnd_ucw.%1 - bnd_ucw.mod is not translated yet
             self.tc.add_gams_code(
                 module=self,
                 phase="run",
-                code=rf"""
-BACKWARD(T) = (M(T) < YR_V1);
-FORWARD(SUBT) = NO;
-NO_RT(R,T(BACKWARD)) = 1;
-RT_PP(R,T) = SUBT(T)$(NOT NO_RT(R,T));
-V(FORWARD) = NO;
-* Re-define End-of-Horizon
-IF(CARD(SUBT), MIYR_VL = SMAX(SUBT(T),E(T)));
-OPTION CLEAR=Y_EOH, CLEAR=MIYR_L;
-Y_EOH(EOHYEARS)$((YEARVAL(EOHYEARS) <= MIYR_VL)$(YEARVAL(EOHYEARS) >= MINYR)) = YES;
-LOOP(MIYR_1(YEAR), Z=MIYR_VL-YEARVAL(YEAR); MIYR_L(YEAR+Z) = YES);
-*-----------------------------------------------------------------------------
-* Complete adjusted model
-* Adjust divisor data when appropriate
-    {
-                    coef_alt_lin_stp(
-                        obj=obj,
-                        ctst=ctst,
-                        oblong=oblong,
-                    )
-                    if ctst != ""
-                    else ""
-                }
-* We must recompute OBJ_LIFE and salvage values
-OBJ_LIFE(K(LL),R,JOT,LIFE,CUR)$OBJ_LIFE(K,R,JOT,LIFE,CUR) = SUM((OPYEAR(LIFE,AGE),Y_EOH(LL+(ORD(AGE)-1))),OBJ_DISC(R,Y_EOH,CUR))+EPS;
-    {
-                    eqobsalv_prepro(
-                        arg1=arg1,
-                        timestep_is_set=True,
-                        stepped=stepped,
-                        ctst=ctst,
-                        capjd=capjd,
-                        etl=etl,
-                        declif=declif,
-                        vnret_defined=vnret_defined,
-                    )
-                    if stepped == "YES"
-                    else ""
-                }
-RVPRL(R,K,P)$RVPRL(R,K,P)=MAX(1,SMAX(RTP_CPTYR(R,VNT(K,V(T)),P),YEARVAL(V))-YEARVAL(K));
-*-----------------------------------------------------------------------------
-* Handle Dynamic constraints and Multi-regional UC relaxation
-* Remove UC_T_SUM if it does not overlap with SUBT
-OPTION CLEAR=RXX,CLEAR=UNCD1;
-RXX(UC_R_EACH(R,UC_N),R)$SUM(UC_T_SUM(R,UC_N,T)$RT_PP(R,T),YES) = YES;
-UNCD1(UC_N)$SUM(UC_T_SUM(UC_R_SUM(R,UC_N),T)$RT_PP(R,T),YES) = YES;
-UC_T_SUM(R,UC_N,T)$FORWARD(T) = NO;
-UC_T_SUM(R,UC_N,T)$((NOT UNCD1(UC_N))$(NOT RXX(R,UC_N,R))) = NO;
-IF(PRESOL, VAR_UC.L(UC_N(UNCD1)) = 0; VAR_UCR.L(UC_N,R)$RXX(R,UC_N,R) = 0);
-* Remove UC_T_EACH for all but SUBT
-* Remove UC_T_SUCC until not completely fixed or if even partly pending
-OPTION CLEAR=UC_T;
-    LOOP(UC_T_EACH(UC_R_SUM(R,UC_N),T)$RT_PP(R,T), UC_T(UC_N,T) = YES);
-    LOOP(UC_T_SUCC(UC_R_SUM(R,UC_N),T)$RT_PP(R,T), UC_T(UC_N,T) = YES);
-    UC_T_EACH(UC_R_SUM(R,UC_N),T)$(NOT UC_T(UC_N,T)) = NO;
-    UC_T_SUCC(UC_R_SUM(R,UC_N),T)$(UC_DYNDIR(R,UC_N,'RHS')$(NOT UC_T(UC_N,T))) = NO;
-    UC_T_EACH(UC_R_EACH(R,UC_N),T)$(NOT RT_PP(R,T)) = NO;
-    UC_T_SUCC(UC_R_EACH(R,UC_N),T)$(UC_DYNDIR(R,UC_N,'RHS')$(NOT RT_PP(R,T))) = NO;
-    UC_T_SUCC(UC_T_SUCC(R,UC_N,T-1)) = UC_DYNDIR(R,UC_N,'RHS')+RT_PP(R,T);
-    UC_T(UC_N,T)$(NOT SUM(R$NO_RT(R,T),1)) = NO;
-    {
-                    "    LOOP(T$(NOT SUM(R,NOT NO_RT(R,T))),CM_MAXC(LL,CG)$SUPERYR(T,LL) = 0);"
-                    if cli.upper() == "YES"
-                    else ""
-                }
+                code=bnd_ucw_mod(
+                    arg1="",
+                    arg2="",
+                    var=var,
+                    stages=stages,
+                    swd=swd,
+                    sow=sow_raw,
+                    defined_symbols=bnd_ucw_defined,
+                ),
+            )
+            # * Redefine UC_T according to current flags
+            project(source=UcTSucc, target=g.UcRtsuc)  # type: ignore[arg-type]
+            if g.reg_cumcst.number_records:
+                with Loop(Domain(r, t).where[no_rt[r, t]]):
+                    g.reg_cumcst[r, year, ll, g.costcat, cur, "UP"].where[
+                        g.Superyr[t, ll]
+                    ] = 0
 
-LOOP(BD,UC_T_SUCC(R,UC_N,T)$UC_DYNBND(UC_N,BD) = RT_PP(R,T));
-* RHS and Bounds Relaxation
-IF(CARD(BACKWARD) OR MY_FYEAR, OPTION CLEAR=UC_BND,CLEAR=R_UCT;
-R_UCT(R_UC(R,UC_N),T)$(UC_T_EACH(R,UC_N,T)+UC_T_SUCC(R,UC_N,T)) = YES;
-LOOP(UC_R_SUM(R_UC(R,UC_N)),UC_T(UC_N,T)$R_UCT(R,UC_N,T) = YES);
-R_UCT(R,UC_N,T)$(NOT REG_FIXT(R)) = NO;
-* Set into UC_BND the RHS corrected by actual slack level, if RHS already violated
-UC_BND('1','IMPEXP',UC_N,'0','ANNUAL','UP')$UC_RHS(UC_N,'UP')  = MAX(UC_RHS(UC_N,'UP'),VAR_UC.L(UC_N)-INF$(NOT VAR_UC.L(UC_N)));
-UC_BND('2',R,UC_N,'0','ANNUAL','UP')$UC_RHSR(R,UC_N,'UP')      = MAX(UC_RHSR(R,UC_N,'UP'),VAR_UCR.L(UC_N,R)-INF$(NOT VAR_UCR.L(UC_N,R)));
-UC_BND('3','IMPEXP',UC_N,T,'ANNUAL','UP')$UC_RHST(UC_N,T,'UP') = MAX(UC_RHST(UC_N,T,'UP'),VAR_UCT.L(UC_N,T)-INF$(NOT VAR_UCT.L(UC_N,T)));
-UC_BND('4','IMPEXP',UC_N,T,S,'UP')$UC_RHSTS(UC_N,T,S,'UP')     = MAX(UC_RHSTS(UC_N,T,S,'UP'),VAR_UCTS.L(UC_N,T,S)-INF$(NOT VAR_UCTS.L(UC_N,T,S)));
-UC_BND('5',R,UC_N,T,'ANNUAL','UP')$UC_RHSRT(R,UC_N,T,'UP')     = MAX(UC_RHSRT(R,UC_N,T,'UP'),VAR_UCRT.L(UC_N,R,T)-INF$(NOT VAR_UCRT.L(UC_N,R,T)));
-UC_BND('6',R,UC_N,T,S,'UP')$UC_RHSRTS(R,UC_N,T,S,'UP')         = MAX(UC_RHSRTS(R,UC_N,T,S,'UP'),VAR_UCRTS.L(UC_N,R,T,S)-INF$(NOT VAR_UCRTS.L(UC_N,R,T,S)));
-UC_BND('1','IMPEXP',UC_N,'0','ANNUAL','LO')$UC_RHS(UC_N,'LO')  = MIN(UC_RHS(UC_N,'LO'),VAR_UC.L(UC_N)+INF$(NOT VAR_UC.L(UC_N)));
-UC_BND('2',R,UC_N,'0','ANNUAL','LO')$UC_RHSR(R,UC_N,'LO')      = MIN(UC_RHSR(R,UC_N,'LO'),VAR_UCR.L(UC_N,R)+INF$(NOT VAR_UCR.L(UC_N,R)));
-UC_BND('3','IMPEXP',UC_N,T,'ANNUAL','LO')$UC_RHST(UC_N,T,'LO') = MIN(UC_RHST(UC_N,T,'LO'),VAR_UCT.L(UC_N,T)+INF$(NOT VAR_UCT.L(UC_N,T)));
-UC_BND('4','IMPEXP',UC_N,T,S,'LO')$UC_RHSTS(UC_N,T,S,'LO')     = MIN(UC_RHSTS(UC_N,T,S,'LO'),VAR_UCTS.L(UC_N,T,S)+INF$(NOT VAR_UCTS.L(UC_N,T,S)));
-UC_BND('5',R,UC_N,T,'ANNUAL','LO')$UC_RHSRT(R,UC_N,T,'LO')     = MIN(UC_RHSRT(R,UC_N,T,'LO'),VAR_UCRT.L(UC_N,R,T)+INF$(NOT VAR_UCRT.L(UC_N,R,T)));
-UC_BND('6',R,UC_N,T,S,'LO')$UC_RHSRTS(R,UC_N,T,S,'LO')         = MIN(UC_RHSRTS(R,UC_N,T,S,'LO'),VAR_UCRTS.L(UC_N,R,T,S)+INF$(NOT VAR_UCRTS.L(UC_N,R,T,S)));
-* Add relaxation tolerances; absolute only if both positive+negative coefficients
-UC_BND(J,ALL_R,UC_N,LL,S,'UP')$UC_BND(J,ALL_R,UC_N,LL,S,'UP')  = UC_BND(J,ALL_R,UC_N,LL,S,'UP')+ABS(UC_BND(J,ALL_R,UC_N,LL,S,'UP'))*{
-                    tolr
-                }+{tola}$UC_RN(UC_N,ALL_R);
-UC_BND(J,ALL_R,UC_N,LL,S,'LO')$UC_BND(J,ALL_R,UC_N,LL,S,'LO')  = UC_BND(J,ALL_R,UC_N,LL,S,'LO')-ABS(UC_BND(J,ALL_R,UC_N,LL,S,'LO'))*{
-                    tolr
-                }-{tola}$UC_RN(UC_N,ALL_R);
-* Copy back to RHS (VAR bounds would be cleared in sensitivity analysis)
-UC_RHS(UC_N,BDNEQ(BD))                   $= UC_BND('1','IMPEXP',UC_N,'0','ANNUAL',BD);
-UC_RHSR(R,UC_N,BDNEQ(BD))$REG_FIXT(R)    $= UC_BND('2',R,UC_N,'0','ANNUAL',BD);
-UC_RHST(UC_T(UC_N,T),BDNEQ(BD))          $= UC_BND('3','IMPEXP',UC_N,T,'ANNUAL',BD);
-UC_RHSTS(UC_T(UC_N,T),S,BDNEQ(BD))       $= UC_BND('4','IMPEXP',UC_N,T,S,BD);
-UC_RHSRT(R_UCT(R,UC_N,T),BDNEQ(BD))      $= UC_BND('5',R,UC_N,T,'ANNUAL',BD);
-UC_RHSRTS(R_UCT(R,UC_N,T),S,BDNEQ(BD))   $= UC_BND('6',R,UC_N,T,S,BD);
-* Handle other important dynamic constraints
-LOOP((R,T,SAMEAS(T+1,TT))$NO_RT(R,T),
-    PRC_DYNUC(UC_N,'LHS',RTP(R,TT,P),UC_GRPTYPE,'UP')$PRC_DYNUC(UC_N,'RHS',R,'0',P,UC_GRPTYPE,'UP') = PRC_DYNUC(UC_N,'LHS',R,TT,P,UC_GRPTYPE,'UP')*(1+{
-                    tolr
-                });
-    PRC_DYNUC(UC_N,'LHS',RTP(R,TT,P),UC_GRPTYPE,'LO')$PRC_DYNUC(UC_N,'RHS',R,'0',P,UC_GRPTYPE,'LO') = PRC_DYNUC(UC_N,'LHS',R,TT,P,UC_GRPTYPE,'LO')*(1-{
-                    tolx
-                }));
-{sw1}COM_CUM(R,COM_VAR,YEAR,LL,C,'UP'{sw2})$(REG_FIXT(R)${
-                    sw1
-                }COM_CUM(R,COM_VAR,YEAR,LL,C,'UP'{sw2})) = MAX({
-                    sw1
-                }COM_CUM(R,COM_VAR,YEAR,LL,C,'UP'{sw2}),MIN({
-                    sw1
-                }COM_CUM(R,COM_VAR,YEAR,LL,C,'UP'{
-                    sw2
-                }),VAR_CUMCOM.L(R,C,COM_VAR,YEAR,LL)*{cucscal})*(1+{tolr}));
-{sw1}COM_CUM(R,COM_VAR,YEAR,LL,C,'LO'{sw2})$REG_FIXT(R) $= {
-                    sw1
-                }COM_CUM(R,COM_VAR,YEAR,LL,C,'LO'{sw2})*(1-{tolr});
-{sw1}FLO_CUM(R,P,C,YEAR,LL,'UP'{sw2})$(REG_FIXT(R)${sw1}FLO_CUM(R,P,C,YEAR,LL,'UP'{
-                    sw2
-                })) = MAX({sw1}FLO_CUM(R,P,C,YEAR,LL,'UP'{sw2}),MIN({
-                    sw1
-                }FLO_CUM(R,P,C,YEAR,LL,'UP'{sw2}),VAR_CUMFLO.L(R,P,C,YEAR,LL)*{
-                    cufscal
-                })*(1+{tolr}));
-{sw1}FLO_CUM(R,P,C,YEAR,LL,'LO'{sw2})$REG_FIXT(R)       $= {
-                    sw1
-                }FLO_CUM(R,P,C,YEAR,LL,'LO'{sw2})*(1-{tolr});
-{sw1}CAP_BND(R,T,P,'UP'{sw2})${sw1}CAP_BND(R,T,P,'UP'{sw2}) = MAX({
-                    sw1
-                }CAP_BND(R,T,P,'UP'{sw2}),VAR_CAP.L(R,T,P)*(1+{tolr}));
-{sw1}CAP_BND(R,T,P,'LO'{sw2})                           $= {sw1}CAP_BND(R,T,P,'LO'{
-                    sw2
-                })*(1-{tolr});
-);
-
-    {
-                    bnd_ucw_mod(
-                        arg1="",
-                        arg2="",
-                        var=var,
-                        stages=stages,
-                        swd=swd,
-                        sow=sow,
-                        defined_symbols=bnd_ucw_defined,
-                    )
-                }
-* Redefine UC_T according to current flags
-OPTION UC_RTSUC < UC_T_SUCC;
-IF(CARD(REG_CUMCST),LOOP((R,T)$NO_RT(R,T),REG_CUMCST(R,YEAR,LL,COSTCAT,CUR,'UP')$SUPERYR(T,LL) = 0));
-*-----------------------------------------------------------------------------
-* Activities and flows
-{
-                    '''
-LOOP(R, BACKWARD(T) = NO_RT(R,T); SUBT(T) = RT_PP(R,T);
-'''
-                    if rtpx == "X"
-                    else ""
-                }
-{var}_ACT.FX(RTP_VINTYR(R,V,BACKWARD(T),P),S{
-                    sow
-                })$(PRC_TS(R,P,S)) =                            VAR_ACT.L(R,V,T,P,S);
-{var}_FLO.FX(RTP_VINTYR(R,V,BACKWARD(T),P),C,S{
-                    sow
-                })$(RPCS_VAR(R,P,C,S)*RP_FLO(R,P)) =          VAR_FLO.L(R,V,T,P,C,S);
-{var}_IRE.FX(RTP_VINTYR(R,V,BACKWARD(T),P),C,S,IE{
-                    sow
-                })$(RPCS_VAR(R,P,C,S)*RPC_IRE(R,P,C,IE)) = VAR_IRE.L(R,V,T,P,C,S,IE);
-{var}_SIN.FX(RTP_VINTYR(R,V,BACKWARD(T),P),C,S{
-                    sow
-                })$(RPCS_VAR(R,P,C,S)*RPC_STG(R,P,C)) =       VAR_SIN.L(R,V,T,P,C,S);
-{var}_SOUT.FX(RTP_VINTYR(R,V,BACKWARD(T),P),C,S{
-                    sow
-                })$(RPCS_VAR(R,P,C,S)*RPC_STG(R,P,C)) =      VAR_SOUT.L(R,V,T,P,C,S);
-{var}_UPS.FX(RTP_VINTYR(R,V,BACKWARD(T),P),S,BD(L){
-                    sow
-                })$RPS_UPS(R,P,S) =                       VAR_UPS.L(R,V,T,P,S,L);
-{var}_UPT.FX(RTP_VINTYR(R,V,BACKWARD(T),P),S,UPT{
-                    sow
-                })$(RPS_UPS(R,P,S)$RP_DP(R,P)) =            VAR_UPT.L(R,V,T,P,S,UPT);
-{var}_UDP.FX(RTP_VINTYR(R,V,BACKWARD(T),P),S,BD(L){
-                    sow
-                })$(PRC_TS(R,P,S)$RP_UPR(R,P,BD)) =       VAR_UDP.L(R,V,T,P,S,L);
-* Commodities
-{var}_COMNET.FX(RTC_NET(R,BACKWARD(T),C),S{sow})$COM_TS(R,C,S) = VAR_COMNET.L(R,T,C,S);
-{var}_COMPRD.FX(RTC_PRD(R,BACKWARD(T),C),S{sow})$COM_TS(R,C,S) = VAR_COMPRD.L(R,T,C,S);
-{var}_ELAST.FX(RTC(R,BACKWARD(T),C),S,J,BD{
-                    sow
-                })$(COM_TS(R,C,S)$RCJ(R,C,J,BD)) = VAR_ELAST.L(RTC,S,J,BD);
-{
-                    f"VAR_DAM.L(R,T,C,BD,J)$NO=0; {var}_DAM.FX(R,T(BACKWARD),C,BD,J{sow})$((ORD(J) LE DAM_STEP(R,C,BD))$DAM_STEP(R,C,'FX')) = VAR_DAM.L(R,T,C,BD,J);"
-                    if var_dam_defined
-                    else ""
-                }
-* Capacities
-{var}_NCAP.FX(R,BACKWARD(T),P{sow})$RP(R,P) = MAX(EPS,VAR_NCAP.L(R,T,P));
-{var}_CAP.UP(RTP(R,BACKWARD(T),P){sow}) =  INF;
-{var}_CAP.LO(RTP(R,BACKWARD(T),P){sow}) =  0;
-OPTION CLEAR=NO_RVP; NO_RVP(RTP_VARP(R,SUBT(T),P))$SUM(RTP_CPTYR(R,BACKWARD(TT),T,P),1) = YES;
-{var}_CAP.UP(NO_RVP(R,T,P){sow})$CAP_BND(R,T,P,'UP') = CAP_BND(R,T,P,'UP');
-{var}_CAP.LO(NO_RVP(R,T,P){sow})$CAP_BND(R,T,P,'LO') = CAP_BND(R,T,P,'LO');
-{var}_SCAP.FX(RTP_CPTYR(R,V,BACKWARD(T),P){sow})$PRC_RCAP(R,P) = VAR_SCAP.L(R,V,T,P);
-* Cumulative variables
-Z = (SMAX(T,M(T)) > MIYR_VL);
-FIL(LL) = Z*(MIYR_VL < YEARVAL(LL));
-    {
-                    bnd_cum_mod(
-                        arg1="COM_VAR",
+            # *-----------------------------------------------------------------
+            def fix_backward_levels() -> None:
+                """The body of ``LOOP(R, ...)`` guarded by ``'%RTPX%'==X``."""
+                # * Activities and flows
+                VAR_ACT.fx[RtpVintyr[r, v, Backward[t], p], s, *sow].where[
+                    PrcTs[r, p, s]
+                ] = g.VAR_ACT.l[r, v, t, p, s]
+                VAR_FLO.fx[RtpVintyr[r, v, Backward[t], p], c, s, *sow].where[
+                    RpcsVar[r, p, c, s] * g.RpFlo[r, p]
+                ] = g.VAR_FLO.l[r, v, t, p, c, s]
+                VAR_IRE.fx[RtpVintyr[r, v, Backward[t], p], c, s, ie, *sow].where[
+                    RpcsVar[r, p, c, s] * g.RpcIre[r, p, c, ie]
+                ] = g.VAR_IRE.l[r, v, t, p, c, s, ie]
+                VAR_SIN.fx[RtpVintyr[r, v, Backward[t], p], c, s, *sow].where[
+                    RpcsVar[r, p, c, s] * g.RpcStg[r, p, c]
+                ] = g.VAR_SIN.l[r, v, t, p, c, s]
+                VAR_SOUT.fx[RtpVintyr[r, v, Backward[t], p], c, s, *sow].where[
+                    RpcsVar[r, p, c, s] * g.RpcStg[r, p, c]
+                ] = g.VAR_SOUT.l[r, v, t, p, c, s]
+                VAR_UPS.fx[RtpVintyr[r, v, Backward[t], p], s, bd[lA], *sow].where[
+                    g.RpsUps[r, p, s]
+                ] = g.VAR_UPS.l[r, v, t, p, s, lA]
+                VAR_UPT.fx[RtpVintyr[r, v, Backward[t], p], s, upt, *sow].where[
+                    g.RpsUps[r, p, s].where[g.RpDp[r, p]]
+                ] = g.VAR_UPT.l[r, v, t, p, s, upt]
+                VAR_UDP.fx[RtpVintyr[r, v, Backward[t], p], s, bd[lA], *sow].where[
+                    PrcTs[r, p, s].where[g.RpUpr[r, p, bd]]
+                ] = g.VAR_UDP.l[r, v, t, p, s, lA]
+                # * Commodities
+                VAR_COMNET.fx[g.RtcNet[r, Backward[t], c], s, *sow].where[
+                    ComTs[r, c, s]
+                ] = g.VAR_COMNET.l[r, t, c, s]
+                VAR_COMPRD.fx[g.RtcPrd[r, Backward[t], c], s, *sow].where[
+                    ComTs[r, c, s]
+                ] = g.VAR_COMPRD.l[r, t, c, s]
+                VAR_ELAST.fx[Rtc[r, Backward[t], c], s, j, bd, *sow].where[
+                    ComTs[r, c, s].where[g.Rcj[r, c, j, bd]]
+                ] = g.VAR_ELAST.l[Rtc, s, j, bd]
+                if var_dam_defined:
+                    VAR_DAM = g.get_variable(f"{var}_DAM")
+                    g.VAR_DAM.l[r, t, c, bd, j].where[Number(0)] = 0
+                    VAR_DAM.fx[r, t[Backward], c, bd, j, *sow].where[
+                        (Ord(j) <= g.dam_step[r, c, bd]).where[g.dam_step[r, c, "FX"]]
+                    ] = g.VAR_DAM.l[r, t, c, bd, j]
+                # * Capacities
+                VAR_NCAP.fx[r, Backward[t], p, *sow].where[g.Rp[r, p]] = Max(
+                    SpecialValues.EPS, g.VAR_NCAP.l[r, t, p]
+                )
+                VAR_CAP.up[Rtp[r, Backward[t], p], *sow] = SpecialValues.POSINF
+                VAR_CAP.lo[Rtp[r, Backward[t], p], *sow] = 0
+                NoRvp = g.NoRvp
+                NoRvp.setRecords(None)
+                NoRvp[g.RtpVarp[r, Subt[t], p]].where[
+                    Sum(RtpCptyr[r, Backward[tt], t, p], 1)
+                ] = True
+                VAR_CAP.up[NoRvp[r, t, p], *sow].where[g.cap_bnd[r, t, p, "UP"]] = (
+                    g.cap_bnd[r, t, p, "UP"]
+                )
+                VAR_CAP.lo[NoRvp[r, t, p], *sow].where[g.cap_bnd[r, t, p, "LO"]] = (
+                    g.cap_bnd[r, t, p, "LO"]
+                )
+                VAR_SCAP.fx[RtpCptyr[r, v, Backward[t], p], *sow].where[
+                    g.PrcRcap[r, p]
+                ] = g.VAR_SCAP.l[r, v, t, p]
+                # * Cumulative variables
+                g.z[...] = Smax(t, g.m[t]) > g.miyr_vl
+                Fil[ll] = g.z * (g.miyr_vl < g.yearval[ll])
+                # * Get new modifiers for flexible model horizon
+                if sensis.upper() != "YES":
+                    bnd_cum_mod_GP(
+                        tc=g,
+                        arg1=comvar,
                         stages=stages,
                         eotime=eotime,
                         var=var,
@@ -610,124 +1037,191 @@ FIL(LL) = Z*(MIYR_VL < YEARVAL(LL));
                         cucscal=cucscal,
                         macro=macro,
                     )
-                    if sensis.upper() != "YES"
-                    else ""
-                }
-* Remove LO bounds if years only partially in current horizon and no adjustment for shorter horizon
-{var}_CUMFLO.LO(R,P,C,YEAR,LL {sow})$((NOT FLO_CUM(R,P,C,YEAR,LL,'N'))$FIL(LL)) = 0;
-{var}_CUMCOM.LO(R,C,COM_VAR,YEAR,LL {
-                    sow
-                })$((NOT COM_CUM(R,COM_VAR,YEAR,LL,C,'N'))$FIL(LL)) = 0;
-* Blending
-VAR_BLND.L(RT_PP,BLE,OPR)=0;
-{var}_BLND.FX(R,BACKWARD(T),BLE,OPR{sow})$BLE_OPR(R,BLE,OPR) = VAR_BLND.L(R,T,BLE,OPR);
-{
-                    '''
-); BACKWARD(T) = M(T) < YR_V1; SUBT(T) = TT(T)-BACKWARD(T)-FORWARD(T);
-'''
-                    if rtpx == "X"
-                    else ""
-                }
-*-----------------------------------------------------------------------------
-IF(MY_FYEAR,
-* Find all regions REG linked to IRE equations in region R
-TRACKPC(RPC(R,P,C))$(RPC_EQIRE(R,P,C,'EXP')+RPC_MARKET(R,P,C,'EXP')) = YES;
-LOOP((TRACKPC(R,P,C),TOP_IRE(R,C,REG,COM,P)),IRE_RPR(R,P,REG,'EXP') = YES);
-OPTION CLEAR=TRACKPC;
-LOOP((TOP_IRE(R,C,REG,COM,P),RPC_EQIRE(REG,P,COM,'IMP')),IRE_RPR(REG,P,R,'IMP') = YES);
-OPTION CLEAR=RTPX; RTPX(RTP(R,T,P))$RP_IRE(R,P) = RT_PP(R,T);
-LOOP((REG,IE),RTPX(RTP(R,T,P))$(RT_PP(REG,T)$IRE_RPR(R,P,REG,IE)) = YES);
-IRE_FXT(RTP(R,T,P))$(NO_RT(R,T)$RP_IRE(R,P)) = YES;
-LOOP((REG,IE),IRE_FXT(R,T,P)$(NO_RT(REG,T)$IRE_RPR(R,P,REG,IE)) = YES);
-* Remove RTP for IRE fixed in all linked regions, and save marginals
-IF(PRESOL,OPTION CLEAR=PAR_IPRIC; EQ_IRE.M(R,T,P,C,IE,S)$NO = 0);
-PAR_IPRIC(IRE_FXT,C,S,IE)$(PAR_IPRIC(IRE_FXT,C,S,IE)=0) $= EQ_IRE.M(IRE_FXT,C,IE,S);
-* Relax all fixed flows in regions with IRE equations
-OPTION CLEAR=RTP_IRE; LOOP(REG,RTP_IRE(RTPX(R,T,P),IE)$(IRE_RPR(R,P,REG,IE)$NO_RT(R,T)) = YES);
-{var}_IRE.UP(RTP_VINTYR(R,V,T,P),C,S,IE{
-                    sow
-                })$(RTP_IRE(R,T,P,IE)*RPCS_VAR(R,P,C,S)*RPC_IREIO(R,P,C,IE,'IN')) = VAR_IRE.L(R,V,T,P,C,S,IE)*(1+{
-                    tolx
-                }*POWER(8,-1$XPT(IE)));
-{var}_IRE.LO(RTP_VINTYR(R,V,T,P),C,S,IE{
-                    sow
-                })$(RTP_IRE(R,T,P,IE)*RPCS_VAR(R,P,C,S)*RPC_IREIO(R,P,C,IE,'IN')) = VAR_IRE.L(R,V,T,P,C,S,IE)*(1-{
-                    tolx
-                }*POWER(8,-1$IMP(IE)));
-LOOP(IE,
-{
-                    "   "
-                    + var
-                    + "_ACT.UP(RTP_VINTYR(R,V,T,P),S"
-                    + sow
-                    + ")$(RTP_IRE(R,T,P,IE)*PRC_TS(R,P,S)*RP_PGACT(R,P)) = VAR_ACT.L(R,V,T,P,S)*(1+"
-                    + tolx
-                    + "*POWER(8,-1$XPT(IE)));"
-                    if reduce == "YES"
-                    else ""
-                }
-{
-                    "   "
-                    + var
-                    + "_ACT.LO(RTP_VINTYR(R,V,T,P),S"
-                    + sow
-                    + ")$(RTP_IRE(R,T,P,IE)*PRC_TS(R,P,S)*RP_PGACT(R,P)) = VAR_ACT.L(R,V,T,P,S)*(1-"
-                    + tolx
-                    + "*POWER(8,-1$IMP(IE)));"
-                    if reduce == "YES"
-                    else ""
-                }
-);
-* Remove IRE_BND from fixed regions with no related IRE equation, and all IRE_XBND from fixed regions
-OPTION CLEAR=RXX;
-LOOP((R,T,C,S,ALL_REG,IE,BD)$(NO_RT(R,T)$IRE_BND(R,T,C,S,ALL_REG,IE,BD)),
-    IF(NOT SUM(RPC_EQIRE(R,P,C,IE)$RTPX(R,T,P),1),
-    IF(NOT SUM(RPC_MARKET(R,P,C,IE)$RTPX(R,T,P),1),RXX(R,C,IE) = YES)));
-IRE_BND(R,T,C,S,ALL_REG,IE,BD)$(NO_RT(R,T)$RXX(R,C,IE)) = 0;
-IRE_XBND(R,T,C,S,IE,BD)$NO_RT(R,T) = 0;
-);
-*-----------------------------------------------------------------------------
-{
-                    '''
-FIL(T)=FORWARD(T); LOOP(R, FORWARD(T)=FIL(T)$(NOT NO_RT(R,T));
-'''
-                    if rtpx == "X"
-                    else ""
-                }
-* Activities and flows
-VAR_ACT.FX(RTP_VINTYR(R,V,FORWARD(T),P),S)$(PRC_TS(R,P,S)) =                            0;
-VAR_FLO.FX(RTP_VINTYR(R,V,FORWARD(T),P),C,S)$(RPCS_VAR(R,P,C,S)*RP_FLO(R,P)) =          0;
-*  VAR_IRE.FX(RTP_VINTYR(R,V,FORWARD(T),P),C,S,IE)$(RPCS_VAR(R,P,C,S)*RPC_IRE(R,P,C,IE)) = 0;
-VAR_SIN.FX(RTP_VINTYR(R,V,FORWARD(T),P),C,S)$(RPCS_VAR(R,P,C,S)*RPC_STG(R,P,C)) =       0;
-VAR_SOUT.FX(RTP_VINTYR(R,V,FORWARD(T),P),C,S)$(RPCS_VAR(R,P,C,S)*RPC_STG(R,P,C)) =      0;
-* Commodities
-VAR_COMNET.FX(RTCS_VARC(R,FORWARD(T),C,S)) = 0;
-VAR_COMPRD.FX(RTCS_VARC(R,FORWARD(T),C,S)) = 0;
-VAR_ELAST.FX(RTCS_VARC(R,FORWARD(T),C,S),J,BD)$RCJ(R,C,J,BD) = 0;
-* Capacities
-VAR_CAP.LO(RTP(R,FORWARD(T),P)) = 0;
-VAR_CAP.UP(RTP(R,FORWARD(T),P)) $= CAP_BND(RTP,'UP');
-* Blending
-VAR_BLND.FX(R,FORWARD(T),BLE,OPR)$BLE_OPR(R,BLE,OPR) = 0;
-{
-                    '''
-); FORWARD(T)=FIL(T);
-'''
-                    if rtpx == "X"
-                    else ""
-                }
-*-----------------------------------------------------------------------------
+                # * Remove LO bounds if years only partially in current horizon
+                # * and no adjustment for shorter horizon
+                VAR_CUMFLO.lo[r, p, c, year, ll, *sow].where[
+                    (~g.flo_cum[r, p, c, year, ll, "N"]).where[Fil[ll]]
+                ] = 0
+                VAR_CUMCOM.lo[r, c, comvar, year, ll, *sow].where[
+                    (~g.com_cum[r, comvar, year, ll, c, "N"]).where[Fil[ll]]
+                ] = 0
+                # * Blending
+                g.VAR_BLND.l[RtPp, g.Ble, g.Opr] = 0
+                VAR_BLND.fx[r, Backward[t], g.Ble, g.Opr, *sow].where[
+                    g.BleOpr[r, g.Ble, g.Opr]
+                ] = g.VAR_BLND.l[r, t, g.Ble, g.Opr]
+
+            if rtpx == "X":
+                with Loop(r):
+                    Backward[t] = no_rt[r, t]  # type: ignore[assignment]
+                    Subt[t] = RtPp[r, t]
+                    fix_backward_levels()
+                Backward[t] = g.m[t] < g.yr_v1
+                Subt[t] = tt[t] - Backward[t] - Forward[t]
+            else:
+                fix_backward_levels()
+
+            # *-----------------------------------------------------------------
+            if scalar_value(g.my_fyear):
+                Trackpc, IreRpr, Rtpx, IreFxt, RtpIre = (
+                    g.Trackpc,
+                    g.IreRpr,
+                    g.Rtpx,
+                    g.IreFxt,
+                    g.RtpIre,
+                )
+                Reg, Com = g.Reg, g.Com
+                # * Find all regions REG linked to IRE equations in region R
+                Trackpc[g.Rpc[r, p, c]].where[
+                    g.RpcEqire[r, p, c, "EXP"] + g.RpcMarket[r, p, c, "EXP"]
+                ] = True
+                with Loop(Domain(Trackpc[r, p, c], g.TopIre[r, c, Reg, Com, p])):
+                    IreRpr[r, p, Reg, "EXP"] = True
+                Trackpc.setRecords(None)
+                with Loop(
+                    Domain(g.TopIre[r, c, Reg, Com, p], g.RpcEqire[Reg, p, Com, "IMP"])
+                ):
+                    IreRpr[Reg, p, r, "IMP"] = True
+                Rtpx.setRecords(None)
+                Rtpx[Rtp[r, t, p]].where[g.RpIre[r, p]] = RtPp[r, t]
+                with Loop(Domain(Reg, ie)):
+                    Rtpx[Rtp[r, t, p]].where[
+                        RtPp[Reg, t].where[IreRpr[r, p, Reg, ie]]
+                    ] = True
+                IreFxt[Rtp[r, t, p]].where[no_rt[r, t].where[g.RpIre[r, p]]] = True
+                with Loop(Domain(Reg, ie)):
+                    IreFxt[r, t, p].where[
+                        no_rt[Reg, t].where[IreRpr[r, p, Reg, ie]]
+                    ] = True
+                # * Remove RTP for IRE fixed in all linked regions,
+                # * and save marginals
+                if scalar_value(g.presol):
+                    g.par_ipric.setRecords(None)
+                    g.eq_ire.m[r, t, p, c, ie, s].where[Number(0)] = 0
+                g.par_ipric[IreFxt, c, s, ie].where[
+                    g.par_ipric[IreFxt, c, s, ie] == 0
+                ] = sparse(g.eq_ire.m[IreFxt, c, ie, s])
+                # * Relax all fixed flows in regions with IRE equations
+                RtpIre.setRecords(None)
+                with Loop(Reg):
+                    RtpIre[Rtpx[r, t, p], ie].where[
+                        IreRpr[r, p, Reg, ie].where[no_rt[r, t]]
+                    ] = True
+                VAR_IRE.up[RtpVintyr[r, v, t, p], c, s, ie, *sow].where[
+                    RtpIre[r, t, p, ie]
+                    * RpcsVar[r, p, c, s]
+                    * g.RpcIreio[r, p, c, ie, "IN"]
+                ] = g.VAR_IRE.l[r, v, t, p, c, s, ie] * (
+                    1 + tolx * power(8, -Number(1).where[g.xpt[ie]])
+                )
+                VAR_IRE.lo[RtpVintyr[r, v, t, p], c, s, ie, *sow].where[
+                    RtpIre[r, t, p, ie]
+                    * RpcsVar[r, p, c, s]
+                    * g.RpcIreio[r, p, c, ie, "IN"]
+                ] = g.VAR_IRE.l[r, v, t, p, c, s, ie] * (
+                    1 - tolx * power(8, -Number(1).where[g.imp[ie]])
+                )
+                if reduce == "YES":
+                    with Loop(ie):
+                        VAR_ACT.up[RtpVintyr[r, v, t, p], s, *sow].where[
+                            RtpIre[r, t, p, ie] * PrcTs[r, p, s] * g.RpPgact[r, p]
+                        ] = g.VAR_ACT.l[r, v, t, p, s] * (
+                            1 + tolx * power(8, -Number(1).where[g.xpt[ie]])
+                        )
+                        VAR_ACT.lo[RtpVintyr[r, v, t, p], s, *sow].where[
+                            RtpIre[r, t, p, ie] * PrcTs[r, p, s] * g.RpPgact[r, p]
+                        ] = g.VAR_ACT.l[r, v, t, p, s] * (
+                            1 - tolx * power(8, -Number(1).where[g.imp[ie]])
+                        )
+                # * Remove IRE_BND from fixed regions with no related IRE equation,
+                # * and all IRE_XBND from fixed regions
+                Rxx.setRecords(None)
+                with (
+                    Loop(
+                        Domain(r, t, c, s, allreg, ie, bd).where[
+                            no_rt[r, t].where[g.ire_bnd[r, t, c, s, allreg, ie, bd]]
+                        ]
+                    ),
+                    If(~Sum(g.RpcEqire[r, p, c, ie].where[Rtpx[r, t, p]], 1)),
+                    If(~Sum(g.RpcMarket[r, p, c, ie].where[Rtpx[r, t, p]], 1)),
+                ):
+                    Rxx[r, c, ie] = True
+                g.ire_bnd[r, t, c, s, allreg, ie, bd].where[
+                    no_rt[r, t].where[Rxx[r, c, ie]]
+                ] = 0
+                g.ire_xbnd[r, t, c, s, ie, bd].where[no_rt[r, t]] = 0
+
+            # *-----------------------------------------------------------------
+            def fix_forward_levels() -> None:
+                """The body of ``LOOP(R, ...)`` guarded by ``'%RTPX%'==X``."""
+                # * Activities and flows
+                g.VAR_ACT.fx[RtpVintyr[r, v, Forward[t], p], s].where[
+                    PrcTs[r, p, s]
+                ] = 0
+                g.VAR_FLO.fx[RtpVintyr[r, v, Forward[t], p], c, s].where[
+                    RpcsVar[r, p, c, s] * g.RpFlo[r, p]
+                ] = 0
+                # VAR_IRE is deliberately left free (commented out upstream)
+                g.VAR_SIN.fx[RtpVintyr[r, v, Forward[t], p], c, s].where[
+                    RpcsVar[r, p, c, s] * g.RpcStg[r, p, c]
+                ] = 0
+                g.VAR_SOUT.fx[RtpVintyr[r, v, Forward[t], p], c, s].where[
+                    RpcsVar[r, p, c, s] * g.RpcStg[r, p, c]
+                ] = 0
+                # * Commodities
+                g.VAR_COMNET.fx[g.RtcsVarc[r, Forward[t], c, s]] = 0
+                g.VAR_COMPRD.fx[g.RtcsVarc[r, Forward[t], c, s]] = 0
+                g.VAR_ELAST.fx[g.RtcsVarc[r, Forward[t], c, s], j, bd].where[
+                    g.Rcj[r, c, j, bd]
+                ] = 0
+                # * Capacities
+                g.VAR_CAP.lo[Rtp[r, Forward[t], p]] = 0
+                g.VAR_CAP.up[Rtp[r, Forward[t], p]] = sparse(g.cap_bnd[Rtp, "UP"])
+                # * Blending
+                g.VAR_BLND.fx[r, Forward[t], g.Ble, g.Opr].where[
+                    g.BleOpr[r, g.Ble, g.Opr]
+                ] = 0
+
+            if rtpx == "X":
+                Fil[t] = Forward[t]
+                with Loop(r):
+                    Forward[t] = Fil[t].where[~no_rt[r, t]]
+                    fix_forward_levels()
+                Forward[t] = Fil[t]
+            else:
+                fix_forward_levels()
+
+            # *-----------------------------------------------------------------
+            # BRATIO / SOLVEOPT are GAMS solve options. GAMSPy runs every
+            # statement as its own GAMS job, so an OPTION statement here cannot
+            # reach the solve; main.py pins basis_detection_threshold/
+            # merge_strategy on the shared Options instead. Emitted verbatim to
+            # keep the generated source in step with solve.stp.
+            self.tc.add_gams_code(
+                module=self,
+                phase="run",
+                code="""
 * Reject starting basis if equations were removed:
 IF(CARD(NO_RT)+CARD(FORWARD), OPTION BRATIO=1);
 OPTION SOLVEOPT=MERGE;
-* Save last cum marginal
-IF(PRESOL=0, PAR_CUMFLOM(R,P,C,YEAR,LL) $= VAR_CUMFLO.M(R,P,C,YEAR,LL);
-    PAR_UCR(UC_N,'IMPEXP') $= VAR_UC.M(UC_N); PAR_UCR(UC_N,R) $= VAR_UCR.M(UC_N,R));
-*-----------------------------------------------------------------------------
 """,
             )
-            ext = "stc" if (stages == "YES" and spines != "YES") else "mod"
+            # * Save last cum marginal
+            if scalar_value(g.presol) == 0:
+                g.par_cumflom[r, p, c, year, ll] = sparse(
+                    g.VAR_CUMFLO.m[r, p, c, year, ll]
+                )
+                g.par_ucr[ucn, "IMPEXP"] = sparse(g.VAR_UC.m[ucn])
+                g.par_ucr[ucn, r] = sparse(g.VAR_UCR.m[ucn, r])
 
+            # *-----------------------------------------------------------------
+            # $ SET EXT mod / $IFI %STAGES%==YES $SET EXT stc
+            # $ IFI %SPINES%==YES $SET EXT mod / $ BATINCLUDE solve.%EXT%
+            ext = (
+                "stc"
+                if (stages.upper() == "YES" and spines.upper() != "YES")
+                else "mod"
+            )
             if ext == "mod":
                 solve_mod_GP(
                     module=self,
@@ -743,38 +1237,49 @@ IF(PRESOL=0, PAR_CUMFLOM(R,P,C,YEAR,LL) $= VAR_CUMFLO.M(R,P,C,YEAR,LL);
                     nonlp=nonlp,
                     memclean=memclean,
                 )
-
             elif ext == "stc":
                 raise NotImplementedError("Still needs implementation")
             else:
                 raise ValueError(f"Unexpected value {ext} for solve_<ext>.")
 
-            self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code=rf"""
-PRESOL = 0;
-*-----------------------------------------------------------------------------
-* Restore last cum marginal
-VAR_UC.M(UC_N)$(VAR_UC.M(UC_N)=0) $= PAR_UCR(UC_N,'IMPEXP');
-VAR_UCR.M(UC_N,R)$(VAR_UCR.M(UC_N,R)=0) $= PAR_UCR(UC_N,R);
-VAR_CUMFLO.M(R,P,C,YEAR,LL)$(VAR_CUMFLO.M(R,P,C,YEAR,LL)=0) $= PAR_CUMFLOM(R,P,C,YEAR,LL);
-* Adjust SUBT
-SUBT(T) = SUBT(T-1);
-Z = SMIN(FORWARD(T),B(T));
-YR_V1 = SMIN(SUBT(T)$(M(T) GE Z-G_OVERLAP),M(T));
-Z = YR_V1 + YR_VL;
-SUBT(T)$(M(T) < Z) = YES;
-SUBT(T)$(M(T) < YR_V1) = NO;
-*-----------------------------------------------------------------------------
-* Restore some original data
-V(T) = YES;
-UC_T_SUM(R,UC_N,T)    $= STP_UCT('1',R,UC_N,T);
-UC_T_SUCC(R,UC_N,T)   $= STP_UCT('2',R,UC_N,T);
-UC_T_EACH(R,UC_N,T)   $= STP_UCT('3',R,UC_N,T);
-    {"LOOP(R, BACKWARD(T)=NO_RT(R,T);" if rtpx == "X" else ""}
-    {
-                    pextlevs_stc(
+            g.presol[...] = 0
+            # $IF NOT %STEPPED%==YES $GOTO ENDSTEP - skip the rest of this pass
+            if stepped != "YES":
+                break
+            # *-----------------------------------------------------------------
+            # * Restore last cum marginal
+            g.VAR_UC.m[ucn].where[g.VAR_UC.m[ucn] == 0] = sparse(
+                g.par_ucr[ucn, "IMPEXP"]
+            )
+            g.VAR_UCR.m[ucn, r].where[g.VAR_UCR.m[ucn, r] == 0] = sparse(
+                g.par_ucr[ucn, r]
+            )
+            g.VAR_CUMFLO.m[r, p, c, year, ll].where[
+                g.VAR_CUMFLO.m[r, p, c, year, ll] == 0
+            ] = sparse(g.par_cumflom[r, p, c, year, ll])
+            # * Adjust SUBT
+            Subt[t] = Subt[t - 1]
+            g.z[...] = Smin(Forward[t], g.b[t])
+            g.yr_v1[...] = Smin(Subt[t].where[g.m[t] >= g.z - g.g_overlap], g.m[t])
+            g.z[...] = g.yr_v1 + g.yr_vl
+            Subt[t].where[g.m[t] < g.z] = True
+            Subt[t].where[g.m[t] < g.yr_v1] = False
+            # *-----------------------------------------------------------------
+            # * Restore some original data
+            v[t] = True
+            UcTSum[r, ucn, t] = sparse(g.stp_uct["1", r, ucn, t])
+            UcTSucc[r, ucn, t] = sparse(g.stp_uct["2", r, ucn, t])
+            UcTEach[r, ucn, t] = sparse(g.stp_uct["3", r, ucn, t])
+            if spines.upper() == "YES":
+                # pextlevs.stc has no GAMSPy twin for the period control (arg2),
+                # so the fragment - including its LOOP(R,...) wrapper - stays raw.
+                loop_open = "LOOP(R, BACKWARD(T)=NO_RT(R,T);" if rtpx == "X" else ""
+                loop_close = ");" if rtpx == "X" else ""
+                self.tc.add_gams_code(
+                    module=self,
+                    phase="run",
+                    code=loop_open
+                    + pextlevs_stc(
                         tc=self.tc,
                         arg1="'1'",
                         arg2="(BACKWARD)",
@@ -784,61 +1289,67 @@ UC_T_EACH(R,UC_N,T)   $= STP_UCT('3',R,UC_N,T);
                         var_dam_defined=var_dam_defined,
                         var_scap_defined=var_scap_defined,
                     )
-                    if spines.upper() == "YES"
-                    else ""
-                }
-    {");" if rtpx == "X" else ""}
-* Reset bounds
-    {
-                    bndmain_mod(
-                        arg1=arg1,
-                        arg2="1",
-                        var=var,
-                        swd=swd,
-                        sow=sow,
-                        swt=swt,
-                        r_t=r_t,
-                        stages=stages,
-                        timesed=timesed,
-                        reduce=reduce,
-                        dflbl=dflbl,
-                        mx=mx,
-                        pgprim=pgprim,
-                        eotime=eotime,
-                        cufscal=cufscal,
-                        cucscal=cucscal,
-                        macro=macro,
-                        var_uc=var_uc,
-                        rts=rts,
-                        model_name=self.model_name,
-                        bnd_ucw_defined=bnd_ucw_defined,
-                        stochastic_symbols_declared=stochastic_symbols_declared,
-                    )
-                }
-""",
+                    + loop_close,
+                )
+            elif rtpx == "X":
+                with Loop(r):
+                    Backward[t] = no_rt[r, t]  # type: ignore[assignment]
+            # * Reset bounds
+            # $BATINCLUDE bndmain.%1 %1 1 - bndmain.mod is not translated yet
+            self.tc.add_gams_code(
+                module=self,
+                phase="run",
+                code=bndmain_mod(
+                    arg1=arg1,
+                    arg2="1",
+                    var=var,
+                    swd=swd,
+                    sow=sow_raw,
+                    swt=swt_raw,
+                    r_t=r_t,
+                    stages=stages,
+                    timesed=timesed,
+                    reduce=reduce,
+                    dflbl=dflbl,
+                    mx=mx,
+                    pgprim=pgprim,
+                    eotime=str(eotime),
+                    cufscal=str(cufscal),
+                    cucscal=str(cucscal),
+                    macro=macro,
+                    var_uc=var_uc,
+                    rts=rts,
+                    model_name=self.model_name,
+                    bnd_ucw_defined=bnd_ucw_defined,
+                    stochastic_symbols_declared=stochastic_symbols_declared,
+                ),
             )
 
-    def exec_solve_stp_nonstepped_after_solve(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="  PRESOL = 0;",
-        )
-
     def exec_solve_stp_cleanup(
-        self: SolveStp, var: str, sow: str, swt: str, eq: str
+        self: SolveStp,
+        var: str,
+        sow: SowGPType,
+        swt: tuple[SET_OR_ALIAS, ...] | tuple[()],
+        eq: str,
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-*-----------------------------------------------------------------------------
-* Remove superfluous values
-{var}_NCAP.L(R,T,P{sow})$(({var}_NCAP.L(R,T,P{sow}) EQ 0)${var}_NCAP.L(R,T,P{sow})) = 0;
-{var}_NCAP.M(R,T,P{sow})$NO_RT(R,T) = 0;
-{var}_ACT.M(R,V,T,P,S{sow})$NO_RT(R,T) = 0;
-{var}_FLO.M(R,V,T,P,C,S{sow})$NO_RT(R,T) = 0;
-{var}_IRE.M(R,V,T,P,C,S,IE{sow})$NO_RT(R,T) = 0;
-IF(MY_FYEAR,{eq}_IRE.M(IRE_FXT(R,T,P),C,IE,S{swt}) $= PAR_IPRIC(R,T,P,C,S,IE));
-""",
+        g = self.tc
+        r, v, t, p, c, s, ie = (g.r, g.v, g.t, g.p, g.c, g.s, g.ie)
+        (VAR_NCAP, VAR_ACT, VAR_FLO, VAR_IRE) = (
+            g.get_variable(f"{var}_NCAP"),
+            g.get_variable(f"{var}_ACT"),
+            g.get_variable(f"{var}_FLO"),
+            g.get_variable(f"{var}_IRE"),
         )
+        # *---------------------------------------------------------------------
+        # * Remove superfluous values
+        VAR_NCAP.l[r, t, p, *sow].where[
+            (VAR_NCAP.l[r, t, p, *sow] == 0).where[VAR_NCAP.l[r, t, p, *sow]]
+        ] = 0
+        VAR_NCAP.m[r, t, p, *sow].where[g.no_rt[r, t]] = 0
+        VAR_ACT.m[r, v, t, p, s, *sow].where[g.no_rt[r, t]] = 0
+        VAR_FLO.m[r, v, t, p, c, s, *sow].where[g.no_rt[r, t]] = 0
+        VAR_IRE.m[r, v, t, p, c, s, ie, *sow].where[g.no_rt[r, t]] = 0
+        if scalar_value(g.my_fyear):
+            g.get_equation(f"{eq}_IRE").m[g.IreFxt[r, t, p], c, ie, s, *swt] = sparse(
+                g.par_ipric[r, t, p, c, s, ie]
+            )

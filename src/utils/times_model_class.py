@@ -1335,6 +1335,15 @@ class TimesModelClass:
     obj_divi: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] OBJ_DIVI:
     obj_diviii: Parameter = None  # type: ignore[assignment] # [Reg,allyear,prc] OBJ_DIVIII:
     stp_div: Parameter = None  # type: ignore[assignment] # [j,r,t,p] STP_DIV:
+    # solve.stp (stepped solution) scratch symbols
+    presol: Parameter = None  # type: ignore[assignment] # PRESOL:
+    UcRn: Set = None  # type: ignore[assignment] # [ucn,allr] UC_RN:
+    RtpIre: Set = None  # type: ignore[assignment] # [r,t,p,ie] RTP_IRE: IRE equations with fixed regions
+    IreRpr: Set = None  # type: ignore[assignment] # [r,p,r,ie] IRE_RPR: All regions REG linked to IRE process by equations in R
+    IreFxt: Set = None  # type: ignore[assignment] # [r,t,p] IRE_FXT: IRE with some linked regions fixed at T
+    stp_uct: Parameter = None  # type: ignore[assignment] # [j,allr,ucnA,ll] STP_UCT:
+    uc_bnd: Parameter = None  # type: ignore[assignment] # [j,allr,ucnA,ll,s,lA] UC_BND:
+    par_ucr: Parameter = None  # type: ignore[assignment] # [ucn,allr] PAR_UCR:
     ObjIdc: Set = None  # type: ignore[assignment] # [r,allyear,p,life,allyear,age] OBJ_IDC:
     obj_iad: Parameter = None  # type: ignore[assignment] # [r,cur] OBJ_IAD:
     ObjFcur: Set = None  # type: ignore[assignment] # [Reg,allyear,p,cur] OBJ_FCUR:
