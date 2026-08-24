@@ -77,7 +77,7 @@ class EqobjTm(GamsClass):
 
         # Investment Cost, Fixed Cost and Variable Cost components
         self.include(EqobjinvMod(self.tc, self.env, "tm", "exit"))
-        self.include(EqobjfixMod(self.tc, self.env, "tm", "exit"))
+        self.include(EqobjfixMod(self.tc, self.env, arg1="exit"))
         self.include(EqobsalvMod(self.tc, self.env, "tm", "exit"))
         self.include(EqobjannTm(self.tc, self.env))
 

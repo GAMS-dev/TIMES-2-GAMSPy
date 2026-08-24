@@ -728,7 +728,7 @@ wheels = [
 
 [[package]]
 name = "gamspy"
-version = "1.26.3"
+version = "1.26.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "gamsapi" },
@@ -739,9 +739,9 @@ dependencies = [
     { name = "requests" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/de/25/0f327e45aa6189e126001e7c8d1caccdd5967bcd1b5b9096745199e5df7b/gamspy-1.26.3.tar.gz", hash = "sha256:69d1fd616aa1da6b2360ec4e9e40ffc3bb4aae6669291f451e14a433a6cd721b", size = 297103, upload-time = "2026-08-03T15:05:44.65Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/60/7a/cbe70e8bae6fa0f2649447dcd1fcae04e99a35a1b93febea1783f72e2985/gamspy-1.26.4.tar.gz", hash = "sha256:ad688b782a444e40dfac8e022855932e51da30b6dcf47a4bde1b022fc7c9ced4", size = 297130, upload-time = "2026-08-03T20:47:25.595Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/79/9c/f26e7fdea9022783eee082bab80f2fb541dbef5e24ac36720624822672e9/gamspy-1.26.3-py3-none-any.whl", hash = "sha256:62838b6310f74fee01214f3584bda2a930fb7fbbecf02e78b3307b36439dba55", size = 357568, upload-time = "2026-08-03T15:05:43.003Z" },
+    { url = "https://files.pythonhosted.org/packages/57/28/c6562d2d67c0b14d1997bf592548019626c32eb5391b180a7096c0d4eebd/gamspy-1.26.4-py3-none-any.whl", hash = "sha256:4540ca20b70f40ce476104c0372e9ef15fc44f1ab6bcaa8492726f2cd341bb2c", size = 357582, upload-time = "2026-08-03T20:47:23.934Z" },
 ]
 
 [[package]]
@@ -787,7 +787,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "dotenv" },
-    { name = "gamspy", specifier = ">=1.26.3" },
+    { name = "gamspy", specifier = ">=1.26.4" },
     { name = "jupyter", marker = "extra == 'docs'" },
     { name = "pandas" },
 ]
