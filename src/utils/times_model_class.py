@@ -23,6 +23,7 @@ from utils.config import RunConfig
 from utils.macros import macro_config
 
 if TYPE_CHECKING:
+    from core.pp_qaput_mod import QALogger
     from utils.compile_environment import CompileEnvironment
 
 GamsPhase = Literal["init", "run"]
@@ -44,6 +45,7 @@ class TimesModelClass:
     test_run: bool
     solve: bool
     solve_options: Options
+    pp_qaput_logger: QALogger
 
     # AUTO-GENERATED FACTORIES
     execution_list: list[tuple[Callable[..., Any], tuple[Any, ...], dict[str, Any]]] = (

@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Literal
 
+import pandas as pd
 from gamspy import (
     Alias,
     Card,
@@ -72,7 +73,6 @@ from core.pp_micro_mod import PpMicroMod
 from core.pp_off_mod import pp_off_GP
 from core.pp_prelv_vda import PpPrelvVda
 from core.pp_qafs_mod import PpQafsMod
-from core.pp_qaput_mod import pp_qaput
 from core.pp_reduce_red import PpReduceRed
 from core.ppmain_tm import PpmainTm
 from core.preppm_mod import PreppmMod
@@ -87,6 +87,179 @@ if TYPE_CHECKING:
     from utils.times_model_class import GamsPhase, TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+def tslvl_reset_violations_df(f_val: float, z_val: float) -> pd.DataFrame | None:
+    """Commodities/processes defined at non-existing TSLVL."""
+    if f_val + z_val == 0:
+        return None
+    return pd.DataFrame({"F": [int(f_val)], "Z": [int(z_val)]})
+
+
+def cap_bnd_violations(g: TimesModelClass) -> Set:
+    """Inconsistent CAP_BND(UP/FX) defined for process capacity."""
+
+    r, t, p, lA = g.r, g.t, g.p, g.lA
+    Rtp, PrcRcap, RpFlo = g.Rtp, g.PrcRcap, g.RpFlo
+    f, z, ifq = g.f, g.z, g.ifq
+
+    cap_bnd, rcap_bnd, prc_resid = g.cap_bnd, g.rcap_bnd, g.prc_resid
+
+    violations = Set(g.container, name="violations_r_t_p_cap_bnd", domain=[r, t, p])
+    with Loop(
+        Domain(Rtp[r, t, p], lA["UP"]).where[
+            ((~(cap_bnd[Rtp, lA] > prc_resid[Rtp])).where[cap_bnd[Rtp, lA]])
+        ]
+    ):
+        with If(PrcRcap[r, p]):
+            z[...] = 0.0
+        with Else():
+            z[...] = prc_resid[Rtp]
+        with If(z):
+            f[...] = cap_bnd[Rtp, lA]
+            cap_bnd[Rtp, lA].where[(ifq < 10.0)] = SpecialValues.EPS
+            f[...].where[(0.0 ** (ifq + f + Number(1.0).where[RpFlo[r, p]]))] = z
+            with If(f < z):
+                rcap_bnd[Rtp, "N"] = z
+                violations[r, t, p] = True
+    return violations
+
+
+def mi_dmas_topology_violations(g: TimesModelClass) -> Set:
+    """Commodity group found in topology violating its integrity."""
+    r, c, Com = g.r, g.c, g.Com
+    Dem, MiDmas = g.Dem, g.MiDmas
+
+    violations = Set(g.container, name="violations_r_c_com_mi_dmas", domain=[r, c, Com])
+    violations[r, c, Com].where[Dem[r, c] & MiDmas[r, c, Com]] = True
+    return violations
+
+
+def ncap_tlife_violations(g: TimesModelClass) -> tuple[Set, Set]:
+    """NCAP_TLIFE duration check. NCAP_TLIFE out of feasible range."""
+    r, t, p, age = g.r, g.t, g.p, g.age
+    Rtp, Rxx, ncap_tlife, life = g.Rtp, g.Rxx, g.ncap_tlife, g.life
+
+    too_short = Set(g.container, name="violations_r_t_p_tlife_short", domain=[r, t, p])
+    too_long = Set(g.container, name="violations_r_t_p_tlife_long", domain=[r, t, p])
+
+    with Loop(age.sameAs("1")):
+        Rxx.setRecords(None)
+        g.putgrp[...] = 0.0
+        with Loop(
+            Rtp[r, t, p].where[
+                ((~(life[age + (ncap_tlife[Rtp] - 0.999)])).where[ncap_tlife[Rtp]])
+            ]
+        ):
+            with If(ncap_tlife[Rtp] < 1.0):
+                Rxx[Rtp] = True
+                too_short[r, t, p] = True
+            with Else():
+                too_long[r, t, p] = True
+
+    return too_short, too_long
+
+
+def diverging_trade_topology_violations(g: TimesModelClass) -> Set:
+    """Unsupported diverging trade topology."""
+
+    r, p, c, ie = g.r, g.p, g.c, g.ie
+    Com, RpcMarket, TopIre = g.Com, g.RpcMarket, g.TopIre
+    RpcIre, IreDist, CgGrp = g.RpcIre, g.IreDist, g.CgGrp
+    z = g.z
+
+    violations = Set(
+        g.container, name="violations_r_p_c_ie_trade", domain=[r, p, c, ie]
+    )
+    # * Set the import commodities for marketplaces
+    with Loop(RpcMarket[r, p, c, ie].where[(~(Sum(TopIre[r, c, r, Com, p], 1.0)))]):
+        # * If only one import and market commodity is involved for (R,P), choose the import:
+        z[...] = Sum(RpcIre[r, p, Com, "IMP"], 1.0) + SpecialValues.EPS
+        with If(IreDist[r, p]):  # noqa: SIM117
+            with If(z > 1.0):
+                violations[r, p, c, ie] = True
+        with ElseIf(z == 1.0):
+            z[...] = Sum(Com.where[RpcMarket[r, p, Com, "EXP"]], 1.0)
+        with If(z == 1.0):  # noqa: SIM117
+            with Loop(RpcIre[r, p, Com, "IMP"]):
+                z[...] = 0.0
+                CgGrp[r, p, c, Com] = True
+        with If(z):
+            CgGrp[r, p, c, c] = True
+    return violations
+
+
+def flow_off_ts_violations(g: TimesModelClass) -> Set:
+    """Flow OFF TS level below VARiable TS level."""
+    r, p, c, ts, s = g.r, g.p, g.c, g.ts, g.s
+    bohyear, eohyear = g.bohyear, g.eohyear
+    PrcFoff, Rpc, RpcsVar, RsBelow = g.PrcFoff, g.Rpc, g.RpcsVar, g.RsBelow
+
+    violations = Set(
+        g.container,
+        name="violations_r_p_c_ts_boh_eoh",
+        domain=[r, p, c, ts, bohyear, eohyear],
+    )
+    with Loop(
+        PrcFoff[Rpc[r, p, c], ts, bohyear, eohyear].where[
+            Sum(RpcsVar[r, p, c, s].where[RsBelow[r, s, ts]], 1.0)
+        ]
+    ):
+        violations[r, p, c, ts, bohyear, eohyear] = True
+    return violations
+
+
+def ncap_pasti_violations(g: TimesModelClass) -> Set:
+    """Delayed Process but PASTInvestment."""
+    r, p, pyr = g.r, g.p, g.pyr
+    Trackp, ncap_pasti, prc_ymax = g.Trackp, g.ncap_pasti, g.prc_ymax
+
+    violations = Set(g.container, name="violations_ncap_pasti", domain=[r, p])
+    violations[r, p].where[
+        Trackp[r, p] & Sum(pyr.where[ncap_pasti[r, pyr, p]], 1) & (prc_ymax[r, p] > 0)
+    ] = True
+    return violations
+
+
+def com_fr_normalization_violations(g: TimesModelClass) -> Set:
+    """COM_FR does not sum to unity (T=first year)."""
+    r, t, c = g.r, g.t, g.c
+    Trackc, Rtc, com_fr, z = g.Trackc, g.Rtc, g.com_fr, g.z
+
+    violations = Set(g.container, name="violations_r_t_c", domain=[r, t, c])
+    with Loop(Trackc[r, c]):
+        z[...] = 1.0
+        with Loop(  # noqa: SIM117
+            Rtc[r, t, c].where[((com_fr[r, t, c, "ANNUAL"] != 1.0).where[z])]
+        ):
+            with If(abs(com_fr[r, t, c, "ANNUAL"] - 1.0) > 1e-05):
+                z[...] = 0.0
+                violations[r, t, c] = True
+    return violations
+
+
+def cap_bnd_lo_up_violations(g: TimesModelClass) -> Set:
+    """Inconsistent CAP_BND(UP/LO/FX) defined for process capacity."""
+
+    r, t, p = g.r, g.t, g.p
+    Rtp, RtpVarp, cap_bnd = g.Rtp, g.RtpVarp, g.cap_bnd
+
+    violations = Set(
+        g.container, name="violations_r_t_p_cap_bnd_lo_up", domain=[r, t, p]
+    )
+
+    with Loop(
+        Rtp[r, t, p].where[
+            RtpVarp[r, t, p]
+            & (
+                (cap_bnd[r, t, p, "LO"] > cap_bnd[r, t, p, "UP"]).where[
+                    cap_bnd[r, t, p, "UP"]
+                ]
+            )
+        ]
+    ):
+        violations[r, t, p] = True
+    return violations
 
 
 class PpmainMod(GamsClass):
@@ -195,7 +368,7 @@ class PpmainMod(GamsClass):
         self.tc.enqueue(self.phase_five, botime=self.env.botime)
 
         # * Check NCAP_PASTI
-        self.tc.enqueue(self.check_ncap_pasti, rl=self.env.rl)
+        self.tc.enqueue(self.check_ncap_pasti)
 
         # Set the RTP_OFF for all remaining PRC_NOFF ranges
         self.tc.enqueue(self.set_rtp_off)
@@ -213,9 +386,7 @@ class PpmainMod(GamsClass):
         # moved symbol declarion to maindrv_mod.py
         g.Subt.setRecords(records=g.t.toList())
 
-        self.tc.enqueue(
-            self.phase_six, rl=self.env.rl, pl=self.env.pl, ctst=self.env.ctst
-        )
+        self.tc.enqueue(self.phase_six, ctst=self.env.ctst)
 
         # * Checks for host processes of refits
         if g.PrcRcap is None:
@@ -234,9 +405,6 @@ class PpmainMod(GamsClass):
         self.tc.register_assignment(g.rcap_bnd)
         self.tc.enqueue(
             self.phase_eight,
-            pl=self.env.pl,
-            rl=self.env.rl,
-            cl=self.env.cl,
             pgprim=self.env.pgprim,
             prc_simv_defined=self.tc.defined("PRC_SIMV"),
         )
@@ -318,7 +486,7 @@ class PpmainMod(GamsClass):
         for pp_lvlfc_config in batincludes:
             self.include(PpLvlfcMod(tc=self.tc, env=self.env, config=pp_lvlfc_config))
 
-        self.tc.enqueue(self.phase_twelve, rl=self.env.rl, cl=self.env.cl)
+        self.tc.enqueue(self.phase_twelve)
 
         # Split of timeslice based upon level and commodity profile
         if "RTCS_FRMX" not in m.listParameters():
@@ -521,7 +689,6 @@ class PpmainMod(GamsClass):
             self.phase_eightteen,
             micro=self.env.micro,
             macro=self.env.macro,
-            rl=self.env.rl,
             pgprim=self.env.pgprim,
         )
 
@@ -1072,19 +1239,20 @@ class PpmainMod(GamsClass):
         ] = (g.prc_ymax[g.r, g.p] - g.b[g.t] + 1.0) / g.d[g.t] >= g.g_offthd[g.t]
         g.prc_ymax[g.Trackp[g.r, g.p]] = Smax(g.RtpOff[g.r, g.t, g.p], g.e[g.t])
 
-    def check_ncap_pasti(self: PpmainMod, rl: str) -> None:
+    def check_ncap_pasti(self: PpmainMod) -> None:
         g = self.tc
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-        LOOP(TRACKP(R,P)$SUM(PYR$NCAP_PASTI(R,PYR,P),1),
-            IF(PRC_YMAX(R,P) GT 0,
-        {pp_qaput("PUTOUT", "PUTGRP", "01", "Delayed Process but PASTInvestment")}
-                PUT QLOG ' WARNING       - Delay is ignored:   R=',{rl},' P=',P.TL ;
-            PRC_YMAX(R,P) = 0));
-        """,
+
+        violations = ncap_pasti_violations(g)
+        g.pp_qaput_logger.log_violations(
+            violations_df=violations.records,
+            err_level=1,
+            group_desc="Delayed Process but PASTInvestment",
+            message_template="WARNING       - Delay is ignored: R={R} P={P}",
         )
+
+        # * the delay is ignored for processes that also carry a legacy PAST investment: PRC_YMAX(R,P) = 0
+        g.prc_ymax[g.r, g.p].where[violations[g.r, g.p]] = 0.0
+
         g.Trackp.setRecords(None)
 
     def set_rtp_off(self: PpmainMod) -> None:
@@ -1108,9 +1276,7 @@ class PpmainMod(GamsClass):
         g.Rvp[g.Rtp[g.r, g.t, g.p]] = True
         g.Trackp.setRecords(None)
 
-    def phase_six(
-        self: PpmainMod, rl: str, pl: str, ctst: Literal["", "**EPS", "**0", "1"]
-    ) -> None:
+    def phase_six(self: PpmainMod, ctst: Literal["", "**EPS", "**0", "1"]) -> None:
         g = self.tc
 
         g.RtPp[g.r, g.t] = True
@@ -1150,14 +1316,16 @@ class PpmainMod(GamsClass):
             project(source=g.Top, target=g.Dem)
             g.putgrp[...] = 0.0
 
-            self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code=f"""
-LOOP(MI_DMAS(DEM(R,C),COM),
-{pp_qaput("PUTOUT", "PUTGRP", "09", "Commodity group found in topology violating its integrity")}
-PUT QLOG ' SEVERE ERROR  - Group removed from topology:   R=',{rl},' CG=',C.TL);
-""",
+            mi_dmas_violations = mi_dmas_topology_violations(g=g)
+            g.pp_qaput_logger.log_violations(
+                violations_df=mi_dmas_violations.records,
+                err_level=9,
+                group_desc=(
+                    "Commodity group found in topology violating its integrity"
+                ),
+                message_template=(
+                    "SEVERE ERROR  - Group removed from topology:   R={R} CG={C}"
+                ),
             )
 
             project(source=g.MiDmas, target=g.Dem, direction="left")
@@ -1286,14 +1454,13 @@ PUT QLOG ' SEVERE ERROR  - Group removed from topology:   R=',{rl},' CG=',C.TL);
         g.z[...] = Card(g.PrcTsl) - g.z
         g.PrcTsl[g.r, g.p, g.tsl].where[(g.Rxx[g.r, g.tsl, g.r].where[g.z])] = False
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=f"""
-IF(F+Z, PUTGRP=0;
-{pp_qaput("PUTOUT", "PUTGRP", "01", "Commodities/processes defined at non-existing TSLVL")}
-PUT QLOG ' WARNING       - Number of COM/PRC resetted to coarser level: ',F:0:0 '/' Z:0:0/);
-""",
+        g.pp_qaput_logger.log_violations(
+            violations_df=tslvl_reset_violations_df(g.f.toValue(), g.z.toValue()),
+            err_level=1,
+            group_desc="Commodities/processes defined at non-existing TSLVL",
+            message_template=(
+                "WARNING       - Number of COM/PRC resetted to coarser level: {F}/{Z}"
+            ),
         )
 
         # * check for individual TS provided
@@ -1521,26 +1688,25 @@ PUT QLOG ' WARNING       - Number of COM/PRC resetted to coarser level: ',F:0:0 
         g.Trackp.setRecords(None)
         g.Trackpc.setRecords(None)
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-*-----------------------------------------------------------------------------
-* adjustment of life and construction lead if below threshold
-*-----------------------------------------------------------------------------
-
-* NCAP_TLIFE duration check
-LOOP(SAMEAS(AGE,'1'), OPTION CLEAR=RXX; PUTGRP = 0;
-LOOP(RTP(R,T,P)$((NOT LIFE(AGE+(NCAP_TLIFE(RTP)-.999)))$NCAP_TLIFE(RTP)),
-    {pp_qaput("PUTOUT", "PUTGRP", "01", "NCAP_TLIFE out of feasible range")}
-    IF(NCAP_TLIFE(RTP) < 1, RXX(RTP) = YES;
-        PUT QLOG ' WARNING       - Too short, set to 1,   R=',{rl},' P=',{pl},' V=',T.TL;
-    ELSE
-        PUT QLOG ' WARNING       - No FOM beyond year ',CARD(AGE):<3:0,',  R=',{rl},' P=',{pl},' V=',T.TL;
-    ));
-NCAP_TLIFE(RXX(R,V,P)) = 1);
-""",
+        # *-----------------------------------------------------------------------------
+        # * adjustment of life and construction lead if below threshold
+        # *-----------------------------------------------------------------------------
+        tlife_too_short, tlife_too_long = ncap_tlife_violations(g)
+        g.pp_qaput_logger.log_violations(
+            violations_df=tlife_too_short.records,
+            err_level=1,
+            group_desc="NCAP_TLIFE out of feasible range",
+            message_template="WARNING       - Too short, set to 1,   R={R} P={P} V={T}",
         )
+        g.pp_qaput_logger.log_violations(
+            violations_df=tlife_too_long.records,
+            err_level=1,
+            group_desc="NCAP_TLIFE out of feasible range",
+            message_template=(
+                f"WARNING       - No FOM beyond year {Card(g.age)},  R={{R}} P={{P}} V={{T}}"
+            ),
+        )
+        g.ncap_tlife[g.Rxx[g.r, g.v, g.p]] = 1.0
 
         # * set the technical lifetime if none set
         g.ncap_tlife[g.Rtp].where[~(g.ncap_tlife[g.Rtp])] = g.g_tlife
@@ -1661,9 +1827,7 @@ NCAP_TLIFE(RXX(R,V,P)) = 1);
         g.ykval.setRecords(None)
         g.coef_rtp.setRecords(None)
 
-    def phase_eight(
-        self: PpmainMod, rl: str, pl: str, cl: str, pgprim: str, prc_simv_defined: bool
-    ) -> None:
+    def phase_eight(self: PpmainMod, pgprim: str, prc_simv_defined: bool) -> None:
         g = self.tc
         g.RtpCptyr[g.r, g.Miyr1[g.t], g.t, g.p].where[
             (g.Rtp[g.r, g.t, g.p].where[g.PrcMap[g.r, "STK", g.p]])
@@ -1676,17 +1840,16 @@ NCAP_TLIFE(RXX(R,V,P)) = 1);
         g.putgrp[...] = 0.0
         g.cap_bnd[g.Rtp, g.Bdneq] = sparse(g.cap_bnd[g.Rtp, "FX"])
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-    LOOP((RTP(R,T,P),L('UP'))$((CAP_BND(RTP,L)<=PRC_RESID(RTP))$CAP_BND(RTP,L)),
-        IF(PRC_RCAP(R,P), Z=0; ELSE Z=PRC_RESID(RTP));
-        IF(Z, F=CAP_BND(RTP,L); CAP_BND(RTP,L)$(IFQ<10)=EPS; F$(0**(IFQ+F+1$RP_FLO(R,P)))=Z;
-        IF(F<Z, RCAP_BND(RTP,'N')=Z;
-        {pp_qaput("PUTOUT", "PUTGRP", "IFQ", "Inconsistent CAP_BND(UP/FX) defined for process capacity")}
-        PUT ' WARNING       - Bound converted to NCAP_BND,   R.T.P= ',RTP.TE(RTP); PUT$(IFQ>9)@28 'infeasibility detected,')));
-""",
+        cap_bnd_violations_set = cap_bnd_violations(g)
+
+        g.pp_qaput_logger.log_violations(
+            violations_df=cap_bnd_violations_set.records,
+            err_level=round(g.ifq.toValue()),
+            group_desc="Inconsistent CAP_BND(UP/FX) defined for process capacity",
+            message_template=(
+                "WARNING       - Bound converted to NCAP_BND,   R.T.P= {R}.{T}.{P}"
+                + (" infeasibility detected," if g.ifq.toValue() > 9 else "")
+            ),
         )
 
         # * clear zero / INF CAP_BNDs
@@ -1706,15 +1869,17 @@ NCAP_TLIFE(RXX(R,V,P)) = 1);
         ] = True
         g.putgrp[...] = 0.0
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-    LOOP(RTP(RTP_VARP)$((CAP_BND(RTP,'LO')>CAP_BND(RTP,'UP'))$CAP_BND(RTP,'UP')),
-    {pp_qaput("PUTOUT", "PUTGRP", "1", "Inconsistent CAP_BND(UP/LO/FX) defined for process capacity")}
-    PUT ' WARNING       - Lower bound set equal to upper bound,   R.T.P= ',RTP.TE(RTP));
-""",
+        cap_bnd_lo_up_violations_set = cap_bnd_lo_up_violations(g)
+        g.pp_qaput_logger.log_violations(
+            violations_df=cap_bnd_lo_up_violations_set.records,
+            err_level=1,
+            group_desc="Inconsistent CAP_BND(UP/LO/FX) defined for process capacity",
+            message_template=(
+                "WARNING       - Lower bound set equal to upper bound,   "
+                "R.T.P= {R}.{T}.{P}"
+            ),
         )
+
         # *-----------------------------------------------------------------------------
         # * turn off RTP/CPTYR if no new investment & installed capacity no longer available
         with Loop(g.Bdupx[g.bd]):
@@ -1770,15 +1935,12 @@ NCAP_TLIFE(RXX(R,V,P)) = 1);
             # * QC check that shut-off not specified below the VAR level
             g.RtpcsOut[g.RtpVara[g.r, g.MyFil[g.t], g.p], g.c, g.s] = True
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-    LOOP(PRC_FOFF(RPC(R,P,C),TS,BOHYEAR,EOHYEAR)$SUM(RPCS_VAR(R,P,C,S)$RS_BELOW(R,S,TS),1),
-        {pp_qaput("PUTOUT", "PUTGRP", "01", "Flow OFF TS level below VARiable TS level")}
-        PUT QLOG ' WARNING       - OFF is ignored:  R=',{rl},' P=',{pl},' C=',{cl},' S=',TS.TL ;
-    );
-""",
+        flow_off_ts_violations_set = flow_off_ts_violations(g)
+        g.pp_qaput_logger.log_violations(
+            violations_df=flow_off_ts_violations_set.records,
+            err_level=1,
+            group_desc="Flow OFF TS level below VARiable TS level",
+            message_template="WARNING       - OFF is ignored:  R={R} P={P} C={C} S={TS}",
         )
 
         g.Trackpc.setRecords(None)
@@ -1972,7 +2134,7 @@ NCAP_TLIFE(RXX(R,V,P)) = 1);
 
         g.Trackpc.setRecords(None)
 
-    def phase_twelve(self: PpmainMod, rl: str, cl: str) -> None:
+    def phase_twelve(self: PpmainMod) -> None:
         g = self.tc
         # * Defaults for infrastructure efficiency and seasonal fraction
         project(source=g.com_ie, target=g.Rcs)
@@ -2020,19 +2182,17 @@ NCAP_TLIFE(RXX(R,V,P)) = 1);
         g.com_fr[g.r, g.t, g.c, g.Annual].where[g.Trackc[g.r, g.c]] = Sum(
             g.RsBelow1[g.r, g.Annual, g.s], g.com_fr[g.r, g.t, g.c, g.s]
         )
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-* Normalize COM_FR:
-PUTGRP = 0;
-LOOP(TRACKC(R,C), Z=1;
-LOOP(RTC(R,T,C)$((COM_FR(R,T,C,'ANNUAL') NE 1)$Z),
-IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
-{pp_qaput("PUTOUT", "PUTGRP", "01", "COM_FR does not sum to unity (T=first year)")}
-    PUT QLOG ' WARNING       - Normalized to 1,   R=',{rl},' C=',{cl},' (T=',T.TL:0,')';)));
-""",
+
+        violations = com_fr_normalization_violations(g)
+        g.pp_qaput_logger.log_violations(
+            violations_df=violations.records,
+            err_level=1,
+            group_desc="COM_FR does not sum to unity (T=first year)",
+            # Use Python's left-align padding (:<13) to recreate the wide gaps!
+            message_template="WARNING       - Normalized to 1,   R={R:<12} C={C:<12} (T={T})",
         )
+
+        violations.setRecords(None)
 
         g.com_fr[g.Rtc[g.r, g.t, g.c], g.s].where[
             ((g.com_fr[g.Rtc, "ANNUAL"] != 1.0).where[g.Trackc[g.r, g.c]])
@@ -2203,9 +2363,7 @@ IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
         )
         g.RpcAct.setRecords(None)
 
-    def phase_eightteen(
-        self: PpmainMod, macro: str, micro: str, rl: str, pgprim: str
-    ) -> None:
+    def phase_eightteen(self: PpmainMod, macro: str, micro: str, pgprim: str) -> None:
         g = self.tc
 
         # *-----------------------------------------------------------------------------
@@ -2260,21 +2418,12 @@ IF(ABS(COM_FR(R,T,C,'ANNUAL')-1) GT 1E-5, Z=0;
             g.RpcMarket[g.Trackpc, "EXP"] = True
         g.putgrp[...] = 0.0
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-* Set the import commodities for marketplaces
-LOOP(RPC_MARKET(R,P,C,IE)$(NOT SUM(TOP_IRE(R,C,R,COM,P),1)),
-* If only one import and market commodity is involved for (R,P), choose the import:
-    Z=SUM(RPC_IRE(R,P,COM,'IMP'),1)+EPS;
-    IF(IRE_DIST(R,P),IF(Z GT 1,
-    {pp_qaput("PUTOUT", "PUTGRP", "01", "Unsupported diverging trade topology")}
-    PUT QLOG ' WARNING       - Too complex topology:  R=',{rl},' P=',P.TL;)
-    ELSEIF Z=1, Z=SUM(COM$RPC_MARKET(R,P,COM,'EXP'),1));
-    IF(Z EQ 1, LOOP(RPC_IRE(R,P,COM,'IMP'), Z=0; CG_GRP(R,P,C,COM) = YES));
-    IF(Z,CG_GRP(R,P,C,C) = YES));
-""",
+        trade_topology_violations = diverging_trade_topology_violations(g)
+        g.pp_qaput_logger.log_violations(
+            violations_df=trade_topology_violations.records,
+            err_level=1,
+            group_desc="Unsupported diverging trade topology",
+            message_template="WARNING       - Too complex topology:  R={R} P={P}",
         )
 
         with Loop(g.CgGrp[g.r, g.p, g.c, g.Com]):

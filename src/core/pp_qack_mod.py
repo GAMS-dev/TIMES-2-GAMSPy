@@ -49,7 +49,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import UniverseAlias
+from gamspy import Loop, Set, Sum, UniverseAlias
 
 from core.base_class import GamsClass
 from core.pp_qaput_mod import pp_qaput
@@ -59,6 +59,36 @@ if TYPE_CHECKING:
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+def rpc_in_top_violations(g: TimesModelClass) -> Set:
+    """RPC in TOP not found in any ACTFLO/FLO_SHAR/FLO_FUNC/FLO_SUM."""
+
+    r, p, c, io = g.r, g.p, g.c, g.io
+    Top, Rpc, Trackp, Trackpc = g.Top, g.Rpc, g.Trackp, g.Trackpc
+
+    violations = Set(g.container, name="violations_r_p_c_io", domain=[r, p, c, io])
+
+    with Loop(Top[Rpc[Trackp[r, p], c], io].where[~(Trackpc[r, p, c])]):
+        violations[r, p, c, io] = True
+
+    return violations
+
+
+def empty_group_violations(g: TimesModelClass) -> Set:
+    """Empty Group in FLO_SUM/FLO_FUNC/FLO_SHAR."""
+
+    r, p, c, cg = g.r, g.p, g.c, g.cg
+    RpGrp, Rp, Rpc, ComGmap = g.RpGrp, g.Rp, g.Rpc, g.ComGmap
+
+    violations = Set(
+        g.container, name="violations_r_p_cg_empty_group", domain=[r, p, cg]
+    )
+    with Loop(
+        RpGrp[Rp[r, p], cg].where[~Sum(Rpc[r, p, c].where[ComGmap[r, cg, c]], 1.0)]
+    ):
+        violations[r, p, cg] = True
+    return violations
 
 
 class PpQackMod(GamsClass):
@@ -130,12 +160,7 @@ class PpQackMod(GamsClass):
         self.tc.enqueue(self.exec4)
 
     def exec1(
-        self: PpQackMod,
-        var_uc_yes: bool,
-        rl: str,
-        pl: str,
-        cl: str,
-        pgprim: str,
+        self: PpQackMod, var_uc_yes: bool, rl: str, pl: str, cl: str, pgprim: str
     ) -> None:
         self.tc.add_gams_code(
             module=self,
@@ -340,6 +365,7 @@ class PpQackMod(GamsClass):
         pgprim_is_set: bool,
         rpg_ace_defined: bool,
     ) -> None:
+        g = self.tc
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -444,19 +470,42 @@ class PpQackMod(GamsClass):
   TRACKPC(RPC_FFUNC) = YES;
   TRACKPC(RMKC(R,P,C))$=SUM(OBJ_VFLO(R,P,C,CUR,UC_COST),1);
   LOOP(T, TRACKP(RP_STD(R,P))$RTP_VARA(R,T,P) = YES);
-  LOOP(TOP(RPC(TRACKP(R,P),C),IO)$(NOT TRACKPC(R,P,C)),
-{pp_qaput("PUTOUT", "PUTGRP", "01", "RPC in TOP not found in any ACTFLO/FLO_SHAR/FLO_FUNC/FLO_SUM")}
-         PUT QLOG ' WARNING       -     R=',{rl},' P=',{pl},' C=',{cl},' IO=',IO.TL;
-  );
-  OPTION CLEAR=TRACKP,CLEAR=TRACKPC,CLEAR=CG_GRP,CLEAR=RP_CCG;
-  PUTGRP = 0;
-* Empty groups check
-  RP_GRP(RP_PG(R,P,CG))$(NOT SUM(RPC_PG(R,P,C),1)) = YES;
-  {f"  RP_GRP(R,P,'{pgprim}') = NO;" if pgprim_is_set else ""}
-  LOOP(RP_GRP(RP(R,P),CG)$(NOT SUM(RPC(R,P,C)$COM_GMAP(R,CG,C),1)),
-{pp_qaput("PUTOUT", "PUTGRP", "01", "Empty Group in FLO_SUM/FLO_FUNC/FLO_SHAR")}
-         PUT QLOG ' WARNING       -     R=',{rl},' P=',{pl},' CG=',CG.TL;
-  );
+  """,
+        )
+
+        violations = rpc_in_top_violations(g=g)
+        g.pp_qaput_logger.log_violations(
+            violations_df=violations.records,
+            err_level=1,
+            group_desc="RPC in TOP not found in any ACTFLO/FLO_SHAR/FLO_FUNC/FLO_SUM",
+            message_template="WARNING       -     R={R} P={P} C={C} IO={IO}",
+        )
+
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code="OPTION CLEAR=TRACKP,CLEAR=TRACKPC,CLEAR=CG_GRP,CLEAR=RP_CCG; PUTGRP = 0;",
+        )
+
+        # Empty groups check
+        g.RpGrp[g.RpPg[g.r, g.p, g.cg]].where[(~(Sum(g.RpcPg[g.r, g.p, g.c], 1.0)))] = (
+            True
+        )
+        if pgprim_is_set:
+            g.RpGrp[g.r, g.p, pgprim] = False
+
+        empty_group_violations_set = empty_group_violations(g=g)
+        g.pp_qaput_logger.log_violations(
+            violations_df=empty_group_violations_set.records,
+            err_level=1,
+            group_desc="Empty Group in FLO_SUM/FLO_FUNC/FLO_SHAR",
+            message_template="WARNING       -     R={R} P={P} CG={CG}",
+        )
+
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=rf"""
   PUTGRP = 0;
 * Simultaneous NCAP_AF/NCAP_AFA availability check
   RVP(RTP(R,V,P))$(SUM(BD$NCAP_AFA(RTP,BD),1)$PRC_TSL(R,P,'ANNUAL')) = YES;
