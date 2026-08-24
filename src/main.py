@@ -13,6 +13,7 @@ from gamspy import Options, Set
 from core.initmty_mod import InitmtyMod
 from core.initsys_mod import InitsysMod
 from core.maindrv_mod import MainDrvMod
+from core.pp_qaput_mod import QALogger
 from core.read_dd import read_dd_file
 from core.utils import EscapeStack
 from utils.compile_environment import CompileEnvironment
@@ -68,6 +69,7 @@ def run_times(
         solve=solve,
         solve_options=solve_options,
         config=config,
+        pp_qaput_logger=QALogger(),
     )
 
     # Add Times Model Class to macros
