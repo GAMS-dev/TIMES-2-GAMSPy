@@ -128,9 +128,12 @@ class EquExtIer(GamsClass):
         # * by the available condensing resp. backpressure capacity
         # *-----------------------------------------------------------------------------
 
-        g.EctChp[g.Rp].where[(~(g.PrcCap[g.Rp].where[g.RpStd[g.Rp]]))] = False
+        self.tc.enqueue(self.clear_ect_chp_without_capacity)
 
         if self.env.chp_mode == "YES":
             self.include(EqchpelcIer(self.tc, self.env, arg1="L", arg2="UP"))
-        if self.env.chp_mode == "YES":
             self.include(EqchpelcIer(self.tc, self.env, arg1="E", arg2="FX"))
+
+    def clear_ect_chp_without_capacity(self: EquExtIer) -> None:
+        g = self.tc
+        g.EctChp[g.Rp].where[(~(g.PrcCap[g.Rp].where[g.RpStd[g.Rp]]))] = False

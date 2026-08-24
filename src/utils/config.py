@@ -28,6 +28,9 @@ class EnvironmentVariableSchema(BaseModel):
     ier: Literal["YES", "NO"] = Field(
         description="Activates the IER (Institute for the Rational Use of Energy) CHP/market-share extension. Unlike most extensions, TIMES has no %IER%==YES switch for it -- it is passed positionally as `IER` to initmty.mod's BATINCLUDE."
     )
+    chp_mode: Literal["YES", "NO"] = Field(
+        description="Within the IER extension, activates extraction-condensing CHP handling (pp_chp.ier, eqchpelc.ier, rpt_chp.ier)."
+    )
     abs_GP: Number = Field(
         description="Option to use the Ancillary Balancing Services extension."
     )
@@ -666,6 +669,7 @@ class UserConfig(BaseModel):
     dumpsol: Literal["YES", "NO"] = "NO"
     solans: Literal["YES", "NO"] = "NO"
     ier: Literal["YES", "NO"] = "NO"
+    chp_mode: Literal["YES", "NO"] = "NO"
     err_abort: Literal["YES", "NO"] = "YES"
     gams_cgi: Literal["NO", "WWW"] = "NO"
     solve_now: Literal["YES", "NO"] = "YES"
