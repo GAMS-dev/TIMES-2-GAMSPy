@@ -12,15 +12,20 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
-from gamspy import Parameter, Set
+from gamspy import Domain, If, Loop, Number, Ord, Parameter, Set, Smax, Sum
+from gamspy.math import Min, Round, exp, project
 
 from core import prepret_dsc
 from core.base_class import GamsClass
+from core.utils import resolve_ctst
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
+    from gamspy._symbols.implicits import ImplicitParameter
+
+    from core.utils import SET_OR_ALIAS
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -45,12 +50,16 @@ class EqobsalvMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        g = self.tc
-        m = g.container
-
         if self.tc.defined("OBJSCC"):
             self._label_prepro()
             return
+
+        self.declarations()
+        self._label_prepro()
+
+    def declarations(self) -> None:
+        g = self.tc
+        m = g.container
 
         g.salv_dec = Parameter(
             m, name="SALV_DEC", domain=[g.Reg, g.allyear, g.prc, g.cur]
@@ -61,10 +70,17 @@ class EqobsalvMod(GamsClass):
         g.ObjSali = Set(
             m,
             name="OBJ_SALI",
-            domain=[g.r, g.allyear, g.p, g.age, g.year, g.age, g.allyear, g.year],
+            domain=[
+                g.r,
+                g.allyear,
+                g.p,
+                g.age,
+                g.year,
+                g.age,
+                g.allyear,
+                g.year,
+            ],
         )
-
-        self._label_prepro()
 
     def _label_prepro(self) -> None:
         self.tc.enqueue(
@@ -73,7 +89,7 @@ class EqobsalvMod(GamsClass):
             timestep_is_set=self.env.is_set("TIMESTEP"),
             stepped=self.env.stepped,
             ctst=self.env.ctst,
-            capjd=self.env.capjd,
+            capjd=self.env.capjd_GP,
             etl=self.env.etl,
             declif=self.env.declif,
             vnret_defined=self.tc.defined("VNRET"),
@@ -96,25 +112,22 @@ class EqobsalvMod(GamsClass):
         arg1: str,
         timestep_is_set: bool,
         stepped: str,
-        ctst: str,
-        capjd: str,
+        ctst: Literal["", "**EPS", "**0", "1"],
+        capjd: ImplicitParameter | Number,
         etl: str,
         declif: str,
         vnret_defined: bool,
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=eqobsalv_prepro(
-                arg1=arg1,
-                timestep_is_set=timestep_is_set,
-                stepped=stepped,
-                ctst=ctst,
-                capjd=capjd,
-                etl=etl,
-                declif=declif,
-                vnret_defined=vnret_defined,
-            ),
+        eqobsalv_prepro_GP(
+            tc=self.tc,
+            arg1=arg1,
+            timestep_is_set=timestep_is_set,
+            stepped=stepped,
+            ctst=ctst,
+            capjd=capjd,
+            etl=etl,
+            declif=declif,
+            vnret_defined=vnret_defined,
         )
 
     def _label_equa(
@@ -204,102 +217,204 @@ class EqobsalvMod(GamsClass):
         self.tc.add_gams_code(module=self, phase="init", code=equation)
 
 
-def eqobsalv_prepro(
+def eqobsalv_prepro_GP(
     *,
+    tc: TimesModelClass,
     arg1: str,
     timestep_is_set: bool,
     stepped: str,
-    ctst: str,
-    capjd: str,
+    ctst: Literal["", "**EPS", "**0", "1"],
+    capjd: ImplicitParameter | Number,
     etl: str,
     declif: str,
     vnret_defined: bool,
-) -> str:
+) -> None:
+    """GAMSPy twin of the ``$LABEL PREPRO`` block of ``eqobsalv.mod``."""
+    # $IF %STEPPED%==+ / $IFI %1==mod $GOTO EQUA
     if stepped == "+" and arg1.upper() == "MOD":
-        return ""
+        return
 
-    pft = ""
+    g = tc
+
+    # $SET PFT ''
+    # $IF NOT DEFINED VNRET / $IF NOT '%CTST%'=='' $SET PFT (T)
+    pft: SET_OR_ALIAS = g.v
     if not vnret_defined and ctst != "":
-        pft = "(T)"
+        pft = g.v[g.t]
 
-    return rf"""
-{
-        "OPTION CLEAR=OBJ_SUMS,CLEAR=OBJ_SUMS3,CLEAR=SALV_INV,CLEAR=OBJSCC;"
-        if timestep_is_set
-        else ""
-    }
-* Salvaging of Investments; LL is investment year, K is commissioning year
-*[UR] 19.12.2003 added -1 in line below, since lifetime starts at the beginning of year K
-  OBJ_SALI(OBJ_SUMII(R,V{
-        pft
-    },P,AGE,K_EOH,JOT),K,LL--ORD(LL))$((YEARVAL(K)+NCAP_TLIFE(R,V,P)-1>MIYR_VL)$INVSPRED(K_EOH,JOT,K,LL))=YES;
-  OPTION OBJ_SUMSI <= OBJ_SALI, CLEAR=OBJ_SALI;
+    (r, v, t, p, k, ll, age, jot, cur, prc) = (
+        g.r,
+        g.v,
+        g.t,
+        g.p,
+        g.k,
+        g.ll,
+        g.age,
+        g.jot,
+        g.cur,
+        g.prc,
+    )
+    (ObjSali, ObjSumii, ObjSumsi, ObjSums, ObjSums3, ObjSumiii, ObjSumivs) = (
+        g.ObjSali,
+        g.ObjSumii,
+        g.ObjSumsi,
+        g.ObjSums,
+        g.ObjSums3,
+        g.ObjSumiii,
+        g.ObjSumivs,
+    )
+    (KEoh, Invspred, Rp, Rdcur, ObjIcur, Rtp, Y, Pastmile, GRcur) = (
+        g.KEoh,
+        g.Invspred,
+        g.Rp,
+        g.Rdcur,
+        g.ObjIcur,
+        g.Rtp,
+        g.Y,
+        g.Pastmile,
+        g.GRcur,
+    )
+    (salv_inv, objscc, obj_dceoh, ncap_tlife, yearval, obj_disc) = (
+        g.salv_inv,
+        g.objscc,
+        g.obj_dceoh,
+        g.ncap_tlife,
+        g.yearval,
+        g.obj_disc,
+    )
 
-* No retrofit salvage
-  LOOP((RP(R,PRC),P)$PRC_REFIT(RP,P),IF(PRC_REFIT(RP,P)<0, OBJ_SUMSI(R,T,P,K)=NO));
-  OPTION OBJ_SUMS <= OBJ_SUMSI;
+    # * Check stepped mode
+    if timestep_is_set:
+        ObjSums.setRecords(None)
+        ObjSums3.setRecords(None)
+        salv_inv.setRecords(None)
+        objscc.setRecords(None)
 
-* Salvaging of Decommissioning
-  LOOP(OBJ_SUMIII(OBJ_SUMS(R,V,P),LL,K,Y), OBJ_SUMS3(R,V,P) = YES);
-* Salvaging of Decommissioning surveillance
-  LOOP(OBJ_SUMIVS(R,V,P,K,Y)$(YEARVAL(K)+NCAP_TLIFE(R,V,P)-1 GT MIYR_VL),
-    OBJ_SUMS3(R,V,P) = YES; OBJ_SUMSI(R,V,P,K) = YES);
+    # * Salvaging of Investments; LL is investment year, K is commissioning year
+    # [UR] 19.12.2003 added -1 below, since lifetime starts at the beginning of year K
+    ObjSali[ObjSumii[r, pft, p, age, KEoh, jot], k, ll.lag(Ord(ll), "circular")].where[
+        (yearval[k] + ncap_tlife[r, v, p] - 1 > g.miyr_vl).where[
+            Invspred[KEoh, jot, k, ll]
+        ]
+    ] = True
+    project(source=ObjSali, target=ObjSumsi, direction="left")
+    ObjSali.setRecords(None)
 
-*===============================================================================
-  LOOP(RDCUR(R,CUR),
-* Salvage proportion of investments at the commissioning year K:
-   SALV_INV(OBJ_SUMSI(R,V,P,K))$OBJ_ICUR(R,V,P,CUR) =
-       MIN(1,(((1+G_DRATE(R,V,CUR))*EXP(NCAP_FDR(R,V,P)))**(NCAP_TLIFE(R,V,P)+YEARVAL(K)-MIYR_VL-1)-1) /
-             (((1+G_DRATE(R,V,CUR))*EXP(NCAP_FDR(R,V,P)))**NCAP_TLIFE(R,V,P)-1));
-  );
-* Discount factors for the year EOH+1:
-  LOOP(MIYR_1(LL), F = MIYR_VL+1-YEARVAL(MIYR_1); OBJ_DCEOH(RDCUR(R,CUR)) = OBJ_DISC(R,LL+F,CUR));
-* Shape-reduced salvage at EOH+1:
-  Z = SMAX(T$(B(T)<=MIYR_VL+1),ORD(T)-1);
-  LOOP(MIYR_1(T-Z), SALV_INV(OBJ_SUMSI(RTP,K))$NCAP_CPX(RTP) = SALV_INV(RTP,K)*(1+RTP_CPX(RTP,T)));
+    # * No retrofit salvage
+    with (
+        Loop(Domain(Rp[r, prc], p).where[g.prc_refit[Rp, p]]),
+        If(g.prc_refit[Rp, p] < 0),
+    ):
+        ObjSumsi[r, t, p, k] = False
+    project(source=ObjSumsi, target=ObjSums, direction="left")
 
-  OPTION CLEAR = OBJ_SUMSI;
-*===============================================================================
-* Salvage value of investments at year EOH+1:
-* Note that in Cases 2a and 2b investment costs are paid before K
-  OBJSCC(OBJ_ICUR(OBJ_SUMS(R,V,P),CUR)) = COR_SALVI(R,V,P,CUR) / OBJ_DCEOH(R,CUR) / OBJ_DIVI(R,V,P) *
-    SUM((OBJ_SUMII(R,V,P,AGE,K_EOH,JOT),INVSPRED(K_EOH,JOT,LL,K))$SALV_INV(R,V,P,LL),{
-        capjd
-    }
-        ({macro.obj_icost("R", "K", "P", "CUR")}+{
-        macro.obj_itax("R", "K", "P", "CUR")
-    }-{macro.obj_isub("R", "K", "P", "CUR")}) * SALV_INV(R,V,P,LL) * OBJ_DISC(R,K,CUR));
+    # * Salvaging of Decommissioning
+    with Loop(ObjSumiii[ObjSums[r, v, p], ll, k, Y]):
+        ObjSums3[r, v, p] = True
+    # * Salvaging of Decommissioning surveillance
+    with Loop(
+        ObjSumivs[r, v, p, k, Y].where[yearval[k] + ncap_tlife[r, v, p] - 1 > g.miyr_vl]
+    ):
+        ObjSums3[r, v, p] = True
+        ObjSumsi[r, v, p, k] = True
 
-{
-        rf'''
-LOOP((OBJ_SUMS(R,T(V),P),G_RCUR(R,CUR))$SEG(R,P),
-  OBJSIC(R,T,P) = COR_SALVI(R,T,P,CUR) / OBJ_DCEOH(R,CUR) / OBJ_DIVI(R,T,P) *
-    SUM((OBJ_SUMII(R,V,P,AGE,K_EOH,JOT),INVSPRED(K_EOH,JOT,LL,K)),{capjd} SALV_INV(R,T,P,LL)*OBJ_DISC(R,K,CUR)));
-'''
-        if etl == "YES"
-        else ""
-    }
+    with Loop(Rdcur[r, cur]):
+        # * Salvage proportion of investments at the commissioning year K:
+        rate = (1 + g.g_drate[r, v, cur]) * exp(g.ncap_fdr[r, v, p])
+        salv_inv[ObjSumsi[r, v, p, k]].where[ObjIcur[r, v, p, cur]] = Min(
+            1,
+            (rate ** (ncap_tlife[r, v, p] + yearval[k] - g.miyr_vl - 1) - 1)
+            / (rate ** ncap_tlife[r, v, p] - 1),
+        )
 
-* Additional constant term
-  OBJ_IAD(RDCUR(R,CUR)) = SUM(OBJ_ICUR(OBJ_SUMS(R,PASTMILE(V),P),CUR)$((OBJ_PASTI(R,V,P,CUR)=0)+0{
-        ctst
-    }),OBJSCC(R,V,P,CUR)*NCAP_PASTI(R,V,P)*OBJ_DCEOH(R,CUR));
-*===============================================================================
-*GG* only if decommissioning lifetime provided by user
-  COR_SALVD(RTP(R,V,P),CUR)${macro.obj_dcost("R", "V", "P", "CUR")} =
-                   (((1-1/(1+NCAP_DRATE(R,V,P)))*(1-1/(1+OBJ_RFR(R,V,CUR))**NCAP_DELIF(R,V,P)))/
-                    ((1-1/(1+OBJ_RFR(R,V,CUR)))*(1-1/(1+NCAP_DRATE(R,V,P))**NCAP_DELIF(R,V,P)))
-                    )$(NCAP_DRATE(R,V,P) GT 0) + 1$(NCAP_DRATE(R,V,P) EQ 0);
-  OBJ_CRFD(RTP(R,V,P),CUR)${
-        macro.obj_dcost("R", "V", "P", "CUR")
-    } = COR_SALVD(R,V,P,CUR) * (1-(1/(1+G_DRATE(R,V,CUR)))) / (1-(1+G_DRATE(R,V,CUR))**(-ROUND(NCAP_{
-        declif
-    }(R,V,P))));
-*------------------------------------------------------------------------------
-* Salvage value of Decommissioning at year EOH+1:
-* Documentation defines the value for each decommissioning year Y; here aggregated by vintage
-  SALV_DEC(OBJ_SUMS3(R,V,P),CUR)$COR_SALVD(R,V,P,CUR) = COR_SALVD(R,V,P,CUR) / OBJ_DIVIII(R,V,P) / OBJ_DCEOH(R,CUR) *
-      SUM(OBJ_SUMIII(R,V,P,LL,K,Y)$SALV_INV(R,V,P,LL),SALV_INV(R,V,P,LL)*{
-        macro.obj_dcost("R", "K", "P", "CUR")
-    }*OBJ_DISC(R,Y,CUR));
-"""
+    # * Discount factors for the year EOH+1:
+    with Loop(g.Miyr1[ll]):
+        g.f[...] = g.miyr_vl + 1 - yearval[g.Miyr1]
+        obj_dceoh[Rdcur[r, cur]] = obj_disc[r, ll + g.f, cur]
+    # * Shape-reduced salvage at EOH+1:
+    g.z[...] = Smax(t.where[g.b[t] <= g.miyr_vl + 1], Ord(t) - 1)
+    with Loop(g.Miyr1[t - g.z]):
+        salv_inv[ObjSumsi[Rtp, k]].where[g.ncap_cpx[Rtp]] = salv_inv[Rtp, k] * (
+            1 + g.rtp_cpx[Rtp, t]
+        )
+
+    ObjSumsi.setRecords(None)
+
+    # * Salvage value of investments at year EOH+1:
+    # * Note that in Cases 2a and 2b investment costs are paid before K
+    objscc[ObjIcur[ObjSums[r, v, p], cur]] = (
+        g.cor_salvi[r, v, p, cur]
+        / obj_dceoh[r, cur]
+        / g.obj_divi[r, v, p]
+        * Sum(
+            Domain(ObjSumii[r, v, p, age, KEoh, jot], Invspred[KEoh, jot, ll, k]).where[
+                salv_inv[r, v, p, ll]
+            ],
+            capjd
+            * (
+                macro.obj_icost_GP(r, k, p, cur)
+                + macro.obj_itax_GP(r, k, p, cur)
+                - macro.obj_isub_GP(r, k, p, cur)
+            )
+            * salv_inv[r, v, p, ll]
+            * obj_disc[r, k, cur],
+        )
+    )
+
+    # * Handle ETL in similar fashion
+    if etl == "YES":
+        with Loop(Domain(ObjSums[r, t[v], p], GRcur[r, cur]).where[g.seg[r, p]]):
+            g.objsic[r, t, p] = (
+                g.cor_salvi[r, t, p, cur]
+                / obj_dceoh[r, cur]
+                / g.obj_divi[r, t, p]
+                * Sum(
+                    Domain(
+                        ObjSumii[r, v, p, age, KEoh, jot],
+                        Invspred[KEoh, jot, ll, k],
+                    ),
+                    capjd * salv_inv[r, t, p, ll] * obj_disc[r, k, cur],
+                )
+            )
+
+    # * Additional constant term
+    g.obj_iad[Rdcur[r, cur]] = Sum(
+        ObjIcur[ObjSums[r, Pastmile[v], p], cur].where[
+            (g.obj_pasti[r, v, p, cur] == 0) + resolve_ctst(Number(0), ctst)
+        ],
+        objscc[r, v, p, cur] * g.ncap_pasti[r, v, p] * obj_dceoh[r, cur],
+    )
+
+    # *GG* only if decommissioning lifetime provided by user
+    ncap_drate, obj_rfr, ncap_delif = g.ncap_drate, g.obj_rfr, g.ncap_delif
+    g.cor_salvd[Rtp[r, v, p], cur].where[macro.obj_dcost_GP(r, v, p, cur)] = (
+        (
+            (1 - 1 / (1 + ncap_drate[r, v, p]))
+            * (1 - 1 / (1 + obj_rfr[r, v, cur]) ** ncap_delif[r, v, p])
+        )
+        / (
+            (1 - 1 / (1 + obj_rfr[r, v, cur]))
+            * (1 - 1 / (1 + ncap_drate[r, v, p]) ** ncap_delif[r, v, p])
+        )
+    ).where[ncap_drate[r, v, p] > 0] + Number(1).where[ncap_drate[r, v, p] == 0]
+    ncap_declif = g.get_parameter(f"NCAP_{declif}")
+    g.obj_crfd[Rtp[r, v, p], cur].where[macro.obj_dcost_GP(r, v, p, cur)] = (
+        g.cor_salvd[r, v, p, cur]
+        * (1 - (1 / (1 + g.g_drate[r, v, cur])))
+        / (1 - (1 + g.g_drate[r, v, cur]) ** (-Round(ncap_declif[r, v, p])))
+    )
+
+    # * Salvage value of Decommissioning at year EOH+1:
+    # * Documentation defines the value for each decommissioning year Y;
+    # * here aggregated by vintage
+    g.salv_dec[ObjSums3[r, v, p], cur].where[g.cor_salvd[r, v, p, cur]] = (
+        g.cor_salvd[r, v, p, cur]
+        / g.obj_diviii[r, v, p]
+        / obj_dceoh[r, cur]
+        * Sum(
+            ObjSumiii[r, v, p, ll, k, Y].where[salv_inv[r, v, p, ll]],
+            salv_inv[r, v, p, ll]
+            * macro.obj_dcost_GP(r, k, p, cur)
+            * obj_disc[r, Y, cur],
+        )
+    )

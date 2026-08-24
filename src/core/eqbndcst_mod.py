@@ -36,6 +36,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# SET COST_GMAP(COSTAGG,COSTAGG,COSTYPE) / ... /;
+# The nested GAMS short-hand `AGG.(CAT.TYPE,...)` is expanded here.
 COST_GMAP_RECORDS: list[tuple[str, str, str]] = [
     ("INVTAXSUB", "INVTAX", "TAX"),
     ("INVTAXSUB", "INVSUB", "SUB"),
