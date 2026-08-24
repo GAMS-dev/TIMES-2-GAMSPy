@@ -2803,6 +2803,29 @@ REGISTRY.update(
         "demos_012e_ier": derive_from(
             "demos_012e", run_name="demos_012e_ier", ier="YES"
         ),
+        # reaches: pp_chp_ier.py/pp_chp.ier, eqchpelc_ier.py/eqchpelc.ier -- the
+        # extraction-condensing CHP handling within the IER extension. CHP_MODE
+        # was previously unwired: not registered on EnvironmentVariableSchema/
+        # UserConfig, so env.chp_mode always fell back to the undefined-macro
+        # sentinel and could never equal "YES". Added chp_mode as a proper
+        # switch (config.py) to make this reachable.
+        # No demo dataset in this repo defines any ECT_CHP members, so this
+        # also adds chp_synth.dd: a minimal synthetic extraction-condensing
+        # CHP process (additive-only, capacity capped at 0 via NCAP_BND so it
+        # cannot affect the solve) giving pp_chp.ier real, non-empty data to
+        # compute over instead of running on an empty set. Verified against
+        # real GAMS: ECT_REH/ECT_INP2ELC/ECT_INP2DHT/ECT_INP2CON come out
+        # populated with real values for the synthetic process.
+        "demos_012e_ier_chp": derive_from(
+            "demos_012e", run_name="demos_012e_ier_chp", ier="YES", chp_mode="YES"
+        ).model_copy(
+            update={
+                "data_modules": [
+                    *REGISTRY["demos_012e"].data_modules,
+                    Path("chp_synth.dd"),
+                ]
+            }
+        ),
         # reaches: coef_alt.lin/coef_alt_lin.py
         "demos_012e_oblongno": derive_from(
             "demos_012e", run_name="demos_012e_oblongno", oblong="NO"

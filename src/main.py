@@ -103,14 +103,18 @@ def run_times(
         initmty_arg1 = "IER" if config.env_vars.ier.upper() == "YES" else ""
         model.register_module(InitmtyMod(tc=model, env=env, arg1=initmty_arg1))
 
-        # Central data load (DD files)
-        for file in config.data_modules:
-            read_dd_file(tc=model, dd_path=Path(config.data_dir, file))
-
-        # Reduced model to fit with GAMS community license
+        # Reduced model to fit with GAMS community license. Mirrors the .run
+        # files' `SET MILESTONYR /.../;`, which is placed right after
+        # `$BATINCLUDE initmty.mod` and before all the data BATINCLUDEs -- some
+        # data modules assign over T (the alias of MILESTONYR) and require it
+        # to already hold its final records.
         milestonyr = model.container["MILESTONYR"]
         assert isinstance(milestonyr, Set)
         milestonyr.setRecords(config.milestone_years)
+
+        # Central data load (DD files)
+        for file in config.data_modules:
+            read_dd_file(tc=model, dd_path=Path(config.data_dir, file))
 
         model.register_module(MainDrvMod(tc=model, env=env, arg1="mod"))
 
