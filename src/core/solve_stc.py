@@ -96,8 +96,10 @@ class SolveStc(GamsClass):
 
         rptlite_no_code = (
             rptlite_rpt(
-                config=RptliteRptConfig(arg1="S", arg2=(self.tc.ww,)),
-                sow="ALLSOW,",
+                config=RptliteRptConfig(
+                    arg1="S", arg2=(self.tc.ww,), arg3=(self.tc.allsow,), arg4="NO"
+                ),
+                sow=self.env.sow,
                 sysprefix=self.env.sysprefix,
                 sensis=self.env.sensis,
                 var_uc=self.env.var_uc,

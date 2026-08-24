@@ -85,7 +85,7 @@ class EnvironmentVariableSchema(BaseModel):
     spines: Literal["YES", "NO"] = Field(
         description="Activates stochastic mode while setting the SOW index inactive for capacity-related investment variables to find optimal strategies under recurring uncertainties."
     )
-    stages: Literal["YES", "Yes", "NO", "%stages%"] = Field(
+    stages: Literal["YES", "Yes", "yes", "NO", "%stages%"] = Field(
         description="Activates multi-stage stochastic programming features for sensitivity, uncertainty hedging, and tradeoff analysis."
     )
 
@@ -655,7 +655,7 @@ class EnvironmentVariableSchema(BaseModel):
 
 
 class UserConfig(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
     validate_: Literal["NO", "%validate%"] = Field(
         default="%validate%", alias="validate"
@@ -678,6 +678,7 @@ class UserConfig(BaseModel):
     objann: Literal["YES", "NO", "%objann%"] = "%objann%"
     damage: Literal["LP", "NLP", "NO"] = "LP"
     stages: Literal["YES", "Yes", "NO", "%stages%"] = "%stages%"
+    sensis: Literal["YES", "NO", "%sensis%"] = "%sensis%"
     solveda: Literal["YES", "1", "%solveda%"] = "%solveda%"
     varcost: Literal["LIN", "%varcost%"] = "%varcost%"
     dscauto: Literal["YES", "%dscauto%"] = "%dscauto%"

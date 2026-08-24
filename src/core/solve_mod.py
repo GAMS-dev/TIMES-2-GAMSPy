@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import re
+import shutil
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -127,6 +128,68 @@ def set_model_param(module: GamsClass, model_name: str) -> None:
 {model_name}.TOLPROJ= 1e-8;
 """,
     )
+
+
+def write_run_solver_options(g: TimesModelClass, solver: str) -> None:
+    """Make the run's solver option file visible to raw GAMS ``SOLVE`` statements.
+
+    The emitted code sets ``<model>.optfile = 1``, so GAMS looks for ``<solver>.opt``
+    in its own option directory -- for a GAMSPy-generated job that is a scratch
+    directory, not the run's data directory the reference GAMS run receives via
+    ``OptDir=``. Without this the solver silently falls back to its defaults, and on a
+    degenerate LP that alone is enough to settle on a different (equally optimal)
+    vertex. The solves GAMSPy owns get the same file through
+    :func:`solve_times_as_lp_mip`.
+    """
+    option_file = Path(g.config.data_dir, f"{solver}.opt")
+    if not option_file.is_file():
+        logger.warning(
+            "No %s option file at %s; the emitted SOLVE will use solver defaults.",
+            solver,
+            option_file,
+        )
+        return
+
+    # Copied rather than routed through Container.writeSolverOptions(), which
+    # validates entries and rejects files GAMS itself merely warns about (e.g.
+    # cplex' "iis yes"). GAMS resolves optfile against its option directory, which
+    # defaults to the working directory GAMSPy runs every generated job in.
+    shutil.copyfile(option_file, Path(g.container.working_directory, option_file.name))
+
+
+def convert_dump_gams_code(
+    *, model_name: str, method: str, convert_gdx: Path, lp_solver: str
+) -> str:
+    """GAMS code that dumps the generated LP/MIP through the CONVERT solver.
+
+    This is the translation of solve.mod lines 38-48: write a ``convert.opt``
+    holding ``DumpGDX``, solve once with ``lp/mip=convert`` so CONVERT writes the
+    matrix to that GDX, then restore the real solver for the solve that follows.
+
+    Needed by the code paths that emit a raw GAMS ``SOLVE`` (the SOW loops in
+    solve.stc). Where GAMSPy owns the solve it dumps natively instead, via
+    ``model.solve(solver="convert", solver_options={"DumpGDX": ...})`` -- see
+    :func:`solve_times_as_lp_mip`.
+
+    The GDX path is made absolute because the emitted code runs in GAMS' own
+    working directory, which is not the process' working directory.
+    """
+    # GAMS hardcodes `option lp=cplex, mip=cplex` here; restore what the run
+    # actually configured instead.
+    solver = lp_solver.lower()
+    return rf"""
+$onEcho > %gams.optDir%%system.dirSep%convert.opt
+DumpGDX {Path(convert_gdx).resolve().as_posix()}
+!dict {model_name}_dict.txt
+$offEcho
+
+{model_name}.optfile = 1;
+*{model_name}.dictfile = 1;
+option lp=convert, mip=convert;
+SOLVE {model_name} MINIMIZING objZ USING {method};
+
+option lp={solver}, mip={solver};
+"""
 
 
 def solve_times(module: GamsClass, model_name: str, method: str) -> None:
@@ -251,11 +314,6 @@ def solve_mod(
     nonlp: str = "",
     gams_cgi: str = "",
 ) -> str:
-    # g.container.writeSolverOptions(solver='convert', solver_options={
-    #             "DumpGDX": g.output_convert,
-    #             "dict": "GAMSPY_dict.txt"
-    #         },)
-
     uses_nlp = damage == "NLP" or micro == "YES" or macro == "YES"
 
     uses_mip = etl == "YES" or solmip == "YES"
@@ -273,8 +331,17 @@ def solve_mod(
         )
 
     else:
+        solver = g.config.lp_solver.lower()
+        write_run_solver_options(g, solver)
+        convert_dump = convert_dump_gams_code(
+            model_name=model_name,
+            method=method,
+            convert_gdx=g.output_convert,
+            lp_solver=solver,
+        )
         if g.solve:
             solve_stmt = f"""
+{convert_dump}
 * solve TIMES as an LP/MIP
 SOLVE {model_name} MINIMIZING objZ USING {method};
 """
@@ -282,6 +349,7 @@ SOLVE {model_name} MINIMIZING objZ USING {method};
             savepoint_path = Path(g.config.data_dir, "times_p2.gdx").absolute()
             modelstat_path = Path(g.config.data_dir, "times_modelstat.inc").absolute()
             solve_stmt = f"""
+{convert_dump}
 * generate model but do not pass it to the solver
   {model_name}.JustScrDir=1;
   SOLVE {model_name} MINIMIZING objZ USING {method};
@@ -299,11 +367,6 @@ SOLVE {model_name} MINIMIZING objZ USING {method};
 * set the model solver status
 {model_name}.MODELSTAT = 0;
 {model_name}.TOLPROJ= 1e-8;
-
-
-* {model_name}.optfile = 1;
-* {model_name}.dictfile = 1;
-* option lp=convert, mip=convert;
 
 * MACRO: Loading solution from GDX file replaced by activating the SPOINT utility
 {

@@ -30,11 +30,7 @@ class SensisStc(GamsClass):
     module_name: str = "sensis_stc"
     gams_source: str = "sensis.stc"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
         self.env = env.fork()
         self.tc = tc
         self._sub_modules = {}
@@ -59,7 +55,7 @@ class SensisStc(GamsClass):
             abs_=self.env.abs_,
             macro=self.env.macro,
             rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
-            s_cap_bnd_declared=self.tc.defined(f"{var}_CAP"),
+            s_cap_bnd_declared=self.tc.defined("S_CAP_BND"),
             bnd_ucw_defined={
                 f"{var}_UC": self.tc.defined(f"{var}_UC"),
                 f"{var}_UCR": self.tc.defined(f"{var}_UCR"),
@@ -166,7 +162,7 @@ def sensis_stc(
 {
         bnd_set_mod(
             arg1=f"{var}_CAP",
-            arg2="'R,T,P'",
+            arg2="R,T,P",
             arg3="CAP_BND",
             arg4="RTP(RT_PP(R,T),P)",
             arg5="",

@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 class RptliteRptConfig:
     arg1: str = ""  # Alias s
     arg2: tuple[Alias] | tuple[()] = ()  # Alias ww
-    arg3: tuple[Literal["'1'"]] | tuple[()] = ()
+    arg3: tuple[Literal["'1'"] | Alias | Set] | tuple[()] = ()
     arg4: tuple[Literal["NO"]] | tuple[()] | str = ()
 
 
@@ -126,7 +126,8 @@ class RptliteRpt(GamsClass):
             )
         )
 
-        g.ww = Alias(m, name="WW", alias_with=g.allsow)
+        # Moved up to rptmain_mod.py
+        # g.ww = Alias(m, name="WW", alias_with=g.allsow)
 
         if self.env.is_set("rpt_opt"):
             if g.rpt_opt is not None:
@@ -645,7 +646,10 @@ class RptliteRpt(GamsClass):
                 self.env,
                 config=CostAnnRptConfig(
                     arg1=next(iter(cc.arg1), ""),
-                    arg2=tuple(arg.strip("'") for arg in cc.arg3),
+                    arg2=tuple(
+                        arg.strip("'") if isinstance(arg, str) else arg
+                        for arg in cc.arg3
+                    ),
                 ),
             )
         )
@@ -885,7 +889,8 @@ def rptlite_rpt(
     :class:`~core.cost_ann_rpt.CostAnnRpt` and then emits part 2.
     """
     arg1 = next(iter(config.arg1), "")
-    arg3 = next(iter(config.arg3), "")
+    arg3_raw = next(iter(config.arg3), "")
+    arg3 = f"{arg3_raw.name}," if isinstance(arg3_raw, (Set | Alias)) else arg3_raw
 
     return (
         rptlite_rpt_part1(
@@ -993,7 +998,8 @@ def rptlite_rpt_part1(
 ) -> str:
     """rptlite.rpt REPORT block up to the annual cost calculation."""
     arg1 = next(iter(config.arg1), "")
-    arg3 = next(iter(config.arg3), "")
+    arg3_raw = next(iter(config.arg3), "")
+    arg3 = f"{arg3_raw.name}," if isinstance(arg3_raw, (Set | Alias)) else arg3_raw
 
     return rf"""
 *------------------------------------------------------------------------------
@@ -1088,7 +1094,8 @@ def rptlite_rpt_part2(
     obmac_yes = obmac.upper() == "YES"
     abs_yes = abs_.upper() == "YES"
     arg1 = next(iter(config.arg1), "")
-    arg3 = next(iter(config.arg3), "")
+    arg3_raw = next(iter(config.arg3), "")
+    arg3 = f"{arg3_raw.name}," if isinstance(arg3_raw, (Set | Alias)) else arg3_raw
 
     return rf"""
 * Miscellaneous reportings
@@ -1130,7 +1137,11 @@ def rptlite_rpt_part2(
 {
         r'''REG_WOBJ(R,ITEM,CUR) $= SUM(W$SREG_WOBJ(W,R,ITEM,CUR),SW_PROB(W)*SREG_WOBJ(W,R,ITEM,CUR));'''
         if stages_yes
-        else rf'''REG_WOBJ(R,ITEM,CUR) $= {arg1}REG_WOBJ({arg3}R,ITEM,CUR);'''
+        else (
+            rf'''REG_WOBJ(R,ITEM,CUR) $= {arg1}REG_WOBJ({arg3}R,ITEM,CUR);'''
+            if stages.upper() != "YES"
+            else ""
+        )
     }
 
 {"$ONDOTL" if obmac_yes else ""}

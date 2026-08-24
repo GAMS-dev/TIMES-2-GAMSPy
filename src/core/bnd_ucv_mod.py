@@ -223,6 +223,17 @@ def bnd_ucv_mod(
    CNT=CNT+SUM(({arg3}{arg2}UC_N{arg4}{arg9})$(({arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N') GE 0)${arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N')),1);
    CNT=CNT+SUM(({arg3}{arg2}UC_N{arg4}{arg9},W)$((S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N','1',W) GE 0)$S_{arg5}({arg3}{arg2}UC_N{arg4}{arg9},'N','1',W)),1);
  );
+"""
+
+    # $IF%10 NOT %STAGES%==YES $EXIT
+    if arg10 == "I":
+        if stages.upper() != "YES":
+            return code
+    else:
+        if stages != "YES":
+            return code
+
+    code += rf"""
 * Handle uncertain RHS if stochastic mode: Set uncertain bounds for variables
   IF(SW_PHASE NE -2,
 {arg7}
