@@ -36,6 +36,7 @@ from core.equ_ext_dsc import EquExtDsc
 from core.equ_ext_ecb import EquExtEcb
 from core.equ_ext_etl import EquExtEtl
 from core.equ_ext_ier import EquExtIer
+from core.equ_ext_mlf import EquExtMlf
 from core.equ_ext_msa import EquExtMsa
 from core.equ_ext_vda import EquExtVda
 from core.err_stat_mod import ErrStatMod
@@ -125,7 +126,13 @@ class MainDrvMod(GamsClass):
         if self.env.timesed.upper() != "NO" and self.env.timesed != "0":
             self.include(ReadbpriceMod(tc=self.tc, env=self.env))
 
-        # TODO: $   %MX% SETGLOBAL MX --> How to handle %MX% here? Double check
+        # $   %MX% SETGLOBAL MX
+        # mx_GP carries the switch reassignment deferred by ReadbpriceMod (see
+        # readbprice_mod.py) as flat (name, value) pairs; replay it here, then reset.
+        mx_gp = self.env.mx_GP
+        for name, value in zip(mx_gp[0::2], mx_gp[1::2], strict=False):
+            self.env.set_scoped(name, value)
+
         self.env.set_global("mx", "")
         self.env.set_global("mx_GP", ())
 
@@ -302,6 +309,7 @@ class MainDrvMod(GamsClass):
                 "ECB": EquExtEcb,
                 "ETL": EquExtEtl,
                 "IER": EquExtIer,
+                "MLF": EquExtMlf,
                 "MSA": EquExtMsa,
                 "VDA": EquExtVda,
             }

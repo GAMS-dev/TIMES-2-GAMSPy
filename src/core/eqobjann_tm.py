@@ -105,18 +105,21 @@ class EqobjannTm(GamsClass):
             name="EQ_OBJANN",
             eq=Equation(m, name="EQ_OBJANN", domain=[g.Obvann, g.Reg, g.cur]),
         )
-        g.set_equation(
-            name="EQ_ANNFIX",
-            eq=Equation(m, name="EQ_ANNFIX", domain=[g.Reg, g.allyear, g.cur]),
-        )
-        g.set_equation(
-            name="EQ_ANNINV",
-            eq=Equation(m, name="EQ_ANNINV", domain=[g.Reg, g.allyear, g.cur]),
-        )
-        g.set_equation(
-            name="EQ_ANNVAR",
-            eq=Equation(m, name="EQ_ANNVAR", domain=[g.Reg, g.allyear, g.cur]),
-        )
+        if not self.tc.declared("EQ_ANNFIX"):
+            g.set_equation(
+                name="EQ_ANNFIX",
+                eq=Equation(m, name="EQ_ANNFIX", domain=[g.Reg, g.allyear, g.cur]),
+            )
+        if not self.tc.declared("EQ_ANNINV"):
+            g.set_equation(
+                name="EQ_ANNINV",
+                eq=Equation(m, name="EQ_ANNINV", domain=[g.Reg, g.allyear, g.cur]),
+            )
+        if not self.tc.declared("EQ_ANNVAR"):
+            g.set_equation(
+                name="EQ_ANNVAR",
+                eq=Equation(m, name="EQ_ANNVAR", domain=[g.Reg, g.allyear, g.cur]),
+            )
 
         self.equation()
 

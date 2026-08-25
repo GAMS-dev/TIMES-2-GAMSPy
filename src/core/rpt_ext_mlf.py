@@ -28,7 +28,13 @@ class RptExtMlf(GamsClass):
     module_name: str = "rpt_ext_mlf"
     gams_source: str = "rpt_ext.mlf"
 
-    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
+    def __init__(
+        self,
+        tc: TimesModelClass,
+        env: CompileEnvironment,
+        arg1: str = "",
+        arg2: str = "",
+    ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
@@ -36,6 +42,7 @@ class RptExtMlf(GamsClass):
 
     def compile(self) -> None:
         self.env.set_scoped("solveda", "1")
+
         self.include(RptliteRpt(self.tc, self.env, config=RptliteRptConfig()))
 
         # * Scenario index not supported in current version, use SOW 1
@@ -112,6 +119,31 @@ class RptExtMlf(GamsClass):
             batincludes = ["EQE", "EQG", "EQL"]
             for arg in batincludes:
                 self.include(ParUcRpt(self.tc, self.env, arg1="SM", arg2=arg))
+
+        # GAMS's single-pass compiler registers every literal string in the
+        # whole program as a UEL during compilation, before anything executes
+        # -- including these TM_RESULT row labels from exec4 below, even
+        # though that assignment doesn't run until much later (post-solve).
+        # GAMSPy's incremental addGamsCode model only registers a literal once
+        # its owning snippet actually executes, so without this, ITEM/U2/U3/U4
+        # (all ALIAS(*,X)) are missing these 8 labels at compile-dump time.
+        # The $0 guard means the assignment body never runs, so this creates
+        # the UEL without creating a TM_RESULT record.
+        # TODO: shrink to a smaller assignment
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code=r"""
+  TM_RESULT('TM_GDP-REF',R,T)$0 = 1;
+  TM_RESULT('TM_GDP-ACT',R,T)$0 = 1;
+  TM_RESULT('TM_PRD-Y',R,T)$0   = 1;
+  TM_RESULT('TM_CON-C',R,T)$0   = 1;
+  TM_RESULT('TM_CAP-K',R,T)$0   = 1;
+  TM_RESULT('TM_INV-I',R,T)$0   = 1;
+  TM_RESULT('TM_ESCOST',R,T)$0  = 1;
+  TM_RESULT('TM_GDPLOS',R,T)$0  = 1;
+""",
+        )
 
         self.tc.enqueue(self.exec4)
 

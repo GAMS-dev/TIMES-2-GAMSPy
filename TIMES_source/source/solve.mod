@@ -31,8 +31,19 @@ $  IF    '%ETL%' == YES     $SETLOCAL MIXLP MI
 $  IF    '%SOLMIP%'==YES    $SETLOCAL MIXLP MI
 $  SETLOCAL METHOD '%MIXLP%%NONLP%P'
 $  IF     %METHOD% == P     $SETLOCAL METHOD LP
-$  IFI    '%MACRO%'==YES    SOLVE %MODEL_NAME% MAXIMIZING VAR_UTIL USING %METHOD%;
-$  IFI    '%MACRO%'==YES    $GOTO CHECK
+$  IFI NOT '%MACRO%'==YES   $GOTO NOT_MACRO
+$onEcho > %gams.optDir%%system.dirSep%convert.opt
+DumpGDX %CONVERT_GDX%
+$offEcho
+
+%MODEL_NAME%.optfile = 1;
+option lp=convert, nlp=convert;
+SOLVE %MODEL_NAME% MAXIMIZING VAR_UTIL USING %METHOD%;
+
+option lp=cplex, nlp=conopt;
+SOLVE %MODEL_NAME% MAXIMIZING VAR_UTIL USING %METHOD%;
+$GOTO CHECK
+$LABEL NOT_MACRO
 * solve TIMES as an LP/MIP
 
 $onEcho > %gams.optDir%%system.dirSep%convert.opt

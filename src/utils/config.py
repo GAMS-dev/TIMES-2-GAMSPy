@@ -342,6 +342,9 @@ class EnvironmentVariableSchema(BaseModel):
     sowtmpend: str = Field(
         description="Terminal scenario tracking validation token used within multi-stage loops."
     )
+    spoint: Literal["1", "2", "3", ""] = Field(
+        description="Flag to generate a savepoint file."
+    )
     data: str = Field(
         description="Input source folder directive tracking raw execution arrays."
     )

@@ -68,23 +68,49 @@ $KILL DAM_TVOC
             if not Path(f"{current_tmp}.gdx").exists():
                 self.env.drop_local("tmp")
 
-        # TODO: skipped 2x $IF NOT ERRORFREE $GOTO FINISH. corect?
+        # Mirrors GAMS's `$IF NOT ERRORFREE $GOTO FINISH` right after `$GDXIN %TMP%`:
+        # a missing bprice save file is tolerated (e.g. a cold-start run with no
+        # prior elastic-demand solve), so we skip the load instead of letting
+        # GAMSPy's addGamsCode raise a hard compile error. In addition to the
+        # cwd-relative path GAMS itself would check, we also check the instance's
+        # data directory, since fixture copies of com_bprice.gdx are distributed
+        # there (Nextcloud) rather than left lying around in the working directory.
+        cwd_gdx = Path(f"{self.env.tmp}.gdx")
+        data_dir_gdx = Path(self.tc.config.data_dir, f"{self.env.tmp}.gdx")
+        if cwd_gdx.exists():
+            gdxin_path = self.env.tmp
+        elif data_dir_gdx.exists():
+            gdxin_path = str(data_dir_gdx)
+        else:
+            logger.warning(
+                "%s.gdx not found (checked %s and %s); skipping SOL_BPRICE load, "
+                "same as vanilla GAMS's $IF NOT ERRORFREE $GOTO FINISH fallback.",
+                self.env.tmp,
+                cwd_gdx,
+                data_dir_gdx,
+            )
+            return
+
+        # TODO: skipped 1x $IF NOT ERRORFREE $GOTO FINISH after $LOAD sol_bprice. corect?
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"""
-$GDXIN {self.env.tmp}
+$GDXIN {gdxin_path}
 $LOAD sol_bprice
 """,
         )
 
         # $IFI %MACRO%==MLF $SET MX SET MACRO 'Yes'
+        # mx_GP carries the deferred switch reassignment as flat (name, value) pairs,
+        # e.g. ("macro", "Yes", "timesed", "YES"), replayed by maindrv_mod.py.
+        mx_gp_pairs: tuple[str, ...] = ()
         if self.env.macro.upper() == "MLF":
             self.env.set_scoped("mx", "SET MACRO 'Yes'")
-            raise NotImplementedError("mx_GP not implemented")
+            mx_gp_pairs = ("macro", "Yes")
 
         self.env.set_global("mx", f"{self.env.mx} SET TIMESED 'YES'")
-        raise NotImplementedError("mx_GP not implemented")
+        self.env.set_global("mx_GP", (*mx_gp_pairs, "timesed", "YES"))
 
         if self.tc.defined("DAM_ELAST"):
             self.tc.add_gams_code(

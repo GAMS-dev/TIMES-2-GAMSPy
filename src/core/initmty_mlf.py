@@ -16,6 +16,7 @@ from gamspy import Parameter, Set
 
 from core.base_class import GamsClass
 from core.initmty_tm import InitmtyTm
+from core.utils import expand_set
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -101,29 +102,32 @@ class InitmtyMlf(GamsClass):
             description="Variance in CES component or utility",
         )
         # --- Internal attributes ---
-        g.comgrp = Set(
-            m, name="COM_GRP", records=["AKL", "LAB", "KN", "YN", "CON", "UTIL"]
-        )
-        g.niter = Set(m, name="NITER", records=["1*18"])
+        comgrp_records = ["AKL", "LAB", "KN", "YN", "CON", "UTIL"]
+        if g.comgrp is None:
+            g.comgrp = Set(m, name="COM_GRP", records=comgrp_records)
+        else:
+            expand_set(g.comgrp, comgrp_records)
+        g.niter = Set(m, name="NITER", records=range(1, 19))
         g.TmPp = Set(m, name="TM_PP", domain=[r, year])
         # Initialized Scalar Defaults *
         g.tm_defval = Parameter(
             m,
             name="TM_DEFVAL",
-            records={
-                "DEPR": 5,
-                "ESUB": 0.25,
-                "KGDP": 2.5,
-                "KPVS": 0.25,
-                "DMTOL": 0.1,
-                "IVETOL": 0.5,
-                "NEGTOL": 0.01,
-                "MACVOC": 0.4,
-                "MACSTEP": 200,
-                "LOGSTEP": 550,
-                "USEHDF": 1,
-                "ESC": 1.028,
-            },
+            domain=["*"],
+            records=[
+                ("DEPR", 5),
+                ("ESUB", 0.25),
+                ("KGDP", 2.5),
+                ("KPVS", 0.25),
+                ("DMTOL", 0.1),
+                ("IVETOL", 0.5),
+                ("NEGTOL", 0.01),
+                ("MACVOC", 0.4),
+                ("MACSTEP", 200),
+                ("LOGSTEP", 550),
+                ("USEHDF", 1),
+                ("ESC", 1.028),
+            ],
         )
         g.sol_acfr = Parameter(
             m,
@@ -207,9 +211,10 @@ class InitmtyMlf(GamsClass):
             domain=[r, year, c],
             description="Marginal costs of demands",
         )
-        g.tm_result = Parameter(
-            m,
-            name="TM_RESULT",
-            domain=[Item, r, year],
-            description="MACRO Summary result parameters",
-        )
+        if not g.declared(g.tm_result):
+            g.tm_result = Parameter(
+                m,
+                name="TM_RESULT",
+                domain=[Item, r, year],
+                description="MACRO Summary result parameters",
+            )

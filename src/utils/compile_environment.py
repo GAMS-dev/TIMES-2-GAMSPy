@@ -183,10 +183,16 @@ class CompileEnvironment:
     def __getattr__(self, name: str) -> Any:
         """Allows direct env.var access during compile time with a warning fallback."""
         val = self.get(name)
-        # Fallback for undefined compile time variables
+        # Fallback for undefined compile time variables. GAMS macro names are
+        # always referenced in upper case throughout the TIMES source, so echo
+        # back the upper-case form to match GAMS's own undefined-macro echo
+        # (e.g. "%FIXBOH%"), not the lower-case Python attribute name.
         if val is None:
-            gams_logger.debug(f"GAMS macro '%{name}%' undefined. Returning '%{name}%'.")
-            return f"%{name}%"
+            upper_name = name.upper()
+            gams_logger.debug(
+                f"GAMS macro '%{upper_name}%' undefined. Returning '%{upper_name}%'."
+            )
+            return f"%{upper_name}%"
         return val
 
     def get_test_state(self) -> pd.DataFrame:

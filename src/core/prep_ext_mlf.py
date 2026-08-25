@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 from gamspy import Alias
 
 from core.base_class import GamsClass
-from core.fillparm_gms import FillparmGms, FillparmGmsConfig
+from core.filparam_gms import FilparamGms, FilparamGmsConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -37,6 +37,7 @@ class PrepExtMlf(GamsClass):
         tc: TimesModelClass,
         env: CompileEnvironment,
         arg1: str = "",
+        arg2: str = "",
     ):
         self.env = env.fork()
         self._sub_modules = {}
@@ -52,15 +53,15 @@ class PrepExtMlf(GamsClass):
             self.tc.enqueue(self.prep_ext_mlf_exec)
         # Interpolate MACRO-specific parameters
         # fmt: off
-        batincludes: list[FillparmGmsConfig] = [
-            FillparmGmsConfig(g.tm_expbnd, (g.r,), (g.p,),             ("",) * 5, g.Datayear, g.t),
-            FillparmGmsConfig(g.tm_expf,   (g.r,), (),                 ("",) * 5, g.Datayear, g.t),
-            FillparmGmsConfig(g.tm_voc,    (g.r,), (g.c, g.bd),        ("",) * 4, g.year,     g.t),
-            FillparmGmsConfig(g.tm_gr,     (g.r,), (),                 ("",) * 5, g.year,     g.t),
+        batincludes: list[FilparamGmsConfig] = [
+            FilparamGmsConfig(g.tm_expbnd, (g.r,), (g.p,),             ("",) * 5, g.Datayear, g.t),
+            FilparamGmsConfig(g.tm_expf,   (g.r,), (),                 ("",) * 5, g.Datayear, g.t),
+            FilparamGmsConfig(g.tm_voc,    (g.r,), (g.c, g.bd),        ("",) * 4, g.year,     g.t),
+            FilparamGmsConfig(g.tm_gr,     (g.r,), (),                 ("",) * 5, g.year,     g.t),
         ]
         # fmt: on
         for config in batincludes:
-            self.include(FillparmGms(self.tc, self.env, config))
+            self.include(FilparamGms(self.tc, self.env, config))
         self.tc.add_gams_code(
             module=self,
             phase="init",

@@ -15,6 +15,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Set, Variable
+
 from core.base_class import GamsClass
 from core.mod_vars_mod import ModVarsMod
 
@@ -43,50 +45,120 @@ class ModVarsTm(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
+
         self.include(ModVarsMod(self.tc, self.env))
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  SET OBVANN(OBV) / OBJINV, OBJFIX, OBJVAR /;
-
-  POSITIVE VARIABLES
-
-*-----------------------------------------------------------------------------*
-* MACRO Interface Variables
-* - Annual Cost Components: investment, fixed, variable costs
-* - Annual Demands
-*-----------------------------------------------------------------------------*
-  VAR_ANNCST(OBV,R,ALLYEAR,CUR)  Annualized costs
-  VAR_DEM(R,MILESTONYR,C)        Annual useful demand
-
-*-----------------------------------------------------------------------------*
-* MACRO variables
-*-----------------------------------------------------------------------------*
-  VAR_EC(R,ALLYEAR)       'Annual energy costs in MACRO'
-  VAR_C(R,T)              'Annual consumption in MACRO'
-  VAR_Y(R,T)              'Annual production in MACRO'
-  VAR_K(R,T)              'Total capital'
-  VAR_INV(R,T)            'Annual investments in MACRO'
-  VAR_D(R,T,CG)           'Annual useful demand in MACRO'
-  VAR_SP(R,T,CG)          'Artificial variable for scaling shadow price'
-  VAR_OBJCOST(R,ALLYEAR)  'Annual energy costs in TIMES'
-  VAR_XCAP(R,YEAR,ITEM)   'Market penetration bounds - total new capacity'
-  VAR_XCAPP(R,YEAR,P,J)   'Market penetration bounds - additional capacity'
-  VAR_MELA(R,T,CG,J,BD)   'Step variables for elasticities'
-  ;
-
-
-  VARIABLES
-
-*-----------------------------------------------------------------------------*
-* MACRO variables
-*-----------------------------------------------------------------------------*
-  VAR_UTIL                Total utility
-  VAR_NTX(R,T)            Trade in numeraire
-  ;
-""",
+        g.Obvann = Set(
+            m, name="OBVANN", domain=[g.obv], records=["OBJINV", "OBJFIX", "OBJVAR"]
         )
+        # *-----------------------------------------------------------------------------*
+        # * MACRO Interface Variables
+        # * - Annual Cost Components: investment, fixed, variable costs
+        # * - Annual Demands
+        # *-----------------------------------------------------------------------------*
+        g.VAR_ANNCST = Variable(
+            m,
+            name="VAR_ANNCST",
+            domain=[g.obv, g.r, g.allyear, g.cur],
+            description="Annualized costs",
+            type="POSITIVE",
+        )
+        g.VAR_DEM = Variable(
+            m,
+            name="VAR_DEM",
+            domain=[g.r, g.Milestonyr, g.c],
+            description="Annual useful demand",
+            type="POSITIVE",
+        )
+        # *-----------------------------------------------------------------------------*
+        # * MACRO variables
+        # *-----------------------------------------------------------------------------*
+        g.VAR_EC = Variable(
+            m,
+            name="VAR_EC",
+            domain=[g.r, g.allyear],
+            description="Annual energy costs in MACRO",
+            type="POSITIVE",
+        )
+        g.VAR_C = Variable(
+            m,
+            name="VAR_C",
+            domain=[g.r, g.t],
+            description="Annual consumption in MACRO",
+            type="POSITIVE",
+        )
+        g.VAR_Y = Variable(
+            m,
+            name="VAR_Y",
+            domain=[g.r, g.t],
+            description="Annual production in MACRO",
+            type="POSITIVE",
+        )
+        g.VAR_K = Variable(
+            m,
+            name="VAR_K",
+            domain=[g.r, g.t],
+            description="Total capital",
+            type="POSITIVE",
+        )
+        g.VAR_INV = Variable(
+            m,
+            name="VAR_INV",
+            domain=[g.r, g.t],
+            description="Annual investments in MACRO",
+            type="POSITIVE",
+        )
+        g.VAR_D = Variable(
+            m,
+            name="VAR_D",
+            domain=[g.r, g.t, g.cg],
+            description="Annual useful demand in MACRO",
+            type="POSITIVE",
+        )
+        g.VAR_SP = Variable(
+            m,
+            name="VAR_SP",
+            domain=[g.r, g.t, g.cg],
+            description="Artificial variable for scaling shadow price",
+            type="POSITIVE",
+        )
+        g.VAR_OBJCOST = Variable(
+            m,
+            name="VAR_OBJCOST",
+            domain=[g.r, g.allyear],
+            description="Annual energy costs in TIMES",
+            type="POSITIVE",
+        )
+        g.VAR_XCAP = Variable(
+            m,
+            name="VAR_XCAP",
+            domain=[g.r, g.year, g.item],
+            description="Market penetration bounds - total new capacity",
+            type="POSITIVE",
+        )
+        g.VAR_XCAPP = Variable(
+            m,
+            name="VAR_XCAPP",
+            domain=[g.r, g.year, g.p, g.j],
+            description="Market penetration bounds - additional capacity",
+            type="POSITIVE",
+        )
+        g.VAR_MELA = Variable(
+            m,
+            name="VAR_MELA",
+            domain=[g.r, g.t, g.cg, g.j, g.bd],
+            description="Step variables for elasticities",
+            type="POSITIVE",
+        )
+        # *-----------------------------------------------------------------------------*
+        # * MACRO variables
+        # *-----------------------------------------------------------------------------*
+        g.VAR_UTIL = Variable(m, name="VAR_UTIL", description="Total utility")
+        g.VAR_NTX = Variable(
+            m, name="VAR_NTX", domain=[g.r, g.t], description="Trade in numeraire"
+        )
+
         self.tc.enqueue(self.mod_vars_tm_exec)
 
     def mod_vars_tm_exec(self: ModVarsTm) -> None:

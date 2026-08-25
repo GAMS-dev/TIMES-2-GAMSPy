@@ -90,6 +90,7 @@ def mod_equa_tm(
             # MACRO MLF equations
             equations.extend(
                 [
+                    "EQ_UTILP",
                     "EQ_CONSO",
                     "EQ_CONDA",
                     "EQ_LOGBD",

@@ -90,6 +90,7 @@ class SolveMod(GamsClass):
                     module=self,
                     model_name=self.model_name,
                     method=self.env.method,
+                    equations=self.equations,
                 )
                 # GOTO CHECK
             else:
@@ -192,14 +193,38 @@ option lp={solver}, mip={solver};
 """
 
 
-def solve_times(module: GamsClass, model_name: str, method: str) -> None:
-    module.tc.add_gams_code(
-        module=module,
-        phase="run",
-        code=rf"""
-SOLVE {model_name} MAXIMIZING VAR_UTIL USING {method};
-""",
+def solve_times(
+    module: GamsClass, model_name: str, method: str, equations: list[str]
+) -> None:
+    eqs: Sequence[Equation] = [module.tc.container[e] for e in equations]  # type: ignore[misc]
+    model = Model(
+        container=module.tc.container,
+        name=model_name,
+        problem=method,
+        equations=eqs,
+        sense="MAX",
+        objective=module.tc.VAR_UTIL,
     )
+
+    # dump the algebraic model representation before the real solve, mirroring
+    # solve_times_as_lp_mip's convert step for the LP/MIP path
+    model.solve(
+        solver="convert",
+        solver_options={"DumpGDX": module.tc.output_convert},
+        output=sys.stdout,
+    )
+
+    # solve.mod hardcodes `option lp=cplex, nlp=conopt;` for this branch (unlike
+    # the LP/MIP branch's `option lp=cplex, mip=cplex;`, which mirrors the
+    # *configured* lp_solver) -- mirror that literally rather than assuming
+    # config.lp_solver applies to an NLP method. Use write_run_solver_options
+    # (copies the file into GAMS' own optDir) rather than model.solve's
+    # solver_options=, which routes through GAMSPy's own stricter option-file
+    # validation and hard-errors on entries GAMS itself merely warns about
+    # (e.g. cplex' "iis yes").
+    solver = "conopt" if "NL" in method else module.tc.config.lp_solver.lower()
+    write_run_solver_options(module.tc, solver)
+    model.solve(output=sys.stdout, options=module.tc.solve_options)
 
 
 def solve_times_as_lp_mip(
@@ -231,10 +256,11 @@ def solve_times_as_lp_mip(
 
     # regular solve
     if module.tc.solve:
+        solver = module.tc.config.lp_solver.lower()
         model.solve(
             output=sys.stdout,
             options=module.tc.solve_options,
-            solver_options=Path(module.tc.config.data_dir, "cplex.opt"),
+            solver_options=Path(module.tc.config.data_dir, f"{solver}.opt"),
         )
     else:
         model.solve(
@@ -291,7 +317,12 @@ def solve_mod_GP(
         method = "LP" if method == "P" else method
 
         if macro.upper() == "YES":
-            solve_times(module=module, model_name=model_name, method=method)
+            solve_times(
+                module=module,
+                model_name=model_name,
+                method=method,
+                equations=equations,
+            )
         else:
             solve_times_as_lp_mip(
                 module=module, model_name=model_name, method=method, equations=equations
