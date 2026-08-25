@@ -39,6 +39,7 @@ class EquExtAbs(GamsClass):
         tc: TimesModelClass,
         env: CompileEnvironment,
         arg1: str = "",
+        arg2: str = "",
     ):
         self.env = env.fork()
         self._sub_modules = {}
@@ -99,6 +100,8 @@ class EquExtAbs(GamsClass):
             var=self.env.var,
             sow=self.env.sow,
             rts=macro.rts(s="S", g=self.tc, env=self.env),
+            pgprim=self.env.pgprim,
+            def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
         )
         self.abs_eq_3(
             r_t=self.env.r_t,
@@ -195,7 +198,11 @@ class EquExtAbs(GamsClass):
             r_w_t=self.env.r_w_t,
             swx=self.env.swx,
             swtx=self.env.swtx,
+            var=self.env.var,
+            sow=self.env.sow,
             rts=macro.rts(s="S", g=self.tc, env=self.env),
+            pgprim=self.env.pgprim,
+            def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
         )
         self.abs_eq_26(
             r_t=self.env.r_t,
@@ -311,11 +318,29 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
         )
 
     def abs_eq_2(
-        self: EquExtAbs, r_t: str, swx: str, swtx: str, var: str, sow: str, rts: str
+        self: EquExtAbs,
+        r_t: str,
+        swx: str,
+        swtx: str,
+        var: str,
+        sow: str,
+        rts: str,
+        pgprim: str,
+        def_rtp_ffcs: bool,
     ) -> None:
         """Loads by source of imbalance for each user category k"""
 
-        cal_red = self.cal_red_func(arg1="C", arg2="COM", arg3="TS", arg4="P", arg5="T")
+        cal_red = self.cal_red_func(
+            arg1="C",
+            arg2="COM",
+            arg3="TS",
+            arg4="P",
+            arg5="T",
+            var=var,
+            sow=sow,
+            pgprim=pgprim,
+            def_rtp_ffcs=def_rtp_ffcs,
+        )
 
         self.tc.add_gams_code(
             module=self,
@@ -578,10 +603,30 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
 """,
         )
 
-    def abs_eq_25(self: EquExtAbs, r_w_t: str, swx: str, swtx: str, rts: str) -> None:
+    def abs_eq_25(
+        self: EquExtAbs,
+        r_w_t: str,
+        swx: str,
+        swtx: str,
+        var: str,
+        sow: str,
+        rts: str,
+        pgprim: str,
+        def_rtp_ffcs: bool,
+    ) -> None:
         """End-use - positive"""
 
-        cal_red = self.cal_red_func(arg1="C", arg2="COM", arg3="TS", arg4="P", arg5="T")
+        cal_red = self.cal_red_func(
+            arg1="C",
+            arg2="COM",
+            arg3="TS",
+            arg4="P",
+            arg5="T",
+            var=var,
+            sow=sow,
+            pgprim=pgprim,
+            def_rtp_ffcs=def_rtp_ffcs,
+        )
         self.tc.add_gams_code(
             module=self,
             phase="init",

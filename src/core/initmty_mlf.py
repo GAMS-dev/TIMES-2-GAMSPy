@@ -47,7 +47,7 @@ class InitmtyMlf(GamsClass):
         self.env.set_global("macro", "Yes")
         self.env.set_global("spoint", "")
 
-        r, cg, lim, year, bd, UcCost, t, c, Reg, Item, Com = (
+        r, cg, lim, year, bd, UcCost, t, c, Reg, item, Com = (
             g.r,
             g.cg,
             g.lim,
@@ -57,7 +57,7 @@ class InitmtyMlf(GamsClass):
             g.t,
             g.c,
             g.Reg,
-            g.Item,
+            g.item,
             g.Com,
         )
 
@@ -215,6 +215,6 @@ class InitmtyMlf(GamsClass):
             g.tm_result = Parameter(
                 m,
                 name="TM_RESULT",
-                domain=[Item, r, year],
+                domain=[item, r, year],
                 description="MACRO Summary result parameters",
             )

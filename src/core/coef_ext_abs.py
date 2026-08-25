@@ -35,6 +35,7 @@ class CoefExtAbs(GamsClass):
         tc: TimesModelClass,
         env: CompileEnvironment,
         arg1: str = "",
+        arg2: str = "",
     ):
         self.env = env.fork()
         self._sub_modules = {}
@@ -43,9 +44,9 @@ class CoefExtAbs(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.enqueue(self.exec1)
+        self.tc.enqueue(self.exec1, rl=self.env.rl, pl=self.env.pl)
 
-    def exec1(self: CoefExtAbs) -> None:
+    def exec1(self: CoefExtAbs, rl: str, pl: str) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
@@ -144,7 +145,7 @@ class CoefExtAbs(GamsClass):
   BS_RMAX(RTP,C,S) $= VDA_FLOP(RTP,C,S); OPTION NCAP_AFAC < VDA_FLOP;
   LOOP((RTP(R,V,P),C)$NCAP_AFAC(RTP,C),
 {pp_qaput("PUTOUT", "PUTGRP", "01", "BS_RMAX decreasing at slower reserve types - reset")}
-    PUT QLOG ' WARNING       - Kept at preceding value,  R=',%RL%,' P=',%PL%,' V=',V.TL, ' C=',C.TL);
+    PUT QLOG ' WARNING       - Kept at preceding value,  R=',{rl},' P=',{pl},' V=',V.TL, ' C=',C.TL);
   BS_RMAX(RTP(R,V,P),C,ANNUAL(S))$BS_BSC(R,P,C) = BS_RMAX(RTP,C,S)$(NOT PRC_YMAX(R,P));
 * Controls for reserve limits
   RPC_CONLY(RTP(R,V,P),C)$((BS_RMAX(RTP,C,'ANNUAL')$BS_SUPP(R,P)<1-ACT_MINLD(RTP)$BS_ABD(R,C,'UP'))$BS_BSC(R,P,C))=YES;

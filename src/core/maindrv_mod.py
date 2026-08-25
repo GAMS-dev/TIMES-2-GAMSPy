@@ -281,7 +281,7 @@ class MainDrvMod(GamsClass):
         elif src == "TM":
             self.include(ModVarsTm(tc=self.tc, env=self.env))
         else:
-            raise Exception(f"Unknown extension {src} for mod_vars<ext>.py.")
+            raise KeyError(f"Unknown extension {src} for mod_vars<ext>.py.")
 
         if self.env.extend != "":
             mod_var_extensions = {
@@ -304,16 +304,17 @@ class MainDrvMod(GamsClass):
         self.include(EqmainMod(tc=self.tc, env=self.env, arg1=self.arg1))
 
         if self.env.extend != "":
+            # Order matches the canonical %EXTEND% assembly in initmty.mod
             equ_extensions = {
-                "ABS": EquExtAbs,
+                "ECB": EquExtEcb,
+                "MSA": EquExtMsa,
+                "MLF": EquExtMlf,
+                "ETL": EquExtEtl,
                 "CLI": EquExtCli,
                 "DSC": EquExtDsc,
-                "ECB": EquExtEcb,
-                "ETL": EquExtEtl,
-                "IER": EquExtIer,
-                "MLF": EquExtMlf,
-                "MSA": EquExtMsa,
                 "VDA": EquExtVda,
+                "ABS": EquExtAbs,
+                "IER": EquExtIer,
             }
             requested_exts = set(self.env.extend.split())
             include_extension(

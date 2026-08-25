@@ -2773,22 +2773,13 @@ REGISTRY.update(
             "demos_007b", run_name="demos_007b_micro", micro="YES"
         ),
         # reaches: readbprice.mod, bnd_elas.mod (the TIMESED=="YES" branch in
-        # bndmain.mod that calls bnd_elas.mod -- no registered instance sets
-        # TIMESED directly; requires a bootstrapped com_bprice.gdx produced by
-        # a prior TIMESED='NO' run of the same dataset in the same idir2).
+        # bndmain.mod that calls bnd_elas.mod.
         "demos_007b_timesed": derive_from(
             "demos_007b", run_name="demos_007b_timesed", timesed="YES"
         ),
         # reaches: bnd_ire_vda.py (init_ext_vda's GDX_IREBND restart-bounds
         # branch loads real records into PREMILE, so equ_ext_vda's
-        # `self.tc.defined("PREMILE")` gate now includes BndIreVda). The
-        # bootstrap GDX (src/data/DemoS_006/demos_006_irebnd.gdx) is
-        # DemoS_006's own solved execute GDX -- DemoS_006 is the first demo
-        # with a genuine internal (region-to-region) IRE topology
-        # (TB_ELC_REG1_REG2_01/TU_GAS_REG2_REG1_01), which is what populates
-        # RPC_IREIN(...,'IN') with real records; every other local demo only
-        # trades with an external market (RPC_IREIN(...,'OUT') only), which
-        # would make BndIreVda's branch run vacuously.
+        # `self.tc.defined("PREMILE")` gate now includes BndIreVda).
         "demos_006_irebnd": derive_from(
             "demos_006",
             run_name="demos_006_irebnd",
@@ -2796,17 +2787,12 @@ REGISTRY.update(
             gdx_irebnd="demos_006_irebnd",
         ),
         # reaches: bnd_flo.mod's VAR_ACT-bound-adjustment skip path and
-        # eqflobnd.mod's plain (non IRE/ACT-split) VAR_IRE branch -- every
-        # other registered instance sets REDUCE='YES'.
+        # eqflobnd.mod's plain (non IRE/ACT-split) VAR_IRE branch.
         "demos_012e_noreduce": derive_from(
             "demos_012e", run_name="demos_012e_noreduce", reduce="NO"
         ),
         # reaches: bndmain.mod's VAR_UC-skip branch (bnd_ucw.mod/bnd_ucv.mod
-        # never included) and dynslite_vda_bounds' var_uc_yes=False path --
-        # every other registered instance sets VAR_UC='YES'. VAR_UC has no
-        # explicit "NO" value in TIMES; leaving it undefined (commented out
-        # in the .run file) is the only way to hit this branch, confirmed
-        # against real GAMS via bndmain.mod's `$IF %VAR_UC%==YES` check.
+        # never included) and dynslite_vda_bounds' var_uc_yes=False path.
         "demos_012e_novaruc": derive_from(
             "demos_012e", run_name="demos_012e_novaruc", var_uc=""
         ),
@@ -2819,19 +2805,7 @@ REGISTRY.update(
         "demos_012e_ier": derive_from(
             "demos_012e", run_name="demos_012e_ier", ier="YES"
         ),
-        # reaches: pp_chp_ier.py/pp_chp.ier, eqchpelc_ier.py/eqchpelc.ier -- the
-        # extraction-condensing CHP handling within the IER extension. CHP_MODE
-        # was previously unwired: not registered on EnvironmentVariableSchema/
-        # UserConfig, so env.chp_mode always fell back to the undefined-macro
-        # sentinel and could never equal "YES". Added chp_mode as a proper
-        # switch (config.py) to make this reachable.
-        # No demo dataset in this repo defines any ECT_CHP members, so this
-        # also adds chp_synth.dd: a minimal synthetic extraction-condensing
-        # CHP process (additive-only, capacity capped at 0 via NCAP_BND so it
-        # cannot affect the solve) giving pp_chp.ier real, non-empty data to
-        # compute over instead of running on an empty set. Verified against
-        # real GAMS: ECT_REH/ECT_INP2ELC/ECT_INP2DHT/ECT_INP2CON come out
-        # populated with real values for the synthetic process.
+        # reaches: pp_chp_ier.py/pp_chp.ier, eqchpelc_ier.py/eqchpelc.ier
         "demos_012e_ier_chp": derive_from(
             "demos_012e", run_name="demos_012e_ier_chp", ier="YES", chp_mode="YES"
         ).model_copy(
@@ -2861,6 +2835,12 @@ REGISTRY.update(
             obj="ALT",
             oblong="NO",
             varcost="NO",
+        ),
+        # reaches: initmty_abs.py, mod_vars_abs.py, coef_ext_abs.py,
+        # equ_ext_abs.py, prep_ext_abs.py, init_ext_abs.py -- the ABS
+        # (Ancillary Balancing Services) extension.
+        "demos_012e_abs": derive_from(
+            "demos_012e", run_name="demos_012e_abs", abs="YES"
         ),
     }
 )

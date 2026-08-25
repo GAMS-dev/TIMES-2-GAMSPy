@@ -78,7 +78,7 @@ class PrepExtVda(GamsClass):
             batincludes.append(FillparmGmsConfig(g.uc_flobet, (g.ucn, g.r), (g.p, g.c), ("0",) * 3, g.t, Number(1), Number(0), ""))  # fmt: skip
 
         if self.tc.defined("COM_CSTBAL"):
-            batincludes.append(FillparmGmsConfig(g.com_cstbal, (g.r,), (g.c, g.s, g.Item, g.cur), ("0",) * 2, g.t, Number(1), Number(0), ""))  # fmt: skip
+            batincludes.append(FillparmGmsConfig(g.com_cstbal, (g.r,), (g.c, g.s, g.item, g.cur), ("0",) * 2, g.t, Number(1), Number(0), ""))  # fmt: skip
 
         for config in batincludes:
             self.include(FillparmGms(self.tc, self.env, config))
