@@ -20,48 +20,10 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
 from core.atlearn9_etl import atlearn9_etl
-from core.base_class import GamsClass
-
-if TYPE_CHECKING:
-    from utils.compile_environment import CompileEnvironment
-    from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
-
-
-class Atlearn8Etl(GamsClass):
-    """Translation unit for atlearn8.etl."""
-
-    # Instance attributes
-    module_name: str = "atlearn8_etl"
-    gams_source: str = "atlearn8.etl"
-
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
-        self.env = env.fork()
-        self._sub_modules = {}
-        self.tc = tc
-        self.compile()
-
-    def compile(self) -> None:
-        self.tc.enqueue(
-            self.exec1,
-        )
-
-    def exec1(
-        self: Atlearn8Etl,
-    ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=atlearn8_etl(),
-        )
 
 
 def atlearn8_etl() -> str:

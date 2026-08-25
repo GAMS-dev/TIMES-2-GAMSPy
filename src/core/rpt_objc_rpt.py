@@ -15,84 +15,10 @@ from __future__ import annotations
 import logging
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-from core.base_class import GamsClass
 from utils.macros import macro_config as macro
 
-if TYPE_CHECKING:
-    from utils.compile_environment import CompileEnvironment
-    from utils.times_model_class import TimesModelClass
-
 logger = logging.getLogger(__name__)
-
-
-class RptObjcRpt(GamsClass):
-    """Translation unit for rpt_objc.rpt."""
-
-    module_name: str = "rpt_objc_rpt"
-    gams_source: str = "rpt_objc.rpt"
-
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
-    ):
-        self.env = env.fork()
-        self._sub_modules = {}
-        self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
-        self.compile()
-
-    def compile(self) -> None:
-        self.tc.enqueue(
-            self.exec1,
-            arg1=self.arg1,
-            arg2=self.arg2,
-            arg3=self.arg3,
-            capjd=self.env.capjd,
-            capwd=self.env.capwd,
-            tpulse=self.env.tpulse,
-            stages=self.env.stages,
-            bencost=self.env.bencost,
-            timesrng_script="timesrng_inc.py",
-            timesrng_gdx="timesrng_inc",
-        )
-
-    def exec1(
-        self: RptObjcRpt,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-        capjd: str,
-        capwd: str,
-        tpulse: str,
-        stages: str,
-        bencost: str,
-        timesrng_script: str,
-        timesrng_gdx: str,
-    ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rpt_objc_rpt(
-                arg1=arg1,
-                arg2=arg2,
-                arg3=arg3,
-                capjd=capjd,
-                capwd=capwd,
-                tpulse=tpulse,
-                stages=stages,
-                bencost=bencost,
-                timesrng_script=timesrng_script,
-                timesrng_gdx=timesrng_gdx,
-            ),
-        )
 
 
 def _timesrng_load_code(

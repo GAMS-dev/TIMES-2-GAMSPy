@@ -12,45 +12,8 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
-
-from core.base_class import GamsClass
-
-if TYPE_CHECKING:
-    from utils.compile_environment import CompileEnvironment
-    from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
-
-
-class AtscEtl(GamsClass):
-    """Translation unit for atsc.etl."""
-
-    # Instance attributes
-    module_name: str = "atsc_etl"
-    gams_source: str = "atsc.etl"
-
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
-        self.env = env.fork()
-        self._sub_modules = {}
-        self.tc = tc
-        self.compile()
-
-    def compile(self) -> None:
-        self.tc.enqueue(
-            self.exec1,
-        )
-
-    def exec1(self: AtscEtl) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=atsc_etl(),
-        )
 
 
 def atsc_etl() -> str:
