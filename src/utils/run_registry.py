@@ -2779,6 +2779,22 @@ REGISTRY.update(
         "demos_007b_timesed": derive_from(
             "demos_007b", run_name="demos_007b_timesed", timesed="YES"
         ),
+        # reaches: bnd_ire_vda.py (init_ext_vda's GDX_IREBND restart-bounds
+        # branch loads real records into PREMILE, so equ_ext_vda's
+        # `self.tc.defined("PREMILE")` gate now includes BndIreVda). The
+        # bootstrap GDX (src/data/DemoS_006/demos_006_irebnd.gdx) is
+        # DemoS_006's own solved execute GDX -- DemoS_006 is the first demo
+        # with a genuine internal (region-to-region) IRE topology
+        # (TB_ELC_REG1_REG2_01/TU_GAS_REG2_REG1_01), which is what populates
+        # RPC_IREIN(...,'IN') with real records; every other local demo only
+        # trades with an external market (RPC_IREIN(...,'OUT') only), which
+        # would make BndIreVda's branch run vacuously.
+        "demos_006_irebnd": derive_from(
+            "demos_006",
+            run_name="demos_006_irebnd",
+            gdxpath="src/data/DemoS_006/",
+            gdx_irebnd="demos_006_irebnd",
+        ),
         # reaches: bnd_flo.mod's VAR_ACT-bound-adjustment skip path and
         # eqflobnd.mod's plain (non IRE/ACT-split) VAR_IRE branch -- every
         # other registered instance sets REDUCE='YES'.
