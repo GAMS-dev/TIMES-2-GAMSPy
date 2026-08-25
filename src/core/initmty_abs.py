@@ -30,9 +30,7 @@ class InitmtyAbs(GamsClass):
     gams_source: str = "initmty.abs"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
+        self, tc: TimesModelClass, env: CompileEnvironment, arg1: str, arg2: str
     ):
         self.env = env.fork()
         self.tc = tc
@@ -47,11 +45,11 @@ class InitmtyAbs(GamsClass):
         self.env.set_global("abs_GP", Number(1))
 
         # System sets
-        g.Item = Set(m, name="ITEM", records=["SI"])
+        self.add_records_to_universe_item(records=["SI"])
         g.Clvt = Set(m, name="CLVT", records=["PRB", "DET"])
         g.Rsp = Set(m, name="RSP", records=["EXOGEN", "WMAXSI", "DELTA", "OMEGA"])
 
-        r, c, year, rsp, s, Com, bd, Item, Reg, lA, tsl, t, ucnA, side, p, io, ts = (
+        r, c, year, rsp, s, Com, bd, item, Reg, lA, tsl, t, ucnA, side, p, io, ts = (
             g.r,
             g.c,
             g.year,
@@ -59,7 +57,7 @@ class InitmtyAbs(GamsClass):
             g.s,
             g.Com,
             g.bd,
-            g.Item,
+            g.item,
             g.Reg,
             g.lA,
             g.tsl,
@@ -110,7 +108,7 @@ class InitmtyAbs(GamsClass):
         g.bs_sigma = Parameter(
             m,
             name="BS_SIGMA",
-            domain=[r, year, c, Item, s],
+            domain=[r, year, c, item, s],
             description="Standard deviation of imbalance source ITEM",
         )
         g.bs_omega = Parameter(
@@ -140,7 +138,7 @@ class InitmtyAbs(GamsClass):
         g.bs_share = Parameter(
             m,
             name="BS_SHARE",
-            domain=[r, year, c, Item, lA],
+            domain=[r, year, c, item, lA],
             description="Share of group reserve provision",
         )
         g.bs_bndprs = Parameter(
@@ -153,14 +151,14 @@ class InitmtyAbs(GamsClass):
         g.BsK = Set(
             m,
             name="BS_K",
-            domain=[Item],
+            domain=[item],
             description="Sources of imbalance or provision",
             records=["UP", "LO"],
         )
         g.BsRtk = Set(
             m,
             name="BS_RTK",
-            domain=[r, t, Item],
+            domain=[r, t, item],
             description="Sources of imbalances by period",
         )
         g.BsComts = Set(

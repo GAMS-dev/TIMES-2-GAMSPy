@@ -64,7 +64,6 @@ class TimesModelClass:
     rts: Alias = None  # type: ignore[assignment] # [*] RTS
     phantom: Set = None  # type: ignore[assignment] # [*] PHANTOM:
     item: UniverseAlias = None  # type: ignore[assignment] # [*] ITEM: Aliased with *
-    Item: Set = None  # type: ignore[assignment] # [*] ITEM
     Clvt: Set = None  # type: ignore[assignment] # [*] CLVT
     bohyear: Set = None  # type: ignore[assignment] # [*] BOHYEAR: BOH + years
     allyear: Set = None  # type: ignore[assignment] # [*] ALLYEAR: All Years
@@ -163,12 +162,12 @@ class TimesModelClass:
     bs_stime: Parameter = None  # type: ignore[assignment] # [r, p, Com, bd] BS_STIME: Minimum times for reserve provision from storage (hours)
     bs_detwt: Parameter = None  # type: ignore[assignment] # [r, year, c] BS_DETWT: Weights for deterministic reserve demands
     bs_lambda: Parameter = None  # type: ignore[assignment] # [r, year, c] BS_LAMBDA: Fudge factors for dependencies in reserve requirements
-    bs_sigma: Parameter = None  # type: ignore[assignment] # [r, year, c, Item, s] BS_SIGMA: Standard deviation of imbalance source ITEM
+    bs_sigma: Parameter = None  # type: ignore[assignment] # [r, year, c, item, s] BS_SIGMA: Standard deviation of imbalance source ITEM
     bs_omega: Parameter = None  # type: ignore[assignment] # [Reg, year, Com, ts] BS_OMEGA: Indicator of how to define reserve demand from deterministic and probabilistic component
     bs_maint: Parameter = None  # type: ignore[assignment] # [r, year, p, s] BS_MAINT: Continuous maintenance duration (hours)
     bs_rmax: Parameter = None  # type: ignore[assignment] # [r, year, p, c, s] BS_RMAX: Maximum contribution of process p to provision of reserve c as a fraction of capacity
     bs_delta: Parameter = None  # type: ignore[assignment] # [r, year, c, s] BS_DELTA: Calibration parameters for probabilistic reserve demands
-    bs_share: Parameter = None  # type: ignore[assignment] # [r, year, c, Item, lA] BS_SHARE: Share of group reserve provision
+    bs_share: Parameter = None  # type: ignore[assignment] # [r, year, c, item, lA] BS_SHARE: Share of group reserve provision
     bs_bndprs: Parameter = None  # type: ignore[assignment] # [r, year, p, c, s, lA] BS_BNDPRS: Bound on process reserve provision
 
     flo_mrkcon: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc, Com, ts, bd] FLO_MRKCON: Bound on the share of a flow in the total consumption of a commmodity
@@ -187,8 +186,8 @@ class TimesModelClass:
     ect_afcon: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc, bd] ECT_AFCON: Availability of condensing mode operation of extraction condensing CHP
     ect_afbpt: Parameter = None  # type: ignore[assignment] # [Reg, allyear, prc, bd] ECT_AFBPT: Availability of backpressure mode operation of extraction condensing CHP
 
-    BsK: Set = None  # type: ignore[assignment] # [Item] BS_K: Sources of imbalance or provision
-    BsRtk: Set = None  # type: ignore[assignment] # [r, t, Item] BS_RTK: Sources of imbalances by period
+    BsK: Set = None  # type: ignore[assignment] # [item] BS_K: Sources of imbalance or provision
+    BsRtk: Set = None  # type: ignore[assignment] # [r, t, item] BS_RTK: Sources of imbalances by period
     BsComts: Set = None  # type: ignore[assignment] # [r, c, s] BS_COMTS: Reserve commodity timeslices
     BsApos: Set = None  # type: ignore[assignment] # [r, c] BS_APOS: Positive reserve commodities
     BsAneg: Set = None  # type: ignore[assignment] # [r, c] BS_ANEG: Negative reserve commodities

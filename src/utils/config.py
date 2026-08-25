@@ -664,6 +664,7 @@ class EnvironmentVariableSchema(BaseModel):
     ix: str
     eqs: str
     v: str
+    r_w_t: str
 
 
 class UserConfig(BaseModel):
@@ -679,6 +680,7 @@ class UserConfig(BaseModel):
     solans: Literal["YES", "NO"] = "NO"
     ier: Literal["YES", "NO"] = "NO"
     chp_mode: Literal["YES", "NO"] = "NO"
+    abs: Literal["YES", "NO"] = "NO"
     err_abort: Literal["YES", "NO"] = "YES"
     gams_cgi: Literal["NO", "WWW"] = "NO"
     solve_now: Literal["YES", "NO"] = "YES"
