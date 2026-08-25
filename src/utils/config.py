@@ -592,6 +592,12 @@ class EnvironmentVariableSchema(BaseModel):
     gdxpath: str = Field(
         description="Absolute file path targeting the destination GDX binary folder."
     )
+    gdx_irebnd: str = Field(
+        description="Base name (without .gdx) of a previous run's GDX, found under %GDXPATH%, to load exogenous IRE trade bounds (PREMILE/PAR_IRE) from."
+    )
+    gdx_ipric: str = Field(
+        description="Base name (without .gdx) of a previous run's GDX, found under %GDXPATH%, to load exogenous IRE trade prices (PREMILE/PAR_IPRIC) from."
+    )
     sysprefix: str = Field(
         description="Operating system directory architecture execution prefix string."
     )
@@ -703,6 +709,9 @@ class UserConfig(BaseModel):
     dsc: str = "%dsc%"
     timestep: int | str = "%timestep%"
     rpt_opt: pd.DataFrame | Literal["%rpt_opt%"] = "%rpt_opt%"
+    gdxpath: str = "%gdxpath%"
+    gdx_irebnd: str = "%gdx_irebnd%"
+    gdx_ipric: str = "%gdx_ipric%"
 
 
 class RunConfig(BaseModel):

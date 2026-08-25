@@ -875,6 +875,7 @@ class TimesModelClass:
     x_rpsb: Parameter = None  # type: ignore[assignment] # [r,p,ts,bd,allyear] X_RPSB:
     x_rpb: Parameter = None  # type: ignore[assignment] # [r,p,bd,allyear] X_RPB:
     x_rp: Parameter = None  # type: ignore[assignment] # [r,p,allyear] X_RP:
+    x_ireflo: Parameter = None  # type: ignore[assignment] # [r,p,c,ts,ie,allyear] X_IREFLO:
     x_rcs: Parameter = None  # type: ignore[assignment] # [r,c,ts,allyear] X_RCS:
     x_rpggs: Parameter = None  # type: ignore[assignment] # [r,p,cg1,cg2,ts,allyear] X_RPGGS:
     x_rpgcgs: Parameter = None  # type: ignore[assignment] # [r,p,cg1,c,cg2,ts,allyear] X_RPGCGS:
