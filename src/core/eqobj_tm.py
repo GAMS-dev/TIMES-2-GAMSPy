@@ -27,7 +27,7 @@ from core.eqobjann_tm import EqobjannTm
 from core.eqobjels_mod import EqobjelsMod
 from core.eqobjfix_mod import EqobjfixMod
 from core.eqobjinv_mod import EqobjinvMod
-from core.eqobsalv_mod import EqobsalvMod
+from core.eqobsalv_mod import EqobsalvMod, EqobsalvModConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -78,7 +78,13 @@ class EqobjTm(GamsClass):
         # Investment Cost, Fixed Cost and Variable Cost components
         self.include(EqobjinvMod(self.tc, self.env, "tm", "exit"))
         self.include(EqobjfixMod(self.tc, self.env, arg1="exit"))
-        self.include(EqobsalvMod(self.tc, self.env, "tm", "exit"))
+        self.include(
+            EqobsalvMod(
+                self.tc,
+                self.env,
+                config=EqobsalvModConfig(arg1="tm", arg2="EXIT"),
+            )
+        )
         self.include(EqobjannTm(self.tc, self.env))
 
         # Elastic Demand costs: only when MLF

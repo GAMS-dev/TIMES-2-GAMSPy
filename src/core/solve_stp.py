@@ -697,7 +697,7 @@ class SolveStp(GamsClass):
             )
             if stepped == "YES":
                 eqobsalv_prepro_GP(
-                    tc=g,
+                    g=g,
                     arg1="STP",
                     timestep_is_set=True,
                     stepped=stepped,

@@ -17,7 +17,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from gamspy import Domain, Loop, Number, Ord, Set, Sum
 from gamspy.math import Min, abs, diag, same_as
@@ -32,7 +32,7 @@ from core.eqobjinv_mod import EqobjinvMod
 from core.eqobjinv_rpt import EqobjinvRpt
 from core.eqobjvar_mod import EqobjvarMod
 from core.eqobjvar_rpt import EqobjvarRpt, EqobjvarRptConfig
-from core.eqobsalv_mod import EqobsalvMod
+from core.eqobsalv_mod import EqobsalvMod, EqobsalvModConfig
 from core.eqobsalv_rpt import EqobsalvRpt
 from core.prepret_dsc import PrepretDsc, PrepretDscConfig
 from core.utils import extract_var_domain, generate_equation, wrap_in_sum
@@ -56,7 +56,9 @@ class EqobjMod(GamsClass):
     module_name: str = "eqobj_mod"
     gams_source: str = "eqobj.mod"
 
-    def __init__(self, tc: TimesModelClass, env: CompileEnvironment, arg1: str):
+    def __init__(
+        self, tc: TimesModelClass, env: CompileEnvironment, arg1: Literal["mod"]
+    ):
         self.env = env.fork()
         self.tc = tc
         self.arg1 = arg1
@@ -123,7 +125,9 @@ class EqobjMod(GamsClass):
             self.include(EqobjvarMod(self.tc, self.env))
 
             # Salvage value of investment and decommissioning costs
-            self.include(EqobsalvMod(self.tc, self.env, arg1=self.arg1))
+            self.include(
+                EqobsalvMod(self.tc, self.env, config=EqobsalvModConfig(arg1=self.arg1))
+            )
 
         elif arg_mode == "RPT":
             self.include(

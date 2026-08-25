@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 
 from core.base_class import GamsClass
 from core.clearsol_stc import ClearsolStc
-from core.eqobsalv_mod import EqobsalvMod
+from core.eqobsalv_mod import EqobsalvMod, EqobsalvModConfig
 from core.pp_clean_mod import PpCleanMod
 
 if TYPE_CHECKING:
@@ -101,7 +101,13 @@ $CLEAR EQL_UC EQL_UCR EQL_UCT EQL_UCRT EQL_UCTS EQL_UCRTS EQL_UCRS EQL_UCSU EQL_
                 # self.include(ClearsMrg(self.tc, self.env))
 
             if self.env.is_set("timestep"):
-                self.include(EqobsalvMod(self.tc, self.env, arg1="STP", arg2="EXIT"))
+                self.include(
+                    EqobsalvMod(
+                        self.tc,
+                        self.env,
+                        config=EqobsalvModConfig(arg1="STP", arg2="EXIT"),
+                    )
+                )
 
             self.include(PpCleanMod(self.tc, self.env))
 
