@@ -1829,7 +1829,7 @@ class InitmtyMod(GamsClass):
                 if self.env.ecb.upper() == "YES":
                     self.env.set_global("extend", f"{self.env.extend} ECB".strip())
                     # There is no initmty.ecb
-                    raise Exception("No module initmty ECB")
+                    raise KeyError("No module initmty ECB")
                 if self.env.macro.upper() in ["CSA", "MSA"]:
                     self.env.set_global("extend", f"{self.env.extend} MSA".strip())
                 elif self.env.macro.upper() == "MLF":
@@ -1853,7 +1853,7 @@ class InitmtyMod(GamsClass):
                 if self.env.mca.upper() == "YES":
                     self.env.set_global("extend", f"{self.env.extend} MCA".strip())
                     # There is no initmty.mca
-                    raise Exception("No module initmty MCA")
+                    raise KeyError("No module initmty MCA")
 
                 # Finally, add args %1...%6 to list of extensions:
                 parts = [

@@ -106,7 +106,11 @@ class RptmainMod(GamsClass):
                             )
                         )
 
-                if self.env.macro.upper() == "YES":
+                # rptmain.mod:29 uses plain $IF (case-sensitive), unlike the
+                # $IFI checks above: MLF's macro value is 'Yes' (mixed case,
+                # set by readbprice.mod), which matches $IFI==YES but not
+                # $IF==YES, so rptmain.tm must stay excluded for MLF.
+                if self.env.macro == "YES":
                     self.include(RptmainTm(self.tc, self.env))
 
                 #  If running stochastics, streamline reports

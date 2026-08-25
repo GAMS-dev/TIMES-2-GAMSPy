@@ -72,6 +72,8 @@ class SolsysdV3(GamsClass):
             )
             # TODO: The next line is in place only because this file has not been translated yet. Once done, this should be removed.
             self.tc.sysuc = self.tc.container["SYSUC"]  # type: ignore
+            if self.mode == "SYSUC" and self.map:
+                self.tc.Sysucmap = self.tc.container["SYSUCMAP"]  # type: ignore
 
     def _build_sysuc_block(self) -> str:
         set_entries: list[str] = []

@@ -36,6 +36,8 @@ class EquExtMlf(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
+        arg1: str,
+        arg2: str,
     ):
         self.env = env.fork()
         self._sub_modules = {}
@@ -73,7 +75,13 @@ class EquExtMlf(GamsClass):
             self.env.set_scoped("x1", kestrel[0])
             self.env.set_scoped("x2", kestrel[1])
         else:
-            raise NotImplementedError()
+            # Mirrors GAMS's own behavior for an unset %KESTREL%: an undefined
+            # dollar variable substitutes to an empty string, so
+            # `$SETCOMPS %KESTREL% X1 X2 .` yields blank X1/X2 rather than
+            # erroring, and the downstream `%X2%==LP` / `%X1%%X2%==NLP` checks
+            # simply don't match.
+            self.env.set_scoped("x1", "")
+            self.env.set_scoped("x2", "")
 
         if self.env.nonlp.upper() != "NL":
             self.include(PresolveMlf(tc=self.tc, env=self.env))

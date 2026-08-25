@@ -26,11 +26,7 @@ class EqmacroTm(GamsClass):
     module_name: str = "eqmacro_tm"
     gams_source: str = "eqmacro.tm"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
         self.env = env.fork()
         self.tc = tc
         self._sub_modules = {}

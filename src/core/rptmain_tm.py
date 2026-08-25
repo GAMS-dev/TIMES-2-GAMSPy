@@ -148,9 +148,7 @@ class RptmainTm(GamsClass):
 
         self.tc.enqueue(self.exec_report_params)
 
-    def exec_calc_shadow_price(
-        self: RptmainTm,
-    ) -> None:
+    def exec_calc_shadow_price(self: RptmainTm) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",

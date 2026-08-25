@@ -1177,9 +1177,9 @@ REGISTRY: dict[str, RunConfig] = {
             Path("offdummy.dd"),
         ],
     ),
-    "demo12BaseRep": RunConfig(
-        run_name="demo12BaseRep",
-        data_dir=BASE_DIR,
+    "demo12BaseMLF": RunConfig(
+        run_name="demo12BaseMLF",
+        data_dir=Path("src/data/Demo12BaseMLF"),
         time_slices=Path("demo12_ts.dd"),
         milestone_years=["2005", "2010", "2015", "2020", "2030", "2040", "2050"],
         env_vars=UserConfig(

@@ -30,9 +30,7 @@ class PpmExtMlf(GamsClass):
     gams_source: str = "ppm_ext.mlf"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
+        self, tc: TimesModelClass, env: CompileEnvironment, arg1: str, arg2: str
     ):
         self.env = env.fork()
         self._sub_modules = {}
