@@ -78,25 +78,3 @@ def cal_stgn_mod_GP(g: TimesModelClass, config: CalStgnModConfig) -> Sum:
         # * equation coarser than variable or finer than variable
         * g.rs_fr[r, s, ts],
     )
-
-
-def cal_stgn_mod(
-    var: str,
-    sow: str,
-    arg1: str = "",
-    arg2: str = "",
-    arg3: str = "",
-    arg4: str = "",
-    arg5: str = "",
-    arg6: str = "",
-) -> str:
-    """Translation unit for cal_cap.mod."""
-    return rf"""
-*V05c 980923 - check that commodity not just capacity related
-  SUM((TOP(RPC_STG(R,P,C),'{arg1}'),RPCS_VAR(R,P,C,TS))${arg5},
-       SUM(RTP_VNTBYR(R,T,P,V),
-          ({var}_S{arg1}(R,V,T,P,C,TS {sow}){arg3}-{arg4}{var}_S{arg2}(R,V,T,P,C,TS {sow})$RPC_STGN(R,P,C,'{arg2}')){arg6})$(NOT RPC_STGN(R,P,C,'{arg1}')) *
-* equation coarser than variable or finer than variable
-        RS_FR(R,S,TS)
-     ) +
-"""
