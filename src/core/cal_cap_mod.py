@@ -83,30 +83,3 @@ def cal_cap_mod_GP(
         * capacity(with_rcapsub=False)
         * cc.arg3,
     )
-
-
-def cal_cap_mod(
-    varv: str,
-    sws: str,
-    rcapsub: str,
-    arg1: str = "",
-    arg2: str = "",
-    arg3: str = "",
-    arg4: str = "",
-) -> str:
-    """Translation unit for cal_cap.mod."""
-    return rf"""
-         SUM(RTP_CPTYR(R,V,T,P)$NCAP_COM(R,V,P,C,'{arg1}'),
-*V05b 980902 - need to apply seasonal fraction
-             COEF_CPT(R,V,T,P) * NCAP_COM(R,V,P,C,'{arg1}') * G_YRFR(R,S) *
-             {arg3}
-             ({varv}_NCAP{arg4}(R,V,P {sws})$T(V) + NCAP_PASTI(R,V,P)$PASTYEAR(V) {rcapsub}) *
-* Adjust for lagged commodity flows
-             (1 + COEF_CIO(R,V,T,P,C,'{arg1}'))
-         ) +
-* CAL_NCOM: the term associated with invest/decommission commodities in the EQ_COMxxx
-         SUM(RPC_CAPFLO(R,V,P,C)$COEF_{arg2}COM(R,V,T,P,C), COEF_{arg2}COM(R,V,T,P,C) *
-             {arg3}
-             G_YRFR(R,S) * ({varv}_NCAP{arg4}(R,V,P {sws})$T(V)+NCAP_PASTI(R,V,P)$PASTYEAR(V))
-         )
-"""
