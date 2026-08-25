@@ -13,83 +13,10 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
-from core.base_class import GamsClass
 from core.bnd_ucv_mod import bnd_ucv_mod
 
-if TYPE_CHECKING:
-    from utils.compile_environment import CompileEnvironment
-    from utils.times_model_class import TimesModelClass
-
 logger = logging.getLogger(__name__)
-
-
-class BndUcwMod(GamsClass):
-    """Translation unit for bnd_ucw.mod."""
-
-    # Instance attributes
-    module_name: str = "bnd_ucw_mod"
-    gams_source: str = "bnd_ucw.mod"
-
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-    ):
-        self.env = env.fork()
-        self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self._sub_modules: dict[str, GamsClass] = {}
-        self.compile()
-
-    def compile(self) -> None:
-        var = self.env.var
-
-        self.tc.enqueue(
-            self.exec_bnd_ucw_mod,
-            arg1=self.arg1,
-            arg2=self.arg2,
-            var=var,
-            stages=self.env.stages,
-            swd=self.env.swd,
-            sow=self.env.sow,
-            defined_symbols={
-                f"{var}_UC": self.tc.defined(f"{var}_UC"),
-                f"{var}_UCR": self.tc.defined(f"{var}_UCR"),
-                f"{var}_UCT": self.tc.defined(f"{var}_UCT"),
-                f"{var}_UCRT": self.tc.defined(f"{var}_UCRT"),
-                f"{var}_UCTS": self.tc.defined(f"{var}_UCTS"),
-                f"{var}_UCRTS": self.tc.defined(f"{var}_UCRTS"),
-            },
-        )
-
-    def exec_bnd_ucw_mod(
-        self: BndUcwMod,
-        arg1: str,
-        arg2: str,
-        var: str,
-        stages: str,
-        swd: str,
-        sow: str,
-        defined_symbols: dict[str, bool],
-    ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=bnd_ucw_mod(
-                arg1=arg1,
-                arg2=arg2,
-                var=var,
-                stages=stages,
-                swd=swd,
-                sow=sow,
-                defined_symbols=defined_symbols,
-            ),
-        )
 
 
 def bnd_ucw_mod(
