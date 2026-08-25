@@ -11,7 +11,8 @@ requires-python = ">=3.10"
 dependencies = [
   "gamspy>=1.26.4",
   "pandas",
-  "dotenv"
+  "dotenv",
+  "filelock"
 ]
 
 [tool.setuptools.packages.find]
@@ -26,7 +27,7 @@ docs = [
 [tool.pytest.ini_options]
 addopts = "--junitxml=junit-report.xml --capture=tee-sys"
 junit_family = "xunit2"
-pythonpath = ["src"]
+pythonpath = ["src", ".ci"]
 
 [tool.coverage.run]
 branch = true
@@ -49,6 +50,9 @@ target-version = "py313"
 [tool.ruff.lint]
 extend-select = ["B", "SIM", "UP", "I", "RUF", "C4", "PIE", "PD"]
 ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["src", "tests"]
 
 [tool.ruff.format]
 quote-style = "double"

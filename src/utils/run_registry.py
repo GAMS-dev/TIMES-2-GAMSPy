@@ -2693,7 +2693,7 @@ REGISTRY: dict[str, RunConfig] = {
         ],
     ),
     "PhilipCase": RunConfig(
-        run_name="ph~0010",
+        run_name="phillip_case",
         lp_solver="cplex",
         data_dir="src/data/PhilipCase/",
         milestone_years=[

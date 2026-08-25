@@ -55,7 +55,7 @@ def run_times(
         lp=config.lp_solver,
         basis_detection_threshold=1,
         log_file=f"{config.run_name}.log",
-        listing_file="gamspy.lst",
+        listing_file=f"{config.run_name}.lst",
     )
 
     # Initialize Core
