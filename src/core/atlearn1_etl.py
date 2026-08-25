@@ -24,73 +24,8 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
-
-from core.base_class import GamsClass
-
-if TYPE_CHECKING:
-    from utils.compile_environment import CompileEnvironment
-    from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
-
-
-class Atlearn1Etl(GamsClass):
-    """Translation unit for atlearn1.etl."""
-
-    # Instance attributes
-    module_name: str = "atlearn1_etl"
-    gams_source: str = "atlearn1.etl"
-
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
-        arg4: str = "",
-        arg5: str = "",
-    ):
-        self.env = env.fork()
-        self._sub_modules = {}
-        self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
-        self.arg4 = arg4
-        self.arg5 = arg5
-        self.compile()
-
-    def compile(self) -> None:
-        self.tc.enqueue(
-            self.exec1,
-            self.arg1,
-            self.arg2,
-            self.arg3,
-            self.arg4,
-            self.arg5,
-        )
-
-    def exec1(
-        self: Atlearn1Etl,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-        arg4: str,
-        arg5: str,
-    ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=atlearn1_etl(
-                arg1=arg1,
-                arg2=arg2,
-                arg3=arg3,
-                arg4=arg4,
-                arg5=arg5,
-            ),
-        )
 
 
 def atlearn1_etl(

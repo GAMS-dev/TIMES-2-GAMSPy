@@ -15,70 +15,14 @@ from typing import TYPE_CHECKING
 
 from gamspy import Loop
 
-from core.base_class import GamsClass
-
 if TYPE_CHECKING:
     from gamspy import Alias, Set
     from gamspy._symbols.implicits import ImplicitSet
 
     from core.utils import SowGPType
-    from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
-
-
-class ClearsolStp(GamsClass):
-    """Translation unit for clearsol.stp."""
-
-    module_name: str = "clearsol_stp"
-    gams_source: str = "clearsol.stp"
-
-    def __init__(self, tc: TimesModelClass, env: CompileEnvironment, arg1: str = ""):
-        self.env = env.fork()
-        self._sub_modules = {}
-        self.tc = tc
-        self.arg1 = arg1
-        self.compile()
-
-    def compile(self) -> None:
-        self.tc.enqueue(
-            self.exec_clearsol_stp,
-            arg1=self.arg1,
-            var=self.env.var,
-            sow=self.env.sow_GP,
-            eq=self.env.eq,
-            swt=self.env.swt_GP,
-            cli=self.env.cli,
-            abs_=self.env.abs,
-            macro=self.env.macro,
-            stages=self.env.stages,
-        )
-
-    def exec_clearsol_stp(
-        self: ClearsolStp,
-        arg1: str,
-        var: str,
-        sow: SowGPType,
-        eq: str,
-        swt: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
-        cli: str,
-        abs_: str,
-        macro: str,
-        stages: str,
-    ) -> None:
-        clearsol_stp_GP(
-            tc=self.tc,
-            arg1=arg1,
-            var=var,
-            sow=sow,
-            eq=eq,
-            swt=swt,
-            cli=cli,
-            abs_=abs_,
-            macro=macro,
-            stages=stages,
-        )
 
 
 def clearsol_stp_GP(

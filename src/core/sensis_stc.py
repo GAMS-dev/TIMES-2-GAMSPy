@@ -10,104 +10,12 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
-from core.base_class import GamsClass
 from core.bnd_set_mod import bnd_set_mod
 from core.bnd_ucw_mod import bnd_ucw_mod
 from core.clearsol_stp import clearsol_stp
 
-if TYPE_CHECKING:
-    from utils.compile_environment import CompileEnvironment
-    from utils.times_model_class import TimesModelClass
-
 logger = logging.getLogger(__name__)
-
-
-class SensisStc(GamsClass):
-    """Translation unit for sensis.stc."""
-
-    module_name: str = "sensis_stc"
-    gams_source: str = "sensis.stc"
-
-    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
-        self.env = env.fork()
-        self.tc = tc
-        self._sub_modules = {}
-        self.compile()
-
-    def compile(self) -> None:
-        var = self.env.var
-
-        self.tc.enqueue(
-            self.exec_sensis_stc,
-            var=var,
-            cufscal=self.env.cufscal,
-            cucscal=self.env.cucscal,
-            cli=self.env.cli,
-            model_name=self.env.model_name,
-            mca=self.env.mca,
-            stages=self.env.stages,
-            swd=self.env.swd,
-            sow=self.env.sow,
-            eq=self.env.eq,
-            swt=self.env.swt,
-            abs_=self.env.abs_,
-            macro=self.env.macro,
-            rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
-            s_cap_bnd_declared=self.tc.defined("S_CAP_BND"),
-            bnd_ucw_defined={
-                f"{var}_UC": self.tc.defined(f"{var}_UC"),
-                f"{var}_UCR": self.tc.defined(f"{var}_UCR"),
-                f"{var}_UCT": self.tc.defined(f"{var}_UCT"),
-                f"{var}_UCRT": self.tc.defined(f"{var}_UCRT"),
-                f"{var}_UCTS": self.tc.defined(f"{var}_UCTS"),
-                f"{var}_UCRTS": self.tc.defined(f"{var}_UCRTS"),
-            },
-        )
-
-    def exec_sensis_stc(
-        self,
-        *,
-        var: str,
-        cufscal: str,
-        cucscal: str,
-        cli: str,
-        model_name: str,
-        mca: str,
-        stages: str,
-        swd: str,
-        sow: str,
-        eq: str,
-        swt: str,
-        abs_: str,
-        macro: str,
-        rtp_ffcs_defined: bool,
-        s_cap_bnd_declared: bool,
-        bnd_ucw_defined: dict[str, bool],
-    ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=sensis_stc(
-                var=var,
-                cufscal=cufscal,
-                cucscal=cucscal,
-                cli=cli,
-                model_name=model_name,
-                mca=mca,
-                stages=stages,
-                swd=swd,
-                sow=sow,
-                eq=eq,
-                swt=swt,
-                abs_=abs_,
-                macro=macro,
-                rtp_ffcs_defined=rtp_ffcs_defined,
-                s_cap_bnd_declared=s_cap_bnd_declared,
-                bnd_ucw_defined=bnd_ucw_defined,
-            ),
-        )
 
 
 def sensis_stc(
