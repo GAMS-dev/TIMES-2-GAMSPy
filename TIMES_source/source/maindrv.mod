@@ -107,6 +107,10 @@ $   SETLOCAL EXT %1
 $   IFI %STAGES% == YES      $SETLOCAL EXT stc
 $   IF SET STEPPED           $SETLOCAL EXT stp
 $   IFI %MERGE% == YES       $SETLOCAL EXT mrg
+* declared here, not in solve.%EXT%, because solve.stp's stepped mode
+* $BATINCLUDEs solve.mod from inside an open WHILE(...) loop -- GAMS forbids
+* declarations (though not assignments) inside a LOOP/WHILE/IF block
+  Parameter savepointModelstat;
 $   BATINCLUDE solve.%EXT% %1
 $   IF %SOLVE_NOW% == NO     $GOTO SKIPTOEND
 

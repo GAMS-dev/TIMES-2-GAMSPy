@@ -23,6 +23,7 @@ $  IF '%SOLVE_NOW%'==NO  $GOTO NO_SOLVE
 * solve TIMES with appropriate METHOD
 $  IF NOT SET MIXLP $SETLOCAL MIXLP ''
 $  IF NOT SET NONLP $SETLOCAL NONLP ''
+$  IF NOT SET DUMP_SAVEPOINT $SETLOCAL DUMP_SAVEPOINT NO
 * if ETL or DSC with binary variables use MIP
 $  IF    '%DAMAGE%'==NLP    $SETLOCAL NONLP NL
 $  IF    '%MICRO%'==YES     $SETLOCAL NONLP NL
@@ -58,16 +59,35 @@ SOLVE %MODEL_NAME% MINIMIZING objZ USING %METHOD%;
 
 option lp=cplex, mip=cplex;
 $ifThenI.solvemode %SOLVEMODE%==SOLVE
+$  ifThenI.dumpsp %DUMP_SAVEPOINT%==YES
+* use GAMS's native savepoint mechanism (see GAMSAOsavepoint) to dump this
+* solve's solver point -- NOT execute_unload, which would unload every set
+* and parameter in scope along with it and silently freeze this run's input
+* data into the cache instead of just the variable/equation solution
+    OPTION SAVEPOINT=2;
+$  endIf.dumpsp
   SOLVE %MODEL_NAME% MINIMIZING objZ USING %METHOD%;
-*  file modelstatus / '%MODEL_NAME%_modelstat.inc' / ;
-*  put modelstatus '%MODEL_NAME%.modelstat = ' %MODEL_NAME%.modelstat:0:0 ';' ;
+$  ifThenI.dumpsp %DUMP_SAVEPOINT%==YES
+* this is the 2nd SOLVE this job (the CONVERT solve above is the 1st), so
+* GAMS just wrote the point to %MODEL_NAME%_p2.gdx; move it to the
+* caller-supplied per-instance path and record modelstat alongside it in
+* its own tiny GDX. savepointModelstat is declared by maindrv.mod (not
+* here) since solve.stp's stepped mode $BATINCLUDEs solve.mod from inside
+* an open WHILE loop, where GAMS forbids declarations -- only assignments,
+* which is all this is, are safe regardless of how many times or from what
+* context solve.mod ends up included per job.
+    execute 'mv -f %MODEL_NAME%_p2.gdx %SAVEPOINT_GDX%';
+     savepointModelstat = %MODEL_NAME%.modelstat;
+     execute_unload '%SAVEPOINT_MODELSTAT%', savepointModelstat;
+$  endIf.dumpsp
 $elseifi.solvemode %SOLVEMODE%==LOADSOLUTION
 * generate model but do not pass it to the solver
   %MODEL_NAME%.JustScrDir=1;
   SOLVE %MODEL_NAME% MINIMIZING objZ USING %METHOD%;
-* load solution file and fake modelstatus from "real" solve
-  execute_loadpoint '%SAVEPOINT_DIR%%system.dirSep%times_p2.gdx';
-  $$include times_modelstat.inc
+* load solution point and fake modelstatus from "real" solve
+  execute_loadpoint '%SAVEPOINT_GDX%';
+   execute_load '%SAVEPOINT_MODELSTAT%', savepointModelstat;
+   %MODEL_NAME%.modelstat = savepointModelstat;
 $endif.solvemode
 
 $LABEL CHECK

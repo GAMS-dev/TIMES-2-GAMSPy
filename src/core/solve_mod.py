@@ -13,14 +13,21 @@
 from __future__ import annotations
 
 import logging
-import re
 import shutil
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from gamspy import Equation, Model, ModelStatus, Options, set_options
+from gamspy import (
+    Container,
+    Equation,
+    Model,
+    ModelStatus,
+    Options,
+    Parameter,
+    set_options,
+)
 
 from core.base_class import GamsClass
 from core.err_stat_mod import ErrStatMod
@@ -263,24 +270,31 @@ def solve_times_as_lp_mip(
             solver_options=Path(module.tc.config.data_dir, f"{solver}.opt"),
         )
     else:
+        run_name = module.tc.config.run_name.lower()
+        modelstat_gdx = Path(
+            module.tc.config.data_dir, f"times_modelstat_{run_name}.gdx"
+        )
         model.solve(
             output=sys.stdout,
             options=Options(
                 bypass_solver=True,
-                loadpoint=Path(module.tc.config.data_dir, "times_p2.gdx"),
+                loadpoint=Path(module.tc.config.data_dir, f"times_p2_{run_name}.gdx"),
             ),
         )
-        fake_file = Path(module.tc.config.data_dir, "times_modelstat.inc")
-        # fake model status in GAMS
-        module.tc.container.addGamsCode(f"$include {fake_file}")
+        # fake model status in GAMS -- declared once as a real symbol (not via
+        # raw GAMS text) so the declaration never ends up textually nested
+        # inside a caller's LOOP/IF, where GAMS forbids declarations.
+        if "savepointModelstat" not in module.tc.container.listSymbols():
+            Parameter(module.tc.container, name="savepointModelstat", records=0)
+        module.tc.container.addGamsCode(f"""
+execute_load '{modelstat_gdx}', savepointModelstat;
+{model_name}.modelstat = savepointModelstat;
+""")
 
         # fake model status in GAMSPy
-        with open(fake_file) as f:
-            s = f.read()
-        match = re.search(r"=\s*(\d+);", s)
-        if match:
-            value = int(match.group(1))
-            model._status = ModelStatus(value)
+        modelstat_container = Container(load_from=modelstat_gdx)
+        value = int(modelstat_container["savepointModelstat"].toValue())  # type: ignore[union-attr]
+        model._status = ModelStatus(value)
 
 
 def solve_mod_GP(
@@ -377,16 +391,28 @@ def solve_mod(
 SOLVE {model_name} MINIMIZING objZ USING {method};
 """
         else:
-            savepoint_path = Path(g.config.data_dir, "times_p2.gdx").absolute()
-            modelstat_path = Path(g.config.data_dir, "times_modelstat.inc").absolute()
+            run_name = g.config.run_name.lower()
+            savepoint_path = Path(
+                g.config.data_dir, f"times_p2_{run_name}.gdx"
+            ).absolute()
+            modelstat_path = Path(
+                g.config.data_dir, f"times_modelstat_{run_name}.gdx"
+            ).absolute()
+            # Declared once as a real symbol (not via raw GAMS text) so the
+            # declaration never ends up textually nested inside a caller's
+            # LOOP/IF (e.g. solve_stc.py's stochastic scenario loop), where
+            # GAMS forbids declarations.
+            if "savepointModelstat" not in g.container.listSymbols():
+                Parameter(g.container, name="savepointModelstat", records=0)
             solve_stmt = f"""
 {convert_dump}
 * generate model but do not pass it to the solver
   {model_name}.JustScrDir=1;
   SOLVE {model_name} MINIMIZING objZ USING {method};
-* load solution file and fake modelstatus from "real" solve
+* load solution point and fake modelstatus from "real" solve
   execute_loadpoint '{savepoint_path}';
-  $$include {modelstat_path}
+  execute_load '{modelstat_path}', savepointModelstat;
+  {model_name}.modelstat = savepointModelstat;
 """
 
     # Release some memory
