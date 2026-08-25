@@ -2791,6 +2791,10 @@ REGISTRY.update(
         "demos_012e_noreduce": derive_from(
             "demos_012e", run_name="demos_012e_noreduce", reduce="NO"
         ),
+        # reaches: coef_csv_mod.py (CoefCsvMod) and eqcapvac_mod.py
+        "demos_012e_vintopt": derive_from(
+            "demos_012e", run_name="demos_012e_vintopt", vintopt="2"
+        ),
         # reaches: bndmain.mod's VAR_UC-skip branch (bnd_ucw.mod/bnd_ucv.mod
         # never included) and dynslite_vda_bounds' var_uc_yes=False path.
         "demos_012e_novaruc": derive_from(
