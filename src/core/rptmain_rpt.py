@@ -23,7 +23,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from core.base_class import GamsClass
-from core.eqobjels_rpt import EqobjelsRpt
+from core.eqobjels_rpt import EqobjelsRpt, EqobjelsRptConfig
 from core.eqobjfix_rpt import EqobjfixRpt
 from core.eqobjinv_rpt import EqobjinvRpt
 from core.eqobjvar_rpt import EqobjvarRpt, EqobjvarRptConfig
@@ -56,6 +56,8 @@ class RptmainRpt(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+
         self.comp_declarations()
         self.include(SolFloRed(self.tc, self.env, arg1="PAR_FLO", arg2="", arg3=".L"))
         self.include(SolFloRed(self.tc, self.env, arg1="PAR_FLO", arg2="M", arg3=".M"))
@@ -76,9 +78,11 @@ class RptmainRpt(GamsClass):
             EqobjelsRpt(
                 self.tc,
                 self.env,
-                arg1="PAR_OBJELS(R,Y_EOH,C,CUR)",
-                arg2="Y_EOH",
-                arg3="OBJ_DISC(R,Y_EOH,CUR)*",
+                config=EqobjelsRptConfig(
+                    arg1=g.par_objels[g.r, g.YEoh, g.c, g.cur],
+                    arg2=g.YEoh,
+                    arg3=g.obj_disc[g.r, g.YEoh, g.cur],
+                ),
             )
         )
 
