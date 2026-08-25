@@ -25,7 +25,6 @@ from gamspy.math import Min, abs, diag, same_as
 from core.base_class import GamsClass
 from core.eqobjann_tm import EqobjannTm
 from core.eqobjels_mod import EqobjelsMod
-from core.eqobjels_rpt import EqobjelsRpt
 from core.eqobjfix_mod import EqobjfixMod
 from core.eqobjfix_rpt import EqobjfixRpt
 from core.eqobjinv_mod import EqobjinvMod
@@ -111,7 +110,20 @@ class EqobjMod(GamsClass):
 
             # Fixed O&M Cost and Tax components (Conditional)
             if self.env.timesed == "YES":
-                self.include(EqobjelsRpt(self.tc, self.env))
+                # eqobj.mod's `$BATINCLUDE eqobjels.%1` (no trailing args) only
+                # ever expands to eqobjels.mod: every real entry point hardcodes
+                # arg1="mod" (main.py, initmty_mod.py -> MainDrvMod ->
+                # EqmainMod -> EqobjMod), so arg_mode == "RPT" cannot occur
+                # today. Were it to occur, eqobjels.rpt needs %1..%3 (target
+                # parameter, year index, multiplier) that eqobj.mod never
+                # supplies in GAMS either, so there is no source text to
+                # translate faithfully -- picking values would mean inventing
+                # semantics rather than porting them.
+                raise NotImplementedError(
+                    "EqobjMod arg_mode='RPT' is unreachable from any current "
+                    "entry point, and eqobjels.rpt needs %1..%3 that "
+                    "eqobj.mod's batinclude never supplies"
+                )
 
             # Fixed O&M Cost and Tax components
             self.include(EqobjfixRpt(self.tc, self.env, arg1=self.arg1))

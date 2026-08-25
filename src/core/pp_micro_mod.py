@@ -12,6 +12,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter
+
 from core.base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -41,31 +43,52 @@ class PpMicroMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  PARAMETERS DDF_QREF(R,T,C), DDF_PREF(R,T,C);
-  PARAMETERS
-    MI_AGC(R,T,C,C,J,L) integral demand prices //
-    MI_DOPE(R,T,C) demand own price elasticity //
-    MI_ESUB(R,T,C) elasticity of substitution  //
-    MI_RHO(R,T,C)  measure of substitutability //;
-""",
+        g = self.tc
+        m = g.container
+
+        g.ddf_qref = Parameter(m, name="DDF_QREF", domain=[g.r, g.t, g.c])
+        g.ddf_pref = Parameter(m, name="DDF_PREF", domain=[g.r, g.t, g.c])
+        g.mi_agc = Parameter(
+            m,
+            name="MI_AGC",
+            domain=[g.r, g.t, g.c, g.c, g.j, g.lA],
+            description="integral demand prices",
         )
+        g.mi_dope = Parameter(
+            m,
+            name="MI_DOPE",
+            domain=[g.r, g.t, g.c],
+            description="demand own price elasticity",
+        )
+        g.mi_esub = Parameter(
+            m,
+            name="MI_ESUB",
+            domain=[g.r, g.t, g.c],
+            description="elasticity of substitution",
+        )
+        g.mi_rho = Parameter(
+            m,
+            name="MI_RHO",
+            domain=[g.r, g.t, g.c],
+            description="measure of substitutability",
+        )
+
         if self.arg1.upper() == "PRE":
             self.tc.enqueue(self.pre_exec)
         elif self.arg1.upper() == "NLP":
             if self.env.stages == "YES":
                 raise Exception("Non-linear Micro not available with stochastics")
-            self.tc.add_gams_code(
-                module=self,
-                phase="init",
-                code=r"""
-  PARAMETERS
-    MI_ELASP(R,T,C) consumer surplus elasticity     //
-    MI_CCONS(R,T,C) constant of the demand function //;
-""",
+            g.mi_elasp = Parameter(
+                m,
+                name="MI_ELASP",
+                domain=[g.r, g.t, g.c],
+                description="consumer surplus elasticity",
+            )
+            g.mi_ccons = Parameter(
+                m,
+                name="MI_CCONS",
+                domain=[g.r, g.t, g.c],
+                description="constant of the demand function",
             )
             self.tc.enqueue(self.nlp_exec)
         else:

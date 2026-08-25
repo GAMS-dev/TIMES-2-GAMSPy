@@ -1963,6 +1963,17 @@ class TimesModelClass:
     es_dscret: Equation = None  # type: ignore[assignment]  # [R, ALLYEAR, ALLYEAR, P, *SWTD] ES_DSCRET
     # endregion
 
+    # region MICRO extension (pp_micro.mod elastic/NLP demand coefficients)
+    ddf_qref: Parameter = None  # type: ignore[assignment] # [r,t,c] DDF_QREF
+    ddf_pref: Parameter = None  # type: ignore[assignment] # [r,t,c] DDF_PREF
+    mi_agc: Parameter = None  # type: ignore[assignment] # [r,t,c,c,j,lA] MI_AGC: integral demand prices
+    mi_dope: Parameter = None  # type: ignore[assignment] # [r,t,c] MI_DOPE: demand own price elasticity
+    mi_esub: Parameter = None  # type: ignore[assignment] # [r,t,c] MI_ESUB: elasticity of substitution
+    mi_rho: Parameter = None  # type: ignore[assignment] # [r,t,c] MI_RHO: measure of substitutability
+    mi_elasp: Parameter = None  # type: ignore[assignment] # [r,t,c] MI_ELASP: consumer surplus elasticity
+    mi_ccons: Parameter = None  # type: ignore[assignment] # [r,t,c] MI_CCONS: constant of the demand function
+    # endregion
+
     def __post_init__(self) -> None:
         """
         Runs immediately AFTER the dataclass finishes creating itself.
