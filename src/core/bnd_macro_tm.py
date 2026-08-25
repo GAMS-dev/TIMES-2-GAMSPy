@@ -7,43 +7,8 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
-
-from core.base_class import GamsClass
-
-if TYPE_CHECKING:
-    from utils.compile_environment import CompileEnvironment
-    from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
-
-
-class BndMacroTm(GamsClass):
-    """Translation unit for bnd_macro.tm."""
-
-    # Instance attributes
-    module_name: str = "bnd_macro"
-    gams_source: str = "bnd_macro.tm"
-
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
-        self.env = env.fork()
-        self.tc = tc
-        self._sub_modules = {}
-        self.compile()
-
-    def compile(self) -> None:
-        self.tc.enqueue(self.exec_bnd_macro_tm)
-
-    def exec_bnd_macro_tm(self: BndMacroTm) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=bnd_macro_tm(),
-        )
 
 
 def bnd_macro_tm() -> str:

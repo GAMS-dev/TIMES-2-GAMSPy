@@ -14,55 +14,8 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
-
-from core.base_class import GamsClass
-
-if TYPE_CHECKING:
-    from utils.compile_environment import CompileEnvironment
-    from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
-
-
-class BndElasMod(GamsClass):
-    """Translation unit for bnd_elas.mod."""
-
-    # Instance attributes
-    module_name: str = "bnd_elas_mod"
-    gams_source: str = "bnd_elas.mod"
-
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
-        self.env = env.fork()
-        self.tc = tc
-        self._sub_modules = {}
-        self.compile()
-
-    def compile(self) -> None:
-        self.tc.enqueue(
-            self.exec_bnd_elas_mod,
-            stages=self.env.stages,
-            var=self.env.var,
-            mx=self.env.mx,
-            sow=self.env.sow,
-        )
-
-    def exec_bnd_elas_mod(
-        self: BndElasMod,
-        stages: str,
-        var: str,
-        mx: str,
-        sow: str,
-    ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=bnd_elas_mod(stages=stages, var=var, mx=mx, sow=sow),
-        )
 
 
 def bnd_elas_mod(

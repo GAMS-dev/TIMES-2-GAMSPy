@@ -12,55 +12,8 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
-
-from core.base_class import GamsClass
-
-if TYPE_CHECKING:
-    from utils.compile_environment import CompileEnvironment
-    from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
-
-
-class BndActMod(GamsClass):
-    """Translation unit for bnd_act.mod."""
-
-    # Instance attributes
-    module_name: str = "bnd_act"
-    gams_source: str = "bnd_act.mod"
-
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
-        self.env = env.fork()
-        self.tc = tc
-        self._sub_modules = {}
-        self.compile()
-
-    def compile(self) -> None:
-        self.tc.enqueue(
-            self.exec_bnd_act_mod,
-            var=self.env.var,
-            swd=self.env.swd,
-            swt=f"SW_T(T{self.env.swd})$" if self.env.stages == "YES" else self.env.swt,
-            r_t=self.env.r_t,
-        )
-
-    def exec_bnd_act_mod(
-        self: BndActMod,
-        var: str,
-        swd: str,
-        swt: str,
-        r_t: str,
-    ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=bnd_act_mod(var=var, swd=swd, swt=swt, r_t=r_t),
-        )
 
 
 def bnd_act_mod(

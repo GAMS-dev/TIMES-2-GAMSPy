@@ -14,71 +14,13 @@ from typing import TYPE_CHECKING
 from gamspy import Domain, Loop, Number, SpecialValues, Sum, sparse
 from gamspy.math import Min, abs, diag, same_as
 
-from core.base_class import GamsClass
-
 if TYPE_CHECKING:
     from gamspy import Alias, Set
 
     from core.utils import SET_OR_ALIAS, SowGPType
-    from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
-
-
-class BndCumMod(GamsClass):
-    """Translation unit for bnd_cum.mod."""
-
-    module_name: str = "bnd_cum"
-    gams_source: str = "bnd_cum.mod"
-
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: SET_OR_ALIAS | None = None,
-    ):
-        self.env = env.fork()
-        self.tc = tc
-        self.arg1 = arg1 if arg1 is not None else tc.comvar
-        self._sub_modules = {}
-        self.compile()
-
-    def compile(self) -> None:
-        self.tc.enqueue(
-            self.exec_bnd_cum_mod,
-            arg1=self.arg1,
-            stages=self.env.stages,
-            eotime=self.env.eotime,
-            var=self.env.var,
-            sow=self.env.sow_GP,
-            cufscal=self.env.cufscal,
-            cucscal=self.env.cucscal,
-            macro=self.env.macro,
-        )
-
-    def exec_bnd_cum_mod(
-        self: BndCumMod,
-        arg1: SET_OR_ALIAS,
-        stages: str,
-        eotime: int | str,
-        var: str,
-        sow: SowGPType,
-        cufscal: int,
-        cucscal: int,
-        macro: str,
-    ) -> None:
-        bnd_cum_mod_GP(
-            tc=self.tc,
-            arg1=arg1,
-            stages=stages,
-            eotime=eotime,
-            var=var,
-            sow=sow,
-            cufscal=cufscal,
-            cucscal=cucscal,
-            macro=macro,
-        )
 
 
 def bnd_cum_mod_GP(
