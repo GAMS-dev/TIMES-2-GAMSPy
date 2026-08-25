@@ -61,6 +61,9 @@ class FillvintGms(GamsClass):
         g = self.tc
         m = g.container
 
+        if self.init and self.env.vintopt == "2":
+            self.tc.register_assignment(g.PrcSimv)
+
         prc_simv_defined = self.tc.defined("PRC_SIMV")
         if self.init:
             self.tc.enqueue(

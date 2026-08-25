@@ -52,6 +52,10 @@ class EnvironmentVariableSchema(BaseModel):
     vda: Literal["YES", "%vda%"] = Field(
         description="Enables the Vintage Data Aggregation (VDA) pre-processor extension of TIMES."
     )
+    vintopt: Literal["1", "2", "%vintopt%"] = Field(
+        default="%vintopt%",
+        description="Vintage-weighting option. 1: weight vintaged-attribute tables by PASTSUM (fillvint.gms fill branch). 2: additionally populates PRC_SIMV from PRC_VINT (excluding STG processes), activating vintage-simulation (coef_csv.mod/eqcapvac.mod).",
+    )
     dsc: Literal["YES", "NO"] = Field(
         description="Option to use the discrete/lumpy investment formulation, automatically altering the solver execution statement to MIP."
     )
@@ -675,6 +679,7 @@ class UserConfig(BaseModel):
     )
     reduce: Literal["YES", "%reduce%"] = "%reduce%"
     vda: Literal["YES", "%vda%"] = "%vda%"
+    vintopt: Literal["1", "2", "%vintopt%"] = "%vintopt%"
     debug: Literal["YES", "NO"] = "NO"
     dumpsol: Literal["YES", "NO"] = "NO"
     solans: Literal["YES", "NO"] = "NO"
