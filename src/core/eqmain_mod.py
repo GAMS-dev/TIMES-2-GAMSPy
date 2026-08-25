@@ -75,7 +75,9 @@ class EqmainMod(GamsClass):
     module_name: str = "eqmain_mod"
     gams_source: str = "eqmain.mod"
 
-    def __init__(self, tc: TimesModelClass, env: CompileEnvironment, arg1: str):
+    def __init__(
+        self, tc: TimesModelClass, env: CompileEnvironment, arg1: Literal["mod"]
+    ):
         self.env = env.fork()
         self.arg1 = arg1
         self.tc = tc

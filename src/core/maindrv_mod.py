@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from gamspy import Set
 
@@ -95,7 +95,9 @@ class MainDrvMod(GamsClass):
     module_name: str = "maindrv_mod"
     gams_source: str = "maindrv.mod"
 
-    def __init__(self, tc: TimesModelClass, env: CompileEnvironment, arg1: str):
+    def __init__(
+        self, tc: TimesModelClass, env: CompileEnvironment, arg1: Literal["mod"]
+    ):
         self.env = env.fork()
         self.arg1 = arg1
         self.tc = tc
