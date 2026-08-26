@@ -138,8 +138,8 @@ class UcbetVda(GamsClass):
    SUM((UC_T_SUM(R(ALL_R),UC_N,T){self.env.swtd2}),
 *....Time Mutiplier
      (FPD(T)+(COEF_PVT(R,T)-FPD(T))$UC_ATTR(R,UC_N,'LHS','ACT','PERDISC')) *
-     SUM(RTP_VINTYR(R,V,T,P(ITEM))$UC_FLOBET(UC_N,R,T,P,{self.env.pgprim}),
-       UC_FLOBET(UC_N,R,T,P,{self.env.pgprim}) *
+     SUM(RTP_VINTYR(R,V,T,P(ITEM))$UC_FLOBET(UC_N,R,T,P,'{self.env.pgprim}'),
+       UC_FLOBET(UC_N,R,T,P,'{self.env.pgprim}') *
        (
 *........For Standard processes, sum activities
          SUM((RTP_VARA(R,T,P),PRC_TS(R,P,S)), {self.env.var}_ACT(R,V,T,P,S{self.env.sow2}))$RP_STD(R,P) +
@@ -154,8 +154,8 @@ class UcbetVda(GamsClass):
    SUM((UC_T_SUM(R,UC_N,T){self.env.swtd2})$(NOT REG(ALL_R)),
 *....Time Mutiplier
      (FPD(T)+(COEF_PVT(R,T)-FPD(T))$UC_ATTR(R,UC_N,'LHS','ACT','PERDISC')) *
-     SUM(RTP_VINTYR(R,V,T,P(ITEM))$UC_FLOBET(UC_N,R,T,P,{self.env.pgprim}),
-       UC_FLOBET(UC_N,R,T,P,{self.env.pgprim}) *
+     SUM(RTP_VINTYR(R,V,T,P(ITEM))$UC_FLOBET(UC_N,R,T,P,'{self.env.pgprim}'),
+       UC_FLOBET(UC_N,R,T,P,'{self.env.pgprim}') *
        (
 *........For Standard processes, sum activities
          SUM((RTP_VARA(R,T,P),PRC_TS(R,P,S)), {self.env.var}_ACT(R,V,T,P,S{self.env.sow2}))$RP_STD(R,P) +
