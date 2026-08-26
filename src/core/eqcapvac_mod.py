@@ -6,8 +6,8 @@
 # * under the GNU General Public License v3.0 (see file NOTICE-GPLv3.txt).
 # *=============================================================================*
 # * EQCAPVAC is the capacity utilization equation for vintage-simulated processes
-# *   %1 - equation lim type
-# *   %2 - bound type for %1
+# *   sense      - equation lim type
+# *   bound_type - bound type for sense
 # *=============================================================================*
 # * Questions/Comments:
 # * - COEF_CSV is defined in COEF_CSV.MOD
@@ -16,15 +16,27 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal
+
+from gamspy import Domain, Product, Sum
 
 from core.base_class import GamsClass
+from core.utils import extract_var_domain, generate_equation, wrap_in_sum
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class EqcapvacModConfig:
+    """Strongly typed data contract replacing the positional batch-include args."""
+
+    sense: Literal["E", "L", "G"]
+    bound_type: Literal["FX", "UP", "LO"]
 
 
 class EqcapvacMod(GamsClass):
@@ -38,38 +50,83 @@ class EqcapvacMod(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
+        config: EqcapvacModConfig,
     ):
         self.env = env.fork()
         self._sub_modules: dict[str, GamsClass] = {}
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
+        self.config = config
         self.compile()
 
     def compile(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
- EQ{self.arg1}_CAPVAC(RTP_VINTYR({self.env.r_v_t},P),S{self.env.swx})$({self.env.swtx}AFSV(R,T,P,S,'{self.arg2}'))..
+        g = self.tc
+        cc = self.config
 
-* Activity level at timeslice S
-    SUM(PRC_TS(R,P,TS)$TS_MAP(R,S,TS),{self.env.var}_ACT(R,V,T,P,TS {self.env.sow}))$(NOT RPS_CAFLAC(R,P,S,'{self.arg2}')) +
-* Flow levels when commodity-specific availabilities
-    SUM((RPC_PG(R,P,C),COM_TMAP(R,COM_TYPE(CG),C)), (1/PRC_ACTFLO(R,V,P,C)) /
-        (NCAP_AFCS(R,V,P,C,S)+PROD(XPT$NCAP_AFCS(R,V,P,CG,S),NCAP_AFCS(R,V,P,CG,S))$(NOT NCAP_AFCS(R,V,P,C,S))) *
-        SUM(RPCS_VAR(R,P,C,TS)$TS_MAP(R,S,TS),{self.env.var}_FLO(R,V,T,P,C,TS {self.env.sow})$RP_STD(R,P) +
-          SUM(RPC_IRE(R,P,C,IE),{self.env.var}_IRE(R,V,T,P,C,TS,IE {self.env.sow}))))$RPS_CAFLAC(R,P,S,'{self.arg2}')
+        r, v, t, p, c, s, ts, cg, ie, k = (
+            g.r,
+            g.v,
+            g.t,
+            g.p,
+            g.c,
+            g.s,
+            g.ts,
+            g.cg,
+            g.ie,
+            g.k,
+        )
+        ncap_afcs, prc_actflo = g.ncap_afcs, g.prc_actflo
+        var = self.env.var
+        sow = self.env.sow_GP
+        sws = self.env.sws_GP
+        VAR_ACT = g.get_variable(f"{var}_ACT")
+        VAR_FLO = g.get_variable(f"{var}_FLO")
+        VAR_IRE = g.get_variable(f"{var}_IRE")
 
-  ={self.arg1}=
+        varm_id, varm_set = extract_var_domain(self.env.varm_GP)
+        VARM_NCAP = g.get_variable(f"{varm_id}_NCAP")
 
-* process is vintaged
-    SUM(MODLYEAR(K)$COEF_CSV(R,K,T,P,V),COEF_CSV(R,K,T,P,V)*COEF_AF(R,K,T,P,S,'{self.arg2}')*{self.env.varm}_NCAP(R,K,P{self.env.sws})$T(K)+NCAP_PASTI(R,K,P))*PRC_CAPACT(R,P)*G_YRFR(R,S)
-  ;
+        # Activity level at timeslice S
+        activity = Sum(
+            g.PrcTs[r, p, ts].where[g.TsMap[r, s, ts]],
+            VAR_ACT[r, v, t, p, ts, *sow],
+        ).where[~g.RpsCaflac[r, p, s, cc.bound_type]]
 
-""",
+        # Flow levels when commodity-specific availabilities
+        flows = Sum(
+            Domain(g.RpcPg[r, p, c], g.ComTmap[r, g.ComType[cg], c]),
+            (1 / prc_actflo[r, v, p, c])
+            / (
+                ncap_afcs[r, v, p, c, s]
+                + Product(
+                    g.xpt.where[ncap_afcs[r, v, p, cg, s]],
+                    ncap_afcs[r, v, p, cg, s],
+                ).where[~ncap_afcs[r, v, p, c, s]]
+            )
+            * Sum(
+                g.RpcsVar[r, p, c, ts].where[g.TsMap[r, s, ts]],
+                VAR_FLO[r, v, t, p, c, ts, *sow].where[g.RpStd[r, p]]
+                + Sum(g.RpcIre[r, p, c, ie], VAR_IRE[r, v, t, p, c, ts, ie, *sow]),
+            ),
+        ).where[g.RpsCaflac[r, p, s, cc.bound_type]]
+
+        # process is vintaged
+        capacity = (
+            Sum(
+                g.Modlyear[k].where[g.coef_csv[r, k, t, p, v]],
+                g.coef_csv[r, k, t, p, v]
+                * g.coef_af[r, k, t, p, s, cc.bound_type]
+                * wrap_in_sum(VARM_NCAP[r, k, p, *sws], varm_set).where[t[k]]
+                + g.ncap_pasti[r, k, p],
+            )
+            * g.prc_capact[r, p]
+            * g.g_yrfr[r, s]
+        )
+
+        eq = g.get_equation(f"EQ{cc.sense}_CAPVAC")
+        eq[g.RtpVintyr[*self.env.r_v_t_GP, p], s, *self.env.swx_GP].where[
+            self.env.swtx_GP * g.Afsv[r, t, p, s, cc.bound_type]
+        ] = generate_equation(
+            lhs=activity + flows,
+            type=cc.sense,
+            rhs=capacity,
         )
