@@ -140,6 +140,8 @@ class InitExtVda(GamsClass):
         self.include(EqucrtpVda(self.tc, self.env, EqucrtpVdaConfig(arg1="INIT_EXT")))
 
         uc_actbet_defined = self.tc.defined("UC_ACTBET")
+        if uc_actbet_defined:
+            g.register_assignment(g.uc_flobet)
         self.tc.enqueue(
             self.prepare_uc_cli_uc_dynbnd_uc_actbet_cont,
             cli=self.env.cli == "YES",
