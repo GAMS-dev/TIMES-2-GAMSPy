@@ -16,8 +16,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Equation, Parameter, Set
+
 from core.base_class import GamsClass
-from core.eqcapvac_mod import EqcapvacMod
+from core.eqcapvac_mod import EqcapvacMod, EqcapvacModConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -44,21 +46,33 @@ class CoefCsvMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
+
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code="""
-  SET VTV(LL,LL,T), AFSV(R,T,P,S,BD);
+  SET VTV(LL,LL,T);
 * SET RPS_CAFLAC(R,P,S,L) //;
-  PARAMETER COEF_CSV(R,ALLYEAR,LL,P,ALLYEAR);
   PARAMETER NCAP_AFCS(R,LL,P,CG,S) //;
-*-----------------------------------------------------------------------------
-  EQUATIONS
-  EQL_CAPVAC(R,ALLYEAR,T,P,S,ALLSOW)  'Capacity Utilization (=L=)'
-  EQE_CAPVAC(R,ALLYEAR,T,P,S,ALLSOW)  'Capacity Utilization (=E=)'
-  EQG_CAPVAC(R,ALLYEAR,T,P,S,ALLSOW)  'Capacity Utilization (=G=)';
 """,
         )
+
+        g.Afsv = Set(m, name="AFSV", domain=[g.r, g.t, g.p, g.s, g.bd])
+        g.coef_csv = Parameter(
+            m, name="COEF_CSV", domain=[g.r, g.allyear, g.ll, g.p, g.allyear]
+        )
+        for sense in ("L", "E", "G"):
+            g.set_equation(
+                name=f"EQ{sense}_CAPVAC",
+                eq=Equation(
+                    m,
+                    name=f"EQ{sense}_CAPVAC",
+                    domain=[g.r, g.allyear, g.t, g.p, g.s, g.allsow],
+                    description=f"Capacity Utilization (={sense}=)",
+                ),
+            )
 
         if not self.env.is_set("trivint"):
             self.env.set_scoped("trivint", "6")
@@ -68,9 +82,15 @@ class CoefCsvMod(GamsClass):
         self.tc.enqueue(self.initialize_capacity_transfer)
         self.tc.enqueue(self.calculate_capacity_transfer)
 
-        self.include(EqcapvacMod(self.tc, self.env, "E", "FX", "N"))
-        self.include(EqcapvacMod(self.tc, self.env, "L", "UP", "N"))
-        self.include(EqcapvacMod(self.tc, self.env, "G", "LO", "LO"))
+        # fmt: off
+        batincludes: list[EqcapvacModConfig] = [
+            EqcapvacModConfig(sense="E", bound_type="FX"),
+            EqcapvacModConfig(sense="L", bound_type="UP"),
+            EqcapvacModConfig(sense="G", bound_type="LO"),
+        ]
+        # fmt: on
+        for config in batincludes:
+            self.include(EqcapvacMod(self.tc, self.env, config))
 
     def average_vintage_year(self) -> None:
         self.tc.add_gams_code(

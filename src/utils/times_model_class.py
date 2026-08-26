@@ -712,6 +712,7 @@ class TimesModelClass:
     coef_pvt: Parameter = None  # type: ignore[assignment] # [r,t] COEF_PVT: Present value of time in periods
     coef_vnt: Parameter = None  # type: ignore[assignment] # [r,t,prc,allyear] COEF_VNT: COEF_CPT with swapped indexes
     coef_cap: Parameter = None  # type: ignore[assignment] # [r,allyear,ll,p] COEF_CAP: Generic re-usable work parameter
+    coef_csv: Parameter = None  # type: ignore[assignment] # [r,allyear,ll,p,allyear] COEF_CSV: Capacity transfer of simulated vintages
     coef_rtp: Parameter = None  # type: ignore[assignment] # [r,allyear,p] COEF_RTP: Generic re-usable work parameter
     coef_rvpt: Parameter = None  # type: ignore[assignment] # [r,allyear,prc,t] COEF_RVPT: Generic re-usable work parameter
     rtp_cpx: Parameter = None  # type: ignore[assignment] # [r,allyear,p,ll] RTP_CPX: Shape multipliers for capacity transfer
@@ -1144,6 +1145,9 @@ class TimesModelClass:
     ese_capact: Equation = None  # type: ignore[assignment]# [r,allyear,allyear,p,s] EQE_CAPACT: Capacity Utilzation (=E=)
     eqg_capact: Equation = None  # type: ignore[assignment]# [r,allyear,allyear,p,s] EQG_CAPACT: Capacity Utilzation (=G=)
     esg_capact: Equation = None  # type: ignore[assignment]# [r,allyear,allyear,p,s] EQG_CAPACT: Capacity Utilzation (=G=)
+    eql_capvac: Equation = None  # type: ignore[assignment]# [r,allyear,t,p,s,allsow] EQL_CAPVAC: Capacity Utilization (=L=)
+    eqe_capvac: Equation = None  # type: ignore[assignment]# [r,allyear,t,p,s,allsow] EQE_CAPVAC: Capacity Utilization (=E=)
+    eqg_capvac: Equation = None  # type: ignore[assignment]# [r,allyear,t,p,s,allsow] EQG_CAPVAC: Capacity Utilization (=G=)
     eqg_combal: Equation = None  # type: ignore[assignment]# [r,allyear,c,s] EQG_COMBAL: Commodity Balance (=G=)
     esg_combal: Equation = None  # type: ignore[assignment]# [r,allyear,c,s] EQG_COMBAL: Commodity Balance (=G=)
     eqe_combal: Equation = None  # type: ignore[assignment]# [r,allyear,c,s] EQE_COMBAL: Commodity Balance (=E=)
@@ -1400,6 +1404,7 @@ class TimesModelClass:
     obj_dceoh: Parameter = None  # type: ignore[assignment] # [Reg,cur] OBJ_DCEOH:
     ObjSali: Set = None  # type: ignore[assignment] # [r,allyear,p,age,year,age,allyear,year] OBJ_SALI:
     Afs: Set = None  # type: ignore[assignment] # [r,t,p,s,bd] AFS:
+    Afsv: Set = None  # type: ignore[assignment] # [r,t,p,s,bd] AFSV: AFS entries handled by the simplified-vintaging capacity utilization equation
     Superyr: Set = None  # type: ignore[assignment] # [t,allyear] SUPERYR: SUpremum PERiod YeaR
     Ykk: Set = None  # type: ignore[assignment] # [allyear,allyear,allyear] YKK:
     RtpIan: Set = None  # type: ignore[assignment] # [Reg,t,p,cur] RTP_IAN:
