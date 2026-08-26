@@ -2884,5 +2884,9 @@ REGISTRY.update(
         "demos_012e_abs": derive_from(
             "demos_012e", run_name="demos_012e_abs", abs="YES"
         ),
+        # reaches: the MSA extension family
+        "demo12BaseMLF_csa": derive_from(
+            "demo12BaseMLF", run_name="demo12BaseMLF_csa", macro="CSA"
+        ),
     }
 )

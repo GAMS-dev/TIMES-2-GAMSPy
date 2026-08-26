@@ -51,16 +51,13 @@ class SolveMsa(GamsClass):
             self.tc.enqueue(self.exec_tm_ycheck)
 
         self.comp1(is_tm_catt_defined=self.tc.defined("TM_CATT"))
+        self.tc.enqueue(self.comp1_seed)
 
         if self.env.msa.upper() == "MSA":
             # POLICY
-            self.tc.enqueue(
-                self.exec_policy,
-            )
+            self.tc.enqueue(self.exec_policy)
         else:
-            self.tc.enqueue(
-                self.exec2,
-            )
+            self.tc.enqueue(self.exec2)
             if self.env.objann.upper() != "YES":
                 pass
             else:
@@ -323,6 +320,14 @@ class SolveMsa(GamsClass):
   PARAMETER MSA_ERR(MITER,NITER,LOOPS,REG);
   PARAMETER TM_TOL(ITEM) / CAL 7E-7, MST 1E-5, BND 0.5, TIG 0.6, DEM 0, EQUIL 1 /;
   SCALAR ERRDEM / 0 /, ERRGDP / 0 /, TM_CAL / 1 /, DOITER/ 1 /;
+""",
+        )
+
+    def comp1_seed(self: SolveMsa) -> None:
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code="""
   TM_GDP(MR(R),T) = TM_GDPGOAL(R,T);
   PAR_Y(R,T)      = TM_GDPGOAL(R,T);
   TM_NWT(MR) = 1;
