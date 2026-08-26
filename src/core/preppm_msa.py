@@ -11,6 +11,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Alias, Parameter, Set
+
 from core.base_class import GamsClass
 from core.filparam_gms import FilparamGms, FilparamGmsConfig
 from core.forcupd_cli import forcupd_cli
@@ -79,17 +81,20 @@ class PreppmMsa(GamsClass):
             # self.include(MSADDF(self.tc, self.env))
             raise Exception("TODO: MSADDF.dd not implemented")
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="""
-  ALIAS(IPS,MDM);
-  SET CM_LPK(*), CM_LPT(*), XTP(LL);
-  PARAMETER CM_LED(LL), TM_XWT(R,LL);
-* Periods stuff
-  ALIAS(TB,T_1);
-""",
-        )
+        m = g.container
+        g.mdm = Alias(m, name="MDM", alias_with=g.ips)
+        g.cmlpk = Set(m, name="CM_LPK", domain=["*"])
+        g.cmlpt = Set(m, name="CM_LPT", domain=["*"])
+        g.Xtp = Set(m, name="XTP", domain=[g.ll], description="MACRO XTP periods")
+        # CM_LED is also declared (with domain=ALLYEAR) by initmty_cli.py when
+        # the CLI extension is active; guard so combining CLI+MSA doesn't hit
+        # a domain-mismatch redeclaration crash (same idiom as TM_RESULT
+        # above in initmty_msa.py).
+        if not g.declared(g.cm_led):
+            g.cm_led = Parameter(m, name="CM_LED", domain=[g.ll])
+        g.tm_xwt = Parameter(m, name="TM_XWT", domain=[g.r, g.ll])
+        # Periods stuff
+        g.t1 = Alias(m, name="T_1", alias_with=g.Tb)
 
         self.tc.enqueue(self.label_msa_exec1)
 

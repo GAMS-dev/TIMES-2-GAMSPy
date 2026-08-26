@@ -255,6 +255,11 @@ class TimesModelClass:
     TsMap: Set = None  # type: ignore[assignment] # [allreg,allts,allts] TS_MAP: Timeslice hierarchy tree: node+below
 
     Xtp: Set = None  # type: ignore[assignment] # [LL] XTP:
+    mdm: Alias = None  # type: ignore[assignment] # [*] MDM: Aliased with IPS
+    cmlpk: Set = None  # type: ignore[assignment] # [*] CM_LPK
+    cmlpt: Set = None  # type: ignore[assignment] # [*] CM_LPT
+    tm_xwt: Parameter = None  # type: ignore[assignment] # [R,LL] TM_XWT
+    t1: Alias = None  # type: ignore[assignment] # [*] T_1: Aliased with TB
 
     Milestonyr: Set = None  # type: ignore[assignment] # [allyear] MILESTONYR: Projection years for which model to be run
     t: Alias = None  # type: ignore[assignment] # [*] T: Aliased with MILESTONYR

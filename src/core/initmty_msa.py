@@ -34,6 +34,8 @@ class InitmtyMsa(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
+        arg1: str = "",
+        arg2: str = "",
     ):
         self.env = env.fork()
         self.tc = tc
@@ -72,17 +74,18 @@ class InitmtyMsa(GamsClass):
         g.tm_defval = Parameter(
             m,
             name="TM_DEFVAL",
-            records={
-                "DEPR": 5,
-                "ESUB": 0.25,
-                "KGDP": 2.5,
-                "KPVS": 0.25,
-                "DMTOL": 0.1,
-                "IVETOL": 0.5,
-                "REFTEMP": 2.5,
-                "REFLOSS": 0.02,
-                "ESC": 1.028,
-            },  # type: ignore[arg-type] # TODO gamspy #861
+            domain=["*"],
+            records=[
+                ("DEPR", 5),
+                ("ESUB", 0.25),
+                ("KGDP", 2.5),
+                ("KPVS", 0.25),
+                ("DMTOL", 0.1),
+                ("IVETOL", 0.5),
+                ("REFTEMP", 2.5),
+                ("REFLOSS", 0.02),
+                ("ESC", 1.028),
+            ],
         )
 
         # Declare/Initialize User Defined Sets
@@ -311,9 +314,10 @@ class InitmtyMsa(GamsClass):
             domain=[Reg, year],
             description="Actualized gross domestic product",
         )
-        g.tm_result = Parameter(
-            m,
-            name="TM_RESULT",
-            domain=[item, r, year],
-            description="MACRO Summary result parameters",
-        )
+        if not g.declared(g.tm_result):
+            g.tm_result = Parameter(
+                m,
+                name="TM_RESULT",
+                domain=[item, r, year],
+                description="MACRO Summary result parameters",
+            )

@@ -474,6 +474,9 @@ class EnvironmentVariableSchema(BaseModel):
     extend: str = Field(
         description="Horizons extension directive switch tracked as string primitives."
     )
+    msa: str = Field(
+        description="Macro Stand-Alone sub-mode, derived from MACRO ('CSA' or the literal MACRO value) inside preppm.msa."
+    )
     istep: str = Field(
         description="Iteration step count tracking identifier tracking multi-foresight steps."
     )
