@@ -5,13 +5,15 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Number
+from gamspy import Number, Sum
 
 from core.base_class import GamsClass
 from core.fillparm_gms import FillparmGmsConfig, fillparm
 from core.pp_qaput_mod import pp_qaput
 
 if TYPE_CHECKING:
+    from gamspy import Alias, Expression, Set
+    from gamspy._algebra.condition import Condition
     from gamspy._symbols.implicits import ImplicitParameter
 
     from utils.compile_environment import CompileEnvironment
@@ -40,8 +42,6 @@ class DynsliteVda(GamsClass):
         self.compile()
 
     def compile(self: DynsliteVda) -> None:
-        g = self.tc
-
         if self.env.rts() == "S":
             return
         self.env.set_scoped("tmp", "$NORTS(R,T,S)")
@@ -66,26 +66,6 @@ class DynsliteVda(GamsClass):
             )
             rts = "$(NORTS(R,V,S)+NORTS(R,T,S)$PASTMILE(V))"
             self.tc.enqueue(self.clear_exec, tmp=self.env.tmp, rts=rts)
-        elif self.arg1.upper() == "BOUNDS":
-            if self.env.stages == "YES":
-                self.env.set_local("swt", f"SW_T(T{self.env.swd})$")
-                self.env.set_local(
-                    "swt_GP", (g.SwT[g.t, *self.env.swd_GP],)
-                )  # Todo: move $ to main code
-            self.env.set_local(
-                "swt", f"{self.env.swd})$({self.env.swt}RT_PP(R,T){self.env.tmp}"
-            )
-            self.env.set_local(
-                "swt_GP", f"{self.env.swd})$({self.env.swt}RT_PP(R,T){self.env.tmp}"
-            )  # ToDo: How to handle?
-            self.tc.enqueue(
-                self.bounds_exec,
-                swd=self.env.swd,
-                stages=self.env.stages,
-                model_name=self.env.model_name,
-                var=self.env.var,
-                var_uc_yes=self.env.var_uc == "YES",
-            )
 
     def prelev_exec(self: DynsliteVda, ducyes: bool, tmp: str) -> None:
         if self.tc.container["NORTS"].number_records > 0:
@@ -268,56 +248,95 @@ class DynsliteVda(GamsClass):
                 code=r"OPTION DATAYEAR<FIL;",
             )
 
-    def bounds_exec(
-        self: DynsliteVda,
-        swd: str,
-        stages: str,
-        model_name: str,
-        var: str,
-        var_uc_yes: bool,
-    ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=dynslite_vda_bounds(
-                swd=swd,
-                stages=stages,
-                model_name=model_name,
-                var=var,
-                var_uc_yes=var_uc_yes,
-            ),
-        )
 
-
-def dynslite_vda_bounds(
+def dynslite_vda_bounds_GP(
     *,
-    swd: str,
+    g: TimesModelClass,
+    module: GamsClass,
+    swd_GP: tuple[Set | Alias] | tuple[()],
     stages: str,
     model_name: str,
     var: str,
     var_uc_yes: bool,
-) -> str:
-    tmp = "$NORTS(R,T,S)"
-    swt = ""
-    if stages == "YES":
-        swt = f"SW_T(T{swd})$"
-    swt = f"{swd})$({swt}RT_PP(R,T){tmp}"
+) -> None:
+    """Native translation of `$BATINCLUDE dynslite.vda BOUNDS`.
 
-    return rf"""
-  IF(CARD(NORTS),
-   OPTION RTC_NET<RHS_COMBAL,RTC_PRD<RHS_COMPRD;
-   {model_name}.HOLDFIXED=1;
-   {model_name}.SOLVEOPT=1;
-   {var}_ACT.FX(RTP_VINTYR(R,V,T,P),S{swt}$PRC_TS(R,P,S)) = 0;
-   {var}_FLO.FX(RTP_VINTYR(R,V,T,P),C,S{swt}$RPCS_VAR(R,P,C,S)) = 0;
-   {var}_IRE.FX(RTP_VINTYR(R,V,T,P),C,S,IE{swt}$RPCS_VAR(R,P,C,S)) = 0;
-   {var}_SIN.FX(RTP_VINTYR(R,V,T,P),C,S{swt}$RPCS_VAR(R,P,C,S)) = 0;
-   {var}_SOUT.FX(RTP_VINTYR(R,V,T,P),C,S{swt}$RPCS_VAR(R,P,C,S)) = 0;
-   {var}_UPS.FX(RTP_VINTYR(R,V,T,P),S,L{swt}$RPS_UPS(R,P,S)) = 0;
-   {var}_UPT.FX(RTP_VINTYR(R,V,T,P),S,UPT{swt}$RPS_UPS(R,P,S)$RP_DP(R,P)) = 0;
-   {var}_UDP.FX(RTP_VINTYR(R,V,T,P),S,BD{swt}$PRC_TS(R,P,S)$RP_UPR(R,P,BD)) = 0;
-   {var}_COMNET.FX(RTC_NET(R,T,C),S{swt}$COM_TS(R,C,S)) = 0;
-   {var}_COMPRD.FX(RTC_PRD(R,T,C),S{swt}$COM_TS(R,C,S)) = 0;
-   {f"UC_RHSMAP(R,T,UCN,UC_NUMBER,S){tmp} = NO;" if var_uc_yes else ""}
-  );
-"""
+    `{model_name}.HOLDFIXED=1;`/`{model_name}.SOLVEOPT=1;` are GAMS solve
+    options -- like the SOLVEOPT/BRATIO case in solve_stp.py's
+    exec_solve_stp, GAMSPy runs every statement as its own job so an
+    OPTION/model-attribute statement here cannot reach the next solve
+    natively; kept as the one raw fragment, emitted only for traceability.
+    """
+    if g.container["NORTS"].number_records == 0:
+        return
+
+    r, v, t, p, c, s, ie, lA, upt, bd = (
+        g.r,
+        g.v,
+        g.t,
+        g.p,
+        g.c,
+        g.s,
+        g.ie,
+        g.lA,
+        g.upt,
+        g.bd,
+    )
+
+    # swt = f"{swd})$({swt}RT_PP(R,T){tmp}"
+    # {swd})$ moves into the use later
+    tmp = g.norts[r, t, s]
+    swt: Expression | Condition = g.RtPp[r, t].where[tmp]
+    if stages == "YES":
+        swt = g.SwT[t, *swd_GP] * swt
+
+    g.RtcNet[r, t, c] = Sum(s, g.RhsCombal[r, t, c, s]) > 0
+    g.RtcPrd[r, t, c] = Sum(s, g.RhsComprd[r, t, c, s]) > 0
+
+    g.add_gams_code(
+        module=module,
+        phase="run",
+        code=f"{model_name}.HOLDFIXED=1;\n{model_name}.SOLVEOPT=1;",
+    )
+
+    VAR_ACT = g.get_variable(f"{var}_ACT")
+    VAR_FLO = g.get_variable(f"{var}_FLO")
+    VAR_IRE = g.get_variable(f"{var}_IRE")
+    VAR_SIN = g.get_variable(f"{var}_SIN")
+    VAR_SOUT = g.get_variable(f"{var}_SOUT")
+    VAR_UPS = g.get_variable(f"{var}_UPS")
+    VAR_UPT = g.get_variable(f"{var}_UPT")
+    VAR_UDP = g.get_variable(f"{var}_UDP")
+    VAR_COMNET = g.get_variable(f"{var}_COMNET")
+    VAR_COMPRD = g.get_variable(f"{var}_COMPRD")
+
+    VAR_ACT.fx[g.RtpVintyr[r, v, t, p], s, *swd_GP].where[
+        # nned to multiply here, since swt is a condition
+        swt * g.PrcTs[r, p, s]
+    ] = 0
+    VAR_FLO.fx[g.RtpVintyr[r, v, t, p], c, s, *swd_GP].where[
+        swt * g.RpcsVar[r, p, c, s]
+    ] = 0
+    VAR_IRE.fx[g.RtpVintyr[r, v, t, p], c, s, ie, *swd_GP].where[
+        swt * g.RpcsVar[r, p, c, s]
+    ] = 0
+    VAR_SIN.fx[g.RtpVintyr[r, v, t, p], c, s, *swd_GP].where[
+        swt * g.RpcsVar[r, p, c, s]
+    ] = 0
+    VAR_SOUT.fx[g.RtpVintyr[r, v, t, p], c, s, *swd_GP].where[
+        swt * g.RpcsVar[r, p, c, s]
+    ] = 0
+    VAR_UPS.fx[g.RtpVintyr[r, v, t, p], s, lA, *swd_GP].where[
+        swt * g.RpsUps[r, p, s]
+    ] = 0
+    VAR_UPT.fx[g.RtpVintyr[r, v, t, p], s, upt, *swd_GP].where[
+        swt * g.RpsUps[r, p, s] * g.RpDp[r, p]
+    ] = 0
+    VAR_UDP.fx[g.RtpVintyr[r, v, t, p], s, bd, *swd_GP].where[
+        swt * g.PrcTs[r, p, s] * g.RpUpr[r, p, bd]
+    ] = 0
+    VAR_COMNET.fx[g.RtcNet[r, t, c], s, *swd_GP].where[swt * g.ComTs[r, c, s]] = 0
+    VAR_COMPRD.fx[g.RtcPrd[r, t, c], s, *swd_GP].where[swt * g.ComTs[r, c, s]] = 0
+
+    if var_uc_yes:
+        g.UcRhsmap[r, t, g.ucn, g.ucnumber, s].where[tmp] = False

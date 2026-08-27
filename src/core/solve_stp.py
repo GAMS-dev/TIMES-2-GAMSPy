@@ -33,8 +33,8 @@ from gamspy.math import Max, Min, abs, floor, power, project, same_as
 
 from core.base_class import GamsClass
 from core.bnd_cum_mod import bnd_cum_mod_GP
-from core.bnd_ucw_mod import bnd_ucw_mod
-from core.bndmain_mod import bndmain_mod
+from core.bnd_ucw_mod import bnd_ucw_mod_GP
+from core.bndmain_mod import bndmain_mod_GP
 from core.clearsol_stc import ClearsolStc
 from core.clearsol_stp import clearsol_stp_GP
 from core.coef_alt_lin import CoefAltLin
@@ -44,7 +44,7 @@ from core.solve_mod import solve_mod_GP
 
 if TYPE_CHECKING:
     from gamspy import Alias
-    from gamspy._symbols.implicits import ImplicitParameter
+    from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
 
     from core.utils import SET_OR_ALIAS, SowGPType
     from utils.compile_environment import CompileEnvironment
@@ -69,7 +69,7 @@ def scalar_value(param: Parameter) -> float:
 
 
 def capture_deferred(
-    tc: TimesModelClass, build: Callable[[], GamsClass]
+    g: TimesModelClass, build: Callable[[], GamsClass]
 ) -> tuple[GamsClass, DeferredQueue]:
     """Compile a sub-module now, but keep its execution-time statements for later.
 
@@ -79,10 +79,10 @@ def capture_deferred(
     cannot enqueue while the loop is running - its entries are lifted out of the
     queue here and replayed per iteration instead.
     """
-    start = len(tc.execution_list)
+    start = len(g.execution_list)
     module = build()
-    pending = tc.execution_list[start:]
-    del tc.execution_list[start:]
+    pending = g.execution_list[start:]
+    del g.execution_list[start:]
     return module, pending
 
 
@@ -209,14 +209,13 @@ class SolveStp(GamsClass):
             var_dam_defined=self.tc.defined(f"{var}_DAM"),
             var_scap_defined=self.tc.defined(f"{self.env.var}_SCAP"),
             sow=self.env.sow_GP,
-            sow_raw=self.env.sow,
             swt=self.env.swt_GP,
-            swt_raw=self.env.swt,
             reduce=self.env.reduce,
             dflbl=self.env.dflbl,
             mx=self.env.mx,
             pgprim=self.env.pgprim,
-            r_t=self.env.r_t,
+            swd_GP=self.env.swd_GP,
+            r_t_GP=self.env.r_t_GP,
             var_uc=self.env.var_uc,
             rts=self.env.rts(),
             stochastic_symbols_declared={
@@ -226,7 +225,6 @@ class SolveStp(GamsClass):
                 "S_COM_BNDPRD": self.tc.defined("S_COM_BNDPRD"),
             },
             stages=self.env.stages,
-            swd=self.env.swd,
             eotime=self.env.eotime,
             cufscal=self.env.cufscal,
             cucscal=self.env.cucscal,
@@ -378,7 +376,7 @@ class SolveStp(GamsClass):
         # *---------------------------------------------------------------------
         # * Clear previous solution for projection years & ensure VAR_ACT loadpoint
         clearsol_stp_GP(
-            tc=g,
+            g=g,
             arg1="",
             var=var,
             sow=sow,
@@ -505,7 +503,6 @@ class SolveStp(GamsClass):
     def exec_solve_stp_stepped_solve_and_tail(
         self,
         arg1: str,
-        swd: str,
         cufscal: int,
         cucscal: int,
         stepped: str,
@@ -526,13 +523,12 @@ class SolveStp(GamsClass):
         var_dam_defined: bool,
         var_scap_defined: bool,
         sow: SowGPType,
-        sow_raw: str,
         swt: tuple[SET_OR_ALIAS, ...] | tuple[()],
-        swt_raw: str,
         reduce: str,
         mx: str,
         pgprim: str,
-        r_t: str,
+        swd_GP: tuple[Set | Alias] | tuple[()],
+        r_t_GP: tuple[Set | Alias | ImplicitSet, Set | Alias | ImplicitSet],
         var_uc: str,
         rts: str,
         stochastic_symbols_declared: dict[str, bool],
@@ -935,19 +931,15 @@ class SolveStp(GamsClass):
                     sw1_cap_bnd[r, t, p, "LO", *sw2] * (1 - tolr)
                 )
 
-            # $BATINCLUDE bnd_ucw.%1 - bnd_ucw.mod is not translated yet
-            self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code=bnd_ucw_mod(
-                    arg1="",
-                    arg2="",
-                    var=var,
-                    stages=stages,
-                    swd=swd,
-                    sow=sow_raw,
-                    defined_symbols=bnd_ucw_defined,
-                ),
+            # $BATINCLUDE bnd_ucw.%1
+            bnd_ucw_mod_GP(
+                g=g,
+                arg1=Number(1),
+                var=var,
+                stages=stages,
+                swd_GP=swd_GP,
+                sow_GP=sow,
+                defined_symbols=bnd_ucw_defined,
             )
             # * Redefine UC_T according to current flags
             project(source=UcTSucc, target=g.UcRtsuc)  # type: ignore[arg-type]
@@ -1027,7 +1019,7 @@ class SolveStp(GamsClass):
                 # * Get new modifiers for flexible model horizon
                 if sensis.upper() != "YES":
                     bnd_cum_mod_GP(
-                        tc=g,
+                        g=g,
                         arg1=comvar,
                         stages=stages,
                         eotime=eotime,
@@ -1295,34 +1287,32 @@ OPTION SOLVEOPT=MERGE;
                 with Loop(r):
                     Backward[t] = no_rt[r, t]  # type: ignore[assignment]
             # * Reset bounds
-            # $BATINCLUDE bndmain.%1 %1 1 - bndmain.mod is not translated yet
-            self.tc.add_gams_code(
+            # $BATINCLUDE bndmain.%1 %1 1
+            bndmain_mod_GP(
+                g=self.tc,
                 module=self,
-                phase="run",
-                code=bndmain_mod(
-                    arg1=arg1,
-                    arg2="1",
-                    var=var,
-                    swd=swd,
-                    sow=sow_raw,
-                    swt=swt_raw,
-                    r_t=r_t,
-                    stages=stages,
-                    timesed=timesed,
-                    reduce=reduce,
-                    dflbl=dflbl,
-                    mx=mx,
-                    pgprim=pgprim,
-                    eotime=str(eotime),
-                    cufscal=str(cufscal),
-                    cucscal=str(cucscal),
-                    macro=macro,
-                    var_uc=var_uc,
-                    rts=rts,
-                    model_name=self.model_name,
-                    bnd_ucw_defined=bnd_ucw_defined,
-                    stochastic_symbols_declared=stochastic_symbols_declared,
-                ),
+                arg1=arg1,
+                arg2="1",
+                var=var,
+                swd_GP=swd_GP,
+                sow_GP=sow,
+                swt_GP=swt,
+                r_t_GP=r_t_GP,
+                stages=stages,
+                timesed=timesed,
+                reduce=reduce,
+                dflbl=dflbl,
+                mx=mx,
+                pgprim=pgprim,
+                eotime=eotime,
+                cufscal=cufscal,
+                cucscal=cucscal,
+                macro=macro,
+                var_uc=var_uc,
+                rts=rts,
+                model_name=self.model_name,
+                bnd_ucw_defined=bnd_ucw_defined,
+                stochastic_symbols_declared=stochastic_symbols_declared,
             )
 
     def exec_solve_stp_cleanup(

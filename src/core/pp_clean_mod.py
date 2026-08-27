@@ -49,16 +49,15 @@ class PpCleanMod(GamsClass):
             shutil.move("timesrng_inc.py", "timesrng_inc_bak.py")
 
     def exec_pp_clean_mod(self: PpCleanMod, memclean: str) -> None:
-        pp_clean_mod(tc=self.tc, memclean=memclean)
+        pp_clean_mod(g=self.tc, memclean=memclean)
 
 
-def pp_clean_mod(tc: TimesModelClass, memclean: str) -> None:
+def pp_clean_mod(g: TimesModelClass, memclean: str) -> None:
     # TODO: in pp_clean.mod there is $IF NOT SET BENCOST $SETGLOBAL BENCOST NO
     # how should this be done in this string-returning function?
     if memclean == "NO":
         return
 
-    g = tc
     (r, allyear, p, cg1, c, cg2, s, bd, cur) = (
         g.r,
         g.allyear,

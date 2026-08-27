@@ -39,6 +39,7 @@ from gamspy import (
     Set,
     SpecialValues,
     UniverseAlias,
+    sparse,
 )
 from gamspy.math import Max, Min, Round, abs, floor, power
 
@@ -139,12 +140,9 @@ def prepparm(
             ] = True
         else:
             if opt:
-                sparse_expression = arg1_param[*cc.arg2, cc.arg5, *cc.arg3]
                 g.Uncd7[*cc.arg2, cc.arg5, *cc.arg3, *cc.arg4].where[
-                    (arg1_param[*cc.arg2, dflbl, *cc.arg3] == -13).where[
-                        sparse_expression
-                    ]
-                ] = sparse_expression
+                    arg1_param[*cc.arg2, dflbl, *cc.arg3] == -13
+                ] = sparse(arg1_param[*cc.arg2, cc.arg5, *cc.arg3])
                 if g.Uncd7.number_records:
                     arg1_param[*cc.arg2, cc.arg5, *cc.arg3].where[
                         g.Uncd7[*cc.arg2, cc.arg5, *cc.arg3, *cc.arg4]
@@ -165,8 +163,7 @@ def prepparm(
         if g.Uncd7.number_records:
             with Loop(g.Uncd7[*cc.arg2, *c_ll, *cc.arg3, *cc.arg4]):
                 g.dfunc[...] = g.cnt
-                sparse_expression = Round(arg1_param[*cc.arg2, dflbl, *cc.arg3])
-                g.dfunc[...].where[sparse_expression] = sparse_expression
+                g.dfunc[...] = sparse(Round(arg1_param[*cc.arg2, dflbl, *cc.arg3]))
                 g.my_array[g.DmYear] = arg1_param[*cc.arg2, g.DmYear, *cc.arg3]
                 g.my_fil2.setRecords(None)
                 # do interpolate
@@ -264,23 +261,22 @@ def prepparm(
                         with ElseIf(g.dfunc == 5):
                             g.f[...] = 0
 
-                        sparse_expression = (
+                        data.where[cc.arg6] = sparse(
                             g.first_val.where[g.yearval[cc.arg5] < g.f]
                             + g.last_val.where[g.yearval[cc.arg5] > g.z]
                         )
-                        data.where[cc.arg6 & sparse_expression] = sparse_expression
                         with If((~Number(cc.arg7)).where[g.last_val]):
                             data.where[cc.arg6.where[~(data + g.my_array[cc.arg5])]] = (
                                 SpecialValues.EPS
                             )
 
                 if cc.arg9 is None:
-                    arg1_param[*cc.arg2, cc.arg5, *cc.arg3].where[data] = data
+                    arg1_param[*cc.arg2, cc.arg5, *cc.arg3] = sparse(data)
                 else:
                     assert arg9_param is not None
-                    arg9_param[*cc.arg2, *cc.arg3, cc.arg5].where[
-                        cc.arg6.where[data]
-                    ] = data
+                    arg9_param[*cc.arg2, *cc.arg3, cc.arg5].where[cc.arg6] = sparse(
+                        data
+                    )
 
         if cc.arg10 != "+":
             arg1_param[*cc.arg2, "0", *cc.arg3].where[
@@ -290,9 +286,8 @@ def prepparm(
             ] = reset
         if cc.arg9 is not None:
             assert arg9_param is not None
-            sparse_expression = arg9_param[*cc.arg2, *cc.arg3, cc.arg5]
-            arg1_param[*cc.arg2, cc.arg5, *cc.arg3].where[sparse_expression] = (
-                sparse_expression
+            arg1_param[*cc.arg2, cc.arg5, *cc.arg3] = sparse(
+                arg9_param[*cc.arg2, *cc.arg3, cc.arg5]
             )
             module.tc.add_gams_code(
                 module=module, phase="run", code=f"OPTION KILL={cc.arg9};"

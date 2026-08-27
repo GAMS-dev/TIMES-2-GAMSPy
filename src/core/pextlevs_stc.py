@@ -83,7 +83,7 @@ class PextlevsStc(GamsClass):
         var_scap_defined: bool,
     ) -> None:
         pextlevs_stc_GP(
-            tc=self.tc,
+            g=self.tc,
             arg1_GP=arg1_GP,
             eq=eq,
             var=var,
@@ -95,7 +95,7 @@ class PextlevsStc(GamsClass):
 
 def pextlevs_stc_GP(
     *,
-    tc: TimesModelClass,
+    g: TimesModelClass,
     arg1_GP: tuple[SET_OR_ALIAS | str] | tuple[()],
     eq: str,
     var: str,
@@ -103,11 +103,9 @@ def pextlevs_stc_GP(
     var_dam_defined: bool,
     var_scap_defined: bool,
 ) -> None:
-    g = tc
-
     # * Clear results from previous
     clearsol_stc(
-        tc=tc,
+        g=g,
         var_dam_defined=var_dam_defined,
         var_scap_defined=var_scap_defined,
     )
@@ -339,7 +337,7 @@ def pextlevs_stc(
     return rf"""
 {
         clearsol_stc(
-            tc=tc,
+            g=tc,
             var_dam_defined=var_dam_defined,
             var_scap_defined=var_scap_defined,
             inline=True,

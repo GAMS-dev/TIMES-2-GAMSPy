@@ -312,7 +312,7 @@ def solve_mod_GP(
     solmip: str,
 ) -> None:
     # Release some memory
-    pp_clean_mod(tc=module.tc, memclean=memclean)
+    pp_clean_mod(g=module.tc, memclean=memclean)
     set_model_param(module=module, model_name=model_name)
 
     if solve_now != "NO":
@@ -416,7 +416,7 @@ SOLVE {model_name} MINIMIZING objZ USING {method};
 """
 
     # Release some memory
-    pp_clean_mod(tc=g, memclean=memclean)
+    pp_clean_mod(g=g, memclean=memclean)
     return rf"""
 *  get the optimizer directive file
 {model_name}.OPTFILE = OPTFILEID;
