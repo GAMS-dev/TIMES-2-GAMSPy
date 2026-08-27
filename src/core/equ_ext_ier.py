@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 from gamspy import Equation
 
 from core.base_class import GamsClass
-from core.eqchpelc_ier import EqchpelcIer
+from core.eqchpelc_ier import EqchpelcIer, EqchpelcIerConfig
 from core.eqmrkcom_ier import EqmrkcomIer, EqmrkcomIerConfig
 
 if TYPE_CHECKING:
@@ -131,8 +131,12 @@ class EquExtIer(GamsClass):
         self.tc.enqueue(self.clear_ect_chp_without_capacity)
 
         if self.env.chp_mode == "YES":
-            self.include(EqchpelcIer(self.tc, self.env, arg1="L", arg2="UP"))
-            self.include(EqchpelcIer(self.tc, self.env, arg1="E", arg2="FX"))
+            self.include(
+                EqchpelcIer(self.tc, self.env, EqchpelcIerConfig(sense="L", arg2="UP"))
+            )
+            self.include(
+                EqchpelcIer(self.tc, self.env, EqchpelcIerConfig(sense="E", arg2="FX"))
+            )
 
     def clear_ect_chp_without_capacity(self: EquExtIer) -> None:
         g = self.tc
