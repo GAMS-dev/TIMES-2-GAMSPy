@@ -77,7 +77,7 @@ class ClearsolStc(GamsClass):
 
 # arg1 is only used in the definition part, if arg1 is empty only the function is executed
 def clearsol_stc(
-    tc: TimesModelClass,
+    g: TimesModelClass,
     var_dam_defined: bool,
     var_scap_defined: bool,
     inline: bool = False,
@@ -117,7 +117,6 @@ def clearsol_stc(
 """
 
     print("Solution store cleared")
-    g = tc
     r, c, comvar, allyear, year, p = g.r, g.c, g.comvar, g.allyear, g.year, g.p
     t, j, bd = g.t, g.j, g.bd
 

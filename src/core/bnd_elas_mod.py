@@ -14,52 +14,103 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
+
+from gamspy import Domain, Loop, Number, Ord, Product, SpecialValues, Sum
+from gamspy.math import Max, Min, Round, abs, log
+
+if TYPE_CHECKING:
+    from core.utils import SowGPType
+    from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
 
 
-def bnd_elas_mod(
+def bnd_elas_mod_GP(
     *,
+    g: TimesModelClass,
     stages: str,
     var: str,
     mx: str,
-    sow: str,
-) -> str:
-    base_statement = rf"""
-    {var}_ELAST.UP(RTCS_VARC(R,T,C,S),J,BDNEQ(BD){sow})$RCJ(R,C,J,BD) = INF$MI_DOPE(R,T,C) +
-      (MAX(DDF_QREF(R,T,C) * COM_FR{mx}(R,T,C,S), COM_BQTY(R,C,S)) * COM_VOC(R,T,C,BD)) / COM_STEP(R,C,BD);
-"""
-
-    elas_block = (
-        rf"""
-  LOOP(SW_T(T{sow}),
-{base_statement}
-  );
-"""
-        if stages == "YES"
-        else base_statement
+    sow_GP: SowGPType,
+) -> None:
+    """GAMSPy twin of :func:`bnd_elas_mod`."""
+    r, t, tt, c, com, s, j, jj, bd, bdneq = (
+        g.r,
+        g.t,
+        g.tt,
+        g.c,
+        g.Com,
+        g.s,
+        g.j,
+        g.jj,
+        g.bd,
+        g.Bdneq,
     )
 
-    return rf"""
-  OPTION CLEAR=MI_DOPE;
-  LOOP((ANNUAL(S),MI_DMAS(RD_AGG(R,C),COM)),
-    RD_SHAR(R,T,COM,C)=COM_AGG(R,T,COM,C)*DDF_PREF(R,T,C);
-    COM_AGG(R,T,COM,C)$(COM_ELAST(R,T,C,S,'N')>0)=0;
-    COM_ELAST(R,T(MIYR_1),COM,TS,BD)=0;
-    COM_VOC(RTC(R,T,COM),'LO')$MI_ESUB(R,T,C)=MIN(COM_VOC(RTC,'LO'),1-9E9**(-COM_ELAST(RTC,S,'FX')));
-    MI_DOPE(R,T,COM)$MI_ESUB(R,T,C)=MAX(ABS(COM_ELAST(R,T,COM,S,'FX')),MI_ESUB(R,T,C))$SUM(BDNEQ$COM_ELAST(R,T,C,S,BDNEQ),1));
-{elas_block}
-* Price levels for CES (marginal / average)
-  MI_RHO(RTC(R,T,C))$MI_DOPE(RTC) = ROUND(1-1/MI_DOPE(RTC),6);
-  MI_AGC(R,T(TT+1),COM,C,J,BDNEQ(BD))$(RCJ(R,C,J,BD)$MI_DMAS(R,COM,C)$MI_ESUB(R,T,COM)) = (1-BDSIG(BD)*(ORD(J)-.5)*COM_VOC(R,T,C,BD)/COM_STEP(R,C,BD))**(-1/COM_ELAST(R,T,C,'ANNUAL','FX'));
-  MI_AGC(R,T,COM,C,J,BD)$((COM_VOC(R,T,C,BD)>0)$MI_AGC(R,T,COM,C,J,BD)$MI_DOPE(R,T,C)) =
-    BDSIG(BD)/(ORD(J)*COM_VOC(R,T,C,BD)/COM_STEP(R,C,BD)) *
-    (((1-(1-BDSIG(BD)*ORD(J)*COM_VOC(R,T,C,BD)/COM_STEP(R,C,BD))**MI_RHO(R,T,C))/MI_RHO(R,T,C))$MI_RHO(R,T,C) -
-      LOG(1-BDSIG(BD)*ORD(J)*COM_VOC(R,T,C,BD)/COM_STEP(R,C,BD))$(MI_RHO(R,T,C)=0));
+    g.mi_dope.setRecords(None)
+    with Loop(Domain(g.Annual[s], g.MiDmas[g.RdAgg[r, c], com])):
+        g.rd_shar[r, t, com, c] = g.com_agg[r, t, com, c] * g.ddf_pref[r, t, c]
+        g.com_agg[r, t, com, c].where[g.com_elast[r, t, c, s, "N"] > 0] = 0
+        g.com_elast[r, g.Miyr1[t], com, g.ts, bd] = 0
+        g.com_voc[g.Rtc[r, t, com], "LO"].where[g.mi_esub[r, t, c]] = Min(
+            g.com_voc[r, t, com, "LO"],
+            1 - 9e9 ** (-g.com_elast[r, t, com, s, "FX"]),
+        )
+        g.mi_dope[r, t, com].where[g.mi_esub[r, t, c]] = Max(
+            abs(g.com_elast[r, t, com, s, "FX"]), g.mi_esub[r, t, c]
+        ).where[Sum(bdneq.where[g.com_elast[r, t, c, s, bdneq]], 1)]
 
-* Fix redundancies
-  LOOP(RD_AGG(R,COM),FIL(T)=NOT PROD(BDNEQ,SUM(COM_TS(R,C,S)$MI_DMAS(R,COM,C),COM_ELAST(R,T,C,S,BDNEQ)));
-    COM_ELAST(RTCS_VARC(R,T(FIL),C,S),BD)$MI_DMAS(R,COM,C)=0; RCS_COMPRD(R,T(FIL),COM,S,BD)=NO);
-  COM_ELASTX(R,T,C,BDNEQ)$MI_DOPE(R,T,C)=1;
-  RTC_SHED(R,T,C,BD,JJ)$MI_DOPE(R,T,C)=NO;
-"""
+    def elast_bound() -> None:
+        com_fr = g.get_parameter(f"COM_FR{mx}")
+        VAR_ELAST = g.get_variable(f"{var}_ELAST")
+        VAR_ELAST.up[g.RtcsVarc[r, t, c, s], j, bdneq[bd], *sow_GP].where[
+            g.Rcj[r, c, j, bd]
+        ] = (
+            Number(SpecialValues.POSINF).where[g.mi_dope[r, t, c]]
+            + Max(g.ddf_qref[r, t, c] * com_fr[r, t, c, s], g.com_bqty[r, c, s])
+            * g.com_voc[r, t, c, bd]
+            / g.com_step[r, c, bd]
+        )
+
+    if stages == "YES":
+        with Loop(g.SwT[t, *sow_GP]):
+            elast_bound()
+    else:
+        elast_bound()
+
+    # Price levels for CES (marginal / average)
+    g.mi_rho[r, t, c].where[g.mi_dope[r, t, c]] = Round(1 - 1 / g.mi_dope[r, t, c], 6)
+
+    g.mi_agc[r, t[tt + 1], com, c, j, bdneq[bd]].where[
+        g.Rcj[r, c, j, bd] * g.MiDmas[r, com, c] * g.mi_esub[r, t, com]
+    ] = (
+        1 - g.bdsig[bd] * (Ord(j) - 0.5) * g.com_voc[r, t, c, bd] / g.com_step[r, c, bd]
+    ) ** (-1 / g.com_elast[r, t, c, "ANNUAL", "FX"])
+
+    voc_step = g.com_voc[r, t, c, bd] / g.com_step[r, c, bd]
+    term_pos = (
+        (1 - (1 - g.bdsig[bd] * Ord(j) * voc_step) ** g.mi_rho[r, t, c])
+        / g.mi_rho[r, t, c]
+    ).where[g.mi_rho[r, t, c]]
+    term_zero = log(1 - g.bdsig[bd] * Ord(j) * voc_step).where[g.mi_rho[r, t, c] == 0]
+    g.mi_agc[r, t, com, c, j, bd].where[
+        (g.com_voc[r, t, c, bd] > 0)
+        * g.mi_agc[r, t, com, c, j, bd]
+        * g.mi_dope[r, t, c]
+    ] = g.bdsig[bd] / (Ord(j) * voc_step) * (term_pos - term_zero)
+
+    # Fix redundancies
+    with Loop(g.RdAgg[r, com]):
+        g.Fil[t] = ~Product(
+            bdneq,
+            Sum(
+                g.ComTs[r, c, s].where[g.MiDmas[r, com, c]],
+                g.com_elast[r, t, c, s, bdneq],
+            ),
+        )
+        g.com_elast[g.RtcsVarc[r, g.Fil, c, s], bd].where[g.MiDmas[r, com, c]] = 0
+        g.RcsComprd[r, g.Fil, com, s, bd] = False
+
+    g.com_elastx[r, t, c, bdneq].where[g.mi_dope[r, t, c]] = 1
+    g.RtcShed[r, t, c, bd, jj].where[g.mi_dope[r, t, c]] = False

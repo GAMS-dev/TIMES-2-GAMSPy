@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 def clearsol_stp_GP(
     *,
-    tc: TimesModelClass,
+    g: TimesModelClass,
     arg1: str = "",
     var: str,
     sow: SowGPType,
@@ -55,7 +55,6 @@ def clearsol_stp_GP(
             "CLI branch of clearsol.stp has no GAMSPy twin yet."
         )
 
-    g = tc
     (r, v, t, p, c, s, ie, ll, lA, ucn) = (
         g.r,
         g.v,

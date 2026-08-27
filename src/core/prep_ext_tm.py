@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Alias
+from gamspy import Alias, Parameter, Set
 
 from core.base_class import GamsClass
 from core.filparam_gms import FilparamGms, FilparamGmsConfig
@@ -68,18 +68,15 @@ $IF NOT DEFINED TM_EC0 OPTION CLEAR=TM_EC0;
         # fmt: on
         for config in batincludes:
             self.include(FilparamGms(self.tc, self.env, config))
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-* Additions to support MACRO soft-link
-  SCALAR TM_SL /0/;
-  SETS MR(R), PP(T), TLAST(T), DM(C), XCP(J) /1, 6, 12/;
-""",
-        )
+        # * Additions to support MACRO soft-link
+        g.tm_sl = Parameter(m, name="TM_SL", records=0)
+        g.Mr = Set(m, name="MR", domain=[g.r])
+        g.Pp = Set(m, name="PP", domain=[g.t])
+        g.Tlast = Set(m, name="TLAST", domain=[g.t])
+        g.Dm = Set(m, name="DM", domain=[g.c])
+        g.Xcp = Set(m, name="XCP", domain=[g.j], records=["1", "6", "12"])
 
-        # ALIAS (MIYR_1,T_1);
-        Alias(m, "T_1", alias_with=g.Miyr1)
+        g.T1 = Alias(m, "T_1", alias_with=g.Miyr1)
 
         self.tc.add_gams_code(
             module=self,

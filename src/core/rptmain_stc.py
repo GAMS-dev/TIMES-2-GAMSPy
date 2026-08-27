@@ -316,7 +316,7 @@ OPTION CLEAR=RPC_EMIS,CLEAR=RPC_FFUNC,CLEAR=F_IOSET; SOW(W)=AUXSOW(W);
 
   {
                 clearsol_stc(
-                    tc=self.tc,
+                    g=self.tc,
                     var_dam_defined=var_dam_defined,
                     var_scap_defined=var_scap_defined,
                     inline=True,

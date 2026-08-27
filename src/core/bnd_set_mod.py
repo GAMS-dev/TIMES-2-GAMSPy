@@ -19,8 +19,80 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
+
+from gamspy import Number, SpecialValues, sparse
+
+if TYPE_CHECKING:
+    from gamspy import Alias, Set
+    from gamspy._algebra.condition import Condition
+    from gamspy._algebra.expression import Expression
+    from gamspy._symbols.implicits import ImplicitSet
+
+    from core.utils import SET_OR_ALIAS, SowGPType
+    from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+def bnd_set_mod_GP(
+    *,
+    g: TimesModelClass,
+    variable_name: str,  # is bnd_set.mod's own %1
+    primary_domain: tuple[SET_OR_ALIAS, ...],  # is bnd_set.mod's own %2
+    bound_param_name: str,  # is bnd_set.mod's own %3
+    control_domain: tuple[SET_OR_ALIAS, ...],  # is bnd_set.mod's own %4
+    extra_condition: Condition
+    | Expression
+    | ImplicitSet
+    | Number,  # is bnd_set.mod's own %5
+    arg6: str = "",  # is bnd_set.mod's own %6
+    swd: tuple[Set | Alias] | tuple[()],
+    sow: SowGPType,
+    stages: str,
+    stochastic_symbol_declared: bool,
+) -> None:
+    """GAMSPy twin of :func:`bnd_set_mod`."""
+    if arg6 == "":
+        stop = stages != "YES"
+    elif arg6 == "I":
+        stop = stages.upper() != "YES"
+    else:
+        raise ValueError(f"Unhandled argument arg6={arg6!r} passed.")
+
+    variable = g.get_variable(variable_name)
+    bound_param = g.get_parameter(bound_param_name)
+
+    # reset any existing bounds
+    variable.lo[*primary_domain, *swd] = 0
+    variable.up[*primary_domain, *swd] = SpecialValues.POSINF
+
+    # assign from user data
+    variable.lo[*control_domain, *sow].where[extra_condition] = sparse(
+        bound_param[*primary_domain, "LO"]
+    )
+    variable.up[*control_domain, *sow].where[extra_condition] = sparse(
+        bound_param[*primary_domain, "UP"]
+    )
+    variable.fx[*control_domain, *sow].where[extra_condition] = sparse(
+        bound_param[*primary_domain, "FX"]
+    )
+
+    if stop or not stochastic_symbol_declared:
+        return
+
+    # Stochastic bounds
+    stochastic_param = g.get_parameter(f"S_{bound_param_name}")
+    Sow = g.Sow
+    variable.lo[*control_domain, *sow].where[extra_condition] = sparse(
+        stochastic_param[*primary_domain, "LO", "1", Sow]
+    )
+    variable.up[*control_domain, *sow].where[extra_condition] = sparse(
+        stochastic_param[*primary_domain, "UP", "1", Sow]
+    )
+    variable.fx[*control_domain, *sow].where[extra_condition] = sparse(
+        stochastic_param[*primary_domain, "FX", "1", Sow]
+    )
 
 
 def bnd_set_mod(

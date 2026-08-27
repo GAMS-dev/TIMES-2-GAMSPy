@@ -1612,8 +1612,11 @@ class TimesModelClass:
     Tb: Set = None  # type: ignore[assignment] # [t] TB:
     Pp: Set = None  # type: ignore[assignment] # [t] PP:
     Tlast: Set = None  # type: ignore[assignment] # [t] TLAST:
+    Xcp: Set = None  # type: ignore[assignment] # [j] XCP: Market penetration step index used for VAR_XCAPP bounds
     tp: Alias = None  # type: ignore[assignment] # [t, tp] TP:
+    T1: Alias = None  # type: ignore[assignment] # [*] T_1: Aliased with MIYR_1
     tm_arbm: Parameter = None  # type: ignore[assignment] # TM_ARBM:
+    tm_sl: Parameter = None  # type: ignore[assignment] # TM_SL: Additions to support MACRO soft-link
     tm_scale_cst: Parameter = None  # type: ignore[assignment] # TM_SCALE_CST:
     tm_scale_nrg: Parameter = None  # type: ignore[assignment] # TM_SCALE_NRG:
     tm_scale_util: Parameter = None  # type: ignore[assignment] # TM_SCALE_UTIL:
@@ -2103,8 +2106,8 @@ class TimesModelClass:
             # Q_xxx is a $macro of recurrin.stc rather than an equation of its own
             return macro_config.recurrin.equation_GP(name)  # type: ignore [no-any-return]
 
-    def get_parameter(self, name: str) -> Any:
-        return getattr(self, name.lower())
+    def get_parameter(self, name: str) -> Parameter:
+        return getattr(self, name.lower())  # type: ignore [no-any-return]
 
     def get_variable(self, name: str) -> Variable:
         try:
