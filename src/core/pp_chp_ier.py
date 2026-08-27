@@ -12,6 +12,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Domain, Loop, Sum, sparse
+from gamspy.math import project
+
 from core.base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -43,91 +46,165 @@ class PpChpIer(GamsClass):
         self.tc.enqueue(self.extrapolate_past_years)
 
     def electricity_commodity_pg(self: PpChpIer) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Assumption: electricity commodity is given by PG
-ECT_ELC(RP_PG(ECT_CHP,C)) = YES;
-RP_PG(ECT_ELC(R,P,C))     = NO;
-""",
-        )
+        g = self.tc
+        # Assumption: electricity commodity is given by PG
+        g.EctElc[g.RpPg[g.EctChp, g.c]] = True
+        g.RpPg[g.EctElc[g.r, g.p, g.c]] = False
 
     def commodity_group(self: PpChpIer) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Assumption only one commodity group exists on the ouput side with electricity and heat as its members
-OPTION CG_GRP <= FLO_FUNC;
-LOOP(ECT_ELC(R,P,COM),
-   LOOP((CG_GRP(R,P,CG,CG2),COM_GMAP(R,CG,COM))$(SUM(TOP(R,P,C,'OUT')$(COM_GMAP(R,CG,C)*COM_TMAP(R,'NRG',C)),1)=2),
-       ECT_DHT(R,P,C)$(COM_GMAP(R,CG,C)*COM_TMAP(R,'NRG',C)*(NOT ECT_ELC(R,P,C))) = YES;
-       ECT_CGOUT(R,P,CG)=YES; ECT_CGIN(R,P,CG2)=YES));
-* input CG is new PCG
-RP_PG(ECT_CGIN) = YES; OPTION CLEAR=CG_GRP;
-""",
-        )
+        g = self.tc
+        r, p, c, cg, cg2, Com = g.r, g.p, g.c, g.cg, g.cg2, g.Com
+        CgGrp, ComGmap, ComTmap, Top = g.CgGrp, g.ComGmap, g.ComTmap, g.Top
+        EctElc, EctDht, EctCgout, EctCgin = g.EctElc, g.EctDht, g.EctCgout, g.EctCgin
+
+        # Assumption only one commodity group exists on the ouput side with
+        # electricity and heat as its members
+        project(source=g.flo_func, target=CgGrp, direction="left")
+        with (
+            Loop(EctElc[r, p, Com]),
+            Loop(
+                Domain(CgGrp[r, p, cg, cg2], ComGmap[r, cg, Com]).where[
+                    Sum(
+                        Top[r, p, c, "OUT"].where[
+                            ComGmap[r, cg, c] * ComTmap[r, "NRG", c]
+                        ],
+                        1,
+                    )
+                    == 2
+                ]
+            ),
+        ):
+            EctDht[r, p, c].where[
+                ComGmap[r, cg, c] * ComTmap[r, "NRG", c] * ~EctElc[r, p, c]
+            ] = True
+            EctCgout[r, p, cg] = True
+            EctCgin[r, p, cg2] = True
+
+        # input CG is new PCG
+        g.RpPg[EctCgin] = True
+        CgGrp.setRecords(None)
 
     def calculate_electricity_heat_ratio(self: PpChpIer) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Calculation of Ratio of electricity to heat: REH
-ECT_REH(R,T,P)$ECT_CHP(R,P) $= 1/SUM((ECT_CGOUT(R,P,CG1),ECT_ELC(R,P,COM))$FLO_SHAR(R,T,P,COM,CG1,'ANNUAL','LO'),1/(FLO_SHAR(R,T,P,COM,CG1,'ANNUAL','LO')) - 1);
-            """,
+        g = self.tc
+        r, t, p, cg1, Com = g.r, g.t, g.p, g.cg1, g.Com
+        flo_shar = g.flo_shar
+
+        # Calculation of Ratio of electricity to heat: REH
+        g.ect_reh[r, t, p].where[g.EctChp[r, p]] = sparse(
+            1
+            / Sum(
+                Domain(g.EctCgout[r, p, cg1], g.EctElc[r, p, Com]).where[
+                    flo_shar[r, t, p, Com, cg1, "ANNUAL", "LO"]
+                ],
+                1 / flo_shar[r, t, p, Com, cg1, "ANNUAL", "LO"] - 1,
+            )
         )
 
     def convert_input_capacity(self: PpChpIer) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Conversion factor from input capacity to electricity capacity in backpressure point
-ECT_INP2ELC(R,T,P)$ECT_CHP(R,P) $=
-  SUM((ECT_CGIN(R,P,CG2),ECT_ELC(R,P,C)),
-     SUM(ECT_CGOUT(R,P,CG1)$FLO_FUNC(R,T,P,CG1,CG2,'ANNUAL'),FLO_FUNC(R,T,P,CG1,CG2,'ANNUAL')*(1 + SUM(ECT_DHT(R,P,COM)$FLO_SHAR(R,T,P,C,CG1,'ANNUAL','LO'),FLO_SUM(R,T,P,CG1,COM,CG2,'ANNUAL'))
-                                                         *(1/(FLO_SHAR(R,T,P,C,CG1,'ANNUAL','LO')) - 1))
-     )
-  );
-ECT_INP2ELC(R,T,P)$ECT_INP2ELC(R,T,P) $= 1/ECT_INP2ELC(R,T,P);
+        g = self.tc
+        r, t, p, c, cg1, cg2, Com = g.r, g.t, g.p, g.c, g.cg1, g.cg2, g.Com
+        flo_func, flo_shar, flo_sum = g.flo_func, g.flo_shar, g.flo_sum
+        EctChp, EctCgin, EctCgout, EctElc, EctDht = (
+            g.EctChp,
+            g.EctCgin,
+            g.EctCgout,
+            g.EctElc,
+            g.EctDht,
+        )
 
-* Conversion factor from input capacity to electricity capacity in condensing mode
-ECT_INP2CON(R,T,P)$ECT_CHP(R,P) $= SUM((ECT_CGOUT(R,P,CG1),ECT_CGIN(R,P,CG2))$FLO_FUNC(R,T,P,CG1,CG2,'ANNUAL'),1/FLO_FUNC(R,T,P,CG1,CG2,'ANNUAL'));
+        # Conversion factor from input capacity to electricity capacity in
+        # backpressure point
+        g.ect_inp2elc[r, t, p].where[EctChp[r, p]] = sparse(
+            Sum(
+                Domain(EctCgin[r, p, cg2], EctElc[r, p, c]),
+                Sum(
+                    EctCgout[r, p, cg1].where[flo_func[r, t, p, cg1, cg2, "ANNUAL"]],
+                    flo_func[r, t, p, cg1, cg2, "ANNUAL"]
+                    * (
+                        1
+                        + Sum(
+                            EctDht[r, p, Com].where[
+                                flo_shar[r, t, p, c, cg1, "ANNUAL", "LO"]
+                            ],
+                            flo_sum[r, t, p, cg1, Com, cg2, "ANNUAL"],
+                        )
+                        * (1 / flo_shar[r, t, p, c, cg1, "ANNUAL", "LO"] - 1)
+                    ),
+                ),
+            )
+        )
+        g.ect_inp2elc[r, t, p].where[g.ect_inp2elc[r, t, p]] = sparse(
+            1 / g.ect_inp2elc[r, t, p]
+        )
 
-* Conversion factor from input capacity to heat capacity in backpressure point
-ECT_INP2DHT(R,T,P)$(ECT_CHP(R,P)*ECT_REH(R,T,P)) $= ECT_INP2ELC(R,T,P)/ECT_REH(R,T,P);
-""",
+        # Conversion factor from input capacity to electricity capacity in
+        # condensing mode
+        g.ect_inp2con[r, t, p].where[EctChp[r, p]] = sparse(
+            Sum(
+                Domain(EctCgout[r, p, cg1], EctCgin[r, p, cg2]).where[
+                    flo_func[r, t, p, cg1, cg2, "ANNUAL"]
+                ],
+                1 / flo_func[r, t, p, cg1, cg2, "ANNUAL"],
+            )
+        )
+
+        # Conversion factor from input capacity to heat capacity in backpressure point
+        g.ect_inp2dht[r, t, p].where[EctChp[r, p] * g.ect_reh[r, t, p]] = sparse(
+            g.ect_inp2elc[r, t, p] / g.ect_reh[r, t, p]
         )
 
     def extrapolate_past_years(self: PpChpIer) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Extrapolate backwards for pastyears
-ECT_INP2ELC(R,V,P)$NCAP_PASTI(R,V,P) $= SUM(MIYR_1(T),ECT_INP2ELC(R,T,P));
-ECT_INP2DHT(R,V,P)$NCAP_PASTI(R,V,P) $= SUM(MIYR_1(T),ECT_INP2DHT(R,T,P));
-ECT_INP2CON(R,V,P)$NCAP_PASTI(R,V,P) $= SUM(MIYR_1(T),ECT_INP2CON(R,T,P));
-ECT_REH(R,V,P)$(ECT_CHP(R,P)*NCAP_PASTI(R,V,P)) $= SUM(MIYR_1(T),ECT_REH(R,T,P));
-
-LOOP(ECT_CHP(R,P),
-   NCAP_COST(R,T,P,CUR) $= NCAP_COST(R,T,P,CUR)*ECT_INP2CON(R,T,P);
-   NCAP_FOM(R,T,P,CUR)  $= NCAP_FOM(R,T,P,CUR)*ECT_INP2CON(R,T,P);
-   ACT_COST(R,T,P,CUR)  $= ACT_COST(R,T,P,CUR)*ECT_INP2CON(R,T,P);
-   ACT_BND(R,T,P,S,BD)  $= ACT_BND(R,T,P,S,BD)/ECT_INP2ELC(R,T,P);
-   CAP_BND(R,T,P,BD)    $= CAP_BND(R,T,P,BD)/ECT_INP2ELC(R,T,P);
-   NCAP_BND(R,T,P,BD)   $= NCAP_BND(R,T,P,BD)/ECT_INP2ELC(R,T,P);
-   NCAP_PASTI(R,V,P)$NCAP_PASTI(R,V,P)  $= NCAP_PASTI(R,V,P)/ECT_INP2ELC(R,V,P);
-   NCAP_PKCNT(R,T,P,S)  $= ECT_INP2ELC(R,T,P);
-);
-
-* Default values for condensing and backpressure mode efficiencies
-* [UR] 04/23/2003 removed default values because of numerical difficulties in sensitivity analysis
-*ECT_AFCON(R,T,P,'UP')$(ECT_CHP(R,P)*(NOT SUM(BD,ECT_AFCON(R,T,P,BD)))) = 1;
-*ECT_AFBPT(R,T,P,'UP')$(ECT_CHP(R,P)*(NOT SUM(BD,ECT_AFBPT(R,T,P,BD)))) = 1;
-
-*display ect_elc, ect_dht, ect_cgin, ect_cgout, ect_inp2elc, ect_inp2dht, ect_inp2con, ect_reh;
-""",
+        g = self.tc
+        r, t, v, p, s, bd, cur = g.r, g.t, g.v, g.p, g.s, g.bd, g.cur
+        EctChp, Miyr1 = g.EctChp, g.Miyr1
+        ect_inp2elc, ect_inp2dht, ect_inp2con, ect_reh = (
+            g.ect_inp2elc,
+            g.ect_inp2dht,
+            g.ect_inp2con,
+            g.ect_reh,
         )
+        ncap_pasti = g.ncap_pasti
+
+        # Extrapolate backwards for pastyears
+        ect_inp2elc[r, v, p].where[ncap_pasti[r, v, p]] = sparse(
+            Sum(Miyr1[t], ect_inp2elc[r, t, p])
+        )
+        ect_inp2dht[r, v, p].where[ncap_pasti[r, v, p]] = sparse(
+            Sum(Miyr1[t], ect_inp2dht[r, t, p])
+        )
+        ect_inp2con[r, v, p].where[ncap_pasti[r, v, p]] = sparse(
+            Sum(Miyr1[t], ect_inp2con[r, t, p])
+        )
+        ect_reh[r, v, p].where[EctChp[r, p] * ncap_pasti[r, v, p]] = sparse(
+            Sum(Miyr1[t], ect_reh[r, t, p])
+        )
+
+        with Loop(EctChp[r, p]):
+            g.ncap_cost[r, t, p, cur] = sparse(
+                g.ncap_cost[r, t, p, cur] * ect_inp2con[r, t, p]
+            )
+            g.ncap_fom[r, t, p, cur] = sparse(
+                g.ncap_fom[r, t, p, cur] * ect_inp2con[r, t, p]
+            )
+            g.act_cost[r, t, p, cur] = sparse(
+                g.act_cost[r, t, p, cur] * ect_inp2con[r, t, p]
+            )
+            g.act_bnd[r, t, p, s, bd] = sparse(
+                g.act_bnd[r, t, p, s, bd] / ect_inp2elc[r, t, p]
+            )
+            g.cap_bnd[r, t, p, bd] = sparse(
+                g.cap_bnd[r, t, p, bd] / ect_inp2elc[r, t, p]
+            )
+            g.ncap_bnd[r, t, p, bd] = sparse(
+                g.ncap_bnd[r, t, p, bd] / ect_inp2elc[r, t, p]
+            )
+            ncap_pasti[r, v, p].where[ncap_pasti[r, v, p]] = sparse(
+                ncap_pasti[r, v, p] / ect_inp2elc[r, v, p]
+            )
+            g.ncap_pkcnt[r, t, p, s] = sparse(ect_inp2elc[r, t, p])
+
+        # Default values for condensing and backpressure mode efficiencies
+        # [UR] 04/23/2003 removed default values because of numerical difficulties
+        # in sensitivity analysis
+        # ECT_AFCON(R,T,P,'UP')$(ECT_CHP(R,P)*(NOT SUM(BD,ECT_AFCON(R,T,P,BD)))) = 1;
+        # ECT_AFBPT(R,T,P,'UP')$(ECT_CHP(R,P)*(NOT SUM(BD,ECT_AFBPT(R,T,P,BD)))) = 1;
