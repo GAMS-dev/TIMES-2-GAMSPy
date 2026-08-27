@@ -13,12 +13,14 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Card, Parameter
+from gamspy import Card, Loop, Parameter, SpecialValues, Sum
 
 from core.base_class import GamsClass
 from core.fillcost_gms import FillcostGms, FillcostGmsConfig
 
 if TYPE_CHECKING:
+    from gamspy import Alias, Set
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -59,7 +61,7 @@ class BndIreVda(GamsClass):
             m, name="FLO_IRE", domain=[g.r, g.ll, g.p, g.c, g.s, g.ie]
         )
 
-        self.tc.enqueue(self.exec2, var=self.env.var, swd=self.env.swd)
+        self.tc.enqueue(self.exec2, var=self.env.var, swd=self.env.swd_GP)
 
         # fmt: off
         batincludes = [
@@ -71,57 +73,114 @@ class BndIreVda(GamsClass):
         for config in batincludes:
             self.include(FillcostGms(tc=self.tc, env=self.env, config=config))
 
-        self.tc.enqueue(self.exec3, var=self.env.var, swd=self.env.swd)
+        self.tc.enqueue(self.exec3, var=self.env.var, swd=self.env.swd_GP)
 
     def exec1(self: BndIreVda) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
- RPC_IREIN(RPC_IREIO) = NO;
- PAR_IRE(R,V,T,P,C,TS,IE)$(NOT RPC_IREIN(R,P,C,IE,'IN')) = 0;
- PAR_IPRIC(R,T,P,C,TS,IE)$(NOT RPC_IREIN(R,P,C,IE,'IN')) = 0;
+        g = self.tc
+        r, v, t, p, c, ts, ie = g.r, g.v, g.t, g.p, g.c, g.ts, g.ie
+        RpcIrein = g.RpcIrein
 
-""",
-        )
+        RpcIrein[g.RpcIreio] = False
+        g.par_ire[r, v, t, p, c, ts, ie].where[~RpcIrein[r, p, c, ie, "IN"]] = 0
+        g.par_ipric[r, t, p, c, ts, ie].where[~RpcIrein[r, p, c, ie, "IN"]] = 0
 
-    def exec2(self: BndIreVda, var: str, swd: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
- IF(CARD(PAR_IRE),
-  {var}_IRE.FX(RTP_VINTYR(R,V,PREMILE(T),P),C,TS,IE{swd})$(((NOT RPC_AIRE(R,P,C))*RPCS_VAR(R,P,C,TS))$RPC_IREIN(R,P,C,IE,'IN')) =
-     EPS+PAR_IRE(R,V,T,P,C,TS,IE);
-  LOOP(IE,FLO_BND(R,PREMILE(T),P,C,TS,'FX')$((RPC_AIRE(R,P,C)*RTPCS_VARF(R,T,P,C,TS))$RPC_IREIN(R,P,C,IE,'IN')) =
-           EPS+SUM(RTP_VINTYR(R,V,T,P),PAR_IRE(R,V,T,P,C,TS,IE)));
- );
-* Set target milestone years into FIL
- OPTION CLEAR=FIL; LOOP(T$(NOT PREMILE(T)),FIL(TT)$YK(TT,T) = YES);
-* Calculate total flows at milestone years
- FLO_IRE(R,PREMILE,P,C,TS,IE)$(RPCS_VAR(R,P,C,TS)$RPC_IREIN(R,P,C,IE,'IN')) =
-    SUM(YK(PREMILE,LL)$PAR_IRE(R,LL,PREMILE,P,C,TS,IE),PAR_IRE(R,LL,PREMILE,P,C,TS,IE))+EPS;
- DM_YEAR(PREMILE) = YES;
-""",
+    def exec2(self: BndIreVda, var: str, swd: tuple[Set | Alias] | tuple[()]) -> None:
+        g = self.tc
+        r, v, t, tt, p, c, ts, ie, ll = (
+            g.r,
+            g.v,
+            g.t,
+            g.tt,
+            g.p,
+            g.c,
+            g.ts,
+            g.ie,
+            g.ll,
         )
+        RpcIrein, RpcAire, RpcsVar, Premile = (
+            g.RpcIrein,
+            g.RpcAire,
+            g.RpcsVar,
+            g.Premile,
+        )
+        par_ire, flo_bnd, flo_ire = g.par_ire, g.flo_bnd, g.flo_ire
+        VAR_IRE = g.get_variable(f"{var}_IRE")
 
-    def exec3(self: BndIreVda, var: str, swd: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-* Set bounds for T not in sync with PREMILE
- LOOP(IE$CARD(FIL),TRACKPC(R,P,C)$((RPC_AIRE(R,P,C)+PRC_VINT(R,P))$RPC_IREIN(R,P,C,IE,'IN')) = YES);
- {var}_IRE.FX(RTP_VINTYR(R,FIL(T),T,P),C,TS,IE{swd})$(((NOT TRACKPC(R,P,C))*RPCS_VAR(R,P,C,TS))$RPC_IREIN(R,P,C,IE,'IN')) =
-     EPS+FLO_IRE(R,T,P,C,TS,IE);
-* Remove TRACKPC with either IMP or EXP internal, as FLO_BND will be applied to the SUM
- LOOP(IE,TRACKPC(R,P,C)$((NOT RPC_IREIN(R,P,C,IE,'IN'))$RPC_IRE(R,P,C,IE)) = NO);
- FLO_BND(R,FIL(T),P,C,TS,'FX')$((RPC_AIRE(R,P,C)*RTPCS_VARF(R,T,P,C,TS))$TRACKPC(R,P,C)) =
-      EPS+SUM(RPC_IREIN(R,P,C,IE,'IN'),FLO_IRE(R,T,P,C,TS,IE));
- OPTION CLEAR=TRACKPC,CLEAR=FLO_IRE;
-* Set the IRE prices
- LOOP(T$CARD(PAR_IPRIC),
-   OBJ_IPRIC(R,Y_EOH,P,C,TS,IE,CUR)$(PERIODYR(T,Y_EOH)$RPCS_VAR(R,P,C,TS)$RPC_IREIN(R,P,C,IE,'IN')) =
-     PAR_IPRIC(R,T,P,C,TS,IE));
-""",
+        # IF(CARD(PAR_IRE), ...) -- a top-level GAMS IF becomes a Python if, since
+        # gp.If only works inside a gp.Loop.
+        if par_ire.number_records:
+            VAR_IRE.fx[g.RtpVintyr[r, v, Premile[t], p], c, ts, ie, *swd].where[
+                ((~RpcAire[r, p, c]) * RpcsVar[r, p, c, ts]).where[
+                    RpcIrein[r, p, c, ie, "IN"]
+                ]
+            ] = SpecialValues.EPS + par_ire[r, v, t, p, c, ts, ie]
+            with Loop(ie):
+                flo_bnd[r, Premile[t], p, c, ts, "FX"].where[
+                    (RpcAire[r, p, c] * g.RtpcsVarf[r, t, p, c, ts]).where[
+                        RpcIrein[r, p, c, ie, "IN"]
+                    ]
+                ] = SpecialValues.EPS + Sum(
+                    g.RtpVintyr[r, v, t, p], par_ire[r, v, t, p, c, ts, ie]
+                )
+
+        # Set target milestone years into FIL
+        g.Fil.setRecords(None)
+        with Loop(t.where[~Premile[t]]):
+            g.Fil[tt].where[g.Yk[tt, t]] = True
+
+        # Calculate total flows at milestone years
+        flo_ire[r, Premile, p, c, ts, ie].where[
+            RpcsVar[r, p, c, ts].where[RpcIrein[r, p, c, ie, "IN"]]
+        ] = (
+            Sum(
+                g.Yk[Premile, ll].where[par_ire[r, ll, Premile, p, c, ts, ie]],
+                par_ire[r, ll, Premile, p, c, ts, ie],
+            )
+            + SpecialValues.EPS
         )
+        g.DmYear[Premile] = True
+
+    def exec3(self: BndIreVda, var: str, swd: tuple[Set | Alias] | tuple[()]) -> None:
+        g = self.tc
+        r, t, p, c, ts, ie = g.r, g.t, g.p, g.c, g.ts, g.ie
+        RpcIrein, RpcAire, RpcsVar, Trackpc = (
+            g.RpcIrein,
+            g.RpcAire,
+            g.RpcsVar,
+            g.Trackpc,
+        )
+        Fil, flo_ire, flo_bnd = g.Fil, g.flo_ire, g.flo_bnd
+        VAR_IRE = g.get_variable(f"{var}_IRE")
+
+        # Set bounds for T not in sync with PREMILE
+        with Loop(ie.where[Card(Fil)]):  # type: ignore[index]
+            Trackpc[r, p, c].where[
+                (RpcAire[r, p, c] + g.PrcVint[r, p]).where[RpcIrein[r, p, c, ie, "IN"]]
+            ] = True
+        VAR_IRE.fx[g.RtpVintyr[r, Fil[t], t, p], c, ts, ie, *swd].where[
+            ((~Trackpc[r, p, c]) * RpcsVar[r, p, c, ts]).where[
+                RpcIrein[r, p, c, ie, "IN"]
+            ]
+        ] = SpecialValues.EPS + flo_ire[r, t, p, c, ts, ie]
+
+        # Remove TRACKPC with either IMP or EXP internal, as FLO_BND will be applied
+        # to the SUM
+        with Loop(ie):
+            Trackpc[r, p, c].where[
+                (~RpcIrein[r, p, c, ie, "IN"]).where[g.RpcIre[r, p, c, ie]]
+            ] = False
+        flo_bnd[r, Fil[t], p, c, ts, "FX"].where[
+            (RpcAire[r, p, c] * g.RtpcsVarf[r, t, p, c, ts]).where[Trackpc[r, p, c]]
+        ] = SpecialValues.EPS + Sum(
+            RpcIrein[r, p, c, ie, "IN"], flo_ire[r, t, p, c, ts, ie]
+        )
+        Trackpc.setRecords(None)
+        flo_ire.setRecords(None)
+
+        # Set the IRE prices
+        with Loop(t.where[Card(g.par_ipric)]):  # type: ignore[index]
+            g.obj_ipric[r, g.YEoh, p, c, ts, ie, g.cur].where[
+                g.Periodyr[t, g.YEoh].where[
+                    RpcsVar[r, p, c, ts].where[RpcIrein[r, p, c, ie, "IN"]]
+                ]
+            ] = g.par_ipric[r, t, p, c, ts, ie]
