@@ -1029,6 +1029,7 @@ class TimesModelClass:
     VAR_ANNCST: Variable = None  # type: ignore[assignment]# [obv,r,allyear,cur] VAR_ANNCST: Annualized objective costs
     VAR_EC: Variable = None  # type: ignore[assignment]  # [r,allyear] VAR_EC: Annual energy costs in MACRO
     VAR_C: Variable = None  # type: ignore[assignment]  # [r,t] VAR_C: Annual consumption in MACRO
+    VAR_CDM: Variable = None  # type: ignore[assignment]  # [r,item,ll] VAR_CDM: Climate change damage
     VAR_Y: Variable = None  # type: ignore[assignment]  # [r,t] VAR_Y: Annual production in MACRO
     VAR_K: Variable = None  # type: ignore[assignment]  # [r,t] VAR_K: Total capital
     VAR_INV: Variable = None  # type: ignore[assignment]  # [r,t] VAR_INV: Annual investments in MACRO
@@ -1146,7 +1147,8 @@ class TimesModelClass:
     eq_dscncap: Equation = None  # type: ignore[assignment]  # [r,allyear,p] EQ_DSCNCAP
     eq_dscone: Equation = None  # type: ignore[assignment]  # [r,allyear,p] EQ_DSCONE
     eq_obj: Equation = None  # type: ignore[assignment]  #  EQ_OBJ: Overall Objective Function
-    eq_utilp: Equation = None  # type: ignore[assignment]  # EQ_UTILp:
+    eq_ccdm: Equation = None  # type: ignore[assignment]  # [r,mdm,year] EQ_CCDM: Damage from climate change
+    eq_utilp: Equation = None  # type: ignore[assignment]  # EQ_UTILP: Utility function
     eq_objels: Equation = None  # type: ignore[assignment]  # [r,bd,cur] EQ_OBJELS: Costs of elastic demands
     es_objels: Equation = None  # type: ignore[assignment]
     eq_objfix: Equation = None  # type: ignore[assignment]  # [r,cur] EQ_OBJFIX: Fixed Costs
