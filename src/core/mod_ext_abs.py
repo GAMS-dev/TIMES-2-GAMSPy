@@ -12,33 +12,40 @@ from __future__ import annotations
 
 import logging
 
+from gamspy import Equation
+
+from utils.times_model_class import TimesModelClass
+
 logger = logging.getLogger(__name__)
 
 
-def mod_ext_abs(equations: list[str], obmac: str) -> None:
+def mod_ext_abs(tc: TimesModelClass, obmac: str) -> list[Equation]:
     """Translation unit for mod_ext.abs."""
 
+    equations = []
     if obmac.upper() == "YES":
         equations.extend(
             [
-                "EQ_BS00",
-                "EQ_BS01",
-                "EQ_BS02",
-                "EQ_BS03",
-                "EQ_BS04",
-                "EQ_BS05",
-                "EQ_BS07",
-                "EQ_BS09",
-                "EQ_BS10",
-                "EQ_BS11",
-                "EQ_BS18",
-                "EQ_BS19",
-                "EQ_BS22",
-                "EQ_BS23",
-                "EQ_BS24",
-                "EQ_BS25",
-                "EQ_BS26",
-                "EQ_BS27",
-                "EQ_BS28",
+                tc.eq_bs00,
+                tc.eq_bs01,
+                tc.eq_bs02,
+                tc.eq_bs03,
+                tc.eq_bs04,
+                tc.eq_bs05,
+                tc.eq_bs07,
+                tc.eq_bs09,
+                tc.eq_bs10,
+                tc.eq_bs11,
+                tc.eq_bs18,
+                tc.eq_bs19,
+                tc.eq_bs22,
+                tc.eq_bs23,
+                tc.eq_bs24,
+                tc.eq_bs25,
+                tc.eq_bs26,
+                tc.eq_bs27,
+                tc.eq_bs28,
             ]
         )
+
+    return equations

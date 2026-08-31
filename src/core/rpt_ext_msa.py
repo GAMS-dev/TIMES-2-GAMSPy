@@ -15,6 +15,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Equation
+
 from core.base_class import GamsClass
 from core.pp_clean_mod import PpCleanMod
 from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
@@ -41,17 +43,15 @@ class RptExtMsa(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
+        model_name: str,
+        equations: list[Equation],
         arg1: str = "",
         arg2: str = "",
     ):
         self.env = env.fork()
         self._sub_modules = {}
-        self.model_name = self.env.model_name
-        # TODO: the active-equations list built up in maindrv_mod.py isn't
-        # threaded through to RptMainMod/RptExtMsa, so the FIXBOH-gated
-        # solve.stp branch below can't be exercised correctly yet -- no
-        # registered instance combines FIXBOH with the MSA/CSA extension.
-        self.equations: list[str] = []
+        self.model_name = model_name
+        self.equations = equations
         self.tc = tc
         self.compile()
 

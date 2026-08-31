@@ -12,12 +12,20 @@ from __future__ import annotations
 
 import logging
 
+from gamspy import Equation
+
+from utils.times_model_class import TimesModelClass
+
 logger = logging.getLogger(__name__)
 
 
-def mod_ext_dsc(equations: list[str], eq: str, dsc: str, solmip: str) -> None:
+def mod_ext_dsc(tc: TimesModelClass, eq: str, dsc: str, solmip: str) -> list[Equation]:
     """Translation unit for mod_ext.dsc."""
 
+    equations = []
+    eq = eq.lower()
     if f"{dsc}{solmip}".upper() == "YESYES":
-        equations.append(f"{eq}_DSCNCAP")
-        equations.append(f"{eq}_DSCONE")
+        equations.append(tc.get_equation(f"{eq}_dscncap"))
+        equations.append(tc.get_equation(f"{eq}_dscone"))
+
+    return equations

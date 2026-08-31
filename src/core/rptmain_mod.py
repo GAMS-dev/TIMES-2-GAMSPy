@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Alias
+from gamspy import Alias, Equation
 
 from core.atlearn_etl import AtlearnEtl
 from core.base_class import GamsClass
@@ -58,6 +58,7 @@ class RptmainMod(GamsClass):
         arg1: str,
         arg2: str,
         model_name: str,
+        equations: list[Equation],
     ):
         self.env = env.fork()
         self._sub_modules = {}
@@ -65,6 +66,7 @@ class RptmainMod(GamsClass):
         self.arg1 = arg1
         self.arg2 = arg2
         self.model_name = model_name
+        self.equations = equations
         self.compile()
 
     def compile(self) -> None:
@@ -150,7 +152,6 @@ class RptmainMod(GamsClass):
                 "ECB": RptExtEcb,
                 "IER": RptExtIer,
                 "MLF": RptExtMlf,
-                "MSA": RptExtMsa,
             }
             requested_exts = set(self.env.extend.split())
             include_extension(
@@ -159,6 +160,20 @@ class RptmainMod(GamsClass):
                 requested_exts=requested_exts,
                 source="rptmain",
             )
+            # RptExtMsa (unlike its siblings) needs the model's equation list
+            # to re-solve via SolveStp under FIXBOH, so it can't go through
+            # include_extension's generic (tc, env, arg1, arg2) call shape.
+            if "MSA" in requested_exts:
+                self.include(
+                    RptExtMsa(
+                        tc=self.tc,
+                        env=self.env,
+                        model_name=self.model_name,
+                        equations=self.equations,
+                        arg1="MSA",
+                        arg2="rptmain",
+                    )
+                )
 
         if self.env.solans.upper() == "YES":
             self.include(

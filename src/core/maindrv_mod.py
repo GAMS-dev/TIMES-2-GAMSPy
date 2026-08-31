@@ -329,11 +329,10 @@ class MainDrvMod(GamsClass):
         def_dam_cost = self.tc.defined("DAM_COST")
         def_vnret = self.tc.defined("VNRET")
 
-        equations: list[str] = []
         if src == "MOD":
             model_name = "TIMES"
-            mod_equa_mod(
-                equations=equations,
+            equations = mod_equa_mod(
+                tc=self.tc,
                 arg1="",
                 stages=self.env.stages,
                 eq=self.env.eq,
@@ -348,8 +347,8 @@ class MainDrvMod(GamsClass):
             )
         elif src == "TM":
             model_name = "TIMES_MACRO"
-            mod_equa_tm(
-                equations=equations,
+            equations = mod_equa_tm(
+                tc=self.tc,
                 merge=self.env.merge,
                 eq=self.env.eq,
                 timesed=self.env.timesed,
@@ -363,7 +362,7 @@ class MainDrvMod(GamsClass):
                 def_vnret=def_vnret,
             )
         else:
-            raise Exception(f"Unknown extension {src} for mod_equa_<ext>.py.")
+            raise KeyError(f"Unknown extension {src} for mod_equa_<ext>.py.")
 
         def_uc_flobet = self.tc.defined("UC_FLOBET")
         def_com_cstbal = self.tc.defined("COM_CSTBAL")
@@ -374,41 +373,45 @@ class MainDrvMod(GamsClass):
         if self.env.merge.upper() != "YES" and self.env.extend != "":
             requested_exts = set(self.env.extend.split())
             if "ABS" in requested_exts:
-                mod_ext_abs(equations=equations, obmac=self.env.obmac)
+                equations.extend(mod_ext_abs(tc=self.tc, obmac=self.env.obmac))
             if "CLI" in requested_exts:
-                mod_ext_cli(equations=equations, eq=self.env.eq)
+                equations.extend(mod_ext_cli(tc=self.tc, eq=self.env.eq))
             if "DSC" in requested_exts:
-                mod_ext_dsc(
-                    equations=equations,
-                    eq=self.env.eq,
-                    dsc=self.env.dsc,
-                    solmip=self.env.solmip,
+                equations.extend(
+                    mod_ext_dsc(
+                        tc=self.tc,
+                        eq=self.env.eq,
+                        dsc=self.env.dsc,
+                        solmip=self.env.solmip,
+                    )
                 )
             if "ETL" in requested_exts:
-                mod_ext_etl(equations=equations, eq=self.env.eq)
+                equations.extend(mod_ext_etl(tc=self.tc, eq=self.env.eq))
             if "IER" in requested_exts:
-                mod_ext_ier(equations=equations, chp_mode=self.env.chp_mode)
+                equations.extend(mod_ext_ier(tc=self.tc, chp_mode=self.env.chp_mode))
             if "VDA" in requested_exts:
-                mod_ext_vda(
-                    equations=equations,
-                    eq=self.env.eq,
-                    obmac=self.env.obmac,
-                    duc=self.env.duc,
-                    solmip=self.env.solmip,
-                    ecb=self.env.ecb,
-                    powerflo=self.env.powerflo,
-                    def_uc_flobet=def_uc_flobet,
-                    def_com_cstbal=def_com_cstbal,
-                    def_gr_vargen=def_gr_vargen,
-                    def_rtc_ms=def_rtc_ms,
-                    def_gg_mm=def_gg_mm,
+                equations.extend(
+                    mod_ext_vda(
+                        tc=self.tc,
+                        eq=self.env.eq,
+                        obmac=self.env.obmac,
+                        duc=self.env.duc,
+                        solmip=self.env.solmip,
+                        ecb=self.env.ecb,
+                        powerflo=self.env.powerflo,
+                        def_uc_flobet=def_uc_flobet,
+                        def_com_cstbal=def_com_cstbal,
+                        def_gr_vargen=def_gr_vargen,
+                        def_rtc_ms=def_rtc_ms,
+                        def_gg_mm=def_gg_mm,
+                    )
                 )
 
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=rf"""
-MODEL {model_name} / {", ".join(equations)} /;
+MODEL {model_name} / {", ".join([equation.name for equation in equations])} /;
 """,
         )
 
@@ -500,6 +503,7 @@ MODEL {model_name} / {", ".join(equations)} /;
                     arg1=self.arg1,
                     arg2="NO_EMTY",
                     model_name=model_name,
+                    equations=equations,
                 )
             )
         elif ext == "RPT":

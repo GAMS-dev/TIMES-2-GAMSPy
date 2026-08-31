@@ -12,28 +12,32 @@ from __future__ import annotations
 
 import logging
 
+from gamspy import Equation
+
+from utils.times_model_class import TimesModelClass
+
 logger = logging.getLogger(__name__)
 
 
-def mod_ext_ier(equations: list[str], chp_mode: str) -> None:
+def mod_ext_ier(tc: TimesModelClass, chp_mode: str) -> list[Equation]:
     """Translation unit for mod_ext.ier."""
-    equations.extend(
-        [
-            "EQE_MRKPRD",
-            "EQL_MRKPRD",
-            "EQG_MRKPRD",
-            "EQE_MRKCON",
-            "EQL_MRKCON",
-            "EQG_MRKCON",
-        ]
-    )
+    equations = [
+        tc.eqe_mrkprd,
+        tc.eql_mrkprd,
+        tc.eqg_mrkprd,
+        tc.eqe_mrkcon,
+        tc.eql_mrkcon,
+        tc.eqg_mrkcon,
+    ]
 
     if chp_mode == "YES":
         equations.extend(
             [
-                "EQL_CHPCON",
-                "EQL_CHPBPT",
-                "EQE_CHPCON",
-                "EQE_CHPBPT",
+                tc.eql_chpcon,
+                tc.eql_chpbpt,
+                tc.eqe_chpcon,
+                tc.eqe_chpbpt,
             ]
         )
+
+    return equations

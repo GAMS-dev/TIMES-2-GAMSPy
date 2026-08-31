@@ -1061,6 +1061,84 @@ class TimesModelClass:
     VAS_DNCAP: Variable = None  # type: ignore[assignment]  # [r,allyear,p,unit] VAS_DNCAP:
     VAR_SNCAP: Variable = None  # type: ignore[assignment]  # [r,allyear,p] VAR_SNCAP:
     VAS_SNCAP: Variable = None  # type: ignore[assignment]  # [r,allyear,p] VAS_SNCAP:
+    eq_objann: Equation = None  # type: ignore[assignment] # EQ_OBJANN:
+    eq_objbal: Equation = None  # type: ignore[assignment] # EQ_OBJBAL:
+    eq_annfix: Equation = None  # type: ignore[assignment] # EQ_ANNFIX:
+    eq_anninv: Equation = None  # type: ignore[assignment] # EQ_ANNINV
+    eq_annvar: Equation = None  # type: ignore[assignment] # EQ_ANNVAR
+    eq_util: Equation = None  # type: ignore[assignment] # EQ_UTIL
+    eq_prod_y: Equation = None  # type: ignore[assignment] # EQ_PROD_Y
+    eq_akl: Equation = None  # type: ignore[assignment] # EQ_AKL
+    eq_labor: Equation = None  # type: ignore[assignment] # EQ_LABOR
+    eq_kncap: Equation = None  # type: ignore[assignment] # EQ_KNCAP
+    eq_mcap: Equation = None  # type: ignore[assignment] # EQ_MCAP
+    eq_tmc: Equation = None  # type: ignore[assignment] # EQ_TMC
+    eq_dd: Equation = None  # type: ignore[assignment] # EQ_DD
+    eq_ivecbnd: Equation = None  # type: ignore[assignment] # EQ_IVECBND
+    eq_dnlces: Equation = None  # type: ignore[assignment] # EQ_DNLCES
+    eq_enscst: Equation = None  # type: ignore[assignment] # EQ_ENSCST
+    eq_trdbal: Equation = None  # type: ignore[assignment] # EQ_TRDBAL
+    eq_conso: Equation = None  # type: ignore[assignment] # EQ_CONSO
+    eq_conda: Equation = None  # type: ignore[assignment] # EQ_CONDA
+    eq_logbd: Equation = None  # type: ignore[assignment] # EQ_LOGBD
+    eq_macsh: Equation = None  # type: ignore[assignment] # EQ_MACSH
+    eq_macag: Equation = None  # type: ignore[assignment] # EQ_MACAG
+    eq_maces: Equation = None  # type: ignore[assignment] # EQ_MACES
+    eq_demsh: Equation = None  # type: ignore[assignment] # EQ_DEMSH
+    eq_demag: Equation = None  # type: ignore[assignment] # EQ_DEMAG
+    eq_demces: Equation = None  # type: ignore[assignment] # EQ_DEMCES
+    eq_escost: Equation = None  # type: ignore[assignment] # EQ_ESCOST
+    eq_mpen: Equation = None  # type: ignore[assignment] # EQ_MPEN
+    eq_xcapdb: Equation = None  # type: ignore[assignment] # EQ_XCAPDB
+    eq_bs00: Equation = None  # type: ignore[assignment] # EQ_BS00
+    eq_bs01: Equation = None  # type: ignore[assignment] # EQ_BS01
+    eq_bs02: Equation = None  # type: ignore[assignment] # EQ_BS02
+    eq_bs03: Equation = None  # type: ignore[assignment] # EQ_BS03
+    eq_bs04: Equation = None  # type: ignore[assignment] # EQ_BS04
+    eq_bs05: Equation = None  # type: ignore[assignment] # EQ_BS05
+    eq_bs07: Equation = None  # type: ignore[assignment] # EQ_BS07
+    eq_bs09: Equation = None  # type: ignore[assignment] # EQ_BS09
+    eq_bs10: Equation = None  # type: ignore[assignment] # EQ_BS10
+    eq_bs11: Equation = None  # type: ignore[assignment] # EQ_BS11
+    eq_bs18: Equation = None  # type: ignore[assignment] # EQ_BS18
+    eq_bs19: Equation = None  # type: ignore[assignment] # EQ_BS19
+    eq_bs22: Equation = None  # type: ignore[assignment] # EQ_BS22
+    eq_bs23: Equation = None  # type: ignore[assignment] # EQ_BS23
+    eq_bs24: Equation = None  # type: ignore[assignment] # EQ_BS24
+    eq_bs25: Equation = None  # type: ignore[assignment] # EQ_BS25
+    eq_bs26: Equation = None  # type: ignore[assignment] # EQ_BS26
+    eq_bs27: Equation = None  # type: ignore[assignment] # EQ_BS27
+    eq_bs28: Equation = None  # type: ignore[assignment] # EQ_BS28
+    eqe_mrkprd: Equation = None  # type: ignore[assignment] # EQE_MRKPRD
+    eql_mrkprd: Equation = None  # type: ignore[assignment] # EQL_MRKPRD
+    eqg_mrkprd: Equation = None  # type: ignore[assignment] # EQG_MRKPRD
+    eqe_mrkcon: Equation = None  # type: ignore[assignment] # EQE_MRKCON
+    eql_mrkcon: Equation = None  # type: ignore[assignment] # EQL_MRKCON
+    eqg_mrkcon: Equation = None  # type: ignore[assignment] # EQG_MRKCON
+    eql_chpcon: Equation = None  # type: ignore[assignment] # EQL_CHPCON
+    eql_chpbpt: Equation = None  # type: ignore[assignment] # EQL_CHPBPT
+    eqe_chpcon: Equation = None  # type: ignore[assignment] # EQE_CHPCON
+    eqe_chpbpt: Equation = None  # type: ignore[assignment] # EQE_CHPBPT
+    eq_sdind_1: Equation = None  # type: ignore[assignment] # EQ_SDIND_1
+    eq_sdind_0: Equation = None  # type: ignore[assignment] # EQ_SDIND_0
+    eq_gr_powflo: Equation = None  # type: ignore[assignment] # EQ_GR_POWFLO
+    eq_gr_ptdflo: Equation = None  # type: ignore[assignment] # EQ_GR_PTDFLO
+    eq_gr_genall: Equation = None  # type: ignore[assignment] # EQ_GR_GENALL
+    eq_gr_demall: Equation = None  # type: ignore[assignment] # EQ_GR_DEMALL
+    eq_gr_xbnd: Equation = None  # type: ignore[assignment] # EQ_GR_XBND
+    eq_gr_virtcap: Equation = None  # type: ignore[assignment] # EQ_GR_VIRTCAP
+    eq_gr_virtbnd: Equation = None  # type: ignore[assignment] # EQ_GR_VIRTBND
+    eq_gg_mflo: Equation = None  # type: ignore[assignment] # EQ_GG_MFLO
+    eq_gg_gama: Equation = None  # type: ignore[assignment] # EQ_GG_GAMA
+    eq_gg_hlip: Equation = None  # type: ignore[assignment] # EQ_GG_HLIP
+    eq_gg_hlev: Equation = None  # type: ignore[assignment] # EQ_GG_HLEV
+    eq_gg_step: Equation = None  # type: ignore[assignment] # EQ_GG_STEP
+    eq_gg_prio: Equation = None  # type: ignore[assignment] # EQ_GG_PRIO
+    eq_gg_mbnd: Equation = None  # type: ignore[assignment] # EQ_GG_MBND
+    eq_gg_pdif1: Equation = None  # type: ignore[assignment] # EQ_GG_PDIF1
+    eq_gg_pdif2: Equation = None  # type: ignore[assignment] # EQ_GG_PDIF2
+    eq_gg_weymst: Equation = None  # type: ignore[assignment] # EQ_GG_WEYMST
+    eq_gg_weymtx: Equation = None  # type: ignore[assignment] # EQ_GG_WEYMTX
     VAR_CLITOT: Variable = None  # type: ignore[assignment]  # [cmitem,ll] VAR_CLITOT: Total emissions or forcing by milestone year
     VAS_CLITOT: Variable = None  # type: ignore[assignment]  # [cmitem,ll] VAS_CLITOT: Total emissions or forcing by milestone year
     VAR_CLIBOX: Variable = None  # type: ignore[assignment]  # [cmitem,CmBox,ll] VAR_CLIBOX: Quantities in the climate reservoirs
@@ -1068,35 +1146,7 @@ class TimesModelClass:
     eq_dscncap: Equation = None  # type: ignore[assignment]  # [r,allyear,p] EQ_DSCNCAP
     eq_dscone: Equation = None  # type: ignore[assignment]  # [r,allyear,p] EQ_DSCONE
     eq_obj: Equation = None  # type: ignore[assignment]  #  EQ_OBJ: Overall Objective Function
-    eq_objann: Equation = None  # type: ignore[assignment]  # [Obvann,Reg,cur] EQ_OBJANN: Annualized objective components
-    eq_annfix: Equation = None  # type: ignore[assignment]  # [Reg,allyear,cur] EQ_ANNFIX: Annualized fixed costs
-    eq_anninv: Equation = None  # type: ignore[assignment]  # [Reg,allyear,cur] EQ_ANNINV: Annualized investment costs
-    eq_annvar: Equation = None  # type: ignore[assignment]  # [Reg,allyear,cur] EQ_ANNVAR: Annualized variable costs
-    eq_util: Equation = None  # type: ignore[assignment]  # EQ_UTIL: Utility function
-    eq_conso: Equation = None  # type: ignore[assignment]  # [r,t] EQ_CONSO: Consumption equation
-    eq_dd: Equation = None  # type: ignore[assignment]  # [r,t,c] EQ_DD: Demand decoupling equation
-    eq_mcap: Equation = None  # type: ignore[assignment]  # [r,t] EQ_MCAP: Capital dynamics equation
-    eq_tmc: Equation = None  # type: ignore[assignment]  # [r,t] EQ_TMC: Terminal condition for investment in last period
-    eq_ivecbnd: Equation = None  # type: ignore[assignment]  # [r,t] EQ_IVECBND: Bound on the sum of investment and energy costs
-    eq_escost: Equation = None  # type: ignore[assignment]  # [r,t] EQ_ESCOST: Energy System costs
-    eq_mpen: Equation = None  # type: ignore[assignment]  # [r,t,p] EQ_MPEN: Definition of variables for cost penalty function
-    eq_xcapdb: Equation = None  # type: ignore[assignment]  # [r,t,p] EQ_XCAPDB: Quadratic approximation of market penetration cost penalty function
-    eq_prod_y: Equation = None  # type: ignore[assignment]  # [r,t] EQ_PROD_Y: Production function
-    eq_akl: Equation = None  # type: ignore[assignment]  # [r,t] EQ_AKL: Aggregate Kapital Labor
-    eq_labor: Equation = None  # type: ignore[assignment]  # [r,t] EQ_LABOR: Labor dummy definition
-    eq_kncap: Equation = None  # type: ignore[assignment]  # [r,t] EQ_KNCAP: Capital dummy definition
-    eq_trdbal: Equation = None  # type: ignore[assignment]  # [t] EQ_TRDBAL: Trade balance
-    eq_dnlces: Equation = None  # type: ignore[assignment]  # [r,t] EQ_DNLCES: Demand CES function
-    eq_utilp: Equation = None  # type: ignore[assignment]  # EQ_UTILP: Utility function
-    eq_conda: Equation = None  # type: ignore[assignment]  # [r,t] EQ_CONDA: Consumption disaggregation
-    eq_logbd: Equation = None  # type: ignore[assignment]  # [r,t] EQ_LOGBD: Linearized log bound
-    eq_macsh: Equation = None  # type: ignore[assignment]  # [r,t,cg,cg] EQ_MACSH: Macro shares in aggregate
-    eq_macag: Equation = None  # type: ignore[assignment]  # [r,t,cg] EQ_MACAG: Macro aggregations
-    eq_maces: Equation = None  # type: ignore[assignment]  # [r,t,cg,cg] EQ_MACES: Macro CES functions
-    eq_demsh: Equation = None  # type: ignore[assignment]  # [r,t,c] EQ_DEMSH: Demand shares in aggregate
-    eq_demag: Equation = None  # type: ignore[assignment]  # [r,t] EQ_DEMAG: Demand aggregation
-    eq_demces: Equation = None  # type: ignore[assignment]  # [r,t,c] EQ_DEMCES: Demand CES function
-    eq_enscst: Equation = None  # type: ignore[assignment]  # [r,t] EQ_ENSCST: Energy System costs
+    eq_utilp: Equation = None  # type: ignore[assignment]  # EQ_UTILp:
     eq_objels: Equation = None  # type: ignore[assignment]  # [r,bd,cur] EQ_OBJELS: Costs of elastic demands
     es_objels: Equation = None  # type: ignore[assignment]
     eq_objfix: Equation = None  # type: ignore[assignment]  # [r,cur] EQ_OBJFIX: Fixed Costs
@@ -1852,17 +1902,6 @@ class TimesModelClass:
     VAR_GG_PADD: Variable = None  # type: ignore[assignment]  # [r, t, p, c, s] VAR_GG_PADD: Pressure boost due to compressor at input node
     VAR_GG_STEP: Variable = None  # type: ignore[assignment]  # [r, t, p, c, s, j] VAR_GG_STEP: Alternate step variables
     VAR_GG_Y: Variable = None  # type: ignore[assignment]  # [r, t, p, c, s] VAR_GG_Y
-    eq_gg_gama: Equation = None  # type: ignore[assignment]  # [r,t,p,c,r,c,ts] EQ_GG_GAMA: Maximum pressure increase due to compressor
-    eq_gg_mflo: Equation = None  # type: ignore[assignment]  # [r,t,p,c,r,c,ts] EQ_GG_MFLO: Standard IRE flows to mass flows (2-way)
-    eq_gg_mbnd: Equation = None  # type: ignore[assignment]  # [r,t,p,c,r,c,l,ts] EQ_GG_MBND: Mass flow bound by pressure difference (2-way)
-    eq_gg_hlip: Equation = None  # type: ignore[assignment]  # [r,t,p,c,r,c,ts] EQ_GG_HLIP: Linepack storage balance (1-way)
-    eq_gg_hlev: Equation = None  # type: ignore[assignment]  # [r,t,p,c,r,c,ts] EQ_GG_HLEV: Linepack as a function of average pressure (1-way)
-    eq_gg_step: Equation = None  # type: ignore[assignment]  # [r,t,p,c,r,c,ts] EQ_GG_STEP: Stepped linearization (1-way)
-    eq_gg_prio: Equation = None  # type: ignore[assignment]  # [r,t,p,c,r,c,l,ts] EQ_GG_PRIO: Pressures at input and output node (2-way)
-    eq_gg_pdif1: Equation = None  # type: ignore[assignment]  # [r,t,p,c,r,c,j,ts] EQ_GG_PDIF1: Maximum pressure differences (2-way)
-    eq_gg_pdif2: Equation = None  # type: ignore[assignment]  # [r,t,p,c,r,c,ts] EQ_GG_PDIF2: Unsigned pressure differences
-    eq_gg_weymst: Equation = None  # type: ignore[assignment]  # [r,t,p,c,r,c,l,ts] EQ_GG_WEYMST: Weymouth stepped linearization (2-way)
-    eq_gg_weymtx: Equation = None  # type: ignore[assignment]  # [r,t,p,c,r,c,s,j] EQ_GG_WEYMTX: Weymouth Taylor expansion formulation (2-way)
     PrcUnits: Set = None  # type: ignore[assignment] # [r, p, ucgrptype, units] PRC_UNITS
     eqg_uc: Equation = None  # type: ignore[assignment] # EQG_UC
     eqg_ucr: Equation = None  # type: ignore[assignment] # EQG_UCR
@@ -1889,20 +1928,10 @@ class TimesModelClass:
     eqrobj: Equation = None  # type: ignore[assignment] # EQROBJ
     eqsobj: Equation = None  # type: ignore[assignment] # EQSOBJ
     VAR_ONIND: Variable = None  # type: ignore[assignment]  # [r, ll, t, p, s, lA] VAR_ONIND: on-line status of unit in timeslice s
-    eq_sdind_1: Equation = None  # type: ignore[assignment]  # eq_sdind_1
-    eq_sdind_0: Equation = None  # type: ignore[assignment]  # eq_sdind_0
-    eq_objbal: Equation = None  # type: ignore[assignment]  # [r, cur, allsow] eq_objbal
     VAR_IC: Variable = None  # type: ignore[assignment] # [r, year, Rpc] # VAR_IC
     VAR_GRIDIO: Variable = None  # type: ignore[assignment]  # [r, year, c, c, s, io, *swd] VAR_GRIDIO
     VAR_XCAP: Variable = None  # type: ignore[assignment]  # [r, year, item, *swd] VAR_XCAP
     VAR_COMAUX: Variable = None  # type: ignore[assignment]  # [r, t, c, s, *swd] VAR_COMAUX
-    eq_gr_powflo: Equation = None  # type: ignore[assignment]  # [r, t, c, s, r, c, swtd] eq_gr_powflo
-    eq_gr_ptdflo: Equation = None  # type: ignore[assignment]  # [r, t, p, c, s, swtd] eq_gr_ptdflo
-    eq_gr_genall: Equation = None  # type: ignore[assignment]  # [r, t, c, s, cg, swtd] eq_gr_genall
-    eq_gr_demall: Equation = None  # type: ignore[assignment]  # [r, t, c, s, swtd] eq_gr_demall
-    eq_gr_xbnd: Equation = None  # type: ignore[assignment]  # [r, t, j, ie, s, swtd] eq_gr_xbnd
-    eq_gr_virtcap: Equation = None  # type: ignore[assignment]  # [r, t, p, c, s, bd, swtd] eq_gr_virtcap
-    eq_gr_virtbnd: Equation = None  # type: ignore[assignment]  # [r, t, p, swtd] eq_gr_virtbnd
     eq_msncap: Equation = None  # type: ignore[assignment]  # [r, year, c, swd] eq_msncap
     eq_msncapb: Equation = None  # type: ignore[assignment]  # [r, year, c, p, swd] eq_msncapb
     SwChild: Set = None  # type: ignore[assignment]
@@ -1938,10 +1967,6 @@ class TimesModelClass:
     rcs_ssfr: Parameter = None  # type: ignore[assignment] # RCS_SSFR
     Rcgrid: Set = None  # type: ignore[assignment] # [r, t, c] RC_GRID:
     obj_combal: Parameter = None  # type: ignore[assignment] # [r, t, c, s, item, cur] OBJ_COMBAL:
-    eql_chpcon: Equation = None  # type: ignore[assignment] # [r, year, year, p, allsow] EQL_CHPCON: Condensing capacity constraint (=L=)
-    eql_chpbpt: Equation = None  # type: ignore[assignment] # [r, year, year, p, allsow] EQL_CHPBPT: Backpressure capacity constraint (=L=)
-    eqe_chpcon: Equation = None  # type: ignore[assignment] # [r, year, year, p, allsow] EQE_CHPCON: Condensing capacity constraint (=E=)
-    eqe_chpbpt: Equation = None  # type: ignore[assignment] # [r, year, year, p, allsow] EQE_CHPBPT: Backpressure capacity constraint (=E=)
     par_bptl: Parameter = None  # type: ignore[assignment] # [r, t, p] PAR_BPTL:
     par_bptm: Parameter = None  # type: ignore[assignment] # [r, t, p] PAR_BPTM:
     par_condl: Parameter = None  # type: ignore[assignment] # [r, t, p] PAR_CONDL:
@@ -1955,15 +1980,6 @@ class TimesModelClass:
 
     RtpEqstk: Set = None  # type: ignore[assignment] # [r, allyear, t, p, item] RTP_EQSTK:
     BsRvt: Set = None  # type: ignore[assignment] # [r, year, t] BS_RVT:
-    # endregion
-
-    # region IER extension (equ_ext.ier market-share equations)
-    eqe_mrkprd: Equation = None  # type: ignore[assignment] # [r,t,p,c,s,allsow] EQE_MRKPRD: Production share (=E=)
-    eql_mrkprd: Equation = None  # type: ignore[assignment] # [r,t,p,c,s,allsow] EQL_MRKPRD: Production share (=L=)
-    eqg_mrkprd: Equation = None  # type: ignore[assignment] # [r,t,p,c,s,allsow] EQG_MRKPRD: Production share (=G=)
-    eqe_mrkcon: Equation = None  # type: ignore[assignment] # [r,t,p,c,s,allsow] EQE_MRKCON: Consumption share (=E=)
-    eql_mrkcon: Equation = None  # type: ignore[assignment] # [r,t,p,c,s,allsow] EQL_MRKCON: Consumption share (=L=)
-    eqg_mrkcon: Equation = None  # type: ignore[assignment] # [r,t,p,c,s,allsow] EQG_MRKCON: Consumption share (=G=)
     # endregion
 
     # region DUMPSOL extension (dumpsol.mod solution dump)

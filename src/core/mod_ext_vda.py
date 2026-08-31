@@ -12,11 +12,15 @@ from __future__ import annotations
 
 import logging
 
+from gamspy import Equation
+
+from utils.times_model_class import TimesModelClass
+
 logger = logging.getLogger(__name__)
 
 
 def mod_ext_vda(
-    equations: list[str],
+    tc: TimesModelClass,
     eq: str,
     obmac: str,
     duc: str,
@@ -28,95 +32,99 @@ def mod_ext_vda(
     def_gr_vargen: bool,
     def_rtc_ms: bool,
     def_gg_mm: bool,
-) -> None:
+) -> list[Equation]:
     """Translation unit for mod_ext.vda."""
-
-    equations.extend(
-        [
-            f"{eq}E_ACTEFF",
-            f"{eq}L_CAFLAC",
-            f"{eq}E_CAFLAC",
-            f"{eq}L_CAPFLO",
-            f"{eq}_CAPLOAD",
-            f"{eq}_ACTRAMP",
-            f"{eq}E_ACTUPS",
-            f"{eq}L_ACTUPS",
-            f"{eq}L_ACTUPC",
-            f"{eq}_ACTPL",
-            f"{eq}_ACTRMPC",
-            f"{eq}_SLSIFT",
-            "EQL_STGCCL",
-            f"{eq}E_UCRTP",
-            f"{eq}N_UCRTP",
-            f"{eq}N_UCRTC",
-            f"{eq}E_ASHAR",
-            f"{eq}L_ASHAR",
-            f"{eq}G_ASHAR",
-        ]
-    )
+    eq = eq.lower()
+    equations = [
+        tc.get_equation(f"{eq}e_acteff"),
+        tc.get_equation(f"{eq}l_caflac"),
+        tc.get_equation(f"{eq}e_caflac"),
+        tc.get_equation(f"{eq}l_capflo"),
+        tc.get_equation(f"{eq}_capload"),
+        tc.get_equation(f"{eq}_actramp"),
+        tc.get_equation(f"{eq}e_actups"),
+        tc.get_equation(f"{eq}l_actups"),
+        tc.get_equation(f"{eq}l_actupc"),
+        tc.get_equation(f"{eq}_actpl"),
+        tc.get_equation(f"{eq}_actrmpc"),
+        tc.get_equation(f"{eq}_slsift"),
+        tc.eql_stgccl,
+        tc.get_equation(f"{eq}e_ucrtp"),
+        tc.get_equation(f"{eq}n_ucrtp"),
+        tc.get_equation(f"{eq}n_ucrtc"),
+        tc.get_equation(f"{eq}e_ashar"),
+        tc.get_equation(f"{eq}l_ashar"),
+        tc.get_equation(f"{eq}g_ashar"),
+    ]
 
     if obmac == "YES":
         equations.extend(
             [
-                "eq_sdlogic",
-                "eq_sudupt",
-                "eq_sdslant",
-                "eq_sdminon",
-                "eq_sudload",
-                "eq_sudtime",
-                "eq_sudpll",
+                tc.eq_sdlogic,
+                tc.eq_sudupt,
+                tc.eq_sdslant,
+                tc.eq_sdminon,
+                tc.eq_sudload,
+                tc.eq_sudtime,
+                tc.eq_sudpll,
             ]
         )
 
     if f"{duc}{solmip}".upper() == "YESYES":
-        equations.extend(["eq_sdind_1", "eq_sdind_0"])
+        equations.extend([tc.eq_sdind_1, tc.eq_sdind_0])
 
     if def_uc_flobet:
-        equations.extend([f"{eq}G_UCMAX", f"{eq}G_UCSUMAX"])
+        equations.extend(
+            [tc.get_equation(f"{eq}g_ucmax"), tc.get_equation(f"{eq}g_ucsumax")]
+        )
 
     if def_com_cstbal:
-        equations.append("EQ_OBJBAL")
+        equations.append(tc.eq_objbal)
 
     if powerflo.upper() == "YES":
         equations.extend(
             [
-                f"{eq}_GR_POWFLO",
-                f"{eq}_GR_PTDFLO",
-                f"{eq}_GR_GENALL",
-                f"{eq}_GR_DEMALL",
-                f"{eq}_GR_XBND",
-                f"{eq}_GR_VIRTCAP",
-                f"{eq}_GR_VIRTBND",
+                tc.get_equation(f"{eq}_gr_powflo"),
+                tc.get_equation(f"{eq}_gr_ptdflo"),
+                tc.get_equation(f"{eq}_gr_genall"),
+                tc.get_equation(f"{eq}_gr_demall"),
+                tc.get_equation(f"{eq}_gr_xbnd"),
+                tc.get_equation(f"{eq}_gr_virtcap"),
+                tc.get_equation(f"{eq}_gr_virtbnd"),
             ]
         )
 
     if def_gr_vargen:
         equations.extend(
             [
-                f"{eq}_RL_LOAD",
-                f"{eq}_RL_NDIS",
-                f"{eq}_RL_STCAP",
-                f"{eq}_RL_PKCAP",
-                f"{eq}_RL_THMIN",
+                tc.get_equation(f"{eq}_rl_load"),
+                tc.get_equation(f"{eq}_rl_ndis"),
+                tc.get_equation(f"{eq}_rl_stcap"),
+                tc.get_equation(f"{eq}_rl_pkcap"),
+                tc.get_equation(f"{eq}_rl_thmin"),
             ]
         )
 
     if def_rtc_ms and ecb == "YES":
-        equations.extend([f"{eq}_MSNCAP", f"{eq}_MSNCAPB"])
+        equations.extend(
+            [tc.get_equation(f"{eq}_msncap"), tc.get_equation(f"{eq}_msncapb")]
+        )
 
     if def_gg_mm:
         equations.extend(
             [
-                "EQ_GG_MFLO",
-                "EQ_GG_GAMA",
-                "EQ_GG_HLIP",
-                "EQ_GG_HLEV",
-                "EQ_GG_STEP",
-                "EQ_GG_PRIO",
-                "EQ_GG_MBND",
-                "EQ_GG_PDIF1",
-                "EQ_GG_PDIF2",
-                "EQ_GG_WEYMST",
-                "EQ_GG_WEYMTX",
+                tc.eq_gg_mflo,
+                tc.eq_gg_gama,
+                tc.eq_gg_hlip,
+                tc.eq_gg_hlev,
+                tc.eq_gg_step,
+                tc.eq_gg_prio,
+                tc.eq_gg_mbnd,
+                tc.eq_gg_pdif1,
+                tc.eq_gg_pdif2,
+                tc.eq_gg_weymst,
+                tc.eq_gg_weymtx,
             ]
         )
+
+    return equations
