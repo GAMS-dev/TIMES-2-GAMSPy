@@ -43,6 +43,6 @@ repos:
         files: "^src\\/core\\/(.*?)$"
         args: ["--config-file=pyproject.toml"]
         additional_dependencies:
-          - gamspy>=1.26.3
+          - gamspy>=1.27.0
           - pandas-stubs
           - pydantic

@@ -13,6 +13,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Card, Domain, Loop, Set, Sum, sparse
+from gamspy.math import Min, Round, abs, diag, project, sign
+
 from core.base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -42,41 +45,49 @@ class InitExtAbs(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="SET BS_RVT(R,YEAR,T);",
-        )
+        g = self.tc
+        m = g.container
+        g.BsRvt = Set(m, name="BS_RVT", domain=[g.r, g.year, g.t])
+
         self.tc.enqueue(self.proc_allowed)
 
     def proc_allowed(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Get processes allowed to participate in the reserve markets per region
-  OPTION BS_BSC<BS_RMAX, TRACKP<BS_BSC; Z=CARD(TRACKP);
-  BS_RTYPE(R,C)$BS_RTYPE(R,C) = SIGN(BS_RTYPE(R,C))*ROUND(MIN(5,ABS(BS_RTYPE(R,C))));
-* Remove reserve commodities from topology
-  LOOP(TRACKP(R,P)$Z,RP_UPR(R,P,'FX')=Z; Z=0);
-  TRACKP(R,P)$=SUM((C,BD)$BS_STIME(R,P,C,BD),1);
-  TOP(TRACKP(R,P),C,IO)$BS_RTYPE(R,C) = NO;
-  NRG_TMAP(R,NRG_TYPE,C)$BS_RTYPE(R,C) = DIAG(NRG_TYPE,'RATE');
-  OPTION CLEAR=TRACKP;
-*-----------------------------------------------------------------------------
-* Make A-sets
-  BS_ABD(R,C,'LO')$(BS_RTYPE(R,C)<0) $=BS_RTYPE(R,C);
-  BS_ABD(R,C,'UP')$(BS_RTYPE(R,C)>0) $=BS_RTYPE(R,C);
-  BS_ANEG(R,C) $= BS_ABD(R,C,'LO');
-  BS_APOS(R,C) $= BS_ABD(R,C,'UP');
-* Remove invalid values
-  BS_DEMDET(R,YEAR,RSP,C,S)$(NOT BS_RTYPE(R,C))=0;
-  BS_OMEGA(R,YEAR,C,S)$(NOT BS_RTYPE(R,C))=0;
-  BS_DELTA(R,YEAR,C,S)$(NOT BS_RTYPE(R,C))=0;
-  BS_LAMBDA(R,YEAR,C)$(NOT BS_RTYPE(R,C))=0;
-  BS_DETWT(R,YEAR,C)$(NOT BS_RTYPE(R,C))=0;
-  BS_SIGMA(R,YEAR,C,ITEM,S)$(NOT BS_RTYPE(R,C))=0;
-  BS_RMAX(R,YEAR,P,C,S)$(NOT BS_RTYPE(R,C))=0;
-  BS_STIME(R,P,C,BD)$(NOT BS_RTYPE(R,C))=0;
-""",
+        g = self.tc
+        # * Get processes allowed to participate in the reserve markets per region
+        project(source=g.bs_rmax, target=g.BsBsc)
+        project(source=g.BsBsc, target=g.Trackp)
+        g.z[...] = Card(g.Trackp)
+        g.bs_rtype[g.r, g.c].where[g.bs_rtype[g.r, g.c]] = sign(
+            g.bs_rtype[g.r, g.c]
+        ) * Round(Min(5.0, abs(g.bs_rtype[g.r, g.c])))
+        # * Remove reserve commodities from topology
+        with Loop(g.Trackp[g.r, g.p].where[g.z]):
+            g.RpUpr[g.r, g.p, "FX"] = g.z
+            g.z[...] = 0.0
+        g.Trackp[g.r, g.p] = sparse(
+            Sum(Domain(g.c, g.bd).where[g.bs_stime[g.r, g.p, g.c, g.bd]], 1.0)
         )
+        g.Top[g.Trackp[g.r, g.p], g.c, g.io].where[g.bs_rtype[g.r, g.c]] = False
+        g.NrgTmap[g.r, g.nrgtype, g.c].where[g.bs_rtype[g.r, g.c]] = diag(
+            g.nrgtype, "RATE"
+        )
+        g.Trackp.setRecords(None)
+        # *-----------------------------------------------------------------------------
+        # * Make A-sets
+        g.BsAbd[g.r, g.c, "LO"].where[(g.bs_rtype[g.r, g.c] < 0.0)] = sparse(
+            g.bs_rtype[g.r, g.c]
+        )
+        g.BsAbd[g.r, g.c, "UP"].where[(g.bs_rtype[g.r, g.c] > 0.0)] = sparse(
+            g.bs_rtype[g.r, g.c]
+        )
+        g.BsAneg[g.r, g.c] = sparse(g.BsAbd[g.r, g.c, "LO"])
+        g.BsApos[g.r, g.c] = sparse(g.BsAbd[g.r, g.c, "UP"])
+        # * Remove invalid values
+        g.bs_demdet[g.r, g.year, g.Rsp, g.c, g.s].where[(~(g.bs_rtype[g.r, g.c]))] = 0.0
+        g.bs_omega[g.r, g.year, g.c, g.s].where[(~(g.bs_rtype[g.r, g.c]))] = 0.0
+        g.bs_delta[g.r, g.year, g.c, g.s].where[(~(g.bs_rtype[g.r, g.c]))] = 0.0
+        g.bs_lambda[g.r, g.year, g.c].where[(~(g.bs_rtype[g.r, g.c]))] = 0.0
+        g.bs_detwt[g.r, g.year, g.c].where[(~(g.bs_rtype[g.r, g.c]))] = 0.0
+        g.bs_sigma[g.r, g.year, g.c, g.item, g.s].where[(~(g.bs_rtype[g.r, g.c]))] = 0.0
+        g.bs_rmax[g.r, g.year, g.p, g.c, g.s].where[(~(g.bs_rtype[g.r, g.c]))] = 0.0
+        g.bs_stime[g.r, g.p, g.c, g.bd].where[(~(g.bs_rtype[g.r, g.c]))] = 0.0
