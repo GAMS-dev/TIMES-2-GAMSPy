@@ -13,10 +13,16 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Domain, Equation, Sum, sparse
+from gamspy.math import Max, log, rpower
+
 from core.base_class import GamsClass
 from core.eqobjann_tm import EqobjannTm, EqobjannTmConfig
 
 if TYPE_CHECKING:
+    from gamspy import Alias, Set
+    from gamspy._symbols.implicits import ImplicitVariable
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -43,6 +49,9 @@ class EquExtMsa(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
+
         # Prepare annualized coefficients and enable adjusted PV factors
         self.include(
             EqobjannTm(
@@ -55,128 +64,205 @@ class EquExtMsa(GamsClass):
         if (self.env.objann + self.env.msa).upper() == "YESMSA":
             self.tc.enqueue(self.exec1)
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="""
-EQUATIONS
-   EQ_UTIL                  Utility equation - objective function for MKMC
-   EQ_CONSO(REG,TP)         Computation of C (economy consumption)
-   EQ_PROD_Y(REG,TP)        Computation of Y (economy output)
-   EQ_DD(REG,TP,COM)        Demand decoupling
-   EQ_MCAP(REG,TP)          Capital - trillion dollars
-   EQ_TMC(REG,TP)           Terminal condition  - trillion dollars
-   EQ_IVECBND(REG,T)        Bound on the sum of investment and energy costs
-   EQ_ESCOST(REG,TP)        Energy system cost
-   EQ_TRDBAL(TP,ITEM)       Trade balance
-   EQ_CCDM(REG,MDM,YEAR)    Damage from climate change
-;
-        """,
+        g.eq_util = Equation(
+            m,
+            name="EQ_UTIL",
+            description="Utility equation - objective function for MKMC",
+        )
+        g.eq_conso = Equation(
+            m,
+            name="EQ_CONSO",
+            domain=[g.Reg, g.tp],
+            description="Computation of C (economy consumption)",
+        )
+        g.eq_prod_y = Equation(
+            m,
+            name="EQ_PROD_Y",
+            domain=[g.Reg, g.tp],
+            description="Computation of Y (economy output)",
+        )
+        g.eq_dd = Equation(
+            m,
+            name="EQ_DD",
+            domain=[g.Reg, g.tp, g.Com],
+            description="Demand decoupling",
+        )
+        g.eq_mcap = Equation(
+            m,
+            name="EQ_MCAP",
+            domain=[g.Reg, g.tp],
+            description="Capital - trillion dollars",
+        )
+        g.eq_tmc = Equation(
+            m,
+            name="EQ_TMC",
+            domain=[g.Reg, g.tp],
+            description="Terminal condition  - trillion dollars",
+        )
+        g.eq_ivecbnd = Equation(
+            m,
+            name="EQ_IVECBND",
+            domain=[g.Reg, g.t],
+            description="Bound on the sum of investment and energy costs",
+        )
+        g.eq_escost = Equation(
+            m, name="EQ_ESCOST", domain=[g.Reg, g.tp], description="Energy system cost"
+        )
+        g.eq_trdbal = Equation(
+            m, name="EQ_TRDBAL", domain=[g.tp, g.item], description="Trade balance"
+        )
+        g.eq_ccdm = Equation(
+            m,
+            name="EQ_CCDM",
+            domain=[g.Reg, g.mdm, g.year],
+            description="Damage from climate change",
         )
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-*=======================================================================
-*  Utility Production Function, the Objective Function
-* ======================================================================
+        # *=======================================================================
+        # *  Utility Production Function, the Objective Function
+        # * ======================================================================
+        g.eq_util[...] = (
+            Sum(
+                g.Mr[g.r],
+                Sum(
+                    g.t,
+                    g.tm_nwt[g.r]
+                    * g.tm_pwt[g.t]
+                    * g.tm_dfact[g.r, g.t]
+                    * log(g.VAR_C[g.r, g.t]),
+                )
+                + Sum(
+                    Domain(g.TmDam[g.r, g.lA], g.Xtp),
+                    g.tm_nwt[g.r]
+                    * g.tm_pwt[g.Xtp]
+                    * g.tm_udf[g.r, g.Xtp]
+                    * log(g.VAR_CDM[g.r, g.lA, g.Xtp]),
+                ),
+            )
+            == g.VAR_UTIL * Max(1.0, log(g.tm_scale_util * 1000.0)) / 1000.0
+        )
+        # *=======================================================================
+        # *  Consumption Constraint
+        # *=======================================================================
+        g.eq_conso[g.Mr[g.r], g.t] = (
+            g.VAR_Y[g.r, g.t]
+            == g.VAR_C[g.r, g.t]
+            + g.VAR_INV[g.r, g.t]
+            + g.VAR_EC[g.r, g.t]
+            + (
+                Sum(g.TmDam[g.r, g.io], g.VAR_CDM[g.r, g.io, g.t])
+                + g.VAR_NTX[g.r, g.t, "NMR"]
+            ).where[g.Pp[g.t]]
+        )
+        # *=======================================================================
+        # *  Production Constraint
+        # *=======================================================================
+        g.eq_prod_y[g.Mr[g.r], g.t] = g.VAR_Y[g.r, g.t] <= (
+            (
+                g.tm_akl[g.r]
+                * (g.VAR_K[g.r, g.t] ** (g.tm_kpvs[g.r] * g.tm_rho[g.r]))
+                * (g.tm_l[g.r, g.t] ** ((1.0 - g.tm_kpvs[g.r]) * g.tm_rho[g.r]))
+                + Sum(
+                    g.Dem[g.r, g.Dm].where[g.tm_dem[g.r, g.t, g.Dm]],
+                    g.tm_b[g.r, g.Dm] * (g.VAR_D[g.r, g.t, g.Dm] ** g.tm_rho[g.r]),
+                )
+            )
+            ** (1.0 / g.tm_rho[g.r])
+        )
+        # *=======================================================================
+        # *  Demand Decoupling  Constraint:
+        # *  The energy service demands D are reduced by the DDF factors
+        # *  while as production function factors increase ECONOMIC OUTPUT
+        # *=======================================================================
+        g.eq_dd[g.Mr[g.r], g.tp, g.Dm] = (
+            g.VAR_DEM[g.r, g.tp, g.Dm]
+            == (
+                (1.0 / g.tm_scale_nrg)
+                * (
+                    g.tm_aeeifac[g.r, g.tp, g.Dm] * g.VAR_D[g.r, g.tp, g.Dm]
+                    + g.VAR_SP[g.r, g.tp, g.Dm]
+                )
+            ).where[(g.tm_dem[g.r, g.tp, g.Dm] > 0.0)]
+        )
+        # *=======================================================================
+        # *  Capital Constraint
+        # *=======================================================================
+        g.eq_mcap[g.Mr[g.r], g.Pp[g.t.lead(1)]] = (
+            g.VAR_K[g.r, g.Pp]
+            <= g.VAR_K[g.r, g.t] * g.tm_tsrv[g.r, g.t]
+            + (
+                g.d[g.Pp] * g.VAR_INV[g.r, g.Pp]
+                + g.d[g.t] * g.VAR_INV[g.r, g.t] * g.tm_tsrv[g.r, g.t]
+            )
+            / 2.0
+        )
+        # *=======================================================================
+        # *  Terminal Condition
+        # *=======================================================================
+        g.eq_tmc[g.Mr[g.r], g.Tlast] = (
+            g.VAR_K[g.r, g.Tlast] * (g.tm_growv[g.r, g.Tlast] + g.tm_depr[g.r]) / 100.0
+            <= g.VAR_INV[g.r, g.Tlast]
+        )
+        # *=======================================================================
+        # *  Bound on Sum of Investment and Energy
+        # *=======================================================================
+        g.eq_ivecbnd[g.Mr[g.r], g.Pp[g.t]] = g.VAR_INV[g.r, g.t] + g.VAR_EC[
+            g.r, g.t
+        ] <= g.tm_y0[g.r] * (g.tm_l[g.r, g.t] ** g.tm_ivetol[g.r])
+        # *=======================================================================
+        # *  Cost of Energy
+        # *=======================================================================
+        g.eq_escost[g.Mr[g.r], g.Pp] = (
+            g.tm_qsfa[g.r, g.Pp]
+            + Sum(
+                g.Dm,
+                g.tm_qsfb[g.r, g.Pp, g.Dm] * (rpower(g.VAR_DEM[g.r, g.Pp, g.Dm], 2)),
+            )
+            + g.tm_amp[g.r, g.Pp]
+            <= g.VAR_EC[g.r, g.Pp]
+        )
+        # *=======================================================================
+        # * Trades and damage
+        # *=======================================================================
+        g.eq_trdbal[g.Pp, g.trd] = Sum(g.Mr[g.r], g.VAR_NTX[g.r, g.Pp, g.trd]) == 0.0
 
- EQ_UTIL.. SUM(MR(R), SUM(T, TM_NWT(R) * TM_PWT(T) * TM_DFACT(R,T) * LOG(VAR_C(R,T))) +
-      SUM((TM_DAM(R,L),XTP), TM_NWT(R) * TM_PWT(XTP)*TM_UDF(R,XTP) * LOG(VAR_CDM(R,L,XTP))))
-
-  =E=  VAR_UTIL * MAX(1,LOG(TM_SCALE_UTIL*1000))/1000;
-
-*=======================================================================
-*  Consumption Constraint
-*=======================================================================
-
- EQ_CONSO(MR(R),T)..  VAR_Y(R,T)  =E=  VAR_C(R,T) + VAR_INV(R,T) + VAR_EC(R,T) +
-                      (SUM(TM_DAM(R,IO),VAR_CDM(R,IO,T)) + VAR_NTX(R,T,'NMR'))$PP(T);
-
-
-*=======================================================================
-*  Production Constraint
-*=======================================================================
-
- EQ_PROD_Y(MR(R),T)..  VAR_Y(R,T) =L=
-
- (TM_AKL(R) * (VAR_K(R,T) ** (TM_KPVS(R) * TM_RHO(R))) * TM_L(R,T) ** ((1 - TM_KPVS(R)) * TM_RHO(R))
-
- +  SUM(DEM(R,DM)$TM_DEM(R,T,DM), TM_B(R,DM) * VAR_D(R,T,DM) ** TM_RHO(R))) ** (1 / TM_RHO(R));
-
-
-*=======================================================================
-*  Demand Decoupling  Constraint:
-*  The energy service demands D are reduced by the DDF factors
-*  while as production function factors increase ECONOMIC OUTPUT
-*=======================================================================
-
-  EQ_DD(MR(R),TP,DM) ..
-
-  VAR_DEM(R,TP,DM) =E= ((1/TM_SCALE_NRG) * (TM_AEEIFAC(R,TP,DM) * VAR_D(R,TP,DM) + VAR_SP(R,TP,DM)))$(TM_DEM(R,TP,DM) GT 0);
-
-
-*=======================================================================
-*  Capital Constraint
-*=======================================================================
-
-  EQ_MCAP(MR(R),PP(T+1))..
-
-  VAR_K(R,PP)  =L=
-
-  VAR_K(R,T) * TM_TSRV(R,T) + (D(PP)*VAR_INV(R,PP) + D(T)*VAR_INV(R,T)*TM_TSRV(R,T))/2;
-
-*=======================================================================
-*  Terminal Condition
-*=======================================================================
-
-  EQ_TMC(MR(R),TLAST)..
-
-  VAR_K(R,TLAST) * (TM_GROWV(R,TLAST) + TM_DEPR(R))/100 =L= VAR_INV(R,TLAST);
-
-
-*=======================================================================
-*  Bound on Sum of Investment and Energy
-*=======================================================================
-  EQ_IVECBND(MR(R),PP(T)) ..
-
-  VAR_INV(R,T) + VAR_EC(R,T)  =L=  TM_Y0(R) * TM_L(R,T) ** TM_IVETOL(R);
-
-*=======================================================================
-*  Cost of Energy
-*=======================================================================
-  EQ_ESCOST(MR(R),PP)..
-
-  TM_QSFA(R,PP) + SUM(DM, TM_QSFB(R,PP,DM)*VAR_DEM(R,PP,DM)**2) + TM_AMP(R,PP)
-
-  =L=
-
-  VAR_EC(R,PP);
-*=======================================================================
-* Trades and damage
-*=======================================================================
-  EQ_TRDBAL(PP,TRD)..  SUM(MR(R), VAR_NTX(R,PP,TRD)) =E= 0;
-
-  EQ_CCDM(TM_DAM(MR(R),MDM),XTP)..  VAR_CDM(R,MDM,XTP)  =E=
-
-   ((1-({self.cm_clibox("'DELTA-ATM'", "'ATM'", "XTP")}/TM_CATT(R))**2)**TM_HSX(R,XTP))$L(MDM) +
-
-   SUM(SUPERYR(T(XTP),LL)$XTP(LL),TM_GDPGOAL(MR,T)*TM_XWT(R,LL)*
-   (TM_MDTL(R)*{self.cm_clibox("'DELTA-ATM'", "'ATM'", "LL")}/MAX(1,TM_DEFVAL('REFTEMP')) +
-    TM_MDTQ(R)*POWER({self.cm_clibox("'DELTA-ATM'", "'ATM'", "LL")}/MAX(1,TM_DEFVAL('REFTEMP')),2)))$IO(MDM);
-        """,
+        g.eq_ccdm[g.TmDam[g.Mr[g.r], g.mdm], g.Xtp] = g.VAR_CDM[g.r, g.mdm, g.Xtp] == (
+            (
+                (
+                    1.0
+                    - (self.cm_clibox("DELTA-ATM", "ATM", g.Xtp) / g.tm_catt[g.r]) ** 2
+                )
+                ** g.tm_hsx[g.r, g.Xtp]
+            ).where[g.lA[g.mdm]]
+            + Sum(
+                g.Superyr[g.t[g.Xtp], g.ll].where[g.Xtp[g.ll]],
+                g.tm_gdpgoal[g.r, g.t]
+                * g.tm_xwt[g.r, g.ll]
+                * (
+                    g.tm_mdtl[g.r]
+                    * self.cm_clibox("DELTA-ATM", "ATM", g.ll)
+                    / Max(1, g.tm_defval["REFTEMP"])
+                    + g.tm_mdtq[g.r]
+                    * (
+                        self.cm_clibox("DELTA-ATM", "ATM", g.ll)
+                        / Max(1, g.tm_defval["REFTEMP"])
+                    )
+                    ** 2
+                ),
+            ).where[g.io[g.mdm]]
         )
 
-    def cm_clibox(self, arg1: str, arg2: str, arg3: str) -> str:
+    def cm_clibox(
+        self, arg1: str, arg2: str, arg3: Alias | Set
+    ) -> ImplicitVariable | int:
         if self.env.cli.upper() != "YES":
-            return "0"
+            return 0
 
-        return f"VAR_CLIBOX({arg1}, {arg2}, {arg3})"
+        return self.tc.VAR_CLIBOX[arg1, arg2, arg3]
 
     def exec1(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""COEF_PVT(R,T) $= TM_UDF(R,T); OBJ_PVT(R,T,CUR)$RDCUR(R,CUR) $= TM_UDF(R,T);""",
+        g = self.tc
+        g.coef_pvt[g.r, g.t] = sparse(g.tm_udf[g.r, g.t])
+        g.obj_pvt[g.r, g.t, g.cur].where[g.Rdcur[g.r, g.cur]] = sparse(
+            g.tm_udf[g.r, g.t]
         )

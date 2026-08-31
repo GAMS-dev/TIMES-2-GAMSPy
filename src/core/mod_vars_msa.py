@@ -11,6 +11,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Variable
+
 from core.base_class import GamsClass
 from core.preppm_msa import PreppmMsa
 
@@ -41,32 +43,89 @@ class ModVarsMsa(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
+
         self.include(PreppmMsa(self.tc, self.env, arg1="MSA"))
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="""
-*  MACRO Related Variables
+        # *  MACRO Related Variables
+        g.VAR_K = Variable(
+            m,
+            name="VAR_K",
+            domain=[g.Reg, g.t],
+            description="total capital stock",
+            type="POSITIVE",
+        )
+        g.VAR_D = Variable(
+            m,
+            name="VAR_D",
+            domain=[g.Reg, g.t, g.Com],
+            description="annual energy demands - before aeei adjustments",
+            type="POSITIVE",
+        )
+        g.VAR_INV = Variable(
+            m,
+            name="VAR_INV",
+            domain=[g.Reg, g.t],
+            description="annual investments",
+            type="POSITIVE",
+        )
+        g.VAR_EC = Variable(
+            m,
+            name="VAR_EC",
+            domain=[g.Reg, g.t],
+            description="annual energy cost",
+            type="POSITIVE",
+        )
+        g.VAR_SP = Variable(
+            m,
+            name="VAR_SP",
+            domain=[g.Reg, g.t, g.Com],
+            description="artificial variable for scaling shadow price of demand",
+            type="POSITIVE",
+        )
+        g.VAR_Y = Variable(
+            m,
+            name="VAR_Y",
+            domain=[g.Reg, g.t],
+            description="annual economy output (production)",
+            type="POSITIVE",
+        )
+        g.VAR_C = Variable(
+            m,
+            name="VAR_C",
+            domain=[g.Reg, g.t],
+            description="annual consumption",
+            type="POSITIVE",
+        )
+        # VAR_DEM(REG,T,COM) is already declared by ModVarsMod (mod_vars_mod.py),
+        # which always runs ahead of this extension module -- guard against
+        # redeclaration in case that assumption ever changes.
+        if not self.tc.declared("VAR_DEM"):
+            g.VAR_DEM = Variable(
+                m,
+                name="VAR_DEM",
+                domain=[g.Reg, g.t, g.Com],
+                description="Decoupled demands used in the energy model",
+                type="POSITIVE",
+            )
+        g.VAR_CDM = Variable(
+            m,
+            name="VAR_CDM",
+            domain=[g.r, g.item, g.ll],
+            description="climate change damage",
+            type="POSITIVE",
+        )
 
-POSITIVE VARIABLES
-  VAR_K(REG,T)        total capital stock
-  VAR_D(REG,T,COM)    annual energy demands - before aeei adjustments
-  VAR_INV(REG,T)      annual investments
-  VAR_EC(REG,T)       annual energy cost
-  VAR_SP(REG,T,COM)   artificial variable for scaling shadow price of demand
-  VAR_Y(REG,T)        annual economy output (production)
-  VAR_C(REG,T)        annual consumption
-  VAR_DEM(REG,T,COM)  Decoupled demands used in the energy model
-  VAR_CDM(R,ITEM,LL)  climate change damage
-
-* Objective Function Value
-
-VARIABLES
-  VAR_UTIL           discounted log of consumption
-  VAR_NTX(R,T,ITEM)  trade (exports positive)
-;
-""",
+        # * Objective Function Value
+        g.VAR_UTIL = Variable(
+            m, name="VAR_UTIL", description="discounted log of consumption"
+        )
+        g.VAR_NTX = Variable(
+            m,
+            name="VAR_NTX",
+            domain=[g.r, g.t, g.item],
+            description="trade (exports positive)",
         )
 
         self.tc.enqueue(self.exec1)
@@ -78,20 +137,9 @@ VARIABLES
             self.tc.enqueue(self.exec2)
 
     def exec1(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""
-OPTION CLEAR=VAR_NTX;
-VAR_CDM.LO(R,'N',XTP) = .01;
-""",
-        )
+        g = self.tc
+        g.VAR_NTX.setRecords(None)
+        g.VAR_CDM.lo[g.r, "N", g.Xtp] = 0.01
 
     def exec2(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""
-OPTION CLEAR=TM_UDF;
-""",
-        )
+        self.tc.tm_udf.setRecords(None)
