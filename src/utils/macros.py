@@ -254,6 +254,10 @@ class RecurrinContext:
 class Macros:
     def __init__(self) -> None:
         self._g: TimesModelClass
+        self.reset()
+
+    def reset(self) -> None:
+        """Clear all $macro activation state left over from a prior model build."""
         self._active: dict[str, bool] = {}
         self.var_sift = VarSiftContext()
         self.var_sts = VarStsContext()
