@@ -518,25 +518,8 @@ class GasgridsVda(GamsClass):
     def equations(self: GasgridsVda) -> None:
         g = self.tc
         m = g.container
-        (
-            r,
-            c,
-            p,
-            t,
-            s,
-            j,
-            lA,
-            ts,
-        ) = (
-            g.r,
-            g.c,
-            g.p,
-            g.t,
-            g.s,
-            g.j,
-            g.lA,
-            g.ts,
-        )
+
+        r, t, p, c, ts, lA, s, j = g.r, g.t, g.p, g.c, g.ts, g.lA, g.s, g.j
         g.eq_gg_gama = Equation(
             m,
             name="EQ_GG_GAMA",

@@ -12,18 +12,22 @@ from __future__ import annotations
 
 import logging
 
+from gamspy import Equation
+
+from utils.times_model_class import TimesModelClass
+
 logger = logging.getLogger(__name__)
 
 
-def mod_ext_cli(equations: list[str], eq: str) -> None:
+def mod_ext_cli(tc: TimesModelClass, eq: str) -> list[Equation]:
     """Translation unit for mod_ext.cli."""
 
-    equations.extend(
-        [
-            f"{eq}_CLITOT",
-            f"{eq}_CLICONC",
-            f"{eq}_CLITEMP",
-            f"{eq}_CLIBEOH",
-            f"{eq}_CLIMAX",
-        ]
-    )
+    equations = [
+        tc.get_equation(f"{eq}_clitot"),
+        tc.get_equation(f"{eq}_cliconc"),
+        tc.get_equation(f"{eq}_clitemp"),
+        tc.get_equation(f"{eq}_clibeoh"),
+        tc.get_equation(f"{eq}_climax"),
+    ]
+
+    return equations

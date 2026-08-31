@@ -55,7 +55,7 @@ class SolveMod(GamsClass):
         env: CompileEnvironment,
         arg1: str,
         model_name: str,
-        equations: list[str],
+        equations: list[Equation],
     ):
         self.env = env.fork()
         self._sub_modules = {}
@@ -201,14 +201,13 @@ option lp={solver}, mip={solver};
 
 
 def solve_times(
-    module: GamsClass, model_name: str, method: str, equations: list[str]
+    module: GamsClass, model_name: str, method: str, equations: list[Equation]
 ) -> None:
-    eqs: Sequence[Equation] = [module.tc.container[e] for e in equations]  # type: ignore[misc]
     model = Model(
         container=module.tc.container,
         name=model_name,
         problem=method,
-        equations=eqs,
+        equations=equations,
         sense="MAX",
         objective=module.tc.VAR_UTIL,
     )
@@ -235,10 +234,10 @@ def solve_times(
 
 
 def solve_times_as_lp_mip(
-    module: GamsClass, model_name: str, method: str, equations: list[str]
+    module: GamsClass, model_name: str, method: str, equations: list[Equation]
 ) -> None:
     """solve TIMES as an LP/MIP"""
-    eqs: Sequence[Equation] = [module.tc.container[e] for e in equations]  # type: ignore[misc]
+    eqs: Sequence[Equation] = equations
     obj = module.tc.OBJZ
     model = Model(
         container=module.tc.container,
@@ -300,7 +299,7 @@ execute_load '{modelstat_gdx}', savepointModelstat;
 def solve_mod_GP(
     module: GamsClass,
     model_name: str,
-    equations: list[str],
+    equations: list[Equation],
     memclean: str,
     solve_now: str,
     mixlp: str,

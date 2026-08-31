@@ -12,25 +12,29 @@ from __future__ import annotations
 
 import logging
 
+from gamspy import Equation
+
+from utils.times_model_class import TimesModelClass
+
 logger = logging.getLogger(__name__)
 
 
-def mod_ext_etl(equations: list[str], eq: str) -> None:
+def mod_ext_etl(tc: TimesModelClass, eq: str) -> list[Equation]:
     """Translation unit for mod_ext.etl."""
-    equations.extend(
-        [
-            f"{eq}_CUINV",
-            f"{eq}_CC",
-            f"{eq}_DEL",
-            f"{eq}_COS",
-            f"{eq}_LA1",
-            f"{eq}_LA2",
-            f"{eq}_EXPE1",
-            f"{eq}_EXPE2",
-            f"{eq}_IC1",
-            f"{eq}_IC2",
-            # cluster
-            f"{eq}_CLU",
-            f"{eq}_MRCLU",
-        ]
-    )
+    equations = [
+        tc.get_equation(f"{eq}_cuinv"),
+        tc.get_equation(f"{eq}_cc"),
+        tc.get_equation(f"{eq}_del"),
+        tc.get_equation(f"{eq}_cos"),
+        tc.get_equation(f"{eq}_la1"),
+        tc.get_equation(f"{eq}_la2"),
+        tc.get_equation(f"{eq}_expe1"),
+        tc.get_equation(f"{eq}_expe2"),
+        tc.get_equation(f"{eq}_ic1"),
+        tc.get_equation(f"{eq}_ic2"),
+        # cluster
+        tc.get_equation(f"{eq}_clu"),
+        tc.get_equation(f"{eq}_mrclu"),
+    ]
+
+    return equations

@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Variable
+from gamspy import Alias, Equation, Set, UniverseAlias, Variable
 
 from core.base_class import GamsClass
 
@@ -67,30 +67,104 @@ class ModVarsAbs(GamsClass):
   {self.env.var}_COMLV(CLVT,R,YEAR,C,S{self.env.swd})   Commodity levels
   {self.env.var}_RLD(R,T,S,ITEM{self.env.swd})          Reserve-defining load levels
   ;
-
-  EQUATIONS
-  EQ_BS00(R,T,C,S,ALLSOW)             Overall demands for balancing services
-  EQ_BS01(R,YEAR,C,S,ITEM,L,ALLSOW)   Max and Diff over stochastic & determistic demand
-  EQ_BS02(R,T,S,ITEM,ALLSOW)          Load levels by process category
-  EQ_BS03(R,T,C,S,ALLSOW)             Stochastic demand for balancing services
-  EQ_BS04(R,T,C,S,P,ALLSOW)           Deterministic demand for balancing services
-  EQ_BS05(R,YEAR,T,P,TSL,L,S,ALLSOW)  Minimum online - offline times
-  EQ_BS07(R,YEAR,T,P,S,BD,ALLSOW)     Ramping constraints
-  EQ_BS09(R,YEAR,T,P,S,L,ALLSOW)      Capacity margin constraints - positive
-  EQ_BS10(R,YEAR,T,P,S,ALLSOW)        Capacity margin constraints - negative
-  EQ_BS11(R,YEAR,T,P,C,S,BD,ALLSOW)   Limits for spinning reserve by type
-  EQ_BS18(R,YEAR,T,P,S,BD,ALLSOW)     Lower limits for non-spinning reserve by type
-  EQ_BS19(R,YEAR,T,P,C,S,BD,ALLSOW)   Upper limits for non-spinning reserve by type
-  EQ_BS22(R,YEAR,T,P,S,ALLSOW)        Limit for positive reserve from storage
-  EQ_BS23(R,YEAR,T,P,S,ALLSOW)        Limit for negative reserve from storage
-  EQ_BS24(R,YEAR,T,P,S,ALLSOW)        Limits for negative reserve from end-use
-  EQ_BS25(R,YEAR,T,P,S,ALLSOW)        Limits for positive reserve from end-use
-  EQ_BS26(R,T,P,C,S,ALLSOW)           Bounds for process reserves
-  EQ_BS27(R,YEAR,T,P,S,ALLSOW)        Maintenance 1
-  EQ_BS28(R,YEAR,T,P,S,ALLSOW)        Maintenance 2
-  ;
 """,
         )
+
+        bs_equations: tuple[tuple[str, list[Alias | Set | UniverseAlias], str], ...] = (
+            (
+                "EQ_BS00",
+                [g.r, g.t, g.c, g.s, g.allsow],
+                "Overall demands for balancing services",
+            ),
+            (
+                "EQ_BS01",
+                [g.r, g.year, g.c, g.s, g.item, g.lA, g.allsow],
+                "Max and Diff over stochastic & determistic demand",
+            ),
+            (
+                "EQ_BS02",
+                [g.r, g.t, g.s, g.item, g.allsow],
+                "Load levels by process category",
+            ),
+            (
+                "EQ_BS03",
+                [g.r, g.t, g.c, g.s, g.allsow],
+                "Stochastic demand for balancing services",
+            ),
+            (
+                "EQ_BS04",
+                [g.r, g.t, g.c, g.s, g.p, g.allsow],
+                "Deterministic demand for balancing services",
+            ),
+            (
+                "EQ_BS05",
+                [g.r, g.year, g.t, g.p, g.tsl, g.lA, g.s, g.allsow],
+                "Minimum online - offline times",
+            ),
+            (
+                "EQ_BS07",
+                [g.r, g.year, g.t, g.p, g.s, g.bd, g.allsow],
+                "Ramping constraints",
+            ),
+            (
+                "EQ_BS09",
+                [g.r, g.year, g.t, g.p, g.s, g.lA, g.allsow],
+                "Capacity margin constraints - positive",
+            ),
+            (
+                "EQ_BS10",
+                [g.r, g.year, g.t, g.p, g.s, g.allsow],
+                "Capacity margin constraints - negative",
+            ),
+            (
+                "EQ_BS11",
+                [g.r, g.year, g.t, g.p, g.c, g.s, g.bd, g.allsow],
+                "Limits for spinning reserve by type",
+            ),
+            (
+                "EQ_BS18",
+                [g.r, g.year, g.t, g.p, g.s, g.bd, g.allsow],
+                "Lower limits for non-spinning reserve by type",
+            ),
+            (
+                "EQ_BS19",
+                [g.r, g.year, g.t, g.p, g.c, g.s, g.bd, g.allsow],
+                "Upper limits for non-spinning reserve by type",
+            ),
+            (
+                "EQ_BS22",
+                [g.r, g.year, g.t, g.p, g.s, g.allsow],
+                "Limit for positive reserve from storage",
+            ),
+            (
+                "EQ_BS23",
+                [g.r, g.year, g.t, g.p, g.s, g.allsow],
+                "Limit for negative reserve from storage",
+            ),
+            (
+                "EQ_BS24",
+                [g.r, g.year, g.t, g.p, g.s, g.allsow],
+                "Limits for negative reserve from end-use",
+            ),
+            (
+                "EQ_BS25",
+                [g.r, g.year, g.t, g.p, g.s, g.allsow],
+                "Limits for positive reserve from end-use",
+            ),
+            (
+                "EQ_BS26",
+                [g.r, g.t, g.p, g.c, g.s, g.allsow],
+                "Bounds for process reserves",
+            ),
+            ("EQ_BS27", [g.r, g.year, g.t, g.p, g.s, g.allsow], "Maintenance 1"),
+            ("EQ_BS28", [g.r, g.year, g.t, g.p, g.s, g.allsow], "Maintenance 2"),
+        )
+        for name, domain, description in bs_equations:
+            g.set_equation(
+                name=name,
+                eq=Equation(m, name=name, domain=domain, description=description),
+            )
+
         self.tc.enqueue(
             self.mod_vars_abs_exec,
             var=self.env.var,

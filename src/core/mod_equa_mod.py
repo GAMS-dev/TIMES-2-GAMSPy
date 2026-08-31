@@ -17,11 +17,15 @@ from __future__ import annotations
 
 import logging
 
+from gamspy import Equation
+
+from utils.times_model_class import TimesModelClass
+
 logger = logging.getLogger(__name__)
 
 
 def mod_equa_mod(
-    equations: list[str],
+    tc: TimesModelClass,
     arg1: str,
     stages: str,
     eq: str,
@@ -33,40 +37,50 @@ def mod_equa_mod(
     def_prc_simv: bool,
     def_dam_cost: bool,
     def_vnret: bool,
-) -> list[str]:
+) -> list[Equation]:
+    equations = []
+    eq = eq.lower()
     if arg1 != "CORE":
         # *-----------------------------------------------------------------------------
         # * Objective Function & Components
         # *-----------------------------------------------------------------------------
         # * Overall OBJ linear combination of the regional objs (which are built from rest)
-        equations.append("EQ_OBJ")
+        equations.append(tc.eq_obj)
 
         if stages.upper() == "YES":
-            equations.extend(["EQ_EXPOBJ", "EQ_UPDEV", f"{eq}_SOBJ", f"{eq}_ROBJ"])
+            equations.extend(
+                [
+                    tc.eq_expobj,
+                    tc.eq_updev,
+                    tc.get_equation(f"{eq}_sobj"),
+                    tc.get_equation(f"{eq}_robj"),
+                ]
+            )
 
         # * Resource depletion costs
-        # equations.append("EQ_OBJDPL")
+        # equations.append(tc.eq_objdpl)
 
         # Costs of elastic demands
         if timesed == "YES":
-            equations.append(f"{eq}_OBJELS")
+            equations.append(tc.get_equation(f"{eq}_objels"))
 
         if objann.upper() != "YES":
             # Fixed Costs including tax/subsidy
-            equations.append(f"{eq}_OBJFIX")
+            equations.append(tc.get_equation(f"{eq}_objfix"))
 
             # investment component including tax/subsidy
-            equations.append(f"{eq}_OBJINV")
+            equations.append(tc.get_equation(f"{eq}_objinv"))
 
             # Salvage
-            equations.append(f"{eq}_OBJSALV")
+            equations.append(tc.get_equation(f"{eq}_objsalv"))
 
             # Variable operating costs
-            equations.append(f"{eq}_OBJVAR")
+            equations.append(tc.get_equation(f"{eq}_objvar"))
 
     # Core Equations
     equations.extend(
         core_equations(
+            tc=tc,
             eq=eq,
             timesed=timesed,
             var_uc=var_uc,
@@ -83,6 +97,7 @@ def mod_equa_mod(
 
 
 def core_equations(
+    tc: TimesModelClass,
     eq: str,
     timesed: str,
     var_uc: str,
@@ -92,179 +107,199 @@ def core_equations(
     def_prc_simv: bool,
     def_dam_cost: bool,
     def_vnret: bool,
-) -> list[str]:
+) -> list[Equation]:
     """Core Equations"""
     equations = []
 
     # MACRO calibration
     if objann.upper() == "YES":
-        equations.extend(["EQ_OBJANN", "EQ_ANNFIX", "EQ_ANNINV", "EQ_ANNVAR"])
+        equations.extend(
+            [
+                tc.eq_objann,
+                tc.eq_annfix,
+                tc.eq_anninv,
+                tc.eq_annvar,
+            ]
+        )
 
     # Relationship between process activity & individual commodity flows
-    equations.append(f"{eq}_ACTFLO")
+    equations.append(tc.get_equation(f"{eq}_actflo"))
 
     # Bound of vintage process activity or TS-level above PRC_TS
-    equations.append(f"{eq}G_ACTBND")
-    equations.append(f"{eq}E_ACTBND")
-    equations.append(f"{eq}L_ACTBND")
+    equations.append(tc.get_equation(f"{eq}g_actbnd"))
+    equations.append(tc.get_equation(f"{eq}e_actbnd"))
+    equations.append(tc.get_equation(f"{eq}l_actbnd"))
 
     # Bound on commodities
-    equations.append(f"{eq}G_BNDNET")
-    equations.append(f"{eq}E_BNDNET")
-    equations.append(f"{eq}L_BNDNET")
-    equations.append(f"{eq}G_BNDPRD")
-    equations.append(f"{eq}E_BNDPRD")
-    equations.append(f"{eq}L_BNDPRD")
+    equations.append(tc.get_equation(f"{eq}g_bndnet"))
+    equations.append(tc.get_equation(f"{eq}e_bndnet"))
+    equations.append(tc.get_equation(f"{eq}l_bndnet"))
+    equations.append(tc.get_equation(f"{eq}g_bndprd"))
+    equations.append(tc.get_equation(f"{eq}e_bndprd"))
+    equations.append(tc.get_equation(f"{eq}l_bndprd"))
 
     #  Utilization of capacity, or the relationship between process capacity and activity
-    equations.append(f"{eq}L_CAPACT")
-    equations.append(f"{eq}E_CAPACT")
-    equations.append(f"{eq}G_CAPACT")
+    equations.append(tc.get_equation(f"{eq}l_capact"))
+    equations.append(tc.get_equation(f"{eq}e_capact"))
+    equations.append(tc.get_equation(f"{eq}g_capact"))
 
     if def_prc_simv:
-        equations.extend(["EQL_CAPVAC", "EQE_CAPVAC", "EQG_CAPVAC"])
+        equations.extend(
+            [
+                tc.eql_capvac,
+                tc.eqe_capvac,
+                tc.eqg_capvac,
+            ]
+        )
 
     # Basic commodity balance equations (by type) ensuring that production >=/= consumption
-    equations.append(f"{eq}G_COMBAL")
-    equations.append(f"{eq}E_COMBAL")
-    equations.append(f"{eq}E_COMPRD")
+    equations.append(tc.get_equation(f"{eq}g_combal"))
+    equations.append(tc.get_equation(f"{eq}e_combal"))
+    equations.append(tc.get_equation(f"{eq}e_comprd"))
 
     if timesed == "YES":
-        equations.append(f"{eq}L_COMCES")
+        equations.append(tc.get_equation(f"{eq}l_comces"))
 
     # Transfer of installed capacity between periods
-    equations.append(f"{eq}E_CPT")
-    equations.append(f"{eq}G_CPT")
-    equations.append(f"{eq}L_CPT")
+    equations.append(tc.get_equation(f"{eq}e_cpt"))
+    equations.append(tc.get_equation(f"{eq}g_cpt"))
+    equations.append(tc.get_equation(f"{eq}l_cpt"))
 
     # Bound on the flow variable
-    equations.append(f"{eq}G_FLOBND")
-    equations.append(f"{eq}E_FLOBND")
-    equations.append(f"{eq}L_FLOBND")
+    equations.append(tc.get_equation(f"{eq}g_flobnd"))
+    equations.append(tc.get_equation(f"{eq}e_flobnd"))
+    equations.append(tc.get_equation(f"{eq}l_flobnd"))
 
     # Bound on the fraction of a flow within a time slice
-    equations.append(f"{eq}G_FLOFR")
-    equations.append(f"{eq}E_FLOFR")
-    equations.append(f"{eq}L_FLOFR")
+    equations.append(tc.get_equation(f"{eq}g_flofr"))
+    equations.append(tc.get_equation(f"{eq}e_flofr"))
+    equations.append(tc.get_equation(f"{eq}l_flofr"))
 
     # Market share equation allocating commodity percentages of a group
-    equations.append(f"{eq}G_INSHR")
-    equations.append(f"{eq}E_INSHR")
-    equations.append(f"{eq}L_INSHR")
+    equations.append(tc.get_equation(f"{eq}g_inshr"))
+    equations.append(tc.get_equation(f"{eq}e_inshr"))
+    equations.append(tc.get_equation(f"{eq}l_inshr"))
 
     #  Inter-regional exchange balance
-    equations.append(f"{eq}_IRE")
+    equations.append(tc.get_equation(f"{eq}_ire"))
 
     # Bound on inter-regional exchange of a commodity
-    equations.append(f"{eq}G_IREBND")
-    equations.append(f"{eq}E_IREBND")
-    equations.append(f"{eq}L_IREBND")
+    equations.append(tc.get_equation(f"{eq}g_irebnd"))
+    equations.append(tc.get_equation(f"{eq}e_irebnd"))
+    equations.append(tc.get_equation(f"{eq}l_irebnd"))
 
     # Bound on total exchange of a commodity to/from all regions
-    equations.append(f"{eq}G_XBND")
-    equations.append(f"{eq}E_XBND")
-    equations.append(f"{eq}L_XBND")
+    equations.append(tc.get_equation(f"{eq}g_xbnd"))
+    equations.append(tc.get_equation(f"{eq}e_xbnd"))
+    equations.append(tc.get_equation(f"{eq}l_xbnd"))
 
     # Product share equation allocating commodity percentages of a group
-    equations.append(f"{eq}G_OUTSHR")
-    equations.append(f"{eq}E_OUTSHR")
-    equations.append(f"{eq}L_OUTSHR")
+    equations.append(tc.get_equation(f"{eq}g_outshr"))
+    equations.append(tc.get_equation(f"{eq}e_outshr"))
+    equations.append(tc.get_equation(f"{eq}l_outshr"))
 
     # Market share equation for process in total commodity production
-    equations.append(f"{eq}G_FLOMRK")
-    equations.append(f"{eq}E_FLOMRK")
-    equations.append(f"{eq}L_FLOMRK")
+    equations.append(tc.get_equation(f"{eq}g_flomrk"))
+    equations.append(tc.get_equation(f"{eq}e_flomrk"))
+    equations.append(tc.get_equation(f"{eq}l_flomrk"))
 
     # Peaking Equation
-    equations.append(f"{eq}_PEAK")
+    equations.append(tc.get_equation(f"{eq}_peak"))
 
     # Commodity-to-commodity transformation
-    equations.append(f"{eq}_PTRANS")
+    equations.append(tc.get_equation(f"{eq}_ptrans"))
 
     # Cumulative commodity NET/PRD and flow constraint
-    equations.append(f"{eq}_CUMNET")
-    equations.append(f"{eq}_CUMPRD")
-    equations.append(f"{eq}_CUMFLO")
+    equations.append(tc.get_equation(f"{eq}_cumnet"))
+    equations.append(tc.get_equation(f"{eq}_cumprd"))
+    equations.append(tc.get_equation(f"{eq}_cumflo"))
 
     # Time-slice storage
-    equations.append(f"{eq}_STGTSS")
-    equations.append(f"{eq}_STSBAL")
-    equations.append("EQ_STSLEV")
+    equations.append(tc.get_equation(f"{eq}_stgtss"))
+    equations.append(tc.get_equation(f"{eq}_stsbal"))
+    equations.append(tc.get_equation("eq_stslev"))
 
     # Bounds on in/output flows of storage process
-    equations.append(f"{eq}G_STGIN")
-    equations.append(f"{eq}E_STGIN")
-    equations.append(f"{eq}L_STGIN")
-    equations.append(f"{eq}G_STGOUT")
-    equations.append(f"{eq}E_STGOUT")
-    equations.append(f"{eq}L_STGOUT")
+    equations.append(tc.get_equation(f"{eq}g_stgin"))
+    equations.append(tc.get_equation(f"{eq}e_stgin"))
+    equations.append(tc.get_equation(f"{eq}l_stgin"))
+    equations.append(tc.get_equation(f"{eq}g_stgout"))
+    equations.append(tc.get_equation(f"{eq}e_stgout"))
+    equations.append(tc.get_equation(f"{eq}l_stgout"))
 
     #  Inter-period storage
-    equations.append(f"{eq}_STGIPS")
-    equations.append(f"{eq}_STGAUX")
+    equations.append(tc.get_equation(f"{eq}_stgips"))
+    equations.append(tc.get_equation(f"{eq}_stgaux"))
 
     #  User-constraint
-    equations.append(f"{eq}E_UC")
-    equations.append(f"{eq}E_UCR")
-    equations.append(f"{eq}E_UCT")
-    equations.append(f"{eq}E_UCRS")
-    equations.append(f"{eq}E_UCTS")
-    equations.append(f"{eq}E_UCRT")
-    equations.append(f"{eq}E_UCRTS")
-    equations.append(f"{eq}E_UCSU")
-    equations.append(f"{eq}E_UCRSU")
-    equations.append(f"{eq}E_UCSUS")
-    equations.append(f"{eq}E_UCRSUS")
+    equations.append(tc.get_equation(f"{eq}e_uc"))
+    equations.append(tc.get_equation(f"{eq}e_ucr"))
+    equations.append(tc.get_equation(f"{eq}e_uct"))
+    equations.append(tc.get_equation(f"{eq}e_ucrs"))
+    equations.append(tc.get_equation(f"{eq}e_ucts"))
+    equations.append(tc.get_equation(f"{eq}e_ucrt"))
+    equations.append(tc.get_equation(f"{eq}e_ucrts"))
+    equations.append(tc.get_equation(f"{eq}e_ucsu"))
+    equations.append(tc.get_equation(f"{eq}e_ucrsu"))
+    equations.append(tc.get_equation(f"{eq}e_ucsus"))
+    equations.append(tc.get_equation(f"{eq}e_ucrsus"))
 
     if var_uc != "YES":
         equations.extend(
             [
-                "EQG_UC",
-                "EQG_UCR",
-                "EQG_UCT",
-                "EQG_UCRS",
-                "EQG_UCTS",
-                "EQG_UCRT",
-                "EQG_UCRTS",
-                "EQG_UCSU",
-                "EQG_UCRSU",
-                "EQG_UCSUS",
-                "EQG_UCRSUS",
-                "EQL_UC",
-                "EQL_UCR",
-                "EQL_UCT",
-                "EQL_UCRS",
-                "EQL_UCTS",
-                "EQL_UCRT",
-                "EQL_UCRTS",
-                "EQL_UCSU",
-                "EQL_UCRSU",
-                "EQL_UCSUS",
-                "EQL_UCRSUS",
+                tc.eqg_uc,
+                tc.eqg_ucr,
+                tc.eqg_uct,
+                tc.eqg_ucrs,
+                tc.eqg_ucts,
+                tc.eqg_ucrt,
+                tc.eqg_ucrts,
+                tc.eqg_ucsu,
+                tc.eqg_ucrsu,
+                tc.eqg_ucsus,
+                tc.eqg_ucrsus,
+                tc.eql_uc,
+                tc.eql_ucr,
+                tc.eql_uct,
+                tc.eql_ucrs,
+                tc.eql_ucts,
+                tc.eql_ucrt,
+                tc.eql_ucrts,
+                tc.eql_ucsu,
+                tc.eql_ucrsu,
+                tc.eql_ucsus,
+                tc.eql_ucrsus,
             ]
         )
 
     # * Bounds on costs by region, category and currency
-    equations.append(f"{eq}_BNDCST")
+    equations.append(tc.get_equation(f"{eq}_bndcst"))
 
     # *---------------------------------------------------------------------
     # *GG* V07_2 Refinery blending
     # *---------------------------------------------------------------------
-    equations.append("EQL_BLND")
-    equations.append("EQG_BLND")
-    equations.append("EQE_BLND")
-    equations.append("EQN_BLND")
+    equations.append(tc.eql_blnd)
+    equations.append(tc.eqg_blnd)
+    equations.append(tc.eqe_blnd)
+    equations.append(tc.eqn_blnd)
 
     if def_dam_cost and damage != "NO":
         # damages
-        equations.extend([f"{eq}_DAMAGE", f"{eq}_OBJDAM"])
+        equations.extend(
+            [tc.get_equation(f"{eq}_damage"), tc.get_equation(f"{eq}_objdam")]
+        )
 
     if def_vnret:
         equations.extend(
-            [f"{eq}_DSCRET", f"{eq}_CUMRET", f"{eq}L_SCAP", f"{eq}L_REFIT"]
+            [
+                tc.get_equation(f"{eq}_dscret"),
+                tc.get_equation(f"{eq}_cumret"),
+                tc.get_equation(f"{eq}l_scap"),
+                tc.get_equation(f"{eq}l_refit"),
+            ]
         )
 
     if spines.upper() == "YES":
-        equations.append(f"{eq}_OBW1")
+        equations.append(tc.get_equation(f"{eq}_obw1"))
 
     return equations

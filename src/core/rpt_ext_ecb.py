@@ -12,6 +12,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Equation
+
 from core.base_class import GamsClass
 from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
 from core.solve_mod import SolveMod
@@ -37,7 +39,7 @@ class RptExtEcb(GamsClass):
         env: CompileEnvironment,
         arg1: str,
         model_name: str,
-        equations: list[str],
+        equations: list[Equation],
     ):
         self.env = env.fork()
         self._sub_modules = {}

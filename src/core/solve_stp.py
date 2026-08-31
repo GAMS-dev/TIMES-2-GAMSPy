@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from gamspy import (
     Domain,
+    Equation,
     If,
     Loop,
     Number,
@@ -103,7 +104,7 @@ class SolveStp(GamsClass):
         tc: TimesModelClass,
         env: CompileEnvironment,
         model_name: str,
-        equations: list[str],
+        equations: list[Equation],
         arg1: str = "",
     ):
         self.env = env.fork()

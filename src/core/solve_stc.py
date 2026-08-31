@@ -23,6 +23,8 @@ from core.sensis_stc import sensis_stc
 from core.solve_mod import solve_mod, solve_mod_GP
 
 if TYPE_CHECKING:
+    from gamspy import Equation
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -40,7 +42,7 @@ class SolveStc(GamsClass):
         tc: TimesModelClass,
         env: CompileEnvironment,
         model_name: str,
-        equations: list[str],
+        equations: list[Equation],
         arg1: str = "",
     ):
         self.env = env.fork()

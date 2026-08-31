@@ -12,13 +12,16 @@ from __future__ import annotations
 
 import logging
 
+from gamspy import Equation
+
 from core.mod_equa_mod import core_equations
+from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
 
 
 def mod_equa_tm(
-    equations: list[str],
+    tc: TimesModelClass,
     merge: str,
     eq: str,
     timesed: str,
@@ -30,31 +33,31 @@ def mod_equa_tm(
     def_vnret: bool,
     macro: str,
     nonlp: str,
-) -> None:
+) -> list[Equation]:
     """Translation unit for mod_equa.tm."""
-
+    equations = []
     if merge.upper() == "YES":
-        equations.append("ALL")
-        return
+        return tc.container.getEquations()  # type: ignore[no-any-return]
 
     # Objective Function & Components
     #  Overall OBJ linear combination of the regional objs (which are built from rest)
-    equations.append("EQ_OBJ")
+    equations.append(tc.eq_obj)
 
     #  Fixed Costs
-    equations.append("EQ_ANNFIX")
+    equations.append(tc.eq_annfix)
 
     # Investment component
-    equations.append("EQ_ANNINV")
+    equations.append(tc.eq_anninv)
 
     #  Variable operating costs (including substitution loss in MLF)
-    equations.append("EQ_ANNVAR")
+    equations.append(tc.eq_annvar)
 
     #  Core Equations
     objann = "NO"
 
     equations.extend(
         core_equations(
+            tc=tc,
             eq=eq,
             timesed=timesed,
             var_uc=var_uc,
@@ -72,41 +75,41 @@ def mod_equa_tm(
             # MACRO MLF NLP benchmark equations
             equations.extend(
                 [
-                    "EQ_UTIL",
-                    "EQ_PROD_Y",
-                    "EQ_AKL",
-                    "EQ_LABOR",
-                    "EQ_KNCAP",
-                    "EQ_MCAP",
-                    "EQ_TMC",
-                    "EQ_DD",
-                    "EQ_IVECBND",
-                    "EQ_DNLCES",
-                    "EQ_ENSCST",
-                    "EQ_TRDBAL",
+                    tc.eq_util,
+                    tc.eq_prod_y,
+                    tc.eq_akl,
+                    tc.eq_labor,
+                    tc.eq_kncap,
+                    tc.eq_mcap,
+                    tc.eq_tmc,
+                    tc.eq_dd,
+                    tc.eq_ivecbnd,
+                    tc.eq_dnlces,
+                    tc.eq_enscst,
+                    tc.eq_trdbal,
                 ]
             )
         else:
             # MACRO MLF equations
             equations.extend(
                 [
-                    "EQ_UTILP",
-                    "EQ_CONSO",
-                    "EQ_CONDA",
-                    "EQ_LOGBD",
-                    "EQ_MACSH",
-                    "EQ_MACAG",
-                    "EQ_MACES",
-                    "EQ_KNCAP",
-                    "EQ_MCAP",
-                    "EQ_TMC",
-                    "EQ_IVECBND",
-                    "EQ_DD",
-                    "EQ_DEMSH",
-                    "EQ_DEMAG",
-                    "EQ_DEMCES",
-                    "EQ_ENSCST",
-                    "EQ_TRDBAL",
+                    tc.eq_utilp,
+                    tc.eq_conso,
+                    tc.eq_conda,
+                    tc.eq_logbd,
+                    tc.eq_macsh,
+                    tc.eq_macag,
+                    tc.eq_maces,
+                    tc.eq_kncap,
+                    tc.eq_mcap,
+                    tc.eq_tmc,
+                    tc.eq_ivecbnd,
+                    tc.eq_dd,
+                    tc.eq_demsh,
+                    tc.eq_demag,
+                    tc.eq_demces,
+                    tc.eq_enscst,
+                    tc.eq_trdbal,
                     # *  "EQ_MPEN",
                     # *  "EQ_XCAPDB"
                 ]
@@ -115,14 +118,16 @@ def mod_equa_tm(
         # MACRO equations
         equations.extend(
             [
-                "EQ_UTIL",
-                "EQ_CONSO",
-                "EQ_DD",
-                "EQ_MCAP",
-                "EQ_TMC",
-                "EQ_IVECBND",
-                "EQ_ESCOST",
-                "EQ_MPEN",
-                "EQ_XCAPDB",
+                tc.eq_util,
+                tc.eq_conso,
+                tc.eq_dd,
+                tc.eq_mcap,
+                tc.eq_tmc,
+                tc.eq_ivecbnd,
+                tc.eq_escost,
+                tc.eq_mpen,
+                tc.eq_xcapdb,
             ]
         )
+
+    return equations
