@@ -669,7 +669,6 @@ class EnvironmentVariableSchema(BaseModel):
     rpt_opt: pd.DataFrame
     stepped: str
     peakchp: str
-    trivint: str
     need: str
     witspine: bool
     ewispine: bool
