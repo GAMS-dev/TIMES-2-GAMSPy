@@ -1982,6 +1982,7 @@ class TimesModelClass:
 
     RtpEqstk: Set = None  # type: ignore[assignment] # [r, allyear, t, p, item] RTP_EQSTK:
     BsRvt: Set = None  # type: ignore[assignment] # [r, year, t] BS_RVT:
+    Vtv: Set = None  # type: ignore[assignment] # [ll, ll, t] VTV:
     # endregion
 
     # region DUMPSOL extension (dumpsol.mod solution dump)
