@@ -20,7 +20,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Parameter, Set
+from gamspy import Loop, Ord, Parameter, Set, Sum
+from gamspy.math import same_as
 
 from core.base_class import GamsClass
 from core.eqobjann_tm import EqobjannTm
@@ -91,42 +92,27 @@ class EqobjTm(GamsClass):
         if self.env.macro == "Yes":
             self.include(EqobjelsMod(self.tc, self.env))
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="""
-    EQ_OBJ(R,T) ..
-
-      SUM(RDCUR(R,CUR),
-
-* Investment Costs, Fixed Costs and Variable Costs (elastic demand costs excluded)
-
-         SUM(OBVANN,VAR_ANNCST(OBVANN,R,T,CUR))
-
-         )
-
-    =E=
-
-    VAR_OBJCOST(R,T);
-
-""",
+        g.eq_obj[g.r, g.t] = (
+            Sum(
+                # * Investment Costs, Fixed Costs and Variable Costs (elastic demand costs excluded)
+                g.Rdcur[g.r, g.cur],
+                Sum(g.Obvann, g.VAR_ANNCST[g.Obvann, g.r, g.t, g.cur]),
+            )
+            == g.VAR_OBJCOST[g.r, g.t]
         )
 
     def exec1(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""
-* [UR] 21.06.2003: K_EOH must include pastyears, since in eqobjfix.mod it links to past vintages
-  K_EOH(EACHYEAR)$((YEARVAL(EACHYEAR) >= PYR_V1) * (YEARVAL(EACHYEAR) <= MIYR_VL)) = YES;
-""",
-        )
+        g = self.tc
+        # * [UR] 21.06.2003: K_EOH must include pastyears, since in eqobjfix.mod it links to past vintages
+        g.KEoh[g.Eachyear].where[
+            ((g.yearval[g.Eachyear] >= g.pyr_v1) * (g.yearval[g.Eachyear] <= g.miyr_vl))
+        ] = True
 
     def exec2(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""
-  LOOP(SAMEAS('1',AGE),KTYAGE(K(LL),PERIODYR(T,Y_EOH(YEAR)),AGE+(ORD(YEAR)-ORD(LL)))$YK(YEAR,LL)=YES);
-""",
-        )
+        g = self.tc
+        with Loop(same_as("1", g.age)):
+            g.Ktyage[
+                g.k[g.ll],
+                g.Periodyr[g.t, g.YEoh[g.year]],
+                g.age + (Ord(g.year) - Ord(g.ll)),
+            ].where[g.Yk[g.year, g.ll]] = True
