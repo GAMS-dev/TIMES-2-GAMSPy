@@ -12,18 +12,23 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal
+
+from gamspy import Loop, Parameter, sparse
 
 from core.base_class import GamsClass
 
 if TYPE_CHECKING:
+    from gamspy import Alias, Set
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
 
 
-def declare_par_uc_rpt_params(module: GamsClass) -> None:
+def declare_par_uc_rpt_params(g: TimesModelClass) -> None:
     """Declare PAR_RTUS/PAR_URTS immediately (init phase).
 
     PAR_RTUS/PAR_URTS are declarative statements -- in real GAMS they are part
@@ -33,14 +38,27 @@ def declare_par_uc_rpt_params(module: GamsClass) -> None:
     beforehand (rather than letting the declaration ride along with the rest
     of the block).
     """
-    module.tc.add_gams_code(
-        module=module,
-        phase="init",
-        code="""
-  PARAMETER PAR_RTUS(R,YEAR,UC_N,S) //;
-  PARAMETER PAR_URTS(UC_N,R,YEAR,S) //;
-""",
-    )
+    if g.par_rtus is None:
+        m = g.container
+        r, year, ucn, s = g.r, g.year, g.ucn, g.s
+        g.par_rtus = Parameter(m, name="PAR_RTUS", domain=[r, year, ucn, s])
+        g.par_urts = Parameter(m, name="PAR_URTS", domain=[ucn, r, year, s])
+
+
+@dataclass
+class ParUcRptConfig:
+    """Strongly typed data contract for par_uc.rpt."""
+
+    # %1 - parameter suffix
+    arg1: Literal["", "SM", "FXM", "LOM", "UPM"] = ""
+    # %2 - equation prefix
+    arg2: Literal["", "EQE", "EQG", "EQL"] = ""
+    # %3 - prefix on the PAR_UC%1 symbol name (e.g. "S" for rptlite.rpt's
+    #      STAGES variant, giving SPAR_UCSM/SPAR_UCSL)
+    arg3: Literal["", "S"] = ""
+    # %4 - extra leading domain element ahead of UC_N (e.g. the SOW alias
+    #      that variant reports on)
+    arg4: tuple[Alias | Set | Literal["1"], ...] = ()
 
 
 class ParUcRpt(GamsClass):
@@ -54,47 +72,34 @@ class ParUcRpt(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
-        arg4: str = "",
+        config: ParUcRptConfig,
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
-        self.arg4 = arg4
+        self.config = config
         self.compile()
 
     def compile(self) -> None:
-        declare_par_uc_rpt_params(self)
-        self.tc.enqueue(
-            self.exec_par_uc_rpt,
-            arg1=self.arg1,
-            arg2=self.arg2,
-            arg3=self.arg3,
-            arg4=self.arg4,
-        )
+        declare_par_uc_rpt_params(self.tc)
+        self.tc.enqueue(self.exec_par_uc_rpt, config=self.config)
 
-    def exec_par_uc_rpt(
-        self: ParUcRpt,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-        arg4: str,
-    ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=par_uc_rpt(
-                arg1=arg1,
-                arg2=arg2,
-                arg3=arg3,
-                arg4=arg4,
-            ),
-        )
+    def exec_par_uc_rpt(self: ParUcRpt, config: ParUcRptConfig) -> None:
+        arg3 = config.arg3
+        arg4 = config.arg4
+        if arg3 or arg4:
+            # rptlite.rpt is the only caller that ever passes a non-empty
+            # arg3/arg4 (its STAGES variant reporting into
+            # S{arg1}PAR_UC{arg2} with an extra leading SOW-like dimension),
+            # and rptlite_rpt.py hasn't been translated to GAMSPy yet -- so
+            # there is no real caller to derive/verify the native domain
+            # threading against.
+            raise NotImplementedError(
+                "par_uc.rpt: a non-empty arg3/arg4 is only reachable through "
+                "rptlite.rpt's STAGES variant, and rptlite_rpt.py is not yet "
+                "translated to GAMSPy."
+            )
+        par_uc_rpt_GP(self.tc, config)
 
 
 def par_uc_rpt(
@@ -124,3 +129,72 @@ def par_uc_rpt(
   OPTION CLEAR=PAR_URTS;
 
 """
+
+
+def par_uc_rpt_GP(g: TimesModelClass, config: ParUcRptConfig) -> None:
+    """Native variant of :func:`par_uc_rpt`.
+
+    ``config.arg3``/``config.arg4`` mirror the raw GAMS ``%3``/``%4`` macros:
+    ``arg3`` prefixes the ``PAR_UC{arg1}`` symbol name (e.g. ``"S"`` for
+    rptlite.rpt's STAGES variant, giving ``SPAR_UCSM``/``SPAR_UCSL``) and
+    ``arg4`` is an extra leading domain element prepended ahead of ``UC_N``
+    (e.g. the SOW alias that variant reports on). Every currently-reachable
+    caller (rptmain.rpt, rptmain.tm, rpt_ext.mlf) passes neither, so callers
+    should pass the defaults; ``ParUcRpt`` raises ``NotImplementedError``
+    rather than calling this with a non-empty arg3/arg4, since
+    rptlite_rpt.py (the only caller that needs them) is not yet translated
+    to GAMSPy.
+    """
+    arg1 = config.arg1
+    arg2 = config.arg2
+    arg3 = config.arg3
+    arg4 = config.arg4
+    r, t, s, ucn, tsl, annual, coef_pvt = (
+        g.r,
+        g.t,
+        g.s,
+        g.ucn,
+        g.tsl,
+        g.Annual,
+        g.coef_pvt,
+    )
+    par_uc = g.get_parameter(name=f"{arg3}PAR_UC{arg1}")
+    eq_uc = g.get_equation(name=f"{arg2}_UC")
+    eq_uct = g.get_equation(name=f"{arg2}_UCT")
+    eq_ucts = g.get_equation(name=f"{arg2}_UCTS")
+    eq_ucsu = g.get_equation(name=f"{arg2}_UCSU")
+    eq_ucsus = g.get_equation(name=f"{arg2}_UCSUS")
+    eq_ucr = g.get_equation(name=f"{arg2}_UCR")
+    eq_ucrt = g.get_equation(name=f"{arg2}_UCRT")
+    eq_ucrsu = g.get_equation(name=f"{arg2}_UCRSU")
+    eq_ucrts = g.get_equation(name=f"{arg2}_UCRTS")
+    eq_ucrsus = g.get_equation(name=f"{arg2}_UCRSUS")
+    eq_ucrs = g.get_equation(name=f"{arg2}_UCRS")
+
+    par_uc[(*arg4, ucn, "NONE", "NONE", "NONE")] = sparse(eq_uc.m[ucn])
+    par_uc[(*arg4, ucn, "NONE", t, "NONE")] = sparse(eq_uct.m[ucn, t])
+    par_uc[(*arg4, ucn, "NONE", t, s)] = sparse(eq_ucts.m[ucn, t, s])
+    par_uc[(*arg4, ucn, "NONE", t, "NONE")] = sparse(eq_ucsu.m[ucn, t])
+    par_uc[(*arg4, ucn, "NONE", t, s)] = sparse(eq_ucsus.m[ucn, t, s])
+
+    # Handle shuffled indexes
+    par_rtus, par_urts, year = g.par_rtus, g.par_urts, g.year
+    par_rtus[r, "0", ucn, annual] = sparse(eq_ucr.m[r, ucn])
+    par_rtus[r, t, ucn, annual] = sparse(eq_ucrt.m[r, t, ucn])
+    par_rtus[r, t, ucn, annual] = sparse(eq_ucrsu.m[r, t, ucn])
+    par_urts[ucn, r, year, s] = par_rtus[r, year, ucn, s]
+    par_rtus.setRecords(None)
+    par_uc[(*arg4, ucn, r, "NONE", "NONE")] = sparse(par_urts[ucn, r, "0", "ANNUAL"])
+    par_uc[(*arg4, ucn, r, t, "NONE")] = sparse(
+        par_urts[ucn, r, t, "ANNUAL"] * (1 / coef_pvt[r, t])
+    )
+    par_rtus[r, t, ucn, s] = sparse(eq_ucrts.m[r, t, ucn, s])
+    par_rtus[r, t, ucn, s] = sparse(eq_ucrsus.m[r, t, ucn, s])
+    with Loop(tsl):
+        par_rtus[r, t, ucn, s] = sparse(eq_ucrs.m[r, t, ucn, tsl, s])
+    par_urts[ucn, r, year, s] = par_rtus[r, year, ucn, s]
+    par_rtus.setRecords(None)
+    par_uc[(*arg4, ucn, r, t, s)] = sparse(
+        par_urts[ucn, r, t, s] * (1 / coef_pvt[r, t])
+    )
+    par_urts.setRecords(None)

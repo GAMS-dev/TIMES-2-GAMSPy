@@ -1606,6 +1606,8 @@ class TimesModelClass:
     spar_ucsl: Parameter = None  # type: ignore[assignment] # [ucn,*,*,*] PAR_UCSL:
     par_ucsm: Parameter = None  # type: ignore[assignment] # [ucn,*,*,*] PAR_UCSM:
     spar_ucsm: Parameter = None  # type: ignore[assignment] # [ucn,*,*,*] PAR_UCSM:
+    par_rtus: Parameter = None  # type: ignore[assignment] # [r,year,ucn,s] PAR_RTUS: par_uc.rpt working parameter
+    par_urts: Parameter = None  # type: ignore[assignment] # [ucn,r,year,s] PAR_URTS: par_uc.rpt working parameter
     par_ucmrk: Parameter = None  # type: ignore[assignment] # [r,t,item,c,s] PAR_UCMRK:
     spar_ucmrk: Parameter = None  # type: ignore[assignment] # [r,t,item,c,s] PAR_UCMRK:
     par_ucmax: Parameter = None  # type: ignore[assignment] # [ucn,allr,item,c] PAR_UCMAX:

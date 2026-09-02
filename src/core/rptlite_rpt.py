@@ -611,7 +611,7 @@ class RptliteRpt(GamsClass):
 
     def _label_report(self, cc: RptliteRptConfig) -> None:
         if self.env.var_uc != "YES":
-            declare_par_uc_rpt_params(self)
+            declare_par_uc_rpt_params(self.tc)
 
         self.tc.enqueue(
             self.exec_label_report_part1,

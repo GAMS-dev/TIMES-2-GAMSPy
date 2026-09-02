@@ -28,7 +28,7 @@ from core.eqobjfix_rpt import EqobjfixRpt
 from core.eqobjinv_rpt import EqobjinvRpt
 from core.eqobjvar_rpt import EqobjvarRpt, EqobjvarRptConfig
 from core.eqobsalv_rpt import EqobsalvRpt
-from core.par_uc_rpt import ParUcRpt
+from core.par_uc_rpt import ParUcRpt, ParUcRptConfig
 from core.sol_flo_red import SolFloRed
 
 if TYPE_CHECKING:
@@ -132,16 +132,12 @@ PARAMETER VDA_DISC(R,ALLYEAR) //;
             self.tc.enqueue(self.exec5)
 
         else:
-            batincludes = [("FXM", "EQE"), ("LOM", "EQG"), ("UPM", "EQL")]
-            for arg in batincludes:
-                self.include(
-                    ParUcRpt(
-                        self.tc,
-                        self.env,
-                        arg1=arg[0],
-                        arg2=arg[1],
-                    )
-                )
+            for config in (
+                ParUcRptConfig(arg1="FXM", arg2="EQE"),
+                ParUcRptConfig(arg1="LOM", arg2="EQG"),
+                ParUcRptConfig(arg1="UPM", arg2="EQL"),
+            ):
+                self.include(ParUcRpt(self.tc, self.env, config=config))
         # UC_DONE
         self.tc.enqueue(self.exec_options)
 
