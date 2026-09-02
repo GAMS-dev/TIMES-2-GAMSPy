@@ -13,6 +13,8 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter
+
 from core.base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -39,13 +41,12 @@ class ReadbpriceMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-PARAMETER SOL_BPRICE(R,YEAR,C,TS,CUR) //;
-""",
-        )
+        g = self.tc
+
+        if not g.defined("SOL_BPRICE"):
+            g.sol_bprice = Parameter(
+                g.container, name="SOL_BPRICE", domain=[g.r, g.year, g.c, g.ts, g.cur]
+            )
 
         self.tc.add_gams_code(
             module=self,

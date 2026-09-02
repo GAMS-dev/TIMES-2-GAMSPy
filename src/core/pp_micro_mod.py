@@ -12,7 +12,18 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Parameter
+from gamspy import (
+    Card,
+    Loop,
+    Ord,
+    Parameter,
+    Product,
+    SpecialValues,
+    Sum,
+    While,
+    sparse,
+)
+from gamspy.math import Max, Round, abs, aggregate, project
 
 from core.base_class import GamsClass
 
@@ -95,84 +106,169 @@ class PpMicroMod(GamsClass):
             raise Exception(f"No label {self.arg1.upper()} in PpMicroMod")
 
     def pre_exec(self: PpMicroMod) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Identify aggregation groups
-  OPTION MI_DMAS<COM_AGG, OBJ_PVT<SOL_BPRICE;
-  RD_AGG(RC(R,C))$(DEM(RC)+COM_TMAP(R,'DEM',C))=YES;
-  MI_DMAS(R,C,COM)$(NOT RD_AGG(R,C)*RD_AGG(R,COM)*COM_TSL(R,C,'ANNUAL'))=NO;
-  DDF_PREF(R,T,C)$DEM(R,C) = SUM((COM_TS(R,C,S),RDCUR(R,CUR)),SOL_BPRICE(R,T,C,S,CUR)*COM_FR(R,T,C,S));
-* Handle nested CES structures
-  MI_DMAS(R,C,COM)$SUM(RPC(RP_FLO(R,P),C),1)=NO;
-  OPTION RD_AGG<=MI_DMAS; RD_AGG(DEM)=NO; LOOP(MI_DMAS(R,C,COM)$(NOT DEM(R,COM)),RD_AGG(R,C)=NO);
-  WHILE(CARD(RD_AGG), DEM(RD_AGG)=YES;
-*   Get base prices and set price ratio
-    DDF_PREF(R,T,C)$RD_AGG(R,C) = SUM(MI_DMAS(R,C,COM),COM_PROJ(R,T,COM)*DDF_PREF(R,T,COM))/SUM(MI_DMAS(R,C,COM),COM_PROJ(R,T,COM));
-    COM_AGG(R,T,COM,C)$((COM_AGG(R,T,COM,C)=0)$MI_DMAS(R,C,COM)$RD_AGG(R,C))=1+(DDF_PREF(R,T,COM)/DDF_PREF(R,T,C)-1)$DDF_PREF(R,T,C);
-*   Normalize COM_AGG
-    DDF_QREF(R,T,C)$RD_AGG(R,C) = SUM(MI_DMAS(R,C,COM),COM_AGG(R,T,COM,C)*COM_PROJ(R,T,COM));
-    COM_PROJ(R,T,C)$RD_AGG(R,C) = SUM(MI_DMAS(R,C,COM),COM_PROJ(R,T,COM));
-    COM_AGG(R,T,COM,C)$(COM_AGG(R,T,COM,C)$RD_AGG(R,C))=COM_AGG(R,T,COM,C)*COM_PROJ(R,T,C)/DDF_QREF(R,T,C);
-*   Check for next nested level
-    OPTION RD_AGG<=MI_DMAS; RD_AGG(DEM)=NO; LOOP(MI_DMAS(R,C,COM)$(NOT DEM(R,COM)),RD_AGG(R,C)=NO);
-  );
-  MI_DMAS(R,C,COM)$(NOT DEM(R,C)*DEM(R,COM))=NO;
-  OPTION RD_AGG<=MI_DMAS; RPCS_VAR(R,P,C,S)$RD_AGG(R,C)=NO;
-* Preprocess elasticities
-  MI_ESUB(R,T,C)$RD_AGG(R,C) = ABS(COM_ELAST(R,T,C,'ANNUAL','N'));
-  COM_ELAST(RTC,S,BDNEQ)$(NOT COM_ELAST(RTC,S,BDNEQ)) $= COM_ELAST(RTC,S,'FX');
-  LOOP(MI_DMAS(R,COM,C),COM_ELAST(R,T,C,S,BD)$(COM_TS(R,C,S)+ANNUAL(S))=MAX(ABS(COM_ELAST(R,T,C,S,BD)),MI_ESUB(R,T,COM)));
-* Finalize values with COM_AGG
-  DDF_QREF(R,T,C) $= COM_PROJ(R,T,C);
-  DDF_PREF(R,T,C)$RD_AGG(R,C) = SUM(MI_DMAS(R,C,COM),DDF_QREF(R,T,COM)*DDF_PREF(R,T,COM))/DDF_QREF(R,T,C);
-  COM_BPRICE(R,T,C,ANNUAL,CUR)$(OBJ_PVT(R,T,CUR)$RD_AGG(R,C)) = DDF_PREF(R,T,C);
-  RD_SHAR(R,T,C,COM)$MI_DMAS(R,C,COM) = DDF_QREF(R,T,COM) / DDF_QREF(R,T,C);
+        g = self.tc
+        r, t, c, com, s, cur = g.r, g.t, g.c, g.Com, g.s, g.cur
 
-  OPTION TRACKC < RD_SHAR;
-  COM_PROJ(R,T,C)$TRACKC(R,C)=0;
-  COM_BNDNET(RTCS_VARC(R,T,C,S),'UP')$TRACKC(R,C)=EPS;
-  RHS_COMPRD(R,T,C,ANNUAL)$=RD_AGG(R,C);
-  OPTION CLEAR=TRACKC,CLEAR=OBJ_PVT;
-""",
+        # Identify aggregation groups
+        project(source=g.com_agg, target=g.MiDmas)
+        aggregate(source=g.sol_bprice, target=g.obj_pvt)
+        g.RdAgg[g.Rc[r, c]].where[g.Dem[r, c] + g.ComTmap[r, "DEM", c]] = True
+        g.MiDmas[r, c, com].where[
+            ~(g.RdAgg[r, c] & g.RdAgg[r, com] & g.ComTsl[r, c, "ANNUAL"])
+        ] = False
+        g.ddf_pref[r, t, c].where[g.Dem[r, c]] = Sum(
+            (g.ComTs[r, c, s], g.Rdcur[r, cur]),
+            g.sol_bprice[r, t, c, s, cur] * g.com_fr[r, t, c, s],
         )
+
+        # Handle nested CES structures
+        g.MiDmas[r, c, com].where[Sum(g.Rpc[g.RpFlo, c], 1.0)] = False
+
+        def refresh_rd_agg() -> None:
+            project(source=g.MiDmas, target=g.RdAgg, direction="left")
+            g.RdAgg[g.Dem] = False
+            with Loop(g.MiDmas[r, c, com].where[~(g.Dem[r, com])]):
+                g.RdAgg[r, c] = False
+
+        refresh_rd_agg()
+        with While(Card(g.RdAgg)):  # type: ignore[arg-type]
+            g.Dem[g.RdAgg] = True
+            #   Get base prices and set price ratio
+            g.ddf_pref[r, t, c].where[g.RdAgg[r, c]] = Sum(
+                g.MiDmas[r, c, com], g.com_proj[r, t, com] * g.ddf_pref[r, t, com]
+            ) / Sum(g.MiDmas[r, c, com], g.com_proj[r, t, com])
+            g.com_agg[r, t, com, c].where[
+                (g.com_agg[r, t, com, c] == 0) & g.MiDmas[r, c, com] & g.RdAgg[r, c]
+            ] = (
+                1
+                + (
+                    (g.ddf_pref[r, t, com] / g.ddf_pref[r, t, c] - 1).where[
+                        g.ddf_pref[r, t, c]
+                    ]
+                )
+            )
+            #   Normalize COM_AGG
+            g.ddf_qref[r, t, c].where[g.RdAgg[r, c]] = Sum(
+                g.MiDmas[r, c, com], g.com_agg[r, t, com, c] * g.com_proj[r, t, com]
+            )
+            g.com_proj[r, t, c].where[g.RdAgg[r, c]] = Sum(
+                g.MiDmas[r, c, com], g.com_proj[r, t, com]
+            )
+            g.com_agg[r, t, com, c].where[
+                g.com_agg[r, t, com, c].where[g.RdAgg[r, c]]
+            ] = g.com_agg[r, t, com, c] * g.com_proj[r, t, c] / g.ddf_qref[r, t, c]
+            #   Check for next nested level
+            refresh_rd_agg()
+
+        g.MiDmas[r, c, com].where[~(g.Dem[r, c] & g.Dem[r, com])] = False
+        project(source=g.MiDmas, target=g.RdAgg, direction="left")
+        g.RpcsVar[r, g.p, c, s].where[g.RdAgg[r, c]] = False
+
+        # Preprocess elasticities
+        g.mi_esub[r, t, c].where[g.RdAgg[r, c]] = abs(
+            g.com_elast[r, t, c, "ANNUAL", "N"]
+        )
+        g.com_elast[g.Rtc, s, g.Bdneq].where[~(g.com_elast[g.Rtc, s, g.Bdneq])] = (
+            sparse(g.com_elast[g.Rtc, s, "FX"])
+        )
+        with Loop(g.MiDmas[r, com, c]):
+            g.com_elast[r, t, c, s, g.bd].where[g.ComTs[r, c, s] + g.Annual[s]] = Max(
+                abs(g.com_elast[r, t, c, s, g.bd]), g.mi_esub[r, t, com]
+            )
+
+        # Finalize values with COM_AGG
+        g.ddf_qref[r, t, c] = sparse(g.com_proj[r, t, c])
+        g.ddf_pref[r, t, c].where[g.RdAgg[r, c]] = (
+            Sum(g.MiDmas[r, c, com], g.ddf_qref[r, t, com] * g.ddf_pref[r, t, com])
+            / g.ddf_qref[r, t, c]
+        )
+        g.com_bprice[r, t, c, "ANNUAL", cur].where[
+            g.obj_pvt[r, t, cur].where[g.RdAgg[r, c]]
+        ] = g.ddf_pref[r, t, c]
+        g.rd_shar[r, t, c, com].where[g.MiDmas[r, c, com]] = (
+            g.ddf_qref[r, t, com] / g.ddf_qref[r, t, c]
+        )
+
+        project(source=g.rd_shar, target=g.Trackc)
+        g.com_proj[r, t, c].where[g.Trackc[r, c]] = 0
+        g.com_bndnet[g.RtcsVarc[r, t, c, s], "UP"].where[g.Trackc[r, c]] = (
+            SpecialValues.EPS
+        )
+        g.RhsComprd[r, t, c, "ANNUAL"] = sparse(g.RdAgg[r, c])
+        g.Trackc.setRecords(None)
+        g.obj_pvt.setRecords(None)
 
     def nlp_exec(self: PpMicroMod) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Take NLP elasticities from the FX type COM_ELAST
-  MI_DOPE(R,T,C)$DEM(R,C) = ABS(COM_ELAST(R,T,C,'ANNUAL','FX'));
-
-* Initialize NLP indicator for demands
-  RD_NLP(DEM) = 1; FIL(T)=(ORD(T)>1);
-  LOOP(FIL(T),RD_NLP(R,C)$(DDF_QREF(R,T,C)*DDF_PREF(R,T,C)*MI_DOPE(R,T,C)=0)=NO);
-  TRACKC(RD_AGG(RC))$=RD_NLP(RC);
-  RD_AGG(RC)$RD_NLP(RC)=NO;
-
-*-----------------------------------------------------------------------------
-  MI_ESUB(R,T,C)$TRACKC(R,C) = ROUND(MI_ESUB(R,T,C)*(1-5e-6),5)*(1+5e-6);
-  MI_RHO(R,T,C)$((MI_ESUB(R,T,C)>0)$TRACKC(R,C)) = 1-1/MI_ESUB(R,T,C);
-  RD_NLP(TRACKC(R,C))$PROD(FIL(T),MI_RHO(R,T,C)) = 3;
-  LOOP(MI_DMAS(R,C,COM)$(RD_NLP(R,C)>2),RD_NLP(R,COM)=-1);
-  RCJ(RC,J,BD)$RD_NLP(RC)=NO;
-  OPTION CLEAR=TRACKC;
-*-----------------------------------------------------------------------------
-* Calculate demand function parameters
-  RD_SHAR(R,T(FIL),C,COM)$(MI_DMAS(R,C,COM)$RD_NLP(R,C)) = COM_AGG(R,T,COM,C)*DDF_QREF(R,T,COM)/DDF_QREF(R,T,C)*(DDF_PREF(R,T,COM)/COM_AGG(R,T,COM,C)/DDF_PREF(R,T,C))**MI_ESUB(R,T,C);
-  MI_ELASP(R,T(FIL),C)$((RD_NLP(R,C)>1)$DEM(R,C)) = 1 - 1/MI_DOPE(R,T,C);
-  MI_CCONS(R,T(FIL),C)$((RD_NLP(R,C)>1)$DEM(R,C)) = DDF_PREF(R,T,C)*(1/MI_ELASP(R,T,C))*DDF_QREF(R,T,C)**(1/MI_DOPE(R,T,C));
-
-* DISPLAY RD_NLP,MI_CCONS,MI_ELASP,RD_SHAR;
-*-----------------------------------------------------------------------------
-* Bounds section
-  COM_VOC(R,T,C,BDNEQ(BD))$((NOT COM_VOC(R,T,C,BD))$RD_NLP(R,C)) = 1;
-  VAR_DEM.L(R,T,C)$RD_NLP(R,C) = DDF_QREF(R,T,C);
-  VAR_DEM.UP(R,T,C)$RD_NLP(R,C) = DDF_QREF(R,T,C)*(1+COM_VOC(R,T,C,'UP'));
-  VAR_DEM.LO(R,T,C)$RD_NLP(R,C) = DDF_QREF(R,T,C)*MAX(.1,1-COM_VOC(R,T,C,'LO'));
-  VAR_DEM.FX(R,T(MIYR_1),C)$RD_NLP(R,C) = DDF_QREF(R,T,C);
-  VAR_OBJELS.LO(R,'FX',CUR)$RDCUR(R,CUR) = -INF;
-""",
+        g = self.tc
+        r, t, c, com, cur, bd, bdneq, j = (
+            g.r,
+            g.t,
+            g.c,
+            g.Com,
+            g.cur,
+            g.bd,
+            g.Bdneq,
+            g.j,
         )
+
+        # Take NLP elasticities from the FX type COM_ELAST
+        g.mi_dope[r, t, c].where[g.Dem[r, c]] = abs(
+            g.com_elast[r, t, c, "ANNUAL", "FX"]
+        )
+
+        # Initialize NLP indicator for demands
+        g.rd_nlp[g.Dem] = 1
+        g.Fil[t] = Ord(t) > 1
+        with Loop(g.Fil[t]):
+            g.rd_nlp[r, c].where[
+                (g.ddf_qref[r, t, c] * g.ddf_pref[r, t, c] * g.mi_dope[r, t, c]) == 0
+            ] = 0
+        g.Trackc[g.RdAgg[g.Rc]] = sparse(g.rd_nlp[g.Rc])
+        g.RdAgg[g.Rc].where[g.rd_nlp[g.Rc]] = False
+
+        # -----------------------------------------------------------------------------
+        g.mi_esub[r, t, c].where[g.Trackc[r, c]] = Round(
+            g.mi_esub[r, t, c] * (1 - 5e-6), 5
+        ) * (1 + 5e-6)
+        g.mi_rho[r, t, c].where[(g.mi_esub[r, t, c] > 0).where[g.Trackc[r, c]]] = (
+            1 - 1 / g.mi_esub[r, t, c]
+        )
+        g.rd_nlp[g.Trackc[r, c]].where[Product(g.Fil[t], g.mi_rho[r, t, c])] = 3
+        with Loop(g.MiDmas[r, c, com].where[g.rd_nlp[r, c] > 2]):
+            g.rd_nlp[r, com] = -1
+        g.Rcj[g.Rc, j, bd].where[g.rd_nlp[r, c]] = False
+        g.Trackc.setRecords(None)
+        # -----------------------------------------------------------------------------
+        # Calculate demand function parameters
+        g.rd_shar[r, t, c, com].where[
+            g.Fil[t] & g.MiDmas[r, c, com] & g.rd_nlp[r, c]
+        ] = (
+            g.com_agg[r, t, com, c]
+            * g.ddf_qref[r, t, com]
+            / g.ddf_qref[r, t, c]
+            * (g.ddf_pref[r, t, com] / g.com_agg[r, t, com, c] / g.ddf_pref[r, t, c])
+            ** g.mi_esub[r, t, c]
+        )
+        g.mi_elasp[r, t, c].where[g.Fil[t] & (g.rd_nlp[r, c] > 1) & g.Dem[r, c]] = (
+            1 - 1 / g.mi_dope[r, t, c]
+        )
+        g.mi_ccons[r, t, c].where[g.Fil[t] & (g.rd_nlp[r, c] > 1) & g.Dem[r, c]] = (
+            g.ddf_pref[r, t, c]
+            * (1 / g.mi_elasp[r, t, c])
+            * g.ddf_qref[r, t, c] ** (1 / g.mi_dope[r, t, c])
+        )
+
+        # -----------------------------------------------------------------------------
+        # Bounds section
+        g.com_voc[r, t, c, bdneq[bd]].where[
+            (~(g.com_voc[r, t, c, bd])) & g.rd_nlp[r, c]
+        ] = 1
+        g.VAR_DEM.l[r, t, c].where[g.rd_nlp[r, c]] = g.ddf_qref[r, t, c]
+        g.VAR_DEM.up[r, t, c].where[g.rd_nlp[r, c]] = g.ddf_qref[r, t, c] * (
+            1 + g.com_voc[r, t, c, "UP"]
+        )
+        g.VAR_DEM.lo[r, t, c].where[g.rd_nlp[r, c]] = g.ddf_qref[r, t, c] * Max(
+            0.1, 1 - g.com_voc[r, t, c, "LO"]
+        )
+        g.VAR_DEM.fx[r, t, c].where[g.Miyr1[t] & g.rd_nlp[r, c]] = g.ddf_qref[r, t, c]
+        g.VAR_OBJELS.lo[r, "FX", cur].where[g.Rdcur[r, cur]] = SpecialValues.NEGINF

@@ -52,9 +52,10 @@ class WrtbpriceMod(GamsClass):
         )
 
         g.dinv = Parameter(m, name="DINV", domain=[r, year, cur])
-        g.sol_bprice = Parameter(
-            m, name="SOL_BPRICE", domain=[Reg, allyear, Com, allts, cur]
-        )
+        if not g.defined("SOL_BPRICE"):
+            g.sol_bprice = Parameter(
+                m, name="SOL_BPRICE", domain=[Reg, allyear, Com, allts, cur]
+            )
         g.sol_acfr = Parameter(m, name="SOL_ACFR", domain=[r, UcCost, year])
         g.Ancat = Set(
             m,
