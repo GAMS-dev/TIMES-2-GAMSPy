@@ -94,7 +94,7 @@ class SolveStc(GamsClass):
 
         if self.env.stages != "YES" and self.env.var_uc != "YES":
             # rptlite_rpt() below embeds par_uc_rpt()'s assignments into "run"-phase code
-            declare_par_uc_rpt_params(self)
+            declare_par_uc_rpt_params(self.tc)
 
         rptlite_no_code = (
             rptlite_rpt(

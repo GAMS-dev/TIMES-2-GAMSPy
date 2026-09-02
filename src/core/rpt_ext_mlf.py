@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from core.base_class import GamsClass
 from core.cost_ann_rpt import cost_ann_rpt
-from core.par_uc_rpt import ParUcRpt
+from core.par_uc_rpt import ParUcRpt, ParUcRptConfig
 from core.rpt_obj_rpt import rpt_obj_rpt
 from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
 from core.rptmisc_rpt import RptmiscRpt
@@ -116,9 +116,12 @@ class RptExtMlf(GamsClass):
         # * Note: undiscounting only done for user constraints having region and period as index
 
         if self.env.var_uc != "YES":
-            batincludes = ["EQE", "EQG", "EQL"]
-            for arg in batincludes:
-                self.include(ParUcRpt(self.tc, self.env, arg1="SM", arg2=arg))
+            for config in (
+                ParUcRptConfig(arg1="SM", arg2="EQE"),
+                ParUcRptConfig(arg1="SM", arg2="EQG"),
+                ParUcRptConfig(arg1="SM", arg2="EQL"),
+            ):
+                self.include(ParUcRpt(self.tc, self.env, config=config))
 
         # GAMS's single-pass compiler registers every literal string in the
         # whole program as a UEL during compilation, before anything executes

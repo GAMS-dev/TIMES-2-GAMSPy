@@ -23,7 +23,7 @@ from core.base_class import GamsClass
 # from core.rpt_chp_ire import RrpChpIre
 from core.cost_ann_rpt import CostAnnRpt, CostAnnRptConfig
 from core.ddfupd_msa import ddfupd_msa
-from core.par_uc_rpt import ParUcRpt
+from core.par_uc_rpt import ParUcRpt, ParUcRptConfig
 from core.rpt_obj_rpt import RptObjRpt
 from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
 from core.rptmisc_rpt import RptmiscRpt
@@ -128,16 +128,12 @@ class RptmainTm(GamsClass):
         # *---------------------------------------------------------------------
         # * Note: undiscounting only done for user constraints having region and period as index
         if self.env.var_uc != "YES":
-            batincludes = ["EQE", "EQG", "EQL"]
-            for arg in batincludes:
-                self.include(
-                    ParUcRpt(
-                        self.tc,
-                        self.env,
-                        arg1="SM",
-                        arg2=arg,
-                    )
-                )
+            for config in (
+                ParUcRptConfig(arg1="SM", arg2="EQE"),
+                ParUcRptConfig(arg1="SM", arg2="EQG"),
+                ParUcRptConfig(arg1="SM", arg2="EQL"),
+            ):
+                self.include(ParUcRpt(self.tc, self.env, config=config))
 
         self.tc.enqueue(self.exec_option)
 
