@@ -13,7 +13,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Number
+from gamspy import Domain, Loop, Number, Ord, sparse
+from gamspy.math import Round, aggregate, project
 
 from core.base_class import GamsClass
 from core.fillparm_gms import FillparmGms, FillparmGmsConfig
@@ -38,7 +39,7 @@ class PrepExtAbs(GamsClass):
         tc: TimesModelClass,
         env: CompileEnvironment,
         arg1: str = "",
-        arg2: str = "",
+        arg2: str = "",  # NOTE: This is required upstream
     ):
         self.env = env.fork()
         self._sub_modules = {}
@@ -81,33 +82,41 @@ class PrepExtAbs(GamsClass):
         self.tc.enqueue(self.intermediate_qa_clean_up)
 
     def add_reserve_commodities(self: PrepExtAbs) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Add reserve commodities to RC
-  RC(R,C) $= BS_RTYPE(R,C);
-  LOOP((RP,ITEM)$GR_GENMAP(RP,ITEM),BS_K(ITEM)=YES);
-  LOOP((R,T,C,P,BD)$BS_SHARE(R,T,C,P,BD),BS_K(P)=YES);
+        g = self.tc
+        # * Add reserve commodities to RC
+        g.Rc[g.r, g.c] = sparse(g.bs_rtype[g.r, g.c])
+        with Loop(Domain(g.Rp, g.item).where[g.gr_genmap[g.Rp, g.item]]):
+            g.BsK[g.item] = True
+        with Loop(
+            Domain(g.r, g.t, g.c, g.p, g.bd).where[g.bs_share[g.r, g.t, g.c, g.p, g.bd]]
+        ):
+            g.BsK[g.p] = True
 
-* Bulk processing
-  OPTION BS_RTCS < BS_DEMDET;
-  BS_RTCS('OMEGA',R,YEAR,C,S) $= BS_OMEGA(R,YEAR,C,S);
-  BS_RTCS('DELTA',R,YEAR,C,S) $= BS_DELTA(R,YEAR,C,S);
-""",
+        # * Bulk processing
+        aggregate(source=g.bs_demdet, target=g.bs_rtcs)
+        g.bs_rtcs["OMEGA", g.r, g.year, g.c, g.s] = sparse(
+            g.bs_omega[g.r, g.year, g.c, g.s]
+        )
+        g.bs_rtcs["DELTA", g.r, g.year, g.c, g.s] = sparse(
+            g.bs_delta[g.r, g.year, g.c, g.s]
         )
 
     def intermediate_qa_clean_up(self: PrepExtAbs) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Intermediate QA clean-up
-  BS_RTCS(RSP('OMEGA'),R,T,C,S)$BS_RTCS(RSP,R,T,C,S) = ROUND(BS_RTCS(RSP,R,T,C,S));
-  BS_SIGMA(R,T,C,BS_K,S)$(BS_LAMBDA(R,T,C)=0)=0;
-  BS_RMAX(R,LL--ORD(LL),P,C,S+STOA(S)) $= (BS_RMAX(R,LL,P,C,S)>0);
-  BS_RMAX(R,LL,P,C,S)$(NOT BS_RMAX(R,'0',P,C,'ANNUAL'))=0;
-  BS_BNDPRS(R,T,P,C,S,BD)$((BS_LAMBDA(R,T,C)=0)$BS_BNDPRS(R,T,P,C,S,BD))=0;
-  OPTION BS_BSC < BS_RMAX, CLEAR=BS_OMEGA;
-""",
+        g = self.tc
+        # * Intermediate QA clean-up
+        g.bs_rtcs[g.Rsp["OMEGA"], g.r, g.t, g.c, g.s].where[
+            g.bs_rtcs[g.Rsp, g.r, g.t, g.c, g.s]
+        ] = Round(g.bs_rtcs[g.Rsp, g.r, g.t, g.c, g.s])
+        g.bs_sigma[g.r, g.t, g.c, g.BsK, g.s].where[g.bs_lambda[g.r, g.t, g.c] == 0] = 0
+        g.bs_rmax[g.r, g.ll.lag(Ord(g.ll), "circular"), g.p, g.c, g.s + g.stoa[g.s]] = (
+            sparse(g.bs_rmax[g.r, g.ll, g.p, g.c, g.s] > 0)
         )
+        g.bs_rmax[g.r, g.ll, g.p, g.c, g.s].where[
+            ~g.bs_rmax[g.r, "0", g.p, g.c, "ANNUAL"]
+        ] = 0
+        g.bs_bndprs[g.r, g.t, g.p, g.c, g.s, g.bd].where[
+            (g.bs_lambda[g.r, g.t, g.c] == 0)
+            & g.bs_bndprs[g.r, g.t, g.p, g.c, g.s, g.bd]
+        ] = 0
+        project(source=g.bs_rmax, target=g.BsBsc)
+        g.bs_omega.setRecords(None)
