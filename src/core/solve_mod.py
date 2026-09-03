@@ -31,7 +31,7 @@ from gamspy import (
 
 from core.base_class import GamsClass
 from core.err_stat_mod import ErrStatMod
-from core.pp_clean_mod import PpCleanMod, pp_clean_mod
+from core.pp_clean_mod import pp_clean_mod
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -40,8 +40,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# TODO: currently SolveMod and solve_mod() don't share any code, ie there is duplicated logic here.
-# compile() could call solve_mod() instead
 class SolveMod(GamsClass):
     """Translation unit for solve.mod."""
 
@@ -65,62 +63,21 @@ class SolveMod(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        # * Release some memory
-        self.include(PpCleanMod(self.tc, self.env))
-        self.tc.enqueue(set_model_param, module=self, model_name=self.model_name)
-
-        ### * MACRO: Loading solution from GDX file replaced by activating the SPOINT utility
-        if self.env.solve_now != "NO":
-            # * solve TIMES with appropriate METHOD
-            if not self.env.is_set("mixlp"):
-                self.env.set_local("mixlp", "")
-            if not self.env.is_set("nonlp"):
-                self.env.set_local("nonlp", "")
-            # * if ETL or DSC with binary variables use MIP
-            if self.env.damage == "NLP":
-                self.env.set_local("nonlp", "NL")
-            if self.env.micro == "YES":
-                self.env.set_local("nonlp", "NL")
-            if self.env.macro == "YES":
-                self.env.set_local("nonlp", "NL")
-            if self.env.etl == "YES":
-                self.env.set_local("mixlp", "MI")
-            if self.env.solmip == "YES":
-                self.env.set_local("mixlp", "MI")
-            self.env.set_local("method", f"{self.env.mixlp}{self.env.nonlp}P")
-            if self.env.method == "P":
-                self.env.set_local("method", "LP")
-
-            if self.env.macro.upper() == "YES":
-                self.tc.enqueue(
-                    solve_times,
-                    module=self,
-                    model_name=self.model_name,
-                    method=self.env.method,
-                    equations=self.equations,
-                )
-                # GOTO CHECK
-            else:
-                self.tc.enqueue(
-                    solve_times_as_lp_mip,
-                    module=self,
-                    model_name=self.model_name,
-                    method=self.env.method,
-                    equations=self.equations,
-                )
-
-            # LABEL CHECK
-            self.include(
-                ErrStatMod(
-                    self.tc,
-                    self.env,
-                    arg1="SOLVE",
-                    arg2="*** ERRORS DURING SOLUTION ***",
-                )
-            )
-            # NOTE: www_out.cgi does not exist. Skipping
-            # * hook for GAMS-CGI WWW output
-            # $  IF %GAMS_CGI% == WWW  $BATINCLUDE www_out.cgi
+        self.tc.enqueue(
+            solve_mod_GP,
+            module=self,
+            model_name=self.model_name,
+            equations=self.equations,
+            memclean=self.env.memclean,
+            solve_now=self.env.solve_now,
+            mixlp=self.env.mixlp,
+            nonlp=self.env.nonlp,
+            damage=self.env.damage,
+            micro=self.env.micro,
+            macro=self.env.macro,
+            etl=self.env.etl,
+            solmip=self.env.solmip,
+        )
 
 
 def set_model_param(module: GamsClass, model_name: str) -> None:
@@ -315,19 +272,24 @@ def solve_mod_GP(
     set_model_param(module=module, model_name=model_name)
 
     if solve_now != "NO":
-        # Evaluate mixlp and nonlp states
-        mix_str = (
-            "MI" if "YES" in (etl, solmip) else ("" if mixlp == "%MIXLP%" else mixlp)
-        )
-        non_str = (
-            "NL"
-            if (damage == "NLP" or "YES" in (micro, macro))
-            else ("" if nonlp == "%NONLP%" else nonlp)
-        )
-
-        # Combine and resolve the optimization method type
-        method = f"{mix_str}{non_str}P"
-        method = "LP" if method == "P" else method
+        if mixlp == "%MIXLP%":
+            mixlp = ""
+        if nonlp == "%NONLP%":
+            nonlp = ""
+        # * if ETL or DSC with binary variables use MIP
+        if damage == "NLP":
+            nonlp = "NL"
+        if micro == "YES":
+            nonlp = "NL"
+        if macro == "YES":
+            nonlp = "NL"
+        if etl == "YES":
+            mixlp = "MI"
+        if solmip == "YES":
+            mixlp = "MI"
+        method = f"{mixlp}{nonlp}P"
+        if method == "P":
+            method = "LP"
 
         if macro.upper() == "YES":
             solve_times(
@@ -340,6 +302,19 @@ def solve_mod_GP(
             solve_times_as_lp_mip(
                 module=module, model_name=model_name, method=method, equations=equations
             )
+
+        # LABEL CHECK
+        module.include(
+            ErrStatMod(
+                module.tc,
+                module.env,
+                arg1="SOLVE",
+                arg2="*** ERRORS DURING SOLUTION ***",
+            )
+        )
+        # NOTE: www_out.cgi does not exist. Skipping
+        # * hook for GAMS-CGI WWW output
+        # $  IF %GAMS_CGI% == WWW  $BATINCLUDE www_out.cgi
 
 
 def solve_mod(
@@ -435,13 +410,3 @@ SOLVE {model_name} MINIMIZING objZ USING {method};
 '''
     }
 """
-
-
-# TODO: that needs a standalone implementation!
-# {
-#             err_stat_solve(module=module,
-#                 arg2="*** ERRORS DURING SOLUTION ***",
-#                 model_name=model_name,
-#                 err_abort=err_abort,
-#             )
-#         }

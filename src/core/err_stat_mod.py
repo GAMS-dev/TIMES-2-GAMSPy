@@ -106,11 +106,22 @@ SET SOLVESTAT(J) /
     def queue_solve(self) -> None:
         "No relevance to compilation"
         self.tc.enqueue(
-            err_stat_solve,
+            self.exec_solve,
             arg1=self.arg1,
             arg2=self.arg2,
             model_name=self.env.model_name,
             err_abort="",
+        )
+
+    def exec_solve(
+        self: ErrStatMod, arg1: str, arg2: str, model_name: str, err_abort: str
+    ) -> None:
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=err_stat_solve(
+                arg1=arg1, arg2=arg2, model_name=model_name, err_abort=err_abort
+            ),
         )
 
     def queue_action(self) -> None:
