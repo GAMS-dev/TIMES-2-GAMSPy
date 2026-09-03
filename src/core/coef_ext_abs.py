@@ -13,14 +13,41 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import (
+    Domain,
+    Else,
+    If,
+    Loop,
+    Number,
+    Ord,
+    Product,
+    Set,
+    Smax,
+    SpecialValues,
+    Sum,
+    sparse,
+)
+from gamspy.math import Max, abs, aggregate, project
+
 from core.base_class import GamsClass
-from core.pp_qaput_mod import pp_qaput
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+def ncap_afac_reset_violations(g: TimesModelClass) -> Set:
+    """BS_RMAX decreasing at slower reserve types - reset."""
+    r, p, c = g.r, g.p, g.c
+    Rtp, ncap_afac = g.Rtp, g.ncap_afac
+
+    violations = Set(
+        g.container, name="violations_r_v_p_c_ncap_afac", domain=[r, g.allyear, p, c]
+    )
+    violations[Rtp, c] = ncap_afac[Rtp, c]
+    return violations
 
 
 class CoefExtAbs(GamsClass):
@@ -44,118 +71,308 @@ class CoefExtAbs(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self.tc.enqueue(self.exec1, rl=self.env.rl, pl=self.env.pl)
+        self.tc.enqueue(self.exec1)
 
-    def exec1(self: CoefExtAbs, rl: str, pl: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-* Get storage, end-use and supply processes
-  BS_BSC(RP,C)$(NOT PRC_CAP(RP))=NO;
-  OPTION TRACKP < BS_STIME, RP_PRC < COEF_AFUPS;
-  RP_PRC(RP_PRC)=TRACKP(RP_PRC); OPTION TRACKP < BS_BSC;
-  TRACKPC(RPC(R,P,C)) $= NRG_TMAP(R,'ELC',C);
-* Storage with inflow
-  BS_ENDP(RP_STG(RP))$SUM(TOP(TRACKPC(RPC_STG(RP,C)),'IN'),1)=YES;
-* Qualify as power storage
-  BS_STGP(RP_PRC(RP))$SUM(TOP(RPC_STG(TRACKPC(RP,C)),'OUT'),1)=YES;
-  BS_STGP(RP_PRC(RP))$SUM(TOP(RPC_STG(RP,C),'OUT'),NOT TRACKPC(RP,C))=NO;
-  BS_STGP(RP_PRC(RP))$(((NOT BS_ENDP(RP))+TRACKP(RP))$PRC_SC(RP))=NO;
-  BS_STIME(BS_STGP(R,P),C,'UP')$BS_RTYPE(R,C)=SMAX(BD,BS_STIME(R,P,C,BD));
-  BS_STIME(RP,C,BD)$((NOT BS_STGP(RP))$BS_STIME(RP,C,BD))=NO;
-  BS_BSC(BS_STGP,C)=NO;
-* Qualify as power supply
-  OPTION RP_GRP<NCAP_AFCS;
-  BS_SUPP(TRACKP(RP_STD(RP)))$SUM(TOP(RPC_PG(TRACKPC(RP,C)),'OUT'),1)=YES;
-  BS_SUPP(TRACKP(RP_STG(RP)))$SUM(TOP(TRACKPC(RP_GRP(RP,C)),'OUT'),1)=YES;
-  BS_SUPP(BS_ENDP(RP))$SUM(TOP(RPC_STG(RP,C),'OUT'),NOT TRACKPC(RP,C))=NO;
-  BS_SUPP(BS_SUPP(RP_STD(RP)))$PROD(RPC_SPG(RP,C),TRACKPC(RP,C))=NO;
-  BS_SUPP(BS_STGP)=NO;
-* Qualify as end-user process
-  TRACKP(RP_STG)=YES;
-  BS_ENDP(TRACKP(RP_FLO(RP)))=(NOT BS_SUPP(RP)+BS_STGP(RP));
-  BS_BSC(BS_ENDP(R,P),C)$((NOT RP_PGACT(R,P))$BS_ANEG(R,C))=NO;
-  BS_NEGP(TRACKP(R,P))=SUM(BS_BSC(R,P,C)$BS_ANEG(R,C),1);
-  BS_NEGP(BS_SUPP(RP))$RP_UPL(RP,'FX')=YES;
-*-----------------------------------------------------------------------------
-* Levelization
-  BS_PRS(PRC_TS(TRACKP(RP),S))$(RP_STD(RP)+RPS_STG(RP,S))=YES;
-* Hold RMAX processes to be levelized
-  VDA_FLOP(R,LL--ORD(LL),P,C,S+STOA(S))$STOA(S) $=BS_RMAX(R,LL,P,C,S);
-  OPTION PRC_YMAX<VDA_FLOP,CLEAR=VDA_FLOP; PRC_YMAX(RP)$BS_PRS(RP,'ANNUAL')=NO;
-
-* Reserve Commodity attributes
-  LOOP(COM_TSL(R,C,TSLVL)$BS_RTYPE(R,C),F=ORD(TSLVL)-1;
-    LOOP(RJLVL(J,R,TSL)$(F>=ORD(TSL)),
-      LOOP(TS_GROUP(R,TSL,TS),BS_RTCS(RSP,R,T,C,S)$(NOT BS_RTCS(RSP,R,T,C,S)) $= BS_RTCS(RSP,R,T,C,TS)$(STOAL(R,S)=F)$RS_BELOW(R,TS,S))));
-* Put-back
-  BS_OMEGA(RTC,S)$= BS_RTCS('OMEGA',RTC,S);
-  BS_DELTA(RTC,S)$= BS_RTCS('DELTA',RTC,S);
-* Reserve Process attributes
-  OPTION RP_PRC<BS_MAINT; RP_PRC(RP_PRC(RP))=PRC_CAP(RP)$RP_STD(RP)+SUM(RPS_CAFLAC(PRC_TS(RP_STG(RP),S),BD),YES);
-  BS_MAINT(R,V,P,S)$(NOT RP_PRC(R,P))=0; RP_UPL(RP_PRC,'FX')=YES;
-  ACT_UPS(RTP(R,T,P),S,'N')$BS_MAINT(RTP,S)=BS_MAINT(RTP,S)*MAX(1$(BS_MAINT(RTP,S)<=1),(1/G_YRFR(R,S)/8760)$(NOT COEF_AF(R,T,T,P,S,'UP')))$TS_CYCLE(R,S);
-  LOOP((RLUP(R,TSLVL,TSL),TS_GROUP(R,TSL,TS)),BS_MAINT(RTP(R,V,P),TS)$((NOT BS_MAINT(RTP,TS))$PRC_TSL(R,P,TSLVL)$RP_PRC(R,P))=-MAX(0,SMAX(RS_BELOW1(R,TS,S),BS_MAINT(RTP,S))));
-  LOOP((RJLVL(J,R,TSL),RLUP(R,TSLVL,TSL)),
-    LOOP(TS_GROUP(R,TSL,TS),
-      BS_MAINT(RTP(R,V,P),S)$((NOT BS_MAINT(RTP,S))$BS_MAINT(RTP,TS)) = -ABS(BS_MAINT(RTP,TS))$RS_BELOW(R,TS,S);
-      BS_RMAX(RTP(R,V,P),C,S)$((NOT BS_RMAX(RTP,C,S))$BS_PRS(R,P,S)$PRC_YMAX(R,P)) $= BS_RMAX(RTP,C,TS)$RS_BELOW(R,TS,S)));
-* Generation & load Variances
-  LOOP(RJLVL(J,R,TSL)$(ORD(TSL)<4),
-    LOOP(TS_GROUP(R,TSL,TS),BS_SIGMA(R,T,C,BS_K,S)$((NOT BS_SIGMA(R,T,C,BS_K,S))$FINEST(R,S)) $= BS_SIGMA(R,T,C,BS_K,TS)$RS_BELOW(R,TS,S)));
-
-* Default values
-  BS_SHARE(RTC,BDNEQ,'N') $= BS_LAMBDA(RTC);
-  OPTION CLEAR=RXX; RXX(BS_APOS(R,C),COM)$((BS_RTYPE(R,C)+BS_RTYPE(R,COM)=0)$BS_ANEG(R,COM)) = YES;
-  LOOP(RXX(R,C,COM),
-    BS_SIGMA(R,T,C,BS_K,S)$(NOT BS_SIGMA(R,T,C,BS_K,S)) $=BS_SIGMA(R,T,COM,BS_K,S);
-    BS_SIGMA(R,T,COM,BS_K,S)$(NOT BS_SIGMA(R,T,COM,BS_K,S)) $=BS_SIGMA(R,T,C,BS_K,S);
-    BS_DELTA(R,T,C,S)$(NOT BS_DELTA(R,T,C,S)) $=BS_DELTA(R,T,COM,S);
-    BS_DELTA(R,T,COM,S)$(NOT BS_DELTA(R,T,COM,S)) $=BS_DELTA(R,T,C,S));
-
-* Imbalance topology
-  LOOP((TRACKPC(RP_FLO(R,P),C),BS_K)$GR_GENMAP(R,P,BS_K),
-    IF(GR_GENMAP(R,P,BS_K)>0,BS_TOP(TOP(R,P,C,IO))$TOP(R,P,C,'OUT')=YES;
-    ELSE BS_TOP(TOP(R,P,C,IO))$(IPS(IO)+PRC_MAP(R,'STG',P))=YES));
-  GR_GENMAP(R,P(BS_K),P)$PROD(PRC$GR_GENMAP(R,PRC,P),0)=1;
-  OPTION CLEAR=RXX,CLEAR=TRACKP,CLEAR=RP_PRC,CLEAR=RP_GRP,CLEAR=TRACKPC;
-
-* Timeslices
-  OPTION RCS < BS_OMEGA;
-  LOOP(COM_TS(RCS(R,C,S)),BS_COMTS(R,C,TS)$RS_TREE(R,S,TS)=YES);
-  BS_DELTA(RTCS_VARC(RTC,S))$((NOT BS_DELTA(RTC,S))$BS_OMEGA(RTC,S)) = 1;
-  BS_SIGMA(RTC(R,T,C),BS_K,S)$((BS_LAMBDA(RTC)$BS_COMTS(R,C,S)=0)$BS_SIGMA(RTC,BS_K,S))=0;
-  LOOP((R,T,C,BS_K,S)$BS_SIGMA(R,T,C,BS_K,S),BS_RTK(R,T,BS_K)=YES);
-  LOOP(COM_LIM(R,C,L)$BS_RTYPE(R,C),BS_OMEGA(R,'0',C,S)$BS_COMTS(R,C,S)=FINEST(R,S)$IPS(L)+COM_TS(R,C,S)$BD(L));
-* Activate COMNET, disable COMPRD
-  RHS_COMBAL(RTCS_VARC(R,T,C,S))$BS_RTYPE(R,C)=BS_COMTS(R,C,S);
-  RCS_COMBAL(RTCS_VARC(R,T,C,S),'FX') $= BS_RTYPE(R,C);
-  RHS_COMPRD(RTCS_VARC(R,T,C,S))$BS_RTYPE(R,C) = NO;
-  RCS_COMPRD(RTCS_VARC(R,T,C,S),'FX')$BS_RTYPE(R,C) = NO;
-  COM_BNDPRD(RTCS_VARC(R,T,C,S),'UP')$((NOT BS_COMTS(R,C,S)$BS_LAMBDA(R,T,C))$BS_RTYPE(R,C)) = EPS;
-  COM_AGG(R,T,C,C)$BS_RTYPE(R,C)=1;
-  RC_AGP(RC,'FX')$=BS_RTYPE(RC);
-* Post-process RMAX; no reserve supply from multi-output AFC processes
-  BS_RMAX(R,V,P,C,S)$(BS_SUPP(R,P)$RP_STD(R,P)$RPS_CAFLAC(R,P,S,'UP'))=0;
-  LOOP((RC(R,C),BD)$BS_ABD(RC,BD),
-    VDA_FLOP(RTP(R,V,P),C,S)$((BS_PRS(R,P,S)$PRC_YMAX(R,P)+ANNUAL(S))$BS_BSC(R,P,C)) =
-      SMAX(BS_ABD(R,COM,BD)$((BS_RTYPE(RC)-BS_RTYPE(R,COM))*BDSIG(BD)<=0),BS_RMAX(RTP,COM,S)));
-  VDA_FLOP(RTP,C,S)$((BS_RMAX(RTP,C,S)=VDA_FLOP(RTP,C,S))$BS_RMAX(RTP,C,S))=0;
-  BS_RMAX(RTP,C,S) $= VDA_FLOP(RTP,C,S); OPTION NCAP_AFAC < VDA_FLOP;
-  LOOP((RTP(R,V,P),C)$NCAP_AFAC(RTP,C),
-{pp_qaput("PUTOUT", "PUTGRP", "01", "BS_RMAX decreasing at slower reserve types - reset")}
-    PUT QLOG ' WARNING       - Kept at preceding value,  R=',{rl},' P=',{pl},' V=',V.TL, ' C=',C.TL);
-  BS_RMAX(RTP(R,V,P),C,ANNUAL(S))$BS_BSC(R,P,C) = BS_RMAX(RTP,C,S)$(NOT PRC_YMAX(R,P));
-* Controls for reserve limits
-  RPC_CONLY(RTP(R,V,P),C)$((BS_RMAX(RTP,C,'ANNUAL')$BS_SUPP(R,P)<1-ACT_MINLD(RTP)$BS_ABD(R,C,'UP'))$BS_BSC(R,P,C))=YES;
-  LOOP((BS_ABD(RC(R,COM),BD),C,ANNUAL(S))$BS_ABD(R,C,BD),
-    IF((BS_RTYPE(RC)-BS_RTYPE(R,C))*BDSIG(BD)<0,RPC_CONLY(RTP(R,V,P),C)$((BS_RMAX(RTP,C,S)>=BS_RMAX(RTP,COM,S))$BS_RMAX(RTP,COM,S))=NO));
-  LOOP((BS_COMTS(R,C,S),BS_ABD(R,C,L)),BS_SBD(R,S,L)=YES);
-  OPTION CLEAR=PRC_YMAX,CLEAR=VDA_FLOP,CLEAR=NCAP_AFAC,CLEAR=RCS;
-* Build UC map
-  BS_UCMAP(UC_MAP_FLO(UC_N,SIDE,R,P,C))$(BS_BSC(R,P,C)+BS_STGP(R,P)$BS_STIME(R,P,C,'UP'))$=BS_RTYPE(R,C);
-* Ensure existence of AF
-  COEF_AF(RTP_VINTYR(R,T,T,P),S,'UP')$(NOT RTP_CPTYR(R,T,T,P)) $= NCAP_AF(R,T,P,S,'UP')$BS_PRS(R,P,S);
-""",
+    def exec1(self: CoefExtAbs) -> None:
+        g = self.tc
+        # * Get storage, end-use and supply processes
+        g.BsBsc[g.Rp, g.c].where[(~(g.PrcCap[g.Rp]))] = False
+        project(source=g.bs_stime, target=g.Trackp)
+        project(source=g.coef_afups, target=g.RpPrc)
+        g.RpPrc[g.RpPrc] = g.Trackp[g.RpPrc]
+        project(source=g.BsBsc, target=g.Trackp)
+        g.Trackpc[g.Rpc[g.r, g.p, g.c]] = sparse(g.NrgTmap[g.r, "ELC", g.c])
+        # * Storage with inflow
+        g.BsEndp[g.RpStg[g.Rp]].where[
+            Sum(g.Top[g.Trackpc[g.RpcStg[g.Rp, g.c]], "IN"], 1.0)
+        ] = True
+        # * Qualify as power storage
+        g.BsStgp[g.RpPrc[g.Rp]].where[
+            Sum(g.Top[g.RpcStg[g.Trackpc[g.Rp, g.c]], "OUT"], 1.0)
+        ] = True
+        g.BsStgp[g.RpPrc[g.Rp]].where[
+            Sum(g.Top[g.RpcStg[g.Rp, g.c], "OUT"], ~(g.Trackpc[g.Rp, g.c]))
+        ] = False
+        g.BsStgp[g.RpPrc[g.Rp]].where[
+            (((~(g.BsEndp[g.Rp])) + g.Trackp[g.Rp]).where[g.prc_sc[g.Rp]])
+        ] = False
+        g.bs_stime[g.BsStgp[g.r, g.p], g.c, "UP"].where[g.bs_rtype[g.r, g.c]] = Smax(
+            g.bd, g.bs_stime[g.r, g.p, g.c, g.bd]
         )
+        g.bs_stime[g.Rp, g.c, g.bd].where[
+            ((~(g.BsStgp[g.Rp])).where[g.bs_stime[g.Rp, g.c, g.bd]])
+        ] = False
+        g.BsBsc[g.BsStgp, g.c] = False
+        # * Qualify as power supply
+        project(source=g.ncap_afcs, target=g.RpGrp)
+        g.BsSupp[g.Trackp[g.RpStd[g.Rp]]].where[
+            Sum(g.Top[g.RpcPg[g.Trackpc[g.Rp, g.c]], "OUT"], 1.0)
+        ] = True
+        g.BsSupp[g.Trackp[g.RpStg[g.Rp]]].where[
+            Sum(g.Top[g.Trackpc[g.RpGrp[g.Rp, g.c]], "OUT"], 1.0)
+        ] = True
+        g.BsSupp[g.BsEndp[g.Rp]].where[
+            Sum(g.Top[g.RpcStg[g.Rp, g.c], "OUT"], ~(g.Trackpc[g.Rp, g.c]))
+        ] = False
+        g.BsSupp[g.BsSupp[g.RpStd[g.Rp]]].where[
+            Product(g.RpcSpg[g.Rp, g.c], g.Trackpc[g.Rp, g.c])
+        ] = False
+        g.BsSupp[g.BsStgp] = False
+        # * Qualify as end-user process
+        g.Trackp[g.RpStg] = True
+        g.BsEndp[g.Trackp[g.RpFlo[g.Rp]]] = ~(g.BsSupp[g.Rp] + g.BsStgp[g.Rp])
+        g.BsBsc[g.BsEndp[g.r, g.p], g.c].where[
+            ((~(g.RpPgact[g.r, g.p])).where[g.BsAneg[g.r, g.c]])
+        ] = False
+        g.BsNegp[g.Trackp[g.r, g.p]] = Sum(
+            g.BsBsc[g.r, g.p, g.c].where[g.BsAneg[g.r, g.c]], 1.0
+        )
+        g.BsNegp[g.BsSupp[g.Rp]].where[g.RpUpl[g.Rp, "FX"]] = True
+        # *-----------------------------------------------------------------------------
+        # * Levelization
+        g.BsPrs[g.PrcTs[g.Trackp[g.Rp], g.s]].where[
+            (g.RpStd[g.Rp] + g.RpsStg[g.Rp, g.s])
+        ] = True
+        # * Hold RMAX processes to be levelized
+        g.vda_flop[
+            g.r, g.ll.lag(Ord(g.ll), "circular"), g.p, g.c, g.s + g.stoa[g.s]
+        ].where[g.stoa[g.s]] = sparse(g.bs_rmax[g.r, g.ll, g.p, g.c, g.s])
+        aggregate(source=g.vda_flop, target=g.prc_ymax)
+        g.vda_flop.setRecords(None)
+        g.prc_ymax[g.Rp].where[g.BsPrs[g.Rp, "ANNUAL"]] = False
+        # * Reserve Commodity attributes
+        with Loop(g.ComTsl[g.r, g.c, g.tslvl].where[g.bs_rtype[g.r, g.c]]):
+            g.f[...] = Ord(g.tslvl) - 1.0
+            with Loop(g.Rjlvl[g.j, g.r, g.tsl].where[(g.f >= Ord(g.tsl))]):  # noqa: SIM117
+                with Loop(g.TsGroup[g.r, g.tsl, g.ts]):
+                    g.bs_rtcs[g.Rsp, g.r, g.t, g.c, g.s].where[
+                        (~(g.bs_rtcs[g.Rsp, g.r, g.t, g.c, g.s]))
+                    ] = sparse(
+                        g.bs_rtcs[g.Rsp, g.r, g.t, g.c, g.ts].where[
+                            (g.stoal[g.r, g.s] == g.f) & g.RsBelow[g.r, g.ts, g.s]
+                        ]
+                    )
+        # * Put-back
+        g.bs_omega[g.Rtc, g.s] = sparse(g.bs_rtcs["OMEGA", g.Rtc, g.s])
+        g.bs_delta[g.Rtc, g.s] = sparse(g.bs_rtcs["DELTA", g.Rtc, g.s])
+        # * Reserve Process attributes
+        project(source=g.bs_maint, target=g.RpPrc)
+        g.RpPrc[g.RpPrc[g.Rp]] = g.PrcCap[g.Rp].where[g.RpStd[g.Rp]] + Sum(
+            g.RpsCaflac[g.PrcTs[g.RpStg[g.Rp], g.s], g.bd], True
+        )
+        g.bs_maint[g.r, g.v, g.p, g.s].where[(~(g.RpPrc[g.r, g.p]))] = 0.0
+        g.RpUpl[g.RpPrc, "FX"] = True
+        g.act_ups[g.Rtp[g.r, g.t, g.p], g.s, "N"].where[g.bs_maint[g.Rtp, g.s]] = (
+            g.bs_maint[g.Rtp, g.s]
+            * Max(
+                Number(1.0).where[(g.bs_maint[g.Rtp, g.s] <= 1.0)],
+                (1.0 / g.g_yrfr[g.r, g.s] / 8760.0).where[
+                    (~(g.coef_af[g.r, g.t, g.t, g.p, g.s, "UP"]))
+                ],
+            ).where[g.ts_cycle[g.r, g.s]]
+        )
+        with Loop(Domain(g.Rlup[g.r, g.tslvl, g.tsl], g.TsGroup[g.r, g.tsl, g.ts])):
+            g.bs_maint[g.Rtp[g.r, g.v, g.p], g.ts].where[
+                (
+                    (~(g.bs_maint[g.Rtp, g.ts])).where[
+                        g.PrcTsl[g.r, g.p, g.tslvl] & g.RpPrc[g.r, g.p]
+                    ]
+                )
+            ] = -Max(0.0, Smax(g.RsBelow1[g.r, g.ts, g.s], g.bs_maint[g.Rtp, g.s]))
+        with Loop(Domain(g.Rjlvl[g.j, g.r, g.tsl], g.Rlup[g.r, g.tslvl, g.tsl])):  # noqa: SIM117
+            with Loop(g.TsGroup[g.r, g.tsl, g.ts]):
+                g.bs_maint[g.Rtp[g.r, g.v, g.p], g.s].where[
+                    ((~(g.bs_maint[g.Rtp, g.s])).where[g.bs_maint[g.Rtp, g.ts]])
+                ] = -abs(g.bs_maint[g.Rtp, g.ts]).where[g.RsBelow[g.r, g.ts, g.s]]
+                g.bs_rmax[g.Rtp[g.r, g.v, g.p], g.c, g.s].where[
+                    (
+                        (~(g.bs_rmax[g.Rtp, g.c, g.s])).where[
+                            g.BsPrs[g.r, g.p, g.s] & g.prc_ymax[g.r, g.p]
+                        ]
+                    )
+                ] = sparse(g.bs_rmax[g.Rtp, g.c, g.ts].where[g.RsBelow[g.r, g.ts, g.s]])
+        # * Generation & load Variances
+        with Loop(g.Rjlvl[g.j, g.r, g.tsl].where[(Ord(g.tsl) < 4.0)]):  # noqa: SIM117
+            with Loop(g.TsGroup[g.r, g.tsl, g.ts]):
+                g.bs_sigma[g.r, g.t, g.c, g.BsK, g.s].where[
+                    (
+                        (~(g.bs_sigma[g.r, g.t, g.c, g.BsK, g.s])).where[
+                            g.Finest[g.r, g.s]
+                        ]
+                    )
+                ] = sparse(
+                    g.bs_sigma[g.r, g.t, g.c, g.BsK, g.ts].where[
+                        g.RsBelow[g.r, g.ts, g.s]
+                    ]
+                )
+        # * Default values
+        g.bs_share[g.Rtc, g.Bdneq, "N"] = sparse(g.bs_lambda[g.Rtc])
+        g.Rxx.setRecords(None)
+        g.Rxx[g.BsApos[g.r, g.c], g.Com].where[
+            (
+                (g.bs_rtype[g.r, g.c] + g.bs_rtype[g.r, g.Com] == 0.0).where[
+                    g.BsAneg[g.r, g.Com]
+                ]
+            )
+        ] = True
+        with Loop(g.Rxx[g.r, g.c, g.Com]):
+            g.bs_sigma[g.r, g.t, g.c, g.BsK, g.s].where[
+                (~(g.bs_sigma[g.r, g.t, g.c, g.BsK, g.s]))
+            ] = sparse(g.bs_sigma[g.r, g.t, g.Com, g.BsK, g.s])
+            g.bs_sigma[g.r, g.t, g.Com, g.BsK, g.s].where[
+                (~(g.bs_sigma[g.r, g.t, g.Com, g.BsK, g.s]))
+            ] = sparse(g.bs_sigma[g.r, g.t, g.c, g.BsK, g.s])
+            g.bs_delta[g.r, g.t, g.c, g.s].where[
+                (~(g.bs_delta[g.r, g.t, g.c, g.s]))
+            ] = sparse(g.bs_delta[g.r, g.t, g.Com, g.s])
+            g.bs_delta[g.r, g.t, g.Com, g.s].where[
+                (~(g.bs_delta[g.r, g.t, g.Com, g.s]))
+            ] = sparse(g.bs_delta[g.r, g.t, g.c, g.s])
+        # * Imbalance topology
+        with Loop(
+            Domain(g.Trackpc[g.RpFlo[g.r, g.p], g.c], g.BsK).where[
+                g.gr_genmap[g.r, g.p, g.BsK]
+            ]
+        ):
+            with If(g.gr_genmap[g.r, g.p, g.BsK] > 0.0):
+                g.BsTop[g.Top[g.r, g.p, g.c, g.io]].where[
+                    g.Top[g.r, g.p, g.c, "OUT"]
+                ] = True
+            with Else():
+                g.BsTop[g.Top[g.r, g.p, g.c, g.io]].where[
+                    (g.ips[g.io] + g.PrcMap[g.r, "STG", g.p])
+                ] = True
+        g.gr_genmap[g.r, g.p[g.BsK], g.p].where[
+            Product(g.prc.where[g.gr_genmap[g.r, g.prc, g.p]], 0.0)
+        ] = 1.0
+        g.Rxx.setRecords(None)
+        g.Trackp.setRecords(None)
+        g.RpPrc.setRecords(None)
+        g.RpGrp.setRecords(None)
+        g.Trackpc.setRecords(None)
+        # * Timeslices
+        project(source=g.bs_omega, target=g.Rcs)
+        with Loop(g.ComTs[g.Rcs[g.r, g.c, g.s]]):
+            g.BsComts[g.r, g.c, g.ts].where[g.RsTree[g.r, g.s, g.ts]] = True
+        g.bs_delta[g.RtcsVarc[g.Rtc, g.s]].where[
+            ((~(g.bs_delta[g.Rtc, g.s])).where[g.bs_omega[g.Rtc, g.s]])
+        ] = 1.0
+        g.bs_sigma[g.Rtc[g.r, g.t, g.c], g.BsK, g.s].where[
+            (
+                (g.bs_lambda[g.Rtc].where[g.BsComts[g.r, g.c, g.s]] == 0.0).where[
+                    g.bs_sigma[g.Rtc, g.BsK, g.s]
+                ]
+            )
+        ] = 0.0
+        with Loop(
+            Domain(g.r, g.t, g.c, g.BsK, g.s).where[
+                g.bs_sigma[g.r, g.t, g.c, g.BsK, g.s]
+            ]
+        ):
+            g.BsRtk[g.r, g.t, g.BsK] = True
+        with Loop(g.ComLim[g.r, g.c, g.lA].where[g.bs_rtype[g.r, g.c]]):
+            g.bs_omega[g.r, "0", g.c, g.s].where[g.BsComts[g.r, g.c, g.s]] = (
+                g.Finest[g.r, g.s].where[g.ips[g.lA]]
+                + g.ComTs[g.r, g.c, g.s].where[g.bd[g.lA]]
+            )
+        # * Activate COMNET, disable COMPRD
+        g.RhsCombal[g.RtcsVarc[g.r, g.t, g.c, g.s]].where[g.bs_rtype[g.r, g.c]] = (
+            g.BsComts[g.r, g.c, g.s]
+        )
+        g.RcsCombal[g.RtcsVarc[g.r, g.t, g.c, g.s], "FX"] = sparse(g.bs_rtype[g.r, g.c])
+        g.RhsComprd[g.RtcsVarc[g.r, g.t, g.c, g.s]].where[g.bs_rtype[g.r, g.c]] = False
+        g.RcsComprd[g.RtcsVarc[g.r, g.t, g.c, g.s], "FX"].where[
+            g.bs_rtype[g.r, g.c]
+        ] = False
+        g.com_bndprd[g.RtcsVarc[g.r, g.t, g.c, g.s], "UP"].where[
+            (
+                (~(g.BsComts[g.r, g.c, g.s].where[g.bs_lambda[g.r, g.t, g.c]])).where[
+                    g.bs_rtype[g.r, g.c]
+                ]
+            )
+        ] = SpecialValues.EPS
+        g.com_agg[g.r, g.t, g.c, g.c].where[g.bs_rtype[g.r, g.c]] = 1.0
+        g.RcAgp[g.Rc, "FX"] = sparse(g.bs_rtype[g.Rc])
+        # * Post-process RMAX; no reserve supply from multi-output AFC processes
+        g.bs_rmax[g.r, g.v, g.p, g.c, g.s].where[
+            (
+                g.BsSupp[g.r, g.p].where[
+                    g.RpStd[g.r, g.p] & g.RpsCaflac[g.r, g.p, g.s, "UP"]
+                ]
+            )
+        ] = 0.0
+        with Loop(Domain(g.Rc[g.r, g.c], g.bd).where[g.BsAbd[g.Rc, g.bd]]):
+            g.vda_flop[g.Rtp[g.r, g.v, g.p], g.c, g.s].where[
+                (
+                    (
+                        g.BsPrs[g.r, g.p, g.s].where[g.prc_ymax[g.r, g.p]]
+                        + g.Annual[g.s]
+                    ).where[g.BsBsc[g.r, g.p, g.c]]
+                )
+            ] = Smax(
+                g.BsAbd[g.r, g.Com, g.bd].where[
+                    ((g.bs_rtype[g.Rc] - g.bs_rtype[g.r, g.Com]) * g.bdsig[g.bd] <= 0.0)
+                ],
+                g.bs_rmax[g.Rtp, g.Com, g.s],
+            )
+        g.vda_flop[g.Rtp, g.c, g.s].where[
+            (
+                (g.bs_rmax[g.Rtp, g.c, g.s] == g.vda_flop[g.Rtp, g.c, g.s]).where[
+                    g.bs_rmax[g.Rtp, g.c, g.s]
+                ]
+            )
+        ] = 0.0
+        g.bs_rmax[g.Rtp, g.c, g.s] = sparse(g.vda_flop[g.Rtp, g.c, g.s])
+        aggregate(source=g.vda_flop, target=g.ncap_afac)
+        violations = ncap_afac_reset_violations(g=g)
+        g.pp_qaput_logger.log_violations(
+            violations_df=violations.records,
+            err_level=1,
+            group_desc="BS_RMAX decreasing at slower reserve types - reset",
+            message_template=(
+                "WARNING       - Kept at preceding value,  R={R} P={P} V={ALLYEAR} C={C}"
+            ),
+        )
+        g.bs_rmax[g.Rtp[g.r, g.v, g.p], g.c, g.Annual[g.s]].where[
+            g.BsBsc[g.r, g.p, g.c]
+        ] = g.bs_rmax[g.Rtp, g.c, g.s].where[(~(g.prc_ymax[g.r, g.p]))]
+
+        # * Controls for reserve limits
+        g.RpcConly[g.Rtp[g.r, g.v, g.p], g.c].where[
+            (
+                (
+                    g.bs_rmax[g.Rtp, g.c, "ANNUAL"].where[g.BsSupp[g.r, g.p]]
+                    < 1.0 - g.act_minld[g.Rtp].where[g.BsAbd[g.r, g.c, "UP"]]
+                ).where[g.BsBsc[g.r, g.p, g.c]]
+            )
+        ] = True
+        with Loop(  # noqa: SIM117
+            Domain(g.BsAbd[g.Rc[g.r, g.Com], g.bd], g.c, g.Annual[g.s]).where[
+                g.BsAbd[g.r, g.c, g.bd]
+            ]
+        ):
+            with If((g.bs_rtype[g.Rc] - g.bs_rtype[g.r, g.c]) * g.bdsig[g.bd] < 0.0):
+                g.RpcConly[g.Rtp[g.r, g.v, g.p], g.c].where[
+                    (
+                        (
+                            g.bs_rmax[g.Rtp, g.c, g.s] >= g.bs_rmax[g.Rtp, g.Com, g.s]
+                        ).where[g.bs_rmax[g.Rtp, g.Com, g.s]]
+                    )
+                ] = False
+        with Loop(Domain(g.BsComts[g.r, g.c, g.s], g.BsAbd[g.r, g.c, g.lA])):
+            g.BsSbd[g.r, g.s, g.lA] = True
+        g.prc_ymax.setRecords(None)
+        g.vda_flop.setRecords(None)
+        g.ncap_afac.setRecords(None)
+        g.Rcs.setRecords(None)
+        # * Build UC map
+        g.BsUcmap[g.UcMapFlo[g.ucn, g.side, g.r, g.p, g.c]].where[
+            (
+                g.BsBsc[g.r, g.p, g.c]
+                + g.BsStgp[g.r, g.p].where[g.bs_stime[g.r, g.p, g.c, "UP"]]
+            )
+        ] = sparse(g.bs_rtype[g.r, g.c])
+        # * Ensure existence of AF
+        g.coef_af[g.RtpVintyr[g.r, g.t, g.t, g.p], g.s, "UP"].where[
+            (~(g.RtpCptyr[g.r, g.t, g.t, g.p]))
+        ] = sparse(g.ncap_af[g.r, g.t, g.p, g.s, "UP"].where[g.BsPrs[g.r, g.p, g.s]])
