@@ -13,15 +13,31 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Literal
+
+from gamspy import Domain, Number, Sum, sparse
 
 from core.base_class import GamsClass
+from core.utils import SET_OR_ALIAS
 
 if TYPE_CHECKING:
+    from gamspy import Alias, Set
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class SolFloRedConfig:
+    arg1: str = ""  # target parameter name
+    arg2: str = ""  # parameter name suffix
+    arg3: Literal["", ".L", ".M"] = ""  # VAR_FLO suffix
+    arg4: Literal["", "LOCAL", "GLOBAL"] = ""  # scope for compile-time var "V"
+    arg5: tuple[SET_OR_ALIAS] | tuple[()] = ()
+    arg6: SET_OR_ALIAS | Number = field(default_factory=lambda: Number(1))
 
 
 class SolFloRed(GamsClass):
@@ -34,36 +50,23 @@ class SolFloRed(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
-        arg4: str = "",
-        arg5: str = "",
-        arg6: str = "",
+        config: SolFloRedConfig,
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
-        self.arg4 = arg4
-        self.arg5 = arg5
-        self.arg6 = arg6
+        self.config = config
         self.compile()
 
     def compile(self) -> None:
-        self._set_v_scope(self.arg4, "VAR")
+        cc = self.config
+        self._set_v_scope(cc.arg4, "VAR")
 
         self.tc.enqueue(
             self.exec1,
-            arg1=self.arg1,
-            arg2=self.arg2,
-            arg3=self.arg3,
-            arg5=self.arg5,
-            arg6=self.arg6,
+            config=self.config,
             pgprim=self.env.pgprim,
-            sow=self.env.sow,
+            sow=self.env.sow_GP,
             rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
         )
 
@@ -78,28 +81,17 @@ class SolFloRed(GamsClass):
 
     def exec1(
         self: SolFloRed,
-        arg1: str,
-        arg2: str,
-        arg3: str,
-        arg5: str,
-        arg6: str,
+        config: SolFloRedConfig,
         pgprim: str,
-        sow: str,
+        sow: tuple[Set | Alias, ...] | tuple[()],
         rtp_ffcs_defined: bool,
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=sol_flo_red(
-                arg1=arg1,
-                arg2=arg2,
-                arg3=arg3,
-                arg5=arg5,
-                arg6=arg6,
-                pgprim=pgprim,
-                sow=sow,
-                rtp_ffcs_defined=rtp_ffcs_defined,
-            ),
+        sol_flo_red_GP(
+            g=self.tc,
+            config=config,
+            pgprim=pgprim,
+            sow=sow,
+            rtp_ffcs_defined=rtp_ffcs_defined,
         )
 
 
@@ -198,3 +190,116 @@ def sol_flo_red(
 {no_act_2}
 {substituted}
 """
+
+
+def sol_flo_red_GP(
+    *,
+    g: TimesModelClass,
+    config: SolFloRedConfig,
+    pgprim: str,
+    sow: tuple[Set | Alias, ...] | tuple[()] = (),
+    rtp_ffcs_defined: bool,
+) -> None:
+    """Native GAMSPy counterpart of sol_flo_red()."""
+
+    cc = config
+    arg1 = cc.arg1
+    arg2 = cc.arg2
+    arg3 = cc.arg3
+    arg5 = cc.arg5
+    arg6 = cc.arg6
+
+    target = g.get_parameter(name=f"{arg1}{arg2}")
+    rvtp = (g.r, g.v, g.t, g.p)
+    rvpc = (g.r, g.v, g.p, g.c)
+    rvtpcs = (*rvtp, g.c, g.s)
+
+    # FFUNC/emission substituted flows share this multiplicative shift
+    shp1 = 1 + g.rtp_ffcx[*rvtp, pgprim, g.c].where[g.PrcVint[g.r, g.p]]
+    shp3 = 1 + g.rtp_ffcx[*rvtp, g.cg1, g.c].where[g.PrcVint[g.r, g.p]]
+    if rtp_ffcs_defined:
+        shp1 = shp1 * (1 + g.rtp_ffcs[g.r, g.v, g.p, pgprim, g.c, *sow])
+        shp3 = shp3 * (1 + g.rtp_ffcs[g.r, g.v, g.p, g.cg1, g.c, *sow])
+
+    # Non-substituted flows
+    if arg2 == "":
+        VAR_FLO_ATTR = g.VAR_FLO.m if arg3 == ".M" else g.VAR_FLO.l
+        target[*rvtpcs, *arg5] = sparse(VAR_FLO_ATTR[*rvtpcs, *arg5])
+
+    # Activity flows
+    if arg3 == ".L":
+        act_term = g.VAR_ACT.l[*rvtp, g.s, *arg5] * g.prc_actflo[*rvpc]
+        target[g.RtpVintyr[*rvtp], g.c, g.s, *arg5].where[g.PrcTs[g.r, g.p, g.s]] = (
+            sparse(Sum(g.RpcAct[g.RpPgact[g.r, g.p], g.c], act_term))
+        )
+    elif arg3 == ".M":
+        act_term = g.VAR_ACT.m[*rvtp, g.s, *arg5] * (1 / g.prc_actflo[*rvpc])
+        target[g.RtpVintyr[*rvtp], g.c, g.s, *arg5].where[g.PrcTs[g.r, g.p, g.s]] = (
+            sparse(Sum(g.RpcAct[g.RpPgact[g.r, g.p], g.c], act_term))
+        )
+
+    # Set NO_ACT flows to activity; they were not substituted
+    if arg3 == ".L":
+        no_act_domain = (g.RtpVintyr[*rvtp], g.s, *arg5)
+        flo_term = g.VAR_FLO.l[*rvtpcs, *arg5] * (1 / g.prc_actflo[*rvpc])
+        g.VAR_ACT.l[*no_act_domain] = sparse(
+            Sum(g.RpcPg[g.RpFlo[g.NoAct[g.r, g.p]], g.c], flo_term)
+        )
+
+        ire_term = g.VAR_IRE.l[*rvtpcs, g.ie, *arg5] * (1 / g.prc_actflo[*rvpc])
+        g.VAR_ACT.l[*no_act_domain] = sparse(
+            Sum(
+                g.RpcIre[g.RpcPg[g.NoAct[g.r, g.p], g.c], g.ie].where[
+                    g.RpAire[g.r, g.p, g.ie]
+                ],
+                ire_term,
+            )
+        )
+    elif arg3 == ".M":
+        no_act_domain = (*rvtp, g.s, *arg5)
+        flo_term = g.VAR_FLO.m[*rvtpcs, *arg5] * g.prc_actflo[*rvpc]
+        g.VAR_ACT.m[*no_act_domain] = sparse(
+            Sum(g.RpcPg[g.RpFlo[g.NoAct[g.r, g.p]], g.c], flo_term)
+        )
+
+        ire_term = g.VAR_IRE.m[*rvtpcs, g.ie, *arg5] * g.prc_actflo[*rvpc]
+        g.VAR_ACT.m[*no_act_domain] = sparse(
+            Sum(
+                g.RpcIre[g.RpcPg[g.NoAct[g.r, g.p], g.c], g.ie].where[
+                    g.RpAire[g.r, g.p, g.ie]
+                ],
+                ire_term,
+            )
+        )
+
+    # Marginals for substituted flows currently not supported
+    if arg3 == ".M":
+        return
+
+    # FFUNC substituted flows
+    # arg3 != ".M" here (handled above), so the bare VAR_ACT reference is .L
+    target[g.RtpVintyr[*rvtp], g.c, g.s, *arg5].where[
+        g.RtpcsVarf[g.r, g.t, g.p, g.c, g.s].where[arg6] & g.RpcFfunc[g.r, g.p, g.c]
+    ] = Sum(
+        Domain(g.RpcAct[g.r, g.p, g.Com], g.RsTree[g.r, g.s, g.ts]).where[
+            g.VAR_ACT.l[*rvtp, g.ts, *arg5]
+        ],
+        g.VAR_ACT.l[*rvtp, g.ts, *arg5]
+        * g.rs_fr[g.r, g.s, g.ts]
+        * (1 + g.rtcs_fr[g.r, g.t, g.Com, g.s, g.ts])
+        * (g.act_flo[*rvpc, g.s] * shp1),
+    )
+
+    # Emission flows
+    target[g.RtpVintyr[*rvtp], g.c, g.s, *arg5].where[
+        g.RtpcsVarf[g.r, g.t, g.p, g.c, g.s].where[arg6] & g.RpcEmis[g.r, g.p, g.c]
+    ] = Sum(
+        Domain(g.FsEmit[g.r, g.p, g.c, g.cg1, g.Com], g.RsTree[g.r, g.s, g.ts]).where[
+            target[*rvtp, g.Com, g.ts, *arg5]
+        ],
+        target[*rvtp, g.Com, g.ts, *arg5]
+        * g.rs_fr[g.r, g.s, g.ts]
+        * (1 + g.rtcs_fr[g.r, g.t, g.Com, g.s, g.ts])
+        * g.coef_ptran[g.r, g.v, g.p, g.cg1, g.Com, g.c, g.ts]
+        * shp3,
+    )

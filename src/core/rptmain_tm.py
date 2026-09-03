@@ -27,7 +27,7 @@ from core.par_uc_rpt import ParUcRpt, ParUcRptConfig
 from core.rpt_obj_rpt import RptObjRpt
 from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
 from core.rptmisc_rpt import RptmiscRpt
-from core.sol_flo_red import SolFloRed
+from core.sol_flo_red import SolFloRed, SolFloRedConfig
 from core.sol_ire_rpt import SolIreRpt
 from core.writeddf_msa import writeddf_msa
 
@@ -81,8 +81,20 @@ class RptmainTm(GamsClass):
         )
 
         # * Calculation of solution values for (due to reduction) substituted flows
-        self.include(SolFloRed(self.tc, self.env, arg1="PAR_FLO", arg2="", arg3=".L"))
-        self.include(SolFloRed(self.tc, self.env, arg1="PAR_FLO", arg2="M", arg3=".M"))
+        self.include(
+            SolFloRed(
+                self.tc,
+                self.env,
+                config=SolFloRedConfig(arg1="PAR_FLO", arg2="", arg3=".L"),
+            )
+        )
+        self.include(
+            SolFloRed(
+                self.tc,
+                self.env,
+                config=SolFloRedConfig(arg1="PAR_FLO", arg2="M", arg3=".M"),
+            )
+        )
         self.include(SolIreRpt(self.tc, self.env))
         # * Calculation of annual cost terms
         # *-----------------------------------------------------------------------
