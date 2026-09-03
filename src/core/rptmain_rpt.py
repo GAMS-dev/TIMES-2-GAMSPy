@@ -29,7 +29,7 @@ from core.eqobjinv_rpt import EqobjinvRpt
 from core.eqobjvar_rpt import EqobjvarRpt, EqobjvarRptConfig
 from core.eqobsalv_rpt import EqobsalvRpt
 from core.par_uc_rpt import ParUcRpt, ParUcRptConfig
-from core.sol_flo_red import SolFloRed
+from core.sol_flo_red import SolFloRed, SolFloRedConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -59,8 +59,20 @@ class RptmainRpt(GamsClass):
         g = self.tc
 
         self.comp_declarations()
-        self.include(SolFloRed(self.tc, self.env, arg1="PAR_FLO", arg2="", arg3=".L"))
-        self.include(SolFloRed(self.tc, self.env, arg1="PAR_FLO", arg2="M", arg3=".M"))
+        self.include(
+            SolFloRed(
+                self.tc,
+                self.env,
+                config=SolFloRedConfig(arg1="PAR_FLO", arg2="", arg3=".L"),
+            )
+        )
+        self.include(
+            SolFloRed(
+                self.tc,
+                self.env,
+                config=SolFloRedConfig(arg1="PAR_FLO", arg2="M", arg3=".M"),
+            )
+        )
 
         self.tc.enqueue(self.exec_loop)
 

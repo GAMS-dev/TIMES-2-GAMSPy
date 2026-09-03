@@ -11,7 +11,7 @@ from core.par_uc_rpt import ParUcRpt, ParUcRptConfig
 from core.rpt_obj_rpt import rpt_obj_rpt
 from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
 from core.rptmisc_rpt import RptmiscRpt
-from core.sol_flo_red import SolFloRed, sol_flo_red
+from core.sol_flo_red import SolFloRed, SolFloRedConfig, sol_flo_red
 from core.sol_ire_rpt import sol_ire_rpt
 
 if TYPE_CHECKING:
@@ -104,7 +104,13 @@ class RptExtMlf(GamsClass):
         self.tc.enqueue(self.exec1)
 
         # * Miscellaneous reportings
-        self.include(SolFloRed(self.tc, self.env, arg1="PAR_FLO", arg2="M", arg3=".M"))
+        self.include(
+            SolFloRed(
+                self.tc,
+                self.env,
+                config=SolFloRedConfig(arg1="PAR_FLO", arg2="M", arg3=".M"),
+            )
+        )
         self.tc.enqueue(self.exec2)
         self.include(RptmiscRpt(self.tc, self.env, arg1="", arg2=""))
 

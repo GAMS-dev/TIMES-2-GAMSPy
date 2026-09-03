@@ -21,7 +21,7 @@ from core.pextlevs_stc import PextlevsStc, PextlevsStcConfig
 from core.rpt_obj_rpt import rpt_obj_rpt
 from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
 from core.rptmisc_rpt import rptmisc_rpt
-from core.sol_flo_red import SolFloRed, sol_flo_red
+from core.sol_flo_red import SolFloRed, SolFloRedConfig, sol_flo_red
 from core.sol_ire_rpt import SolIreRpt, sol_ire_rpt
 from core.utils import apply_sw_notags
 
@@ -179,12 +179,14 @@ PARAMETERS SW_UNPC(LL,WW);
             SolFloRed(
                 self.tc,
                 self.env,
-                arg1=f"{self.env.v}_FLO",
-                arg2=".L",
-                arg3=".L",
-                arg4="GLOBAL",
-                arg5=",SOW",
-                arg6="$SW_T(T,SOW)",
+                config=SolFloRedConfig(
+                    arg1=f"{self.env.v}_FLO",
+                    arg2=".L",
+                    arg3=".L",
+                    arg4="GLOBAL",
+                    arg5=(g.Sow,),
+                    arg6=g.SwT[g.t, g.Sow],
+                ),
             ),
         )
 
