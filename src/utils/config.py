@@ -304,9 +304,6 @@ class EnvironmentVariableSchema(BaseModel):
     swtd_GP: tuple[Set | Alias | ImplicitSet, ...] | tuple[()] | str = Field(
         description="Time-step differentiation switch expression string mapped to parameters."
     )
-    swtd2: str = Field(
-        description="Secondary time-step differentiation switch expression string, scoped for staged-mode overrides."
-    )
     x1: str = Field(
         description="First arbitrary evaluation coordinate mapping temporary data values."
     )
@@ -342,9 +339,6 @@ class EnvironmentVariableSchema(BaseModel):
     )
     sow_GP: tuple[Literal["0", "1"] | Set | Alias] | tuple[()] = Field(
         description="Stochastic World (Scenario State) active indexing identifier token."
-    )
-    sow2: Literal["", ",SOW", ",WW", ",WW)", ",0", ",'0'", "1", "SOW.TL", ",W"] = Field(
-        description="Secondary Stochastic World (Scenario State) active indexing identifier token, scoped for staged-mode overrides."
     )
     sowtmp: str = Field(
         description="Temporary scenario tracking storage token utilized in nested loop blocks."
