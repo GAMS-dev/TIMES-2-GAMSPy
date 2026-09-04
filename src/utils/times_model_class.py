@@ -64,6 +64,7 @@ class TimesModelClass:
     rts: Alias = None  # type: ignore[assignment] # [*] RTS
     phantom: Set = None  # type: ignore[assignment] # [*] PHANTOM:
     item: UniverseAlias = None  # type: ignore[assignment] # [*] ITEM: Aliased with *
+    name: UniverseAlias = None  # type: ignore[assignment] # [*] NAME: Aliased with *
     Clvt: Set = None  # type: ignore[assignment] # [*] CLVT
     bohyear: Set = None  # type: ignore[assignment] # [*] BOHYEAR: BOH + years
     allyear: Set = None  # type: ignore[assignment] # [*] ALLYEAR: All Years
@@ -647,6 +648,8 @@ class TimesModelClass:
     Rreg: Set = None  # type: ignore[assignment] # [allreg,allreg] RREG: Set of paired regions
     Rhs: Set = None  # type: ignore[assignment] # [side] RHS:
     UcOn: Set = None  # type: ignore[assignment] # [allr,ucn] UC_ON: Active UCs by region
+    UcGmax: Set = None  # type: ignore[assignment] # [UC_N,ALL_R,ITEM,C,ITEM]
+    UcGmaxR: Set = None  # type: ignore[assignment] # [ALL_R,UC_N]
     UcGmapC: Set = None  # type: ignore[assignment] # [Reg,ucn,comvar,Com,ucgrptype] UC_GMAP_C: Assigning commodities to UC_GRP
     UcGmapP: Set = None  # type: ignore[assignment] # [Reg,ucn,ucgrptype,prc] UC_GMAP_P: Assigning processes to UC_GRP
     UcGmapU: Set = None  # type: ignore[assignment] # [allr,ucn,ucn] UC_GMAP_U: Assigning constraints to UC_GRP
