@@ -13,7 +13,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Alias
+from gamspy import Alias, Loop, Ord, Parameter, Set, Sum, sparse
+from gamspy.math import project
 
 from core.base_class import GamsClass
 from core.filparam_gms import FilparamGms, FilparamGmsConfig
@@ -62,62 +63,50 @@ class PrepExtMlf(GamsClass):
         # fmt: on
         for config in batincludes:
             self.include(FilparamGms(self.tc, self.env, config))
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-* Additions to support MACRO linear formulation
-  SET MAG(CG) / ACT, AKL, LAB, KN, YN /;
-  SET MR(R), PP(T), TLAST(T), DM(C), XCP(J) /1, 6, 12/;
-  SET TM_DM(REG,COM);
-  SET XTP(LL);
-  """,
+        # * Additions to support MACRO linear formulation
+        g.Mag = Set(
+            m, name="MAG", domain=[g.cg], records=["ACT", "AKL", "LAB", "KN", "YN"]
         )
-        #   ALIAS (MIYR_1,T_1,TB);
-        Alias(m, "T_1", alias_with=g.Miyr1)
-        Alias(m, "TB", alias_with=g.Miyr1)
-        #   ALIAS (T,TP);
-        Alias(m, "TP", alias_with=g.t)
+        g.Mr = Set(m, name="MR", domain=[g.r])
+        g.Pp = Set(m, name="PP", domain=[g.t])
+        g.Tlast = Set(m, name="TLAST", domain=[g.t])
+        g.Dm = Set(m, name="DM", domain=[g.c])
+        g.Xcp = Set(m, name="XCP", domain=[g.j], records=["1", "6", "12"])
+        g.TmDm = Set(m, name="TM_DM", domain=[g.Reg, g.Com])
+        g.Xtp = Set(m, name="XTP", domain=[g.ll])
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  PARAMETER NYPER(ALLYEAR);
-  PARAMETER CM_LED(LL);
-  PARAMETER TM_TAXREV(R,T) //;
-  PARAMETER TM_HDF(R,T) //;
-""",
-        )
+        g.t1 = Alias(m, "T_1", alias_with=g.Miyr1)
+        g.tb = Alias(m, "TB", alias_with=g.Miyr1)
+        g.tp = Alias(m, "TP", alias_with=g.t)
+
+        g.nyper = Parameter(m, name="NYPER", domain=[g.allyear])
+        g.cm_led = Parameter(m, name="CM_LED", domain=[g.ll])
+        g.tm_taxrev = Parameter(m, name="TM_TAXREV", domain=[g.r, g.t])
+        g.tm_hdf = Parameter(m, name="TM_HDF", domain=[g.r, g.t])
+
         self.tc.enqueue(self.period_stuff)
 
     def prep_ext_mlf_exec(self: PrepExtMlf) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"MINYR = MIYR_V1;",
-        )
+        g = self.tc
+        g.minyr[...] = g.miyr_v1
 
     def period_stuff(self: PrepExtMlf) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Periods stuff
-  PP(T+1) = YES;
-  TLAST(T--ORD(T)) = YES;
-  NYPER(T) = LAGT(T);
-  NYPER(TLAST(T+1)) = NYPER(T);
-  CM_LED(T+1)=LAGT(T);
-  XTP(LL)$=CM_LED(LL);
-  XTP(T) = YES;
-  TM_PP(R,PP)=YES;
-
-  MR(R) $= SUM(T$TM_GR(R,T),YES);
-  TM_GDPGOAL(R,TB) = TM_GDP0(R);
-  LOOP(PP(T+1),TM_GDPGOAL(R,PP) = TM_GDPGOAL(R,T)*(1+TM_GR(R,T)/100)**NYPER(T));
-* Save demand LIM for non-MR
-  OPTION TM_DM < COM_PROJ;
-  TM_STEP(TM_DM(R,C),'N') = NOT COM_LIM(R,C,'FX');
-""",
-        )
+        g = self.tc
+        # * Periods stuff
+        g.Pp[g.t + 1] = True
+        g.Tlast[g.t.lag(Ord(g.t), "circular")] = True
+        g.nyper[g.t] = g.lagt[g.t]
+        g.nyper[g.Tlast[g.t + 1]] = g.nyper[g.t]
+        g.cm_led[g.t + 1] = g.lagt[g.t]
+        g.Xtp[g.ll] = sparse(g.cm_led[g.ll])
+        g.Xtp[g.t] = True
+        g.TmPp[g.r, g.Pp] = True
+        g.Mr[g.r] = sparse(Sum(g.t.where[g.tm_gr[g.r, g.t]], True))
+        g.tm_gdpgoal[g.r, g.tb] = g.tm_gdp0[g.r]
+        with Loop(g.Pp[g.t + 1]):
+            g.tm_gdpgoal[g.r, g.Pp] = g.tm_gdpgoal[g.r, g.t] * (
+                (1.0 + g.tm_gr[g.r, g.t] / 100.0) ** g.nyper[g.t]
+            )
+        # * Save demand LIM for non-MR
+        project(source=g.com_proj, target=g.TmDm)
+        g.tm_step[g.TmDm[g.r, g.c], "N"] = ~(g.ComLim[g.r, g.c, "FX"])
