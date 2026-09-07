@@ -99,11 +99,18 @@ class EqdamageMod(GamsClass):
             swtx=self.env.swtx,
         )
 
-        self.tc.add_gams_code(module=self, phase="init", code="SET OBV / OBJDAM /;")
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code="""
+$onMulti
+SET OBV / 'OBJDAM' /;
+""",
+        )
         if self.env.damage == "NO":
             self.tc.enqueue(self.exec3)
 
-        if self.env.varmac:
+        if self.env.varmac in ["0==0", "1==1"]:
             self.env.set_scoped("var", self.env.vas)
 
         if self.env.damage == "NO":
