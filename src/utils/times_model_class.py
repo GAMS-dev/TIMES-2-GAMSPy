@@ -1672,6 +1672,7 @@ class TimesModelClass:
     Xcp: Set = None  # type: ignore[assignment] # [j] XCP: Market penetration step index used for VAR_XCAPP bounds
     tp: Alias = None  # type: ignore[assignment] # [t, tp] TP:
     T1: Alias = None  # type: ignore[assignment] # [*] T_1: Aliased with MIYR_1
+    tb: Alias = None  # type: ignore[assignment] # [*] TB: Aliased with MIYR_1
     tm_arbm: Parameter = None  # type: ignore[assignment] # TM_ARBM:
     tm_sl: Parameter = None  # type: ignore[assignment] # TM_SL: Additions to support MACRO soft-link
     tm_scale_cst: Parameter = None  # type: ignore[assignment] # TM_SCALE_CST:
@@ -1682,10 +1683,12 @@ class TimesModelClass:
     tm_voc: Parameter = None  # type: ignore[assignment] # [r, year, cg, bd] TM_VOC: Variance in CES component or utility
     tm_defval: Parameter = None  # type: ignore[assignment] # [*] TM_DEFVAL:
     Mr: Set = None  # type: ignore[assignment] # [REG] MR:
+    Mag: Set = None  # type: ignore[assignment] # [cg] MAG:
     Dm: Set = None  # type: ignore[assignment] # [COM] DM:
     Mrtc: Set = None  # type: ignore[assignment] # [REG,YEAR,COM] MRTC:
     trd: Set = None  # type: ignore[assignment] # [*] TRD:
     TmDam: Set = None  # type: ignore[assignment] # [R,ITEM] TM_DAM:
+    TmDm: Set = None  # type: ignore[assignment] # [REG,COM] TM_DM:
     tm_gr: Parameter = None  # type: ignore[assignment] # [REG,YEAR] TM_GR: 'Growth rate'
     tm_gdp0: Parameter = None  # type: ignore[assignment] # [REG] TM_GDP0: ''Initial GDP''
     tm_depr: Parameter = None  # type: ignore[assignment] # [R] TM_DEPR: 'Depreciation rate'
@@ -1806,6 +1809,25 @@ class TimesModelClass:
     tm_ycheck: Parameter = None  # type: ignore[assignment] # [R] TM_YCHECK
     tm_dd: Parameter = None  # type: ignore[assignment] # [R,C,T] TM_DD Demand ratio MSA estimates to TED demand levels
     tm_gdp: Parameter = None  # type: ignore[assignment] # [REG,YEAR] TM_GDP Actualized gross domestic product
+
+    # From src/core/presolve_mlf.py
+    TmDmas: Set = None  # type: ignore[assignment] # [cg,cg] TM_DMAS
+    TmCes: Set = None  # type: ignore[assignment] # [cg] TM_CES
+    TmRcj: Set = None  # type: ignore[assignment] # [r,cg,j,bd] TM_RCJ
+    Logj: Set = None  # type: ignore[assignment] # [j,bd] LOGJ
+    tm_logjot: Parameter = None  # type: ignore[assignment] # TM_LOGJOT
+    tm_lsc: Parameter = None  # type: ignore[assignment] # TM_LSC
+    tm_basepri: Parameter = None  # type: ignore[assignment] # [r,t,cg] TM_BASEPRI
+    tm_baselev: Parameter = None  # type: ignore[assignment] # [r,t,cg] TM_BASELEV
+    tm_pref: Parameter = None  # type: ignore[assignment] # [r,t,cg] TM_PREF
+    tm_qref: Parameter = None  # type: ignore[assignment] # [r,t,cg] TM_QREF
+    tm_shar: Parameter = None  # type: ignore[assignment] # [r,t,cg,cg] TM_SHAR
+    tm_agg: Parameter = None  # type: ignore[assignment] # [r,t,cg,cg] TM_AGG
+    tm_ceslev: Parameter = None  # type: ignore[assignment] # [r,t,cg] TM_CESLEV
+    tm_agc: Parameter = None  # type: ignore[assignment] # [r,t,cg,cg,j,bd] TM_AGC
+    tm_midcon: Parameter = None  # type: ignore[assignment] # [r,t] TM_MIDCON
+    tm_logval: Parameter = None  # type: ignore[assignment] # [j,bd] TM_LOGVAL
+
     var_sts: Parameter = None  # type: ignore[assignment] # [R,YEAR,T,P,S,L] VAR_STS
     cm_history: Parameter = None  # type: ignore[assignment] # [ALLYEAR,CM_ITEM] CM_HISTORY Calibration values for CO2 and forcing
     cm_stats: Parameter = None  # type: ignore[assignment] # [CM_ITEM,ALLYEAR,CM_Q] CM_STATS Calibration values for CO2 and forcing
@@ -1856,6 +1878,8 @@ class TimesModelClass:
     cm_rr: Parameter = None  # type: ignore[assignment] #
     cm_deltat: Parameter = None  # type: ignore[assignment] #
     cm_led: Parameter = None  # type: ignore[assignment] #
+    tm_taxrev: Parameter = None  # type: ignore[assignment] # TM_TAXREV
+    tm_hdf: Parameter = None  # type: ignore[assignment] # TM_HDF
     cm_const: Parameter = None  # type: ignore[assignment] #
     s_cm_const: Parameter = None  # type: ignore[assignment] #
     cm_default: Parameter = None  # type: ignore[assignment] #

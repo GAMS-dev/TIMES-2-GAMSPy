@@ -13,6 +13,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Loop, Ord, Parameter, Set, Smin, SpecialValues, Sum, sparse
+from gamspy.math import Min, Round, abs, exp, log, sqrt
+
 from core.base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -44,112 +47,231 @@ class PresolveMlf(GamsClass):
         self.tc.enqueue(self.exec1)
 
     def comp1(self: PresolveMlf) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  SET TM_DMAS(CG,CG) //;
-  SET TM_CES(CG) / AKL, YN /;
-  SET TM_RCJ(R,CG,J,BD) //;
-  SET LOGJ(J,BD) //;
-
-  PARAMETERS TM_LOGJOT /0/, TM_LSC /0/
-     TM_BASEPRI(R,T,CG)
-     TM_BASELEV(R,T,CG)
-     TM_PREF(R,T,CG)
-     TM_QREF(R,T,CG)
-     TM_SHAR(R,T,CG,CG)
-     TM_AGG(R,T,CG,CG)
-     TM_CESLEV(R,T,CG)
-     TM_AGC(R,T,CG,CG,J,BD)
-     TM_MIDCON(R,T)
-     TM_LOGVAL(J,BD);
-""",
-        )
+        g = self.tc
+        m = g.container
+        g.TmDmas = Set(m, name="TM_DMAS", domain=[g.cg, g.cg])
+        g.TmCes = Set(m, name="TM_CES", domain=[g.cg], records=["AKL", "YN"])
+        g.TmRcj = Set(m, name="TM_RCJ", domain=[g.r, g.cg, g.j, g.bd])
+        g.Logj = Set(m, name="LOGJ", domain=[g.j, g.bd])
+        g.tm_logjot = Parameter(m, name="TM_LOGJOT", records=0)
+        g.tm_lsc = Parameter(m, name="TM_LSC", records=0)
+        g.tm_basepri = Parameter(m, name="TM_BASEPRI", domain=[g.r, g.t, g.cg])
+        g.tm_baselev = Parameter(m, name="TM_BASELEV", domain=[g.r, g.t, g.cg])
+        g.tm_pref = Parameter(m, name="TM_PREF", domain=[g.r, g.t, g.cg])
+        g.tm_qref = Parameter(m, name="TM_QREF", domain=[g.r, g.t, g.cg])
+        g.tm_shar = Parameter(m, name="TM_SHAR", domain=[g.r, g.t, g.cg, g.cg])
+        g.tm_agg = Parameter(m, name="TM_AGG", domain=[g.r, g.t, g.cg, g.cg])
+        g.tm_ceslev = Parameter(m, name="TM_CESLEV", domain=[g.r, g.t, g.cg])
+        g.tm_agc = Parameter(m, name="TM_AGC", domain=[g.r, g.t, g.cg, g.cg, g.j, g.bd])
+        g.tm_midcon = Parameter(m, name="TM_MIDCON", domain=[g.r, g.t])
+        g.tm_logval = Parameter(m, name="TM_LOGVAL", domain=[g.j, g.bd])
 
     def exec1(self: PresolveMlf) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Reset demand indicators
-  OPTION CLEAR=DM; DM(C)$=SUM(TM_DM(MR,C),1);
-
-  TM_BASEPRI(MR,T,MAG(C))= ABS(EQ_DD.M(MR,T,C)*TM_AEEIFAC(MR,T,C)/TM_SCALE_NRG)/TM_DFACT(MR,T);
-  TM_BASEPRI(MR,T,'LAB') = ABS(EQ_LABOR.M(MR,T))/TM_DFACT(MR,T);
-  TM_BASEPRI(MR,T,'KN')  = ABS(EQ_KNCAP.M(MR,T))/TM_DFACT(MR,T);
-  TM_BASEPRI(MR,T,'AKL') = ABS(EQ_AKL.M(MR,T))/TM_DFACT(MR,T);
-  TM_BASEPRI(MR,T,'YN')  = ABS(EQ_PROD_Y.M(MR,T))/TM_DFACT(MR,T);
-  TM_BASELEV(MR,T,MAG)   = VAR_D.L(MR,T,MAG);
-  TM_BASELEV(MR,T,'YN')  = PAR_Y(MR,T);
-  TM_BASELEV(MR,T,'CON') = VAR_C.L(MR,T);
-
-  TM_DMAS('AKL','KN')=YES;
-  TM_DMAS('AKL','LAB')=YES;
-  TM_DMAS('YN','AKL')=YES;
-  TM_DMAS('YN','ACT')=YES;
-
-* Calculate CES parameters
-  TM_PREF(MR(R),T,CG) $= TM_BASEPRI(R,T,CG);
-  TM_CESLEV(MR(R),T,TM_CES(CG)) = SUM(TM_DMAS(CG,CG1),TM_BASELEV(R,T,CG1));
-  TM_PREF(MR(R),T,TM_CES(CG)) = SUM(TM_DMAS(CG,CG1),TM_BASELEV(R,T,CG1)*TM_PREF(R,T,CG1))/TM_CESLEV(R,T,CG);
-  TM_AGG(MR(R),T,CG1,TM_CES(CG))$TM_DMAS(CG,CG1)=1+(TM_BASEPRI(R,T,CG1)/TM_PREF(R,T,CG)-1)$TM_PREF(R,T,CG);
-* Normalize TM_AGG
-  TM_QREF(MR(R),T,TM_CES(CG)) = SUM(TM_DMAS(CG,CG1),TM_AGG(R,T,CG1,CG)*TM_BASELEV(R,T,CG1));
-  TM_AGG(MR(R),T,CG1,TM_CES(CG))$TM_AGG(R,T,CG1,CG)=TM_AGG(R,T,CG1,CG)*TM_CESLEV(R,T,CG)/TM_QREF(R,T,CG);
-* Reset QREF and determine shares
-  TM_QREF(MR(R),T,CG) $= TM_BASELEV(R,T,CG);
-  TM_SHAR(MR(R),T,CG,CG1)$TM_DMAS(CG,CG1) = TM_BASELEV(R,T,CG1) / TM_CESLEV(R,T,CG);
-  TM_CIE(MR(R),T,TM_CES(CG))$TM_CESLEV(R,T,CG)= TM_QREF(R,T,CG) / TM_CESLEV(R,T,CG);
-* Reverse RD_SHAR for CES aggregation
-  TM_SHAR(MR(R),T,CG1,CG)$TM_AGG(R,T,CG1,CG)=TM_AGG(R,T,CG1,CG)*TM_PREF(R,T,CG);
-
-* Prepare elasticity steps
-  LOOP(TM_DMAS(CG,CG1),Z=TM_DEFVAL('MACVOC');
-   TM_STEP(R,CG1,BDNEQ)=TM_DEFVAL('MACSTEP');
-   TM_VOC(MR(R),T,CG1,BDNEQ)=MIN(Z,Z/2+(M(T)-MIYR_V1)*0.01);
-   TM_RCJ(MR(R),CG1,J,BDNEQ)$(ORD(J)<=TM_STEP(R,CG1,BDNEQ))=YES);
-* Cobb-Douglas function
-  TM_AGC(MR(R),T,CG('AKL'),CG1,J,BD)$((TM_VOC(R,T,CG1,BD)>0)$TM_RCJ(R,CG1,J,BD)$TM_DMAS(CG,CG1)) = -BDSIG(BD)*
-    LOG(1-BDSIG(BD)*ORD(J)*TM_VOC(R,T,CG1,BD)/TM_STEP(R,CG1,BD))/(ORD(J)*TM_VOC(R,T,CG1,BD)/TM_STEP(R,CG1,BD));
-* CES Production function
-  TM_AGC(MR(R),T,CG('YN'),CG1,J,BD)$((TM_VOC(R,T,CG1,BD)>0)$TM_RCJ(R,CG1,J,BD)$TM_DMAS(CG,CG1)) = BDSIG(BD)*
-    (1-(1-BDSIG(BD)*ORD(J)*TM_VOC(R,T,CG1,BD)/TM_STEP(R,CG1,BD))**(1-1/TM_ESUB(R)))/(ORD(J)*TM_VOC(R,T,CG1,BD)/TM_STEP(R,CG1,BD))/(1-1/TM_ESUB(R));
-* Restore PREF to BASEPRI
-  TM_PREF(MR(R),T,CG) $= TM_BASEPRI(R,T,CG);
-
-* Calculate demand parameters
-  TM_PREF(MR(R),T,C)$TM_DM(R,C) = DDF_PREF(R,T,C);
-  TM_QREF(MR(R),T,C)$TM_DM(R,C) = COM_PROJ(R,T,C);
-  TM_AGG(MR(R),T,DM(C),CG('ACT')) = TM_PREF(R,T,C)/TM_DMC(R,T,CG);
-  TM_SHAR(MR(R),T,CG('ACT'),C)$TM_DM(R,C) = TM_QREF(R,T,C) / TM_DEM(R,T,CG);
-  TM_SHAR(MR(R),T,C,CG('ACT'))$TM_DM(R,C) = TM_AGG(R,T,C,CG)*TM_DMC(R,T,CG);
-* Prepare elasticity steps
-  Z=SMIN(PP(T),M(T));
-  TM_STEP(TM_DM(RC),BDNEQ(BD))$(NOT TM_STEP(RC,BD))=55-5*BDSIG(BD);
-  TM_VOC(MR(R),T,C,'LO')$((NOT TM_VOC(R,T,C,'LO'))$TM_DM(R,C)) = MIN(0.45,0.15+(M(T)-Z)*.015);
-  TM_VOC(MR(R),T,C,'UP')$((NOT TM_VOC(R,T,C,'UP'))$TM_DM(R,C)) = 0.3/(1-TM_VOC(R,T,C,'LO'))+TM_VOC(R,T,C,'LO')-0.3;
-  TM_RCJ(TM_DM(MR,C),J,BDNEQ(BD))$(ORD(J)<=TM_STEP(MR,C,BD)) = YES;
-* Demand CES aggregation
-  TM_AGC(MR(R),T,CG('ACT'),C,J,BD)$((TM_VOC(R,T,C,BD)>0)$TM_RCJ(R,C,J,BD)$TM_DM(R,C)) = BDSIG(BD)*
-    (1-(1-BDSIG(BD)*ORD(J)*TM_VOC(R,T,C,BD)/TM_STEP(R,C,BD))**(1-1/TM_DESUB(R)))/(ORD(J)*TM_VOC(R,T,C,BD)/TM_STEP(R,C,BD))/(1-1/TM_DESUB(R));
-
-* Logarithmic utility from consumption
-  Z=TM_DEFVAL('LOGSTEP');
-  LOGJ(J,BDNEQ(BD))$(ORD(J)<=ROUND(Z/2)) = YES;
-  TM_MIDCON(R,T) = TM_BASELEV(R,T,'CON')*0.5*SQRT(EXP(LOG(2)*1.1));
-  TM_LOGJOT=LOG(2)/ROUND(Z/1.1);
-  TM_LOGVAL(LOGJ(J,BDNEQ(BD))) = (1-EXP(-BDSIG(BD)*ORD(J)*TM_LOGJOT))/(TM_LOGJOT*ORD(J));
-  TM_LSC=ROUND(Z**.7,-1);
-
-*------------------------------------------------------------------------------
-* Reset bounds
-  VAR_K.UP(MR,T) = INF;
-  VAR_K.LO(MR,T) = 0;
-  VAR_D.UP(MR,T,MAG) = INF;
-  VAR_D.LO(MR,T,MAG) = 0;
-  VAR_D.FX(MR,T,'LAB') = TM_L(MR,T);
-  VAR_C.UP(MR(R),T)$(NOT TM_PP(R,T)) = VAR_C.L(R,T);
-  OPTION BRATIO=1;
-""",
+        g = self.tc
+        # * Reset demand indicators
+        rtcg = (g.r, g.t, g.cg)
+        rtcg1 = (g.r, g.t, g.cg1)
+        g.Dm.setRecords(None)
+        g.Dm[g.c] = sparse(Sum(g.TmDm[g.Mr, g.c], 1.0))
+        g.tm_basepri[g.Mr, g.t, g.Mag[g.c]] = (
+            abs(
+                g.eq_dd.m[g.Mr, g.t, g.c]
+                * g.tm_aeeifac[g.Mr, g.t, g.c]
+                / g.tm_scale_nrg
+            )
+            / g.tm_dfact[g.Mr, g.t]
         )
+        g.tm_basepri[g.Mr, g.t, "LAB"] = (
+            abs(g.eq_labor.m[g.Mr, g.t]) / g.tm_dfact[g.Mr, g.t]
+        )
+        g.tm_basepri[g.Mr, g.t, "KN"] = (
+            abs(g.eq_kncap.m[g.Mr, g.t]) / g.tm_dfact[g.Mr, g.t]
+        )
+        g.tm_basepri[g.Mr, g.t, "AKL"] = (
+            abs(g.eq_akl.m[g.Mr, g.t]) / g.tm_dfact[g.Mr, g.t]
+        )
+        g.tm_basepri[g.Mr, g.t, "YN"] = (
+            abs(g.eq_prod_y.m[g.Mr, g.t]) / g.tm_dfact[g.Mr, g.t]
+        )
+        g.tm_baselev[g.Mr, g.t, g.Mag] = g.VAR_D.l[g.Mr, g.t, g.Mag]
+        g.tm_baselev[g.Mr, g.t, "YN"] = g.par_y[g.Mr, g.t]
+        g.tm_baselev[g.Mr, g.t, "CON"] = g.VAR_C.l[g.Mr, g.t]
+        g.TmDmas["AKL", "KN"] = True
+        g.TmDmas["AKL", "LAB"] = True
+        g.TmDmas["YN", "AKL"] = True
+        g.TmDmas["YN", "ACT"] = True
+        # * Calculate CES parameters
+        g.tm_pref[g.Mr[g.r], g.t, g.cg] = sparse(g.tm_basepri[*rtcg])
+        g.tm_ceslev[g.Mr[g.r], g.t, g.TmCes[g.cg]] = Sum(
+            g.TmDmas[g.cg, g.cg1], g.tm_baselev[*rtcg1]
+        )
+        g.tm_pref[g.Mr[g.r], g.t, g.TmCes[g.cg]] = (
+            Sum(
+                g.TmDmas[g.cg, g.cg1],
+                g.tm_baselev[*rtcg1] * g.tm_pref[*rtcg1],
+            )
+            / g.tm_ceslev[*rtcg]
+        )
+        g.tm_agg[g.Mr[g.r], g.t, g.cg1, g.TmCes[g.cg]].where[g.TmDmas[g.cg, g.cg1]] = (
+            1.0
+            + (g.tm_basepri[*rtcg1] / g.tm_pref[*rtcg] - 1.0).where[g.tm_pref[*rtcg]]
+        )
+        # * Normalize TM_AGG
+        g.tm_qref[g.Mr[g.r], g.t, g.TmCes[g.cg]] = Sum(
+            g.TmDmas[g.cg, g.cg1],
+            g.tm_agg[*rtcg1, g.cg] * g.tm_baselev[*rtcg1],
+        )
+        g.tm_agg[g.Mr[g.r], g.t, g.cg1, g.TmCes[g.cg]].where[g.tm_agg[*rtcg1, g.cg]] = (
+            g.tm_agg[*rtcg1, g.cg] * g.tm_ceslev[*rtcg] / g.tm_qref[*rtcg]
+        )
+        # * Reset QREF and determine shares
+        g.tm_qref[g.Mr[g.r], g.t, g.cg] = sparse(g.tm_baselev[*rtcg])
+        g.tm_shar[g.Mr[g.r], g.t, g.cg, g.cg1].where[g.TmDmas[g.cg, g.cg1]] = (
+            g.tm_baselev[*rtcg1] / g.tm_ceslev[*rtcg]
+        )
+        g.tm_cie[g.Mr[g.r], g.t, g.TmCes[g.cg]].where[g.tm_ceslev[*rtcg]] = (
+            g.tm_qref[*rtcg] / g.tm_ceslev[*rtcg]
+        )
+        # * Reverse RD_SHAR for CES aggregation
+        g.tm_shar[g.Mr[g.r], g.t, g.cg1, g.cg].where[g.tm_agg[*rtcg1, g.cg]] = (
+            g.tm_agg[*rtcg1, g.cg] * g.tm_pref[*rtcg]
+        )
+        # * Prepare elasticity steps
+        with Loop(g.TmDmas[g.cg, g.cg1]):
+            g.z[...] = g.tm_defval["MACVOC"]
+            g.tm_step[g.r, g.cg1, g.Bdneq] = g.tm_defval["MACSTEP"]
+            g.tm_voc[g.Mr[g.r], g.t, g.cg1, g.Bdneq] = Min(
+                g.z, g.z / 2.0 + (g.m[g.t] - g.miyr_v1) * 0.01
+            )
+            g.TmRcj[g.Mr[g.r], g.cg1, g.j, g.Bdneq].where[
+                (Ord(g.j) <= g.tm_step[g.r, g.cg1, g.Bdneq])
+            ] = True
+        # * Cobb-Douglas function
+        g.tm_agc[g.Mr[g.r], g.t, g.cg["AKL"], g.cg1, g.j, g.bd].where[
+            (
+                (g.tm_voc[*rtcg1, g.bd] > 0.0).where[
+                    g.TmRcj[g.r, g.cg1, g.j, g.bd] & g.TmDmas[g.cg, g.cg1]
+                ]
+            )
+        ] = (
+            -g.bdsig[g.bd]
+            * log(
+                1.0
+                - g.bdsig[g.bd]
+                * Ord(g.j)
+                * g.tm_voc[*rtcg1, g.bd]
+                / g.tm_step[g.r, g.cg1, g.bd]
+            )
+            / (Ord(g.j) * g.tm_voc[*rtcg1, g.bd] / g.tm_step[g.r, g.cg1, g.bd])
+        )
+        # * CES Production function
+        g.tm_agc[g.Mr[g.r], g.t, g.cg["YN"], g.cg1, g.j, g.bd].where[
+            (
+                (g.tm_voc[*rtcg1, g.bd] > 0.0).where[
+                    g.TmRcj[g.r, g.cg1, g.j, g.bd] & g.TmDmas[g.cg, g.cg1]
+                ]
+            )
+        ] = (
+            g.bdsig[g.bd]
+            * (
+                1.0
+                - (
+                    (
+                        1.0
+                        - g.bdsig[g.bd]
+                        * Ord(g.j)
+                        * g.tm_voc[*rtcg1, g.bd]
+                        / g.tm_step[g.r, g.cg1, g.bd]
+                    )
+                    ** (1.0 - 1.0 / g.tm_esub[g.r])
+                )
+            )
+            / (Ord(g.j) * g.tm_voc[*rtcg1, g.bd] / g.tm_step[g.r, g.cg1, g.bd])
+            / (1.0 - 1.0 / g.tm_esub[g.r])
+        )
+        # * Restore PREF to BASEPRI
+        g.tm_pref[g.Mr[g.r], g.t, g.cg] = sparse(g.tm_basepri[*rtcg])
+        # * Calculate demand parameters
+        g.tm_pref[g.Mr[g.r], g.t, g.c].where[g.TmDm[g.r, g.c]] = g.ddf_pref[
+            g.r, g.t, g.c
+        ]
+        g.tm_qref[g.Mr[g.r], g.t, g.c].where[g.TmDm[g.r, g.c]] = g.com_proj[
+            g.r, g.t, g.c
+        ]
+        g.tm_agg[g.Mr[g.r], g.t, g.Dm[g.c], g.cg["ACT"]] = (
+            g.tm_pref[g.r, g.t, g.c] / g.tm_dmc[*rtcg]
+        )
+        g.tm_shar[g.Mr[g.r], g.t, g.cg["ACT"], g.c].where[g.TmDm[g.r, g.c]] = (
+            g.tm_qref[g.r, g.t, g.c] / g.tm_dem[*rtcg]
+        )
+        g.tm_shar[g.Mr[g.r], g.t, g.c, g.cg["ACT"]].where[g.TmDm[g.r, g.c]] = (
+            g.tm_agg[g.r, g.t, g.c, g.cg] * g.tm_dmc[*rtcg]
+        )
+        # * Prepare elasticity steps
+        g.z[...] = Smin(g.Pp[g.t], g.m[g.t])
+        g.tm_step[g.TmDm[g.Rc], g.Bdneq[g.bd]].where[(~(g.tm_step[g.Rc, g.bd]))] = (
+            55.0 - 5.0 * g.bdsig[g.bd]
+        )
+        g.tm_voc[g.Mr[g.r], g.t, g.c, "LO"].where[
+            ((~(g.tm_voc[g.r, g.t, g.c, "LO"])).where[g.TmDm[g.r, g.c]])
+        ] = Min(0.45, 0.15 + (g.m[g.t] - g.z) * 0.015)
+        g.tm_voc[g.Mr[g.r], g.t, g.c, "UP"].where[
+            ((~(g.tm_voc[g.r, g.t, g.c, "UP"])).where[g.TmDm[g.r, g.c]])
+        ] = (
+            0.3 / (1.0 - g.tm_voc[g.r, g.t, g.c, "LO"])
+            + g.tm_voc[g.r, g.t, g.c, "LO"]
+            - 0.3
+        )
+        g.TmRcj[g.TmDm[g.Mr, g.c], g.j, g.Bdneq[g.bd]].where[
+            (Ord(g.j) <= g.tm_step[g.Mr, g.c, g.bd])
+        ] = True
+        # * Demand CES aggregation
+        g.tm_agc[g.Mr[g.r], g.t, g.cg["ACT"], g.c, g.j, g.bd].where[
+            (
+                (g.tm_voc[g.r, g.t, g.c, g.bd] > 0.0).where[
+                    g.TmRcj[g.r, g.c, g.j, g.bd] & g.TmDm[g.r, g.c]
+                ]
+            )
+        ] = (
+            g.bdsig[g.bd]
+            * (
+                1.0
+                - (
+                    (
+                        1.0
+                        - g.bdsig[g.bd]
+                        * Ord(g.j)
+                        * g.tm_voc[g.r, g.t, g.c, g.bd]
+                        / g.tm_step[g.r, g.c, g.bd]
+                    )
+                    ** (1.0 - 1.0 / g.tm_desub[g.r])
+                )
+            )
+            / (Ord(g.j) * g.tm_voc[g.r, g.t, g.c, g.bd] / g.tm_step[g.r, g.c, g.bd])
+            / (1.0 - 1.0 / g.tm_desub[g.r])
+        )
+        # * Logarithmic utility from consumption
+        g.z[...] = g.tm_defval["LOGSTEP"]
+        g.Logj[g.j, g.Bdneq[g.bd]].where[(Ord(g.j) <= Round(g.z / 2.0))] = True
+        g.tm_midcon[g.r, g.t] = (
+            g.tm_baselev[g.r, g.t, "CON"] * 0.5 * sqrt(exp(log(2.0) * 1.1))
+        )
+        g.tm_logjot[...] = log(2.0) / Round(g.z / 1.1)
+        g.tm_logval[g.Logj[g.j, g.Bdneq[g.bd]]] = (
+            1.0 - exp(-g.bdsig[g.bd] * Ord(g.j) * g.tm_logjot)
+        ) / (g.tm_logjot * Ord(g.j))
+        g.tm_lsc[...] = Round((g.z**0.7), -1)
+        # *------------------------------------------------------------------------------
+        # * Reset bounds
+        g.VAR_K.up[g.Mr, g.t] = SpecialValues.POSINF
+        g.VAR_K.lo[g.Mr, g.t] = 0.0
+        g.VAR_D.up[g.Mr, g.t, g.Mag] = SpecialValues.POSINF
+        g.VAR_D.lo[g.Mr, g.t, g.Mag] = 0.0
+        g.VAR_D.fx[g.Mr, g.t, "LAB"] = g.tm_l[g.Mr, g.t]
+        g.VAR_C.up[g.Mr[g.r], g.t].where[(~(g.TmPp[g.r, g.t]))] = g.VAR_C.l[g.r, g.t]
+        # NOTE: OPTION BRATIO=1 is a GAMS model-solve-option statement meant to
+        # affect the next SOLVE elsewhere in the run. GAMSPy runs every
+        # statement as its own job, so it cannot be captured natively here
+        # (see dynslite_vda.py's exec_solve_stp docstring); kept as the one
+        # raw fragment, emitted only for traceability, matching initmty_tm.py.
+        self.tc.add_gams_code(module=self, phase="run", code="OPTION BRATIO=1;")
