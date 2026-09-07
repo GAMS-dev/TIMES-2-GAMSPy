@@ -72,6 +72,11 @@ class RptmainMod(GamsClass):
     def compile(self) -> None:
         g = self.tc
 
+        # rpt_dam_mod is reached via rptmain.mod:38 and SETLOCAL SOLVEDA 1
+        # below is local to this file only. Snapshot it before the override so
+        # exec_rpt_dam_mod gets scoped value.
+        rpt_dam_solveda = self.env.solveda
+
         if self.env.stages != "YES" and self.env.dumpsol == "YES":
             self.include(DumpsolMod(self.tc, self.env, arg1=self.arg1))
 
@@ -108,10 +113,6 @@ class RptmainMod(GamsClass):
                             )
                         )
 
-                # rptmain.mod:29 uses plain $IF (case-sensitive), unlike the
-                # $IFI checks above: MLF's macro value is 'Yes' (mixed case,
-                # set by readbprice.mod), which matches $IFI==YES but not
-                # $IF==YES, so rptmain.tm must stay excluded for MLF.
                 if self.env.macro == "YES":
                     self.include(RptmainTm(self.tc, self.env))
 
@@ -141,7 +142,7 @@ class RptmainMod(GamsClass):
                         vart=self.env.vart,
                         sws=self.env.sws,
                         sow=self.env.sow,
-                        solveda=self.env.solveda,
+                        solveda=rpt_dam_solveda,
                         scum=self.env.scum,
                     )
 

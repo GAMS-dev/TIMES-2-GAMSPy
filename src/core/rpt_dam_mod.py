@@ -62,10 +62,10 @@ def exec1(
 ) -> str:
     block1 = rf"""
     {var}_OBJ.M(R,'OBJDAM',CUR {sow})$RDCUR(R,CUR) = 0;
-    *------------------------------------------------------------------------------
-    * Always report the accurate non-linear costs
+*------------------------------------------------------------------------------
+* Always report the accurate non-linear costs
       OPTION CLEAR=RXX; LOOP(RDCUR(R,CUR), RXX(RTC)$DAM_COST(RTC,CUR) = YES);
-    *------------------------------------------------------------------------------
+*------------------------------------------------------------------------------
     """
 
     # If using climate module, enable damages for total emissions/concentration
@@ -113,13 +113,13 @@ def exec2(stages: str, var: str, swp: str, sow: str, sw1: str, scum: str) -> str
     {swp}CST_DAM({sw1}RXX(R,T,C)) = SUM(RDCUR(R,CUR),{swp}DAM_OBJ({sw1}R,T,C,CUR));
       {swp}REG_ACOST({sw1}R,T,'DAM') = SUM(RXX(R,T,C),{swp}CST_DAM({sw1}R,T,C));
       {swp}CST_PVC({sw1}'DAM',R,C)$DAM_STEP(R,C,'FX') = SUM(T,{swp}CST_DAM({sw1}R,T,C)*COEF_PVT(R,T));
-    * Complete also reporting of discounted costs
+* Complete also reporting of discounted costs
       {swp}REG_WOBJ({sw1}R,'DAM',CUR) = SUM(RXX(R,T,C)$((NOT DAM_ELAST(R,C,'N'))$DAM_STEP(R,C,'FX')),OBJ_PVT(R,T,CUR)*{swp}DAM_OBJ({sw1}R,T,C,CUR));
       {swp}REG_WOBJ({sw1}R,'DAS',CUR) = SUM(RXX(R,T,C)$(DAM_ELAST(R,C,'N')$DAM_STEP(R,C,'FX')),OBJ_PVT(R,T,CUR)*{swp}DAM_OBJ({sw1}R,T,C,CUR));
       {swp}REG_WOBJ({sw1}R,'DAM-EXT+',CUR) = {swp}REG_WOBJ({sw1}R,'DAM',CUR)+{swp}REG_WOBJ({sw1}R,'DAS',CUR);
       {swp}REG_WOBJ({sw1}R,'DAM',CUR) = ({swp}REG_WOBJ({sw1}R,'DAM',CUR)/{swp}REG_WOBJ({sw1}R,'DAM-EXT+',CUR)*{var}_OBJ.L(R,'OBJDAM',CUR{sow}))$({swp}REG_WOBJ({sw1}R,'DAM-EXT+',CUR) GT 0);
       {swp}REG_WOBJ({sw1}R,'DAS',CUR) = {var}_OBJ.L(R,'OBJDAM',CUR{sow}) - {swp}REG_WOBJ({sw1}R,'DAM',CUR);
-    * Complete also reporting of discounted external damages
+* Complete also reporting of discounted external damages
       {swp}REG_WOBJ({sw1}R,'DAM-EXT+',CUR) = SUM(RXX(R,T,C),OBJ_PVT(R,T,CUR)*{swp}DAM_OBJ({sw1}R,T,C,CUR)) - {var}_OBJ.L(R,'OBJDAM',CUR{sow});
     """
 
