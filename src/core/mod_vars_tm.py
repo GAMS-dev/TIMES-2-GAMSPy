@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Set, Variable
+from gamspy import Set, SpecialValues, Variable
 
 from core.base_class import GamsClass
 from core.mod_vars_mod import ModVarsMod
@@ -162,14 +162,12 @@ class ModVarsTm(GamsClass):
         self.tc.enqueue(self.mod_vars_tm_exec)
 
     def mod_vars_tm_exec(self: ModVarsTm) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Activate demand variables
-  RD_NLP(DEM) = 1;
-
-  VAR_ANNCST.LO(OBV(UCN),R,T,CUR)$(RDCUR(R,CUR)$UC_RHS(UCN,'N')) = INF;
-  VAR_ANNCST.LO(OBV(UCN),R,T,CUR)$(RDCUR(R,CUR)$UC_RHSR(R,UCN,'N')) = INF;
-""",
-        )
+        g = self.tc
+        # * Activate demand variables
+        g.rd_nlp[g.Dem] = 1.0
+        g.VAR_ANNCST.lo[g.obv[g.ucn], g.r, g.t, g.cur].where[
+            (g.Rdcur[g.r, g.cur].where[g.uc_rhs[g.ucn, "N"]])
+        ] = SpecialValues.POSINF
+        g.VAR_ANNCST.lo[g.obv[g.ucn], g.r, g.t, g.cur].where[
+            (g.Rdcur[g.r, g.cur].where[g.uc_rhsr[g.r, g.ucn, "N"]])
+        ] = SpecialValues.POSINF
