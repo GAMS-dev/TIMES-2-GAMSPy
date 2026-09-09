@@ -11,6 +11,7 @@ from gamspy import (
     Alias,
     Container,
     Equation,
+    Model,
     Options,
     Parameter,
     Set,
@@ -1809,6 +1810,16 @@ class TimesModelClass:
     tm_ycheck: Parameter = None  # type: ignore[assignment] # [R] TM_YCHECK
     tm_dd: Parameter = None  # type: ignore[assignment] # [R,C,T] TM_DD Demand ratio MSA estimates to TED demand levels
     tm_gdp: Parameter = None  # type: ignore[assignment] # [REG,YEAR] TM_GDP Actualized gross domestic product
+
+    # From src/core/solve_msa.py
+    mce: Model = None  # type: ignore[assignment] # MCE: MACRO soft-link solve model
+    loops: Set = None  # type: ignore[assignment] # [*] LOOPS: NWT, DDF, GDP
+    gdploss: Parameter = None  # type: ignore[assignment] # [MITER,REG,tp] GDPLOSS: GDP losses in percent
+    msa_err: Parameter = None  # type: ignore[assignment] # [MITER,NITER,LOOPS,REG] MSA_ERR
+    tm_tol: Parameter = None  # type: ignore[assignment] # [ITEM] TM_TOL: MSA/CSA iteration tolerances
+    errdem: Parameter = None  # type: ignore[assignment] # ERRDEM
+    errgdp: Parameter = None  # type: ignore[assignment] # ERRGDP
+    tm_cal: Parameter = None  # type: ignore[assignment] # TM_CAL
 
     # From src/core/presolve_mlf.py
     TmDmas: Set = None  # type: ignore[assignment] # [cg,cg] TM_DMAS
