@@ -12,9 +12,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Domain, Else, If, Loop, Model, Ord, Parameter, Set, Smax
+from gamspy.math import Max, abs, aggregate
+
 from core.base_class import GamsClass
 from core.clearsol_stp import clearsol_stp
-from core.ddfupd_msa import ddfupd_msa
+from core.ddfupd_msa import ddfupd_msa, ddfupd_msa_GP
 from core.preppm_msa import preppm_msa_label_tolp
 from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
 from core.solprep_msa import solprep_msa
@@ -299,29 +302,92 @@ class SolveMsa(GamsClass):
         )
 
     def comp1(self: SolveMsa, is_tm_catt_defined: bool) -> None:
+        g = self.tc
+        m = g.container
+        # ABORT$EXECERROR and SOLPRINT/SOLVELINK/DECIMALS are GAMS
+        # constructs with no GAMSPy equivalent reachable outside a native
+        # SOLVE (GAMSPy runs every SOLVE as its own GAMS job, so neither an
+        # ABORT nor an OPTION statement here can reach it -- see
+        # solve_stp.py's BRATIO/SOLVEOPT note; every other ABORT in this
+        # codebase is likewise left raw). Emitted verbatim to keep the
+        # generated source in step with solve.msa.
         self.tc.add_gams_code(
             module=self,
             phase="init",
-            code=rf"""
+            code="""
 * Abort execution if execute errors
   ABORT$EXECERROR '*** ERRORS IN EXECUTION ***'
 
   OPTION SOLPRINT = OFF;
   OPTION SOLVELINK = 1;
   OPTION DECIMALS = 5;
-
-  MODEL MCE  /  EQ_UTIL, EQ_CONSO, EQ_PROD_Y, EQ_MCAP, EQ_TMC, EQ_DD, EQ_IVECBND, EQ_ESCOST, EQ_TRDBAL
-{"EQ_CCDM, EQ_CLITOT, EQ_CLICONC, EQ_CLITEMP, EQ_CLIBEOH" if is_tm_catt_defined else ""}
-  /;
-  MCE.MODELSTAT=0; MCE.SOLVESTAT=0; MCE.OPTFILE=1;
-
-  SET LOOPS / NWT, DDF, GDP /;
-  PARAMETER GDPLOSS(MITER,REG,tp) 'GDP losses in percent';
-  PARAMETER MSA_ERR(MITER,NITER,LOOPS,REG);
-  PARAMETER TM_TOL(ITEM) / CAL 7E-7, MST 1E-5, BND 0.5, TIG 0.6, DEM 0, EQUIL 1 /;
-  SCALAR ERRDEM / 0 /, ERRGDP / 0 /, TM_CAL / 1 /, DOITER/ 1 /;
 """,
         )
+
+        equations = [
+            g.eq_util,
+            g.eq_conso,
+            g.eq_prod_y,
+            g.eq_mcap,
+            g.eq_tmc,
+            g.eq_dd,
+            g.eq_ivecbnd,
+            g.eq_escost,
+            g.eq_trdbal,
+        ]
+        if is_tm_catt_defined:
+            equations += [
+                g.eq_ccdm,
+                g.eq_clitot,
+                g.eq_cliconc,
+                g.eq_clitemp,
+                g.eq_clibeoh,
+            ]
+        g.mce = Model(
+            m,
+            name="MCE",
+            equations=equations,
+            problem="NLP",
+            sense="MAX",
+            objective=g.VAR_UTIL,
+        )
+        # MCE.MODELSTAT/.SOLVESTAT/.OPTFILE are GAMS model suffixes with no
+        # GAMSPy equivalent (status/solve_status are read-only post-solve
+        # outputs, and optfile has no per-model setter) -- emitted verbatim
+        # to keep the generated source in step with solve.msa.
+        self.tc.add_gams_code(
+            module=self,
+            phase="init",
+            code="MCE.MODELSTAT=0; MCE.SOLVESTAT=0; MCE.OPTFILE=1;",
+        )
+
+        g.loops = Set(m, name="LOOPS", records=["NWT", "DDF", "GDP"])
+        g.gdploss = Parameter(
+            m,
+            name="GDPLOSS",
+            domain=[g.miter, g.Reg, g.tp],
+            description="GDP losses in percent",
+        )
+        g.msa_err = Parameter(
+            m, name="MSA_ERR", domain=[g.miter, g.niter, g.loops, g.Reg]
+        )
+        g.tm_tol = Parameter(
+            m,
+            name="TM_TOL",
+            domain=[g.item],
+            records=[
+                ("CAL", 7e-07),
+                ("MST", 1e-05),
+                ("BND", 0.5),
+                ("TIG", 0.6),
+                ("DEM", 0),
+                ("EQUIL", 1),
+            ],
+        )
+        g.errdem = Parameter(m, name="ERRDEM", records=0)
+        g.errgdp = Parameter(m, name="ERRGDP", records=0)
+        g.tm_cal = Parameter(m, name="TM_CAL", records=1)
+        g.doiter = Parameter(m, name="DOITER", records=1)
 
     def comp1_seed(self: SolveMsa) -> None:
         self.tc.add_gams_code(
@@ -348,47 +414,69 @@ class SolveMsa(GamsClass):
         )
 
     def exec2(self: SolveMsa) -> None:
-        include_ddfupd = ddfupd_msa()
+        g = self.tc
+        g.tm_growv[g.r, g.t] = g.tm_gr[g.r, g.t]
+        g.par_grgdp[g.r, g.t] = g.tm_gr[g.r, g.t]
+        g.par_mc[g.r, g.t, g.Dm].where[g.tm_dem[g.r, g.t, g.Dm]] = g.tm_dmc[
+            g.r, g.t, g.Dm
+        ]
+        g.doiter[...] = 1.0
+        # SOLVEOPT/LIMROW/BRATIO are GAMS solve options with no GAMSPy
+        # equivalent reachable from a native SOLVE (GAMSPy runs every SOLVE
+        # as its own GAMS job, so an OPTION statement here can't reach it --
+        # see solve_stp.py's BRATIO/SOLVEOPT note). Emitted verbatim to keep
+        # the generated source in step with solve.msa.
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf"""
-  TM_GROWV(R,T)  = TM_GR(R,T);
-  PAR_GRGDP(R,T) = TM_GR(R,T);
-  PAR_MC(R,T,DM)$TM_DEM(R,T,DM) = TM_DMC(R,T,DM);
-
-  DOITER=1;
-  OPTION SOLVEOPT=MERGE,LIMROW=0,BRATIO=0.25;
-
-  LOOP(NITER$DOITER,
-
-{include_ddfupd}
-
-   IF(ORD(NITER)<5,
-     LOOP(MREG, MR(R)= NO; MR(R(MREG))=YES;
-        SOLVE MCE MAXIMIZING VAR_UTIL USING NLP); MR(R(MREG))=YES;
-   ELSE SOLVE MCE MAXIMIZING VAR_UTIL USING NLP);
-
-   TM_GDP(R,T) = VAR_C.L(R,T) + VAR_INV.L(R,T);
-   PAR_GRGDP(MR(R),TP(T-1)) = 100 * ((TM_GDP(R,T)/TM_GDP(R,TP))**(1/NYPER(TP))-1);
-   PAR_Y(R,T) = VAR_Y.L(R,T);
-   PAR_MC(MR(R),PP(T),C)$TM_DEM(R,T,C) = MAX(ABS(VAR_SP.M(R,T,C)*TM_SCALE_NRG),ABS(EQ_DD.M(R,T,C))) / MAX(EQ_ESCOST.M(R,T),-VAR_EC.M(R,T)) / TM_SCALE_CST;
-
-   MSA_ERR('1',NITER,'DDF',MR(R)) = SMAX((T,C)$TM_DEM(R,T,C),ABS(TM_DEM(R,T,C)-VAR_DEM.L(R,T,C))/TM_DEM(R,T,C));
-   MSA_ERR('1',NITER,'GDP',MR(R)) = SMAX(T,ABS(TM_GDPGOAL(R,T)-TM_GDP(R,T))/TM_GDPGOAL(R,T));
-   ERRDEM = SMAX(MR, MSA_ERR('1',NITER,'DDF',MR));
-   ERRGDP = SMAX(MR, MSA_ERR('1',NITER,'GDP',MR));
-   IF(MAX(ERRDEM,ERRGDP) < TM_TOL('CAL')*ORD(NITER), DOITER=0);
-  );
-
-  DISPLAY MSA_ERR;
-  TM_DDF_DM(MR,TP,DM)$TM_DEM(MR,TP,DM)=(1-VAR_DEM.L(MR,TP,DM)/TM_DEM(MR,TP,DM))*100;
-  OPTION TM_DD < TM_DDF_DM;
-  DISPLAY 'estimated to assumed demand difference in percent', TM_dd;
-  TM_TOL('DEM') = ERRDEM;
-  TM_TOL('GDP') = ERRGDP;
-""",
+            code="OPTION SOLVEOPT=MERGE,LIMROW=0,BRATIO=0.25;",
         )
+        with Loop(g.niter.where[g.doiter]):
+            ddfupd_msa_GP(g)
+            with If(Ord(g.niter) < 5.0):
+                with Loop(g.Mreg):
+                    g.Mr[g.r] = False
+                    g.Mr[g.r[g.Mreg]] = True
+                    g.mce.solve()
+                g.Mr[g.r[g.Mreg]] = True
+            with Else():
+                g.mce.solve()
+            g.tm_gdp[g.r, g.t] = g.VAR_C.l[g.r, g.t] + g.VAR_INV.l[g.r, g.t]
+            g.par_grgdp[g.Mr[g.r], g.tp[g.t - 1]] = 100.0 * (
+                ((g.tm_gdp[g.r, g.t] / g.tm_gdp[g.r, g.tp]) ** (1.0 / g.nyper[g.tp]))
+                - 1.0
+            )
+            g.par_y[g.r, g.t] = g.VAR_Y.l[g.r, g.t]
+            g.par_mc[g.Mr[g.r], g.Pp[g.t], g.c].where[g.tm_dem[g.r, g.t, g.c]] = (
+                Max(
+                    abs(g.VAR_SP.m[g.r, g.t, g.c] * g.tm_scale_nrg),
+                    abs(g.eq_dd.m[g.r, g.t, g.c]),
+                )
+                / Max(g.eq_escost.m[g.r, g.t], -g.VAR_EC.m[g.r, g.t])
+                / g.tm_scale_cst
+            )
+            g.msa_err["1", g.niter, "DDF", g.Mr[g.r]] = Smax(
+                Domain(g.t, g.c).where[g.tm_dem[g.r, g.t, g.c]],
+                abs(g.tm_dem[g.r, g.t, g.c] - g.VAR_DEM.l[g.r, g.t, g.c])
+                / g.tm_dem[g.r, g.t, g.c],
+            )
+            g.msa_err["1", g.niter, "GDP", g.Mr[g.r]] = Smax(
+                g.t,
+                abs(g.tm_gdpgoal[g.r, g.t] - g.tm_gdp[g.r, g.t])
+                / g.tm_gdpgoal[g.r, g.t],
+            )
+            g.errdem[...] = Smax(g.Mr, g.msa_err["1", g.niter, "DDF", g.Mr])
+            g.errgdp[...] = Smax(g.Mr, g.msa_err["1", g.niter, "GDP", g.Mr])
+            with If(Max(g.errdem, g.errgdp) < g.tm_tol["CAL"] * Ord(g.niter)):
+                g.doiter[...] = 0.0
+        print(g.msa_err.records)
+        g.tm_ddf_dm[g.Mr, g.tp, g.Dm].where[g.tm_dem[g.Mr, g.tp, g.Dm]] = (
+            1.0 - g.VAR_DEM.l[g.Mr, g.tp, g.Dm] / g.tm_dem[g.Mr, g.tp, g.Dm]
+        ) * 100.0
+        aggregate(source=g.tm_ddf_dm, target=g.tm_dd)
+        print(f"estimated to assumed demand difference in percent {g.tm_dd.records}")
+        g.tm_tol["DEM"] = g.errdem
+        g.tm_tol["GDP"] = g.errgdp
 
     def exec3(
         self: SolveMsa,
