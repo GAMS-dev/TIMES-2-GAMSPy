@@ -165,7 +165,7 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
                     )
                 )
 
-                if self.tc.container["GG_KGF"].number_records == 0:
+                if self.tc.gg_kgf.number_records == 0:
                     return
 
                 # fmt: off

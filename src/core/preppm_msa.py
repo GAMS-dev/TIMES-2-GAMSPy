@@ -18,7 +18,7 @@ from core.filparam_gms import FilparamGms, FilparamGmsConfig
 from core.forcupd_cli import forcupd_cli
 
 # from core.MSADDF_dd import MSADDF
-from core.rpt_dam_mod import rpt_dam_mod
+from core.rpt_dam_mod import rpt_dam_mod, rpt_dam_mod_GP
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -54,15 +54,6 @@ class PreppmMsa(GamsClass):
                 self._label_tonlp,
                 is_tm_catt_defined=self.tc.defined("TM_CATT"),
                 is_dam_cost_defined=self.tc.defined("DAM_COST"),
-                cli=self.env.cli,
-                solveda=self.env.solveda,
-                stages=self.env.stages,
-                var=self.env.var,
-                vart=self.env.vart,
-                sws=self.env.sws,
-                sow=self.env.sow,
-                scum=self.env.scum,
-                sw_notags=self.env.sw_notags,
             )
         elif self.arg1 == "TOLP":
             self.tc.enqueue(self._label_tolp)
@@ -199,32 +190,37 @@ LOOP(PP(T+1),TM_GDPGOAL(R,PP) = TM_GDPGOAL(R,T)*(1+TM_GR(R,T)/100)**NYPER(T));
         self: PreppmMsa,
         is_tm_catt_defined: bool,
         is_dam_cost_defined: bool,
-        cli: str,
-        solveda: str,
-        stages: str,
-        var: str,
-        vart: str,
-        sws: str,
-        sow: str,
-        scum: str,
-        sw_notags: str,
     ) -> None:
+        # Update forcing functions, reset damage and climate module
+        if is_tm_catt_defined:
+            self.tc.add_gams_code(
+                module=self,
+                phase="run",
+                code="LOOP(G_RCUR(R,CUR)$TM_DAM(R,'0'),DAM_COST(R,PP,C(CG(CM_EMIS)),CUR) = EPS);",
+            )
+
+        if is_dam_cost_defined:
+            rpt_dam_mod_GP(self.tc, self.env, solveda=self.env.solveda)
+
+        if self.env.cli.upper() != "YES":
+            return
+
+        self.tc.add_gams_code(module=self, phase="run", code=forcupd_cli())
+
+        if not is_tm_catt_defined:
+            return
+
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=preppm_msa_label_tonlp(
-                is_tm_catt_defined=is_tm_catt_defined,
-                is_dam_cost_defined=is_dam_cost_defined,
-                cli=cli,
-                solveda=solveda,
-                stages=stages,
-                var=var,
-                vart=vart,
-                sws=sws,
-                sow=sow,
-                scum=scum,
-                sw_notags=sw_notags,
-            ),
+            code="""
+LOOP(G_RCUR(R,CUR)$TM_DAM(R,'0'),
+F=REG_WOBJ(R,'DAM-EXT+',CUR); MY_F=REG_WOBJ(R,'DAS',CUR); Z=MAX(0,MIN(MY_F,-F));
+REG_WOBJ(R,'DAS',CUR)=MY_F-Z; REG_WOBJ(R,'DAM-EXT+',CUR)=F+Z);
+CM_MAXC_M(CM_EMIS,XTP) = VAR_CLITOT.LO(CM_EMIS,XTP);
+IF(CARD(TM_DAM),CM_TKIND(CM_EMIS)=NO; VAR_CLITOT.FX(CM_EMIS,XTP)=VAR_CLITOT.L(CM_EMIS,XTP);
+ELSE OPTION CLEAR=CM_KIND,CLEAR=CM_TKIND);
+""",
         )
 
     def _label_tolp(self) -> None:
@@ -244,6 +240,19 @@ def preppm_msa_label_tonlp(
     scum: str,
     sw_notags: str,
 ) -> str:
+    """String-building twin of ``PreppmMsa._label_tonlp``.
+
+    NOTE: kept raw-GAMS-string (not natively translated) solely because its
+    callers (solprep_msa.py, reached from rpt_ext_msa.py and solve_msa.py)
+    are themselves still raw-GAMS-string generators whose output gets
+    spliced into larger untranslated blocks. Uses the legacy string-based
+    ``rpt_dam_mod`` rather than ``rpt_dam_mod_GP`` for the same reason
+    documented on ``rpt_dam_mod``. ``sw_notags`` is accepted only for
+    call-site compatibility with solprep_msa.py; it's unused since
+    rpt_dam_mod's own scum=="1" handling already mirrors sw_notags's fixed
+    reset internally.
+    """
+    del sw_notags
     return_str = ""
     # Update forcing functions, reset damage and climate module
     if is_tm_catt_defined:
@@ -261,7 +270,6 @@ def preppm_msa_label_tonlp(
             sws=sws,
             sow=sow,
             scum=scum,
-            sw_notags=sw_notags,
         )
 
     if cli.upper() != "YES":

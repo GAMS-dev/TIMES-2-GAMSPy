@@ -24,7 +24,7 @@ from core.atlearn_etl import AtlearnEtl
 from core.base_class import GamsClass
 from core.dumpsol_mod import DumpsolMod
 from core.main_ext_mod import include_extension
-from core.rpt_dam_mod import rpt_dam_mod
+from core.rpt_dam_mod import rpt_dam_mod_GP
 from core.rpt_ext_cli import RptExtCli
 from core.rpt_ext_ecb import RptExtEcb
 from core.rpt_ext_ier import RptExtIer
@@ -136,14 +136,7 @@ class RptmainMod(GamsClass):
                 if self.tc.defined("DAM_COST"):
                     self.tc.enqueue(
                         self.exec_rpt_dam_mod,
-                        stages=self.env.stages,
-                        var=self.env.var,
-                        cli=self.env.cli,
-                        vart=self.env.vart,
-                        sws=self.env.sws,
-                        sow=self.env.sow,
                         solveda=rpt_dam_solveda,
-                        scum=self.env.scum,
                     )
 
         # LABEL FINISH
@@ -184,25 +177,5 @@ class RptmainMod(GamsClass):
         if self.env.vda.upper() == "YES":
             self.include(SolsetvV3(self.tc, self.env, "FINISHUP"))
 
-    def exec_rpt_dam_mod(
-        self: RptmainMod,
-        stages: str,
-        var: str,
-        cli: str,
-        vart: str,
-        sws: str,
-        sow: str,
-        solveda: str,
-        scum: str,
-    ) -> None:
-        code = rpt_dam_mod(
-            stages=stages,
-            var=var,
-            cli=cli,
-            vart=vart,
-            sws=sws,
-            sow=sow,
-            solveda=solveda,
-            scum=scum,
-        )
-        self.tc.add_gams_code(module=self, phase="run", code=code)
+    def exec_rpt_dam_mod(self: RptmainMod, solveda: str) -> None:
+        rpt_dam_mod_GP(self.tc, self.env, solveda=solveda)

@@ -341,9 +341,7 @@ class EqmainMod(GamsClass):
         self.include(EqbndcstMod(tc=self.tc, env=self.env))
 
         # User-constraints
-        uc_time = self.tc.container["UC_TIME"]
-        uc_ucn = self.tc.container["UC_UCN"]
-        if (uc_time.number_records + uc_ucn.number_records) > 0:
+        if (g.uc_time.number_records + g.uc_ucn.number_records) > 0:
             self.env.set_global("var_uc", "YES")
 
         # Commissioning periods for UCs

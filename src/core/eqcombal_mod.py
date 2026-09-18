@@ -327,8 +327,8 @@ class EqcombalMod(GamsClass):
             ].where[g.RhsComprd[r, t, c, s]]
             if condition3:
                 # DDF_PREF / MI_AGC come with the elastic demand extension
-                ddf_pref: Parameter = g.container["DDF_PREF"]  # type: ignore[assignment]
-                mi_agc: Parameter = g.container["MI_AGC"]  # type: ignore[assignment]
+                ddf_pref = g.ddf_pref
+                mi_agc = g.mi_agc
                 rhs = (
                     rhs
                     + (

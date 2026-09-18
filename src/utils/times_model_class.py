@@ -481,6 +481,11 @@ class TimesModelClass:
     dam_tqty: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com] DAM_TQTY: Base quantity of emissions by year
     dam_tvoc: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,lim] DAM_TVOC: Variance of emissions by year
     dam_coef: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,s] DAM_COEF: Coefficient from commodity to damage
+    dam_size: Parameter = None  # type: ignore[assignment] # [Reg,allyear,Com,lim] DAM_SIZE: Size of emission steps
+    damobj: Set = None  # type: ignore[assignment] # [*] DAMOBJ: Damage objective components (DAM, DAS, DAM-EXT)
+    wwdam: Set = None  # type: ignore[assignment] # [*] WWDAM: Commodities damaged via total concentration/box rather than flow
+    rtdam: Set = None  # type: ignore[assignment] # [Reg,allyear,Com,allsow] RTDAM: Region/period/commodity/SOW triples with an active damage cost
+    sww: Set = None  # type: ignore[assignment] # [allsow,allsow] SWW: SOW-pair projection of SW_TSW, used to weight damage cost across sample windows
     rpt_opt: Parameter = None  # type: ignore[assignment] # [item,j] RPT_OPT: Reporting options
     cst_dam: Parameter = None  # type: ignore[assignment] # [Reg,t,Com] CST_DAM: Damage costs
     scst_dam: Parameter = None  # type: ignore[assignment] # [Reg,t,Com] CST_DAM: Damage costs
