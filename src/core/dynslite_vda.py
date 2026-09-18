@@ -68,7 +68,7 @@ class DynsliteVda(GamsClass):
             self.tc.enqueue(self.clear_exec, tmp=self.env.tmp, rts=rts)
 
     def prelev_exec(self: DynsliteVda, ducyes: bool, tmp: str) -> None:
-        if self.tc.container["NORTS"].number_records > 0:
+        if self.tc.norts.number_records > 0:
             if ducyes:
                 raise ValueError("TS_OFF cannot be used with DUC")
 
@@ -105,7 +105,7 @@ class DynsliteVda(GamsClass):
             )
 
     def clear_exec(self: DynsliteVda, tmp: str, rts: str) -> None:
-        if self.tc.container["NORTS"].number_records > 0:
+        if self.tc.norts.number_records > 0:
             self.tc.add_gams_code(
                 module=self,
                 phase="run",
@@ -150,7 +150,7 @@ class DynsliteVda(GamsClass):
             )
 
     def reduce_exec(self: DynsliteVda, tmp: str) -> None:
-        if self.tc.container["NORTS"].number_records > 0:
+        if self.tc.norts.number_records > 0:
             self.tc.add_gams_code(
                 module=self,
                 phase="run",
@@ -196,7 +196,7 @@ class DynsliteVda(GamsClass):
     ) -> None:
         g = self.tc
 
-        if self.tc.container["NORTS"].number_records > 0:
+        if self.tc.norts.number_records > 0:
             self.tc.add_gams_code(
                 module=self,
                 phase="run",
@@ -267,7 +267,7 @@ def dynslite_vda_bounds_GP(
     OPTION/model-attribute statement here cannot reach the next solve
     natively; kept as the one raw fragment, emitted only for traceability.
     """
-    if g.container["NORTS"].number_records == 0:
+    if g.norts.number_records == 0:
         return
 
     r, v, t, p, c, s, ie, lA, upt, bd = (

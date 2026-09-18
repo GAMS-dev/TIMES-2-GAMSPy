@@ -133,7 +133,7 @@ class EqobjannTm(GamsClass):
         Obvann = g.Obvann
         VAR_OBJ = g.VAR_OBJ
 
-        eq_objann = g.get_equation("EQ_OBJANN")
+        eq_objann = g.eq_objann
 
         rhs: Expression | Sum = Sum(
             t, g.obj_pvt[r, t, cur] * g.VAR_ANNCST[Obvann, r, t, cur]

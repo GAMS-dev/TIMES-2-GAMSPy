@@ -15,6 +15,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter, Set
+
 from core.base_class import GamsClass
 from core.filparam_gms import FilparamGms, FilparamGmsConfig
 
@@ -67,10 +69,17 @@ class EqdamageMod(GamsClass):
 * Internal sets and parameters
   SET JSUBJ(J,J)           'All steps up to J' //;
   SET DAM_NUM(R,C,J,BD);
-  SET DAMOBJ / DAM, DAS, DAM-EXT /;
-  SET WWDAM /DELTA-ATM/, RTDAM(R,T,C,ALLSOW), SWW(ALLSOW,ALLSOW);
-  PARAMETER DAM_SIZE(REG,T,COM,LIM) 'Size of emission steps' //;
 """,
+        )
+        g.damobj = Set(g.container, name="DAMOBJ", records=["DAM", "DAS", "DAM-EXT"])
+        g.wwdam = Set(g.container, name="WWDAM", records=["DELTA-ATM"])
+        g.rtdam = Set(g.container, name="RTDAM", domain=[g.r, g.t, g.c, g.allsow])
+        g.sww = Set(g.container, name="SWW", domain=[g.allsow, g.allsow])
+        g.dam_size = Parameter(
+            g.container,
+            name="DAM_SIZE",
+            description="Size of emission steps",
+            domain=[g.Reg, g.t, g.Com, g.lim],
         )
 
         self.tc.enqueue(self.exec1)

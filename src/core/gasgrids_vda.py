@@ -59,7 +59,7 @@ class GasgridsVda(GamsClass):
 
     def compile(self: GasgridsVda) -> None:
         # exit file if no records for GG_KGF
-        gg_kgf = self.tc.container["GG_KGF"]
+        gg_kgf = self.tc.gg_kgf
         if not gg_kgf.number_records:
             return
 
