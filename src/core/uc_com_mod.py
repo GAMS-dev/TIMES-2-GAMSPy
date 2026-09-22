@@ -24,6 +24,7 @@ from gamspy import Domain, Product, Set, Sum
 from gamspy.math import abs, diag, power
 
 from core.utils import BaseUcModConfig, SowGPType, extract_var_domain, wrap_in_sum
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from gamspy import Expression, Parameter
@@ -55,9 +56,7 @@ def inner_sum(
     rhs_com_set: Set = g.get_set(name=f"RHS_COM{cc.arg8}")
     obj_com_param: Parameter = g.get_parameter(name=f"OBJ_COM{cc.arg10}")
     var_id, domain = extract_var_domain(var)
-    var_com = wrap_in_sum(
-        target=g.get_variable(name=f"{var_id}_COM{cc.arg9}"), domain=domain
-    )
+    var_com = g.get_variable(name=f"{var_id}_COM{cc.arg9}")
 
     expr1: Expression | int
     if cc.arg6 == 2:
@@ -98,39 +97,48 @@ def inner_sum(
         * Sum(
             rhs_com_set[g.r, cc.arg4, g.c, g.ts].where[g.rs_fr[g.r, g.s, g.ts]],
             g.uc_com[g.ucn, cc.arg9, cc.arg5, g.r, cc.arg7, g.c, g.ts, g.ucgrptype]
-            * var_com[g.r, cc.arg4, g.c, g.ts, *sow_GP]
-            * (
-                1.0
-                + (1.0 / g.com_ie[g.r, cc.arg4, g.c, g.ts] - 1.0).where[
-                    (
-                        (g.UcAttr[g.r, g.ucn, cc.arg5, g.ucgrptype, "EFF"])
-                        ^ (diag(g.ucgrptype, f"COM{cc.arg9}"))
-                    )
-                ]
-            )
-            # * [AL] PROD operator is useful here
-            * Product(g.Annual, 1.0)
-            * Product(
-                g.RsBelow[g.r, g.ts, g.s],
-                g.rs_fr[g.r, g.s, g.ts]
-                * (1.0 + g.rtcs_fr[g.r, cc.arg4, g.c, g.s, g.ts]),
-            )
-            * expr2
-            * expr3
-            * Product(
-                g.UcAttr[g.r, g.ucn, cc.arg5, g.ucgrptype, "PERIOD"], g.fpd[cc.arg4]
-            )
-            * Product(
-                g.Reg[g.r].where[
-                    Sum(g.UcAttr[g.r, g.ucn, cc.arg5, g.ucgrptype, g.UcCost], 1.0)
-                ],
-                Sum(
-                    Domain(
-                        g.UcAttr[g.r, g.ucn, cc.arg5, g.ucgrptype, g.UcCost],
-                        g.Rdcur[g.r, g.cur],
+            * wrap_in_sum(
+                var_com[g.r, cc.arg4, g.c, g.ts, *sow_GP]
+                * (
+                    1.0
+                    + (1.0 / g.com_ie[g.r, cc.arg4, g.c, g.ts] - 1.0).where[
+                        (
+                            (g.UcAttr[g.r, g.ucn, cc.arg5, g.ucgrptype, "EFF"])
+                            ^ (diag(g.ucgrptype, f"COM{cc.arg9}"))
+                        )
+                    ]
+                )
+                # * [AL] PROD operator is useful here
+                * Product(g.Annual, 1.0)
+                * Product(
+                    g.RsBelow[g.r, g.ts, g.s],
+                    g.rs_fr[g.r, g.s, g.ts]
+                    * (
+                        1.0
+                        + macro.rtcs_fr.rtcs_fr_GP(
+                            g.r, cc.arg4, g.c, g.s, g.ts, sow=sow_GP
+                        )
                     ),
-                    obj_com_param[g.r, cc.arg4, g.c, g.ts, g.UcCost, g.cur],
+                )
+                * expr2
+                * expr3
+                * Product(
+                    g.UcAttr[g.r, g.ucn, cc.arg5, g.ucgrptype, "PERIOD"],
+                    g.fpd[cc.arg4],
+                )
+                * Product(
+                    g.Reg[g.r].where[
+                        Sum(g.UcAttr[g.r, g.ucn, cc.arg5, g.ucgrptype, g.UcCost], 1.0)
+                    ],
+                    Sum(
+                        Domain(
+                            g.UcAttr[g.r, g.ucn, cc.arg5, g.ucgrptype, g.UcCost],
+                            g.Rdcur[g.r, g.cur],
+                        ),
+                        obj_com_param[g.r, cc.arg4, g.c, g.ts, g.UcCost, g.cur],
+                    ),
                 ),
+                domain,
             ),
         ),
     )

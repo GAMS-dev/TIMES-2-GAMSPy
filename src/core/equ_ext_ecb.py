@@ -79,18 +79,18 @@ class EquExtEcb(GamsClass):
 * Calculate size of market for new capacity
    SUM(TOP(PRC_CAP(R,P),C,'OUT')$(COEF_LMS(R,T,C,P)$RTP_VARA(R,T,P)),
      PRC_CAPACT(R,P) *
-     ({self.env.var}_NCAP(R,T,P {self.env.sow})$(NOT RTP_OFF(R,T,P)+RVPT(R,T,P,T)) +
-      SUM(RVPT(R,V,P,T),{self.env.varv}_NCAP(R,V,P{self.env.sws})*SQRT(COEF_CPT(R,V,T,P)))))
-   =E= {self.env.var}_XCAP(R,T,C{self.env.sow});
+     ({macro.VAR_NCAP(self.env.var, "R", "T", "P", self.env.sow)}$(NOT RTP_OFF(R,T,P)+RVPT(R,T,P,T)) +
+      SUM(RVPT(R,V,P,T),{macro.VAR_NCAP(self.env.varv, "R", "V", "P", self.env.sws)}*SQRT(COEF_CPT(R,V,T,P)))))
+   =E= {macro.VAR_XCAP(self.env.var, "R", "T", "C", self.env.sow)};
 
 * Maximum share in new capacity market by technology
   {self.env.eq}_MSNCAPB(RTC_MS({self.env.r_t},C),P {self.env.swt})$(RTP_VARA(R,T,P)$PRC_CAP(R,P)$COEF_LMS(R,T,C,P))..
    PRC_CAPACT(R,P) *
-   ({self.env.var}_NCAP(R,T,P {self.env.sow})$(NOT RTP_OFF(R,T,P)+RVPT(R,T,P,T)) +
-    SUM(RVPT(R,V,P,T),{self.env.varv}_NCAP(R,V,P{self.env.sws})*SQRT(COEF_CPT(R,V,T,P))))*SIGN(COEF_LMS(R,T,C,P))
+   ({macro.VAR_NCAP(self.env.var, "R", "T", "P", self.env.sow)}$(NOT RTP_OFF(R,T,P)+RVPT(R,T,P,T)) +
+    SUM(RVPT(R,V,P,T),{macro.VAR_NCAP(self.env.varv, "R", "V", "P", self.env.sws)}*SQRT(COEF_CPT(R,V,T,P))))*SIGN(COEF_LMS(R,T,C,P))
    =L=
 *  New capacity market multiplied by logit market share
-   {self.env.var}_XCAP(R,T,C{self.env.sow}) * COEF_LMS(R,T,C,P) + SUM(ANNUAL(S),{self.env.var}_FLO(R,T,T,P,'_MSVIOL_',S{self.env.sow}));
+   {macro.VAR_XCAP(self.env.var, "R", "T", "C", self.env.sow)} * COEF_LMS(R,T,C,P) + SUM(ANNUAL(S),{self.env.var}_FLO(R,T,T,P,'_MSVIOL_',S{self.env.sow}));
 
 *-----------------------------------------------------------------------------
         """,

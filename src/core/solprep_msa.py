@@ -158,12 +158,13 @@ def _solprep_msa_init(
         arg1="PAR_FLO",
         arg2="",
         arg3=".L",
+        v=v,
         pgprim=pgprim,
         sow=sow,
         rtp_ffcs_defined=rtp_ffcs_defined,
     )
 
-    execution_str += sol_ire_rpt(sow=sow, mx=mx, rtp_ffcs_defined=rtp_ffcs_defined)
+    execution_str += sol_ire_rpt(v=v, sow=sow, mx=mx, rtp_ffcs_defined=rtp_ffcs_defined)
 
     execution_str += """
 *-----------------------------------------------------------------------------

@@ -24,9 +24,9 @@ from core.utils import extract_var_domain, generate_equation, resolve_ctst, wrap
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
-    from gamspy._symbols.implicits import ImplicitParameter
+    from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
 
-    from core.utils import SET_OR_ALIAS
+    from core.utils import SET_OR_ALIAS, SowGPType
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -130,16 +130,16 @@ class EqobsalvMod(GamsClass):
     def _label_equa(
         self,
         eq: str,
-        sow: str,
-        vart: str,
+        sow: SowGPType,
+        vart: tuple[str, ImplicitSet | None],
         validate: str,
         etl: str,
-        sws: str,
-        varv: str,
+        sws: tuple[SET_OR_ALIAS, ...] | tuple[()],
+        varv: tuple[str, ImplicitSet | None],
         var: str,
     ) -> None:
         g = self.tc
-        eq_objsalv = g.get_equation(name=f"{eq}_OBJSALV")
+        eq_objsalv, sow = macro.EQ_OBJSALV_GP(eq, sow)
 
         def create_wrapped_vars(base_var: Any, suffix: str) -> Any:
             v_id, v_domain = extract_var_domain(base_var)
@@ -148,8 +148,6 @@ class EqobsalvMod(GamsClass):
             )
 
         var_obj = create_wrapped_vars(var, "OBJ")
-        varv_ncap = create_wrapped_vars(varv, "NCAP")
-        vart_ncap = create_wrapped_vars(vart, "NCAP")
 
         if validate != "YES":
             sub_expr1: Expression | int = (
@@ -185,7 +183,8 @@ class EqobsalvMod(GamsClass):
             # * [AL] Note that discounting to EOH+1 is imbedded in OBJSCC and OBJSIC
             Sum(
                 g.ObjSums[g.r, g.t, g.p],
-                g.objscc[g.r, g.t, g.p, g.cur] * vart_ncap[g.r, g.t, g.p, *sws],
+                g.objscc[g.r, g.t, g.p, g.cur]
+                * macro.VAR_NCAP_GP(vart, g.r, g.t, g.p, sws),
             )
             * g.obj_dceoh[g.r, g.cur]
             + sub_expr1
@@ -197,7 +196,8 @@ class EqobsalvMod(GamsClass):
             # * [AL] Note that discounting to EOH+1 is imbedded in SALV_DEC
             + Sum(
                 g.ObjSums3[g.r, g.t, g.p],
-                vart_ncap[g.r, g.t, g.p, *sws] * g.salv_dec[g.r, g.t, g.p, g.cur],
+                macro.VAR_NCAP_GP(vart, g.r, g.t, g.p, sws)
+                * g.salv_dec[g.r, g.t, g.p, g.cur],
             )
             * g.obj_dceoh[g.r, g.cur]
             # * Past investments
@@ -218,7 +218,7 @@ class EqobsalvMod(GamsClass):
                 * macro.obj_dlagc_GP(g.r, g.k, g.p, g.cur)
                 * g.salv_inv[g.r, g.v, g.p, g.k]
                 * (
-                    varv_ncap[g.r, g.v, g.p, *sws].where[g.Milestonyr[g.v]]
+                    macro.VAR_NCAP_GP(varv, g.r, g.v, g.p, sws).where[g.Milestonyr[g.v]]
                     + g.ncap_pasti[g.r, g.v, g.p].where[g.Pastyear[g.v]]
                 ),
             )
@@ -235,7 +235,7 @@ class EqobsalvMod(GamsClass):
                 * g.ncap_valu[g.r, g.k, g.p, g.Com, g.cur]
                 * g.obj_disc[g.r, g.Y, g.cur]
                 * (
-                    varv_ncap[g.r, g.v, g.p, *sws].where[g.Milestonyr[g.v]]
+                    macro.VAR_NCAP_GP(varv, g.r, g.v, g.p, sws).where[g.Milestonyr[g.v]]
                     + g.ncap_pasti[g.r, g.v, g.p].where[g.Pastyear[g.v]]
                 )
                 * g.ncap_ocom[g.r, g.v, g.p, g.Com]

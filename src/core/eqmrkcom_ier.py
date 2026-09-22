@@ -30,6 +30,7 @@ from core.cal_ire_mod import CalIreModConfig, cal_ire_mod_GP
 from core.cal_red_red import CalRedRedConfig
 from core.cal_stgn_mod import CalStgnModConfig, cal_stgn_mod_GP
 from core.utils import generate_equation
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from gamspy._algebra.condition import Condition
@@ -90,7 +91,9 @@ class EqmrkcomIer(GamsClass):
         VAR_ELAST = g.get_variable(f"{var}_ELAST")
 
         # RS_FR(R,S,'ANNUAL')*(1+RTCS_FR(R,T,C,S,'ANNUAL')), the annual blending spread
-        annual = g.rs_fr[r, s, "ANNUAL"] * (1 + g.rtcs_fr[r, t, c, s, "ANNUAL"])
+        annual = g.rs_fr[r, s, "ANNUAL"] * (
+            1 + macro.rtcs_fr.rtcs_fr_GP(r, t, c, s, "ANNUAL", sow)
+        )
         share = flo_mrk[r, t, prc, c, s, cc.arg3]
 
         if cc.arg4 != "CON":
@@ -278,7 +281,7 @@ class EqmrkcomIer(GamsClass):
                     g.RtpVintyr[r, v, t, prc],
                     include_cal_red
                     * g.rs_fr[r, s, ts]
-                    * (1 + g.rtcs_fr[r, t, c, s, ts]),
+                    * (1 + macro.rtcs_fr.rtcs_fr_GP(r, t, c, s, ts, sow)),
                 ),
             ),
         )

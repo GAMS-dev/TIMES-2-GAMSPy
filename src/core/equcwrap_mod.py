@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, cast, get_args
+from typing import TYPE_CHECKING, Literal, get_args
 
 from gamspy import Alias, Domain, Sum, Variable
 from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
@@ -87,9 +87,8 @@ class EqucwrapMod(GamsClass):
         # NOTE: We keep this local variable for now, since it trickls down to another file and is required by legacy code.
         # Could be removed at a later stage.
         self.env.set_local("tsum", "UC_T_SUM(R,UC_N,T),")
-        tsum: Condition | ImplicitSet | tuple[Condition, ImplicitParameter] = g.UcTSum[
-            g.r, g.ucn, g.t
-        ]
+        uc_t_sum = g.UcTSum[g.r, g.ucn, g.t]
+        tsum: Condition | ImplicitSet | tuple[Condition, ImplicitParameter] = uc_t_sum
         self.env.set_scoped("sw1", self.env.sow)
         self.env.set_scoped("sw1_GP", self.env.sow_GP)
 
@@ -98,13 +97,20 @@ class EqucwrapMod(GamsClass):
             self.env.set_local("sws_GP", (g.SwUct[g.ucn, g.t, g.Sow],))
             self.env.set_local("swd", ")")
             self.env.set_local("swd_GP", ())
-            self.env.set_local("tst", self.env.tsum)
+            self.env.set_scoped(
+                "tst", self.env.tsum
+            )  # %TST% of the SCUM==1 branch below refers to whatever %TSUM% meant
+            self.env.set_scoped("tst_GP", (tsum,))
+
             self.env.set_local("tsum", f"({self.env.tsum}WW)${self.env.swsw}")
+            match self.env.swsw_GP:
+                case (condition, imp_param):
+                    tsum = (Domain(uc_t_sum, g.ww).where[condition], imp_param)
+                case (condition,):
+                    tsum = Domain(uc_t_sum, g.ww).where[condition]
+                case _:
+                    raise ValueError(f"Unexpected data in swsw_GP {self.env.swsw_GP}")
 
-            implicit_set = next(iter(self.env.swsw_GP))
-            base_tsum = cast(ImplicitSet, tsum)
-
-            tsum = Domain(base_tsum, g.ww).where[implicit_set]
             self.env.set_local("swtd", "SW_TSW(SOW,TT,WW),")
             self.env.set_local("swtd_GP", (g.SwTsw[g.Sow, g.tt, g.ww],))
 
@@ -112,6 +118,7 @@ class EqucwrapMod(GamsClass):
             self.env.set_scoped("sw1", ",'1'")
             self.env.set_scoped("sw1_GP", (1,))
             self.env.set_local("sws", "(")
+            self.env.set_local("sws_GP", ())
             self.env.set_local(
                 "tsum", f"({self.env.tst}SOW(WW))$SW_T(T,WW),SW_TPROB(T,WW)*"
             )

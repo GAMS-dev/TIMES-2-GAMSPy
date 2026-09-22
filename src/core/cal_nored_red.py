@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING
 from gamspy import Domain, Number, Sum
 
 from core.cal_red_red import CalRedRedConfig
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from gamspy import Variable
@@ -88,7 +89,7 @@ def cal_nored_red_GP(
                 * shp3
             )
             * g.rs_fr[r, cc.arg3, allts]
-            * (1 + g.rtcs_fr[r, cc.arg5, com2, cc.arg3, allts]),
+            * (1 + macro.rtcs_fr.rtcs_fr_GP(r, cc.arg5, com2, cc.arg3, allts, cc.sow)),
         ).where[g.RpcEmis[r, cc.arg4, cc.arg1]]
     )
 
@@ -131,7 +132,7 @@ def cal_nored_red(
 *   emission flow = flow variable * emission factor
    SUM((FS_EMIT(R,{arg4},{arg1},CG3,COM2),ALL_TS)$(RS_FR(R,{arg3},ALL_TS)*RTPCS_VARF(R,{arg5},{arg4},COM2,ALL_TS)),
      {var}_FLO{arg6}(R,{vnt},{arg5},{arg4},COM2,ALL_TS{sow}) * COEF_PTRAN(R,{vnt},{arg4},CG3,COM2,{arg1},ALL_TS){shp3} *
-     RS_FR(R,{arg3},ALL_TS)*(1+RTCS_FR(R,{arg5},COM2,{arg3},ALL_TS))
+     RS_FR(R,{arg3},ALL_TS)*(1+{macro.rtcs_fr.rtcs_fr("R", arg5, "COM2", arg3, "ALL_TS")})
    )$RPC_EMIS(R,{arg4},{arg1})
 )
 """

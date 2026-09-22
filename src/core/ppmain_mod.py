@@ -489,11 +489,11 @@ class PpmainMod(GamsClass):
         self.tc.enqueue(self.phase_twelve)
 
         # Split of timeslice based upon level and commodity profile
-        if "RTCS_FRMX" not in m.listParameters():
+        if not macro.rtcs_fr.active:
             g.rtcs_fr = Parameter(m, name="RTCS_FR", domain=[g.r, g.t, g.c, g.s, g.s])
 
         rts_GP = macro.rts_GP(s=g.s, g=self.tc, env=self.env)
-        self.tc.enqueue(self.phase_thirteen, mx=self.env.mx, rts=rts_GP)
+        self.tc.enqueue(self.phase_thirteen, rts=rts_GP)
 
         # Preprocess TIMES-Micro
         if self.env.timesed == "YES":
@@ -2204,12 +2204,7 @@ class PpmainMod(GamsClass):
         g.Rcs.setRecords(None)
         g.Trackc.setRecords(None)
 
-    def phase_thirteen(
-        self: PpmainMod, mx: str, rts: SET_OR_ALIAS | Expression
-    ) -> None:
-        if mx != "":
-            raise NotImplementedError(f"Value for mx: {mx} not implemented")
-
+    def phase_thirteen(self: PpmainMod, rts: SET_OR_ALIAS | Expression) -> None:
         g = self.tc
         g.rs_fr[g.RsTree[g.r, g.s, g.ts]] = (
             Number(1.0).where[g.TsMap[g.r, g.s, g.ts]]
@@ -2217,7 +2212,7 @@ class PpmainMod(GamsClass):
                 g.RsBelow[g.r, g.ts, g.s]
             ]
         )
-        g.rtcs_fr[g.Rtc[g.r, g.t, g.c], g.s, g.ts].where[
+        macro.rtcs_fr.rtcs_frmx_GP(g.Rtc[g.r, g.t, g.c], g.s, g.ts).where[
             (g.RsBelow[g.r, g.ts, g.s].where[g.com_fr[g.Rtc, g.ts]])
         ] = (
             (

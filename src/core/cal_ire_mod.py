@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Literal
 from gamspy import Domain, Number, Sum
 
 from core.powerflo_vda import powerflo_vda_ireaux_GP
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from gamspy import Alias, Set, Variable
@@ -100,7 +101,7 @@ def cal_ire_mod_GP(
                 )
                 * cc.arg4
                 * g.rs_fr[r, s, ts]
-                * (1 + g.rtcs_fr[r, t, c, s, ts]),
+                * (1 + macro.rtcs_fr.rtcs_fr_GP(r, t, c, s, ts, cc.sow)),
             ),
         )
 
@@ -135,5 +136,5 @@ def cal_ire_mod_GP(
             * cc.arg4,
         )
         * g.rs_fr[r, s, ts]
-        * (1 + g.rtcs_fr[r, t, Com, s, ts]),
+        * (1 + macro.rtcs_fr.rtcs_fr_GP(r, t, Com, s, ts, cc.sow)),
     )

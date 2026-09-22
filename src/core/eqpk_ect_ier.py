@@ -13,10 +13,11 @@ from typing import TYPE_CHECKING, Literal
 from gamspy import Number, Sum
 
 from core.cal_fflo_mod import CalFfloModConfig, cal_fflo_mod_GP
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
-    from gamspy import Alias, Set, Variable
-    from gamspy._symbols.implicits import ImplicitSet, ImplicitVariable
+    from gamspy import Alias, Set
+    from gamspy._symbols.implicits import ImplicitSet
 
     from utils.times_model_class import TimesModelClass
 
@@ -37,8 +38,6 @@ def eqpk_ect_ier_GP(
     """GAMSPy counterpart of eqpk_ect_ier()."""
     r, v, t, p, c, s = g.r, g.v, g.t, g.p, g.c, g.s
     # ECT_CHP / ECT_ELC are declared by initmty.ier
-    varv_id, varv_set = varv
-    VARV_NCAP: Variable = g.get_variable(f"{varv_id}_NCAP")
 
     include_cal_fflo = cal_fflo_mod_GP(
         g=g,
@@ -57,10 +56,6 @@ def eqpk_ect_ier_GP(
         ),
     )
 
-    ncap: ImplicitVariable | Sum = VARV_NCAP[r, v, p, *sws]
-    if varv_set is not None:
-        ncap = Sum(varv_set, ncap)
-
     return Sum(
         g.EctElc[g.EctChp[r, p], c].where[
             # NB: in GAMS `not` binds looser than `*`, so NOT A*B means NOT (A*B)
@@ -74,7 +69,8 @@ def eqpk_ect_ier_GP(
             * g.ncap_pkcnt[r, v, p, s]
             * g.coef_cpt[r, v, t, p]
             * (
-                ncap.where[g.Milestonyr[v]] + g.ncap_pasti[r, v, p].where[g.Pastyear[v]]
+                macro.VAR_NCAP_GP(varv, r, v, p, sws).where[g.Milestonyr[v]]
+                + g.ncap_pasti[r, v, p].where[g.Pastyear[v]]
             ),
         ),
     )

@@ -23,6 +23,7 @@ from gamspy.math import MathOp, Max, Min, map_value, same_as
 from core.base_class import GamsClass
 from core.cal_red_red import CalRedRedConfig
 from core.utils import extract_var_domain, wrap_in_sum
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from gamspy import Expression
@@ -41,11 +42,7 @@ class EqcumfloMod(GamsClass):
     module_name: str = "eqcumflo_mod"
     gams_source: str = "eqcumflo.mod"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
@@ -77,16 +74,13 @@ class EqcumfloMod(GamsClass):
         sw1 = self.env.sw1_GP
         sw2 = self.env.sw2_GP
 
-        VAR_CUMFLO = g.get_variable(f"{self.env.var}_CUMFLO")
         VAR_IRE = g.get_variable(f"{self.env.var}_IRE")
         VAR_ACT = g.get_variable(f"{self.env.var}_ACT")
-        var_id, domain = extract_var_domain(self.env.vartt_GP)
-        VARTT_ACT = wrap_in_sum(
-            target=g.get_variable(name=f"{var_id}_ACT"), domain=domain
-        )
+        vartt_id, domain = extract_var_domain(self.env.vartt_GP)
+        VARTT_ACT = g.get_variable(name=f"{vartt_id}_ACT")
 
         sw1_flo_cum = g.get_parameter(f"{sw1}FLO_CUM")
-        eq_cumflo = g.get_equation(f"{self.env.eq}_CUMFLO")
+        eq_cumflo, sow_domain = macro.EQ_CUMFLO_GP(self.env.eq, sow_domain)
 
         if self.env.obj.upper() != "LIN":
             condition = (g.e[g.t] >= g.yearval[g.allyear]).where[
@@ -146,7 +140,7 @@ class EqcumfloMod(GamsClass):
         )
 
         if self.env.stages == "YES":
-            term2 = Sum(Domain(*self.env.swsw_GP), term2)
+            term2 = wrap_in_sum(term2, self.env.swsw_GP)
 
         term3: MathOp | Sum
         if self.env.obj.upper() != "LIN":
@@ -163,6 +157,10 @@ class EqcumfloMod(GamsClass):
                 ],
                 g.tpulse[g.t, g.year],
             )
+
+        term3_vartt = term3 * wrap_in_sum(
+            VARTT_ACT[g.r, g.v, g.t, g.p, g.ts, *self.env.sws_GP], domain
+        )
 
         eq_cumflo[g.RpcCumflo[g.Rp[g.r, g.p], g.c, g.allyear, g.ll], *sow_domain] = (
             # * all commodity/activity flows within period range
@@ -181,13 +179,15 @@ class EqcumfloMod(GamsClass):
                         g.RtpVara[g.r, g.t, g.p],
                         g.PrcTs[g.r, g.p, g.ts],
                     ),
-                    term3 * VARTT_ACT[g.r, g.v, g.t, g.p, g.ts, *self.env.sws_GP],
+                    term3_vartt,
                 ).where[same_as(self.env.pgprim, g.c)],
             )
             / self.env.cufscal
             ==
             # * bound range working on
-            VAR_CUMFLO[g.r, g.p, g.c, g.allyear, g.ll, *swt].where[
+            macro.VAR_CUMFLO_GP(
+                self.env.var, g.r, g.p, g.c, g.allyear, g.ll, swt
+            ).where[
                 (
                     map_value(sw1_flo_cum[g.r, g.p, g.c, g.allyear, g.ll, "UP", *sw2])
                     != 8.0

@@ -24,6 +24,7 @@ from gamspy import Expression, Number, Sum
 
 from core.base_class import GamsClass
 from core.utils import generate_equation
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from gamspy._algebra.condition import Condition
@@ -77,13 +78,8 @@ class EqcptMod(GamsClass):
         swt = self.env.swt_GP
         sws = self.env.sws_GP
         rcapsub = self.env.rcapsub_GP
-        varv_id, varv_set = self.env.varv_GP
 
-        VARV_NCAP = g.get_variable(f"{varv_id}_NCAP")
-        eq = g.get_equation(f"{self.env.eq}{cc.arg2}_CPT")
-
-        shared_expr = VARV_NCAP[r, v, p, *sws]
-        VARV_NCAP_expr = shared_expr if varv_set is None else Sum(varv_set, shared_expr)
+        eq, swt = macro.EQ_CPT_GP(self.env.eq, cc.arg2, swt)
 
         # GG V0.6a_3+ check whether used in UserConstraint
         eq[g.Rtp[r, t, p], *swt].where[cc.arg3] = generate_equation(  # type: ignore
@@ -94,7 +90,9 @@ class EqcptMod(GamsClass):
                 v.where[g.coef_cpt[r, v, t, p]],
                 g.coef_cpt[r, v, t, p]
                 * (
-                    VARV_NCAP_expr.where[g.Milestonyr[v]]
+                    macro.VAR_NCAP_GP(self.env.varv_GP, r, v, p, sws).where[
+                        g.Milestonyr[v]
+                    ]
                     + g.ncap_pasti[r, v, p].where[g.Pastyear[v]]
                     + rcapsub
                 ),

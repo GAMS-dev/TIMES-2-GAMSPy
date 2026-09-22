@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 from gamspy import Ord, Sum
 
 from core.base_class import GamsClass
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from gamspy._symbols.implicits import ImplicitVariable
@@ -75,10 +76,8 @@ class EquExtEtl(GamsClass):
         VAR_LAMBD = g.get_variable(f"{var}_LAMBD")
         VAR_DELTA = g.get_variable(f"{var}_DELTA")
         VAR_IC = g.get_variable(f"{var}_IC")
-        VAR_NCAP = g.get_variable(f"{var}_NCAP")
         VARV_CCOST = g.get_variable(f"{varv_id}_CCOST")
         VARV_DELTA = g.get_variable(f"{varv_id}_DELTA")
-        VARV_NCAP = g.get_variable(f"{varv_id}_NCAP")
 
         eq_cuinv = g.get_equation(f"{eq}_CUINV")
         eq_cc = g.get_equation(f"{eq}_CC")
@@ -95,11 +94,9 @@ class EquExtEtl(GamsClass):
 
         # %VARV%_<var>(...%SWS%) is either the plain vintage-indexed variable or,
         # under STAGES, the state-of-the-world weighted SUM(SW_TSW(SOW,V,W),VAS_...(...,W)).
-        ncap_v: ImplicitVariable | Sum = VARV_NCAP[r, v, Teg, *sws]
         ccost_v: ImplicitVariable | Sum = VARV_CCOST[r, v, Teg, *sws]
         delta_v: ImplicitVariable | Sum = VARV_DELTA[r, v, Teg, kp2, *sws]
         if varv_set is not None:
-            ncap_v = Sum(varv_set, ncap_v)
             ccost_v = Sum(varv_set, ccost_v)
             delta_v = Sum(varv_set, delta_v)
 
@@ -114,7 +111,8 @@ class EquExtEtl(GamsClass):
         ] == (
             Sum(
                 Rtp[r, v[Milestonyr], Teg].where[Ord(Milestonyr) <= Ord(t)],
-                ncap_v * coef_rpti[r, v, Teg],
+                macro.VAR_NCAP_GP(self.env.varv_GP, r, v, Teg, sws)
+                * coef_rpti[r, v, Teg],
             )
             + ccap0[r, Teg]
         )
@@ -181,18 +179,18 @@ class EquExtEtl(GamsClass):
         # * Salvage of learning investments: Handled in TIMES by EQOBSALV.mod
 
         # * Coupling equation for key in TEG to cluster TCH's, only if TCH in cluster TEG and TEG NE TCH
-        eq_clu[Rtp[*r_t, Teg], *swt].where[ntchteg[r, Teg]] = VAR_NCAP[
-            r, t, Teg, *sow
-        ] == Sum(
+        eq_clu[Rtp[*r_t, Teg], *swt].where[ntchteg[r, Teg]] = macro.VAR_NCAP_GP(
+            var, r, t, Teg, sow
+        ) == Sum(
             prc.where[Rtp[r, t, prc] * cluster[r, Teg, prc]],
-            cluster[r, Teg, prc] * VAR_NCAP[r, t, prc, *sow],
+            cluster[r, Teg, prc] * macro.VAR_NCAP_GP(var, r, t, prc, sow),
         )
 
         # *-----------------------------------------------------------------------------
         # * new clustering equation
-        eq_mrclu[Rtp[*r_t, Teg], *swt].where[tl_rp_kc[r, Teg]] = VAR_NCAP[
-            r, t, Teg, *sow
-        ] == Sum(
+        eq_mrclu[Rtp[*r_t, Teg], *swt].where[tl_rp_kc[r, Teg]] = macro.VAR_NCAP_GP(
+            var, r, t, Teg, sow
+        ) == Sum(
             tl_rp_ct[Reg, p].where[Rtp[Reg, t, p]],
-            tl_mrclust[r, Teg, Reg, p] * VAR_NCAP[Reg, t, p, *sow],
+            tl_mrclust[r, Teg, Reg, p] * macro.VAR_NCAP_GP(var, Reg, t, p, sow),
         )

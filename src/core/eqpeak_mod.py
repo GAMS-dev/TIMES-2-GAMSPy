@@ -29,10 +29,10 @@ from core.eqpk_ect_ier import eqpk_ect_ier_GP
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
-    from gamspy import Alias, Equation, Parameter, Set, Variable
+    from gamspy import Alias, Set
     from gamspy._algebra.condition import Condition
     from gamspy._algebra.expression import Expression
-    from gamspy._symbols.implicits import ImplicitSet, ImplicitVariable
+    from gamspy._symbols.implicits import ImplicitSet
 
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
@@ -85,7 +85,6 @@ class EqpeakMod(GamsClass):
             sws_local=sws_local,
             var=self.env.var,
             sow=self.env.sow_GP,
-            mx=self.env.mx,
             condition=self.env.timesed == "YES",
             is_rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
             is_ireauxbal=self.env.is_set("ireauxbal"),
@@ -105,7 +104,6 @@ class EqpeakMod(GamsClass):
         sws_local: Product | Number,
         var: str,
         sow: tuple[Literal["0", "1"] | Set | Alias, ...] | tuple[()],
-        mx: str,
         condition: bool,
         is_rtp_ffcs_defined: bool,
         is_ireauxbal: bool,
@@ -116,14 +114,11 @@ class EqpeakMod(GamsClass):
         r, v, t, p, c, s, sl, ts = g.r, g.v, g.t, g.p, g.c, g.s, g.sl, g.ts
         cg2, Com, j, bd, ble, opr = g.cg2, g.Com, g.j, g.bd, g.Ble, g.Opr
 
-        eq_peak: Equation = g.get_equation(f"{eq}_PEAK")
-        varv_id, varv_set = varv
-        VARV_NCAP: Variable = g.get_variable(f"{varv_id}_NCAP")
-        VAR_BLND: Variable = g.get_variable(f"{var}_BLND")
-        VAR_DEM: Variable = g.get_variable(f"{var}_DEM")
-        VAR_COMPRD: Variable = g.get_variable(f"{var}_COMPRD")
-        VAR_ELAST: Variable = g.get_variable(f"{var}_ELAST")
-        com_fr: Parameter = g.get_parameter(f"COM_FR{mx}")
+        eq_peak = g.get_equation(f"{eq}_PEAK")
+        VAR_BLND = g.get_variable(f"{var}_BLND")
+        VAR_DEM = g.get_variable(f"{var}_DEM")
+        VAR_COMPRD = g.get_variable(f"{var}_COMPRD")
+        VAR_ELAST = g.get_variable(f"{var}_ELAST")
         rts = macro.rts_GP(s=sl, g=self.tc, env=self.env)
 
         # NCAP_PKCNT(R,V,P,S)**RPC_PKF(R,P,C), the peak contribution of a process
@@ -258,11 +253,8 @@ class EqpeakMod(GamsClass):
             ),
         )
 
-        ncap: ImplicitVariable | Sum = VARV_NCAP[r, v, p, *swstmp]
-        if varv_set is not None:
-            ncap = Sum(varv_set, ncap)
         installed = (
-            ncap.where[g.Milestonyr[v]]
+            macro.VAR_NCAP_GP(varv, r, v, p, swstmp).where[g.Milestonyr[v]]
             + g.ncap_pasti[r, v, p].where[g.Pastyear[v]]
             + rcapsub
         )
@@ -283,7 +275,7 @@ class EqpeakMod(GamsClass):
         blending = Sum(
             g.BleOpr[r, ble, opr].where[g.BleInp[r, ble, c] * g.BleTp[r, t, ble]],
             g.g_yrfr[r, s]
-            * (1 + g.rtcs_fr[r, t, c, s, "ANNUAL"])
+            * (1 + macro.rtcs_fr.rtcs_fr_GP(r, t, c, s, "ANNUAL", sow))
             * g.bl_inp[r, ble, c]
             * g.peakda_bl[r, ble, t]
             * VAR_BLND[r, t, ble, opr, *sow],
@@ -298,7 +290,7 @@ class EqpeakMod(GamsClass):
                     g.rd_shar[r, t, Com, c] * VAR_COMPRD[r, t, Com, "ANNUAL", *sow],
                 )
             )
-            * com_fr[r, t, c, s]
+            * macro.com_fr.com_fr_GP(self.env.mx_GP, r, t, c, s)
         ).where[g.Dem[r, c]]
         # *   include the elasticity variables
         elast: Sum | int = 0

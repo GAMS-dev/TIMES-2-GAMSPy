@@ -19,7 +19,7 @@ from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet, ImplicitVa
 from gamspy.math import rpower
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Sequence
 
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
@@ -184,8 +184,21 @@ def apply_witspine(env: CompileEnvironment) -> None:
 
 
 def apply_ewispine(env: CompileEnvironment) -> None:
-    # rf"SET EQ {self.env.eq}"
-    env.set_scoped("eq", env.eq)
+    # $SETGLOBAL EWISPINE SET EQ %EQ% of recurrin.stc: %EQ% there is resolved
+    # at $SETGLOBAL-definition time (while %EQ%=='Q', from apply_witspine), so
+    # invoking %EWISPINE% later restores EQ to its pre-witspine value, i.e. EQS.
+    env.set_scoped("eq", env.eqs)
+
+
+def apply_v_scope(env: CompileEnvironment, scope: str, value: str) -> None:
+    """sol_flo.red:11: SET%4 V VAR"""
+    scope_upper = scope.upper()
+    if scope_upper == "LOCAL":
+        env.set_local("v", value)
+    elif scope_upper == "GLOBAL":
+        env.set_global("v", value)
+    else:
+        env.set_scoped("v", value)
 
 
 def apply_sw_stvars(
@@ -202,6 +215,37 @@ def apply_sw_stvars(
         env.set_scoped("vartt_GP", ("VAS", g.SwTsw[g.Sow, g.tt, g.w]))
         env.set_scoped("swsw", "SW_TSW(SOW,T,WW),")
         env.set_scoped("swsw_GP", (g.SwTsw[g.Sow, g.t, g.ww],))
+    elif (
+        env.sw_stvars
+        == "SET VAR 'Z' SET VART 'SUM(SW_TSW(SOW,T,W),Z' SET VARM 'SUM(SW_TSW(SOW,MODLYEAR,W),Z' SET VARV 'SUM(SW_TSW(SOW,V,W),Z'"
+    ):
+        env.set_scoped("var", "Z")
+        env.set_scoped("vart", "SUM(SW_TSW(SOW,T,W),Z")
+        env.set_scoped("vart_GP", ("Z", g.SwTsw[g.Sow, g.t, g.w]))
+        env.set_scoped("varm", "SUM(SW_TSW(SOW,MODLYEAR,W),Z")
+        env.set_scoped("varm_GP", ("Z", g.SwTsw[g.Sow, g.Modlyear, g.w]))
+        env.set_scoped("varv", "SUM(SW_TSW(SOW,V,W),Z")
+        env.set_scoped("varv_GP", ("Z", g.SwTsw[g.Sow, g.v, g.w]))
+    elif (
+        env.sw_stvars
+        == "SET VAR 'Z' SET VART 'SUM(SW_TSW(SOW,T,W),Z' SET VARM 'SUM(SW_TSW(SOW,MODLYEAR,W),Z' SET VARV 'SUM(SW_TSW(SOW,V,W),Z' SET VARTT 'SUM(SW_TSW(W,TT,W),SW_TPROB(TT,W)*Z' SET SWSW SW_TSW(SOW(WW),T,WW),SW_TPROB(T,WW)*"
+    ):
+        env.set_scoped("var", "Z")
+        env.set_scoped("vart", "SUM(SW_TSW(SOW,T,W),Z")
+        env.set_scoped("vart_GP", ("Z", g.SwTsw[g.Sow, g.t, g.w]))
+        env.set_scoped("varm", "SUM(SW_TSW(SOW,MODLYEAR,W),Z")
+        env.set_scoped("varm_GP", ("Z", g.SwTsw[g.Sow, g.Modlyear, g.w]))
+        env.set_scoped("varv", "SUM(SW_TSW(SOW,V,W),Z")
+        env.set_scoped("varv_GP", ("Z", g.SwTsw[g.Sow, g.v, g.w]))
+        env.set_scoped("vartt", "SUM(SW_TSW(W,TT,W),SW_TPROB(TT,W)*Z")
+        env.set_scoped(
+            "vartt_GP",
+            ("Z", (g.SwTsw[g.w, g.tt, g.w], g.sw_tprob[g.tt, g.w])),
+        )
+        env.set_scoped("swsw", "SW_TSW(SOW(WW),T,WW),SW_TPROB(T,WW)*")
+        env.set_scoped(
+            "swsw_GP", (g.SwTsw[g.Sow[g.ww], g.t, g.ww], g.sw_tprob[g.t, g.ww])
+        )
     else:
         raise ValueError(f"Unknown value in sw_stvars: {env.sw_stvars}")
 
@@ -218,41 +262,6 @@ def generate_equation(lhs: Any, type: EquationSenseTypes, rhs: Any) -> Any:
             raise ValueError(
                 f"CRITICAL: Unrecognized compilation operator type flag: '{type}'"
             )
-
-
-def get_callable_parameter_type(
-    symbol_or_func: Parameter | Callable[..., Any] | None,
-    *indices: Any,
-) -> Any:
-    """
-    Return a GAMSPy expression from either a Parameter or a callable macro replacement.
-
-    This is useful for GAMS symbols that may be either a normal parameter
-    or a compile-time macro depending on model settings.
-
-    Examples:
-        get_callable_parameter_type(g.rtcs_fr, r, t, c, s, ts)
-
-    Behavior:
-        - Callable: call it with the provided indices.
-        - Parameter: index it with the provided indices.
-        - None: raise a clear error.
-    """
-    if symbol_or_func is None:
-        raise RuntimeError(
-            "Expected a GAMSPy Parameter or callable macro replacement, but got None."
-        )
-
-    if callable(symbol_or_func):
-        return symbol_or_func(*indices)
-
-    if isinstance(symbol_or_func, Parameter):
-        return symbol_or_func[*indices]
-
-    raise TypeError(
-        "Expected a GAMSPy Parameter or callable macro replacement, "
-        f"but got {type(symbol_or_func).__name__}."
-    )
 
 
 def wrap_in_sum[T: TargetType](target: T, domain: DomainType) -> T | Sum:
@@ -275,9 +284,7 @@ def wrap_in_sum[T: TargetType](target: T, domain: DomainType) -> T | Sum:
             )
 
 
-def extract_var_domain(
-    var: str | tuple[str, Any],
-) -> tuple[str, ImplicitSet | None]:
+def extract_var_domain(var: str | tuple[str, Any]) -> tuple[str, ImplicitSet | None]:
     if isinstance(var, tuple) and len(var) > 1:
         var_id, var_set = var
     else:

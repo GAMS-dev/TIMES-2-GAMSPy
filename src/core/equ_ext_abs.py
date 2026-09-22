@@ -72,7 +72,7 @@ class EquExtAbs(GamsClass):
 
         self.env.set_scoped(
             "tmp",
-            f"SUM(MODLYEAR(K)$(COEF_VNT(R,T,P,K)$(PRC_VINT(R,P)->DIAG(V,K))),COEF_VNT(R,T,P,K)*({self.env.varm}_NCAP(R,K,P{self.env.sws})$T(K)+NCAP_PASTI(R,K,P){self.env.rcapsbm}))",
+            f"SUM(MODLYEAR(K)$(COEF_VNT(R,T,P,K)$(PRC_VINT(R,P)->DIAG(V,K))),COEF_VNT(R,T,P,K)*({macro.VAR_NCAP(self.env.varm, 'R', 'K', 'P', self.env.sws)}$T(K)+NCAP_PASTI(R,K,P){self.env.rcapsbm}))",
         )
         self.env.set_scoped("r_w_t", f"BS_RVT({self.env.r_v_t})")
 
@@ -350,14 +350,14 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
   SUM(BS_TOP(RP_STD(R,P),C,IO)$GR_GENMAP(R,P,BS_K),
     SUM((RTP_VINTYR(R,V,T,P),RTPCS_VARF(R,T,P,C,TS))$RS_FR(R,S,TS),
 {cal_red}
-       * RS_FR(R,S,TS)*(1+RTCS_FR(R,T,C,S,TS)))) +
+       * RS_FR(R,S,TS)*(1+{macro.rtcs_fr.rtcs_fr("R", "T", "C", "S", "TS")}))) +
   SUM(RPC_STG(R,P,C)$GR_GENMAP(R,P,BS_K),SIGN(GR_GENMAP(R,P,BS_K))*
-    SUM((RTP_VINTYR(R,V,T,P),RPCS_VAR(R,P,C,TS))$RS_FR(R,S,TS),RS_FR(R,S,TS)*(1+RTCS_FR(R,T,C,S,TS))*
+    SUM((RTP_VINTYR(R,V,T,P),RPCS_VAR(R,P,C,TS))$RS_FR(R,S,TS),RS_FR(R,S,TS)*(1+{macro.rtcs_fr.rtcs_fr("R", "T", "C", "S", "TS")})*
        SUM(BS_TOP(R,P,C,'OUT'),V_U(SOUT,R,V,T,P,C,TS)*STG_EFF(R,V,P))-SUM(BS_TOP(R,P,C,'IN'),V_U(SIN,R,V,T,P,C,TS)))) +
   SUM(RPC_IRE(R,P,C,IE)$(NRG_TMAP(R,'ELC',C)$GR_GENMAP(R,P,BS_K)),SIGN(GR_GENMAP(R,P,BS_K))*
     SUM((RTP_VINTYR(R,V,T,P),RTPCS_VARF(R,T,P,C,TS))$RS_FR(R,S,TS),
        ({var}_IRE(R,V,T,P,C,TS,IE{sow})$(NOT RPC_AIRE(R,P,C))+({var}_ACT(R,V,T,P,TS{sow})*PRC_ACTFLO(R,V,P,C))$RPC_AIRE(R,P,C))*
-       (1-2$XPT(IE)) * RS_FR(R,S,TS)*(1+RTCS_FR(R,T,C,S,TS))))
+       (1-2$XPT(IE)) * RS_FR(R,S,TS)*(1+{macro.rtcs_fr.rtcs_fr("R", "T", "C", "S", "TS")})))
   =E=  {var}_RLD(R,T,S,BS_K{sow})*G_YRFR(R,S);
 """,
         )
@@ -679,7 +679,7 @@ $ macro var_bslack(r,t,p,c,s) {var}_bsprs(r,t,t,p,c,s,'UP'{sow})
     (VAR_OFF(R,V,T,P,TS)*RS_FR(R,TS,S)$(BS_MAINT(R,V,P,S)=0))$TS_CYCLE(R,TS))
   =G=
 * unavailable process capacity - vintaged or not
-  SUM(MODLYEAR(K)$(COEF_VNT(R,T,P,K)$(PRC_VINT(R,P)->DIAG(V,K))),COEF_VNT(R,T,P,K)*({varm}_NCAP(R,K,P{sws})$T(K)+NCAP_PASTI(R,K,P){rcapsbm})*((1-COEF_AF{mx}(R,K,T,P,S,'UP'))$(ACT_UPS(R,T,P,S,'N')=0)+ACT_UPS(R,T,P,S,'N')));
+  SUM(MODLYEAR(K)$(COEF_VNT(R,T,P,K)$(PRC_VINT(R,P)->DIAG(V,K))),COEF_VNT(R,T,P,K)*({macro.VAR_NCAP(varm, "R", "K", "P", sws)}$T(K)+NCAP_PASTI(R,K,P){rcapsbm})*((1-COEF_AF{mx}(R,K,T,P,S,'UP'))$(ACT_UPS(R,T,P,S,'N')=0)+ACT_UPS(R,T,P,S,'N')));
 """,
         )
 

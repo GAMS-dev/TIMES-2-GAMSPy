@@ -20,7 +20,7 @@ import logging
 from typing import TYPE_CHECKING, Literal
 
 from gamspy import Alias, Loop, Number, Parameter, Set, SpecialValues, Sum
-from gamspy._symbols.implicits import ImplicitParameter
+from gamspy._symbols.implicits import ImplicitParameter, ImplicitVariable
 from gamspy.math import project
 
 from core.base_class import GamsClass
@@ -60,6 +60,7 @@ from core.equcwrap_mod import EqucwrapMod, EqucwrapModConfig
 from core.eqxbnd_mod import EqxbndMod, EqxbndModConfig
 from core.recurrin_stc import RecurrinStc
 from core.utils import apply_ewispine, apply_sw_stvars, apply_witspine
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -434,20 +435,23 @@ class EqmainMod(GamsClass):
 
     def _m2t(self: EqmainMod) -> None:
         g = self.tc
-        VAR_CAP = g.get_variable(f"{self.env.var}_CAP")
+        var_cap = macro.VAR_CAP_GP(self.env.var, g.r, g.t, g.p, self.env.sow_GP)
+        assert isinstance(var_cap, ImplicitVariable), (
+            "self.env.var carries no var_set here, so VAR_CAP_GP should never return a Sum"
+        )
 
         batincludes: list[EqcptModConfig] = [
             EqcptModConfig(
                 sense="E",
                 arg2="E",
                 arg3=~g.PrcMap[g.r, "DMD", g.p],
-                arg4=VAR_CAP[g.r, g.t, g.p, *self.env.sow_GP],
+                arg4=var_cap,
             ),
             EqcptModConfig(
                 sense="L",
                 arg2="L",
                 arg3=g.PrcMap[g.r, "DMD", g.p],
-                arg4=VAR_CAP[g.r, g.t, g.p, *self.env.sow_GP],
+                arg4=var_cap,
             ),
             EqcptModConfig(
                 sense="G",
@@ -462,7 +466,10 @@ class EqmainMod(GamsClass):
 
     def _no_m2t(self: EqmainMod) -> None:
         g = self.tc
-        VAR_CAP = g.get_variable(f"{self.env.var}_CAP")
+        var_cap = macro.VAR_CAP_GP(self.env.var, g.r, g.t, g.p, self.env.sow_GP)
+        assert isinstance(var_cap, ImplicitVariable), (
+            "self.env.var carries no var_set here, so VAR_CAP_GP should never return a Sum"
+        )
 
         self.tc.enqueue(self.assign_rtp_varp, etl=self.env.etl, macro=self.env.macro)
 
@@ -471,7 +478,7 @@ class EqmainMod(GamsClass):
                 sense="E",
                 arg2="E",
                 arg3=(g.RtpVarp[g.r, g.t, g.p] | g.cap_bnd[g.r, g.t, g.p, "FX"]),
-                arg4=VAR_CAP[g.r, g.t, g.p, *self.env.sow_GP],
+                arg4=var_cap,
             ),
             EqcptModConfig(
                 sense="L",

@@ -28,9 +28,10 @@ from core.cal_fflo_mod import CalFfloModConfig, cal_fflo_mod_GP
 from core.cal_ire_mod import CalIreModConfig, cal_ire_mod_GP
 from core.cal_stgn_mod import CalStgnModConfig, cal_stgn_mod_GP
 from core.utils import generate_equation
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
-    from gamspy import Alias, Equation, Parameter, Set, Variable
+    from gamspy import Alias, Equation, Set
     from gamspy._algebra.condition import Condition
     from gamspy._algebra.expression import Expression
     from gamspy._symbols.implicits import ImplicitSet
@@ -92,7 +93,6 @@ class EqcombalMod(GamsClass):
             var=self.env.var,
             sow=self.env.sow_GP,
             sws_local=sws_local,
-            mx=self.env.mx,
             condition1=self.arg4 == "BAL",
             condition2=self.arg4 == "PRD",
             condition3=self.env.timesed == "YES",
@@ -111,7 +111,6 @@ class EqcombalMod(GamsClass):
         var: str,
         sow: tuple[Literal["0", "1"] | Set | Alias, ...] | tuple[()],
         sws_local: Product | Number,
-        mx: str,
         condition1: bool,
         condition2: bool,
         condition3: bool,
@@ -130,15 +129,16 @@ class EqcombalMod(GamsClass):
         pgprim = self.env.pgprim
         is_rtp_ffcs_defined = self.tc.defined("RTP_FFCS")
         is_ireauxbal = self.env.is_set("ireauxbal")
-        VAR_BLND: Variable = g.get_variable(f"{var}_BLND")
-        VAR_COMNET: Variable = g.get_variable(f"{var}_COMNET")
-        VAR_COMPRD: Variable = g.get_variable(f"{var}_COMPRD")
-        VAR_DEM: Variable = g.get_variable(f"{var}_DEM")
-        VAR_ELAST: Variable = g.get_variable(f"{var}_ELAST")
-        com_fr: Parameter = g.get_parameter(f"COM_FR{mx}")
+        VAR_BLND = g.get_variable(f"{var}_BLND")
+        VAR_COMNET = g.get_variable(f"{var}_COMNET")
+        VAR_COMPRD = g.get_variable(f"{var}_COMPRD")
+        VAR_DEM = g.get_variable(f"{var}_DEM")
+        VAR_ELAST = g.get_variable(f"{var}_ELAST")
 
         # RS_FR(R,S,'ANNUAL')*(1+RTCS_FR(R,T,C,S,'ANNUAL')), the annual blending spread
-        annual = g.rs_fr[r, s, "ANNUAL"] * (1 + g.rtcs_fr[r, t, c, s, "ANNUAL"])
+        annual = g.rs_fr[r, s, "ANNUAL"] * (
+            1 + macro.rtcs_fr.rtcs_fr_GP(r, t, c, s, "ANNUAL", sow)
+        )
         # * include the elasticity variables
         elast = Sum(
             g.Rcj[r, c, j, g.Bdneq[bd]].where[g.com_elast[r, t, c, s, bd]],
@@ -211,7 +211,7 @@ class EqcombalMod(GamsClass):
                 * Sum(
                     g.RtcsVarc[r, t, Com, ts].where[g.RsTree[r, s, ts]],
                     g.rs_fr[r, s, ts]
-                    * (1 + g.rtcs_fr[r, t, Com, s, ts])
+                    * (1 + macro.rtcs_fr.rtcs_fr_GP(r, t, Com, s, ts, sow))
                     * (
                         VAR_COMNET[r, t, Com, ts, *sow].where[g.RcAgp[r, Com, "LO"]]
                         + VAR_COMPRD[r, t, Com, ts, *sow].where[g.RcAgp[r, Com, "FX"]]
@@ -370,7 +370,7 @@ class EqcombalMod(GamsClass):
                             * VAR_COMPRD[r, t, Com, "ANNUAL", *sow],
                         )
                     )
-                    * com_fr[r, t, c, s]
+                    * macro.com_fr.com_fr_GP(self.env.mx_GP, r, t, c, s)
                 ).where[g.Dem[r, c]]
             )
 

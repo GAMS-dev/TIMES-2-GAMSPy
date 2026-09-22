@@ -22,6 +22,7 @@ from gamspy.math import power, project, same_as
 from core.base_class import GamsClass
 from core.cal_red_red import CalRedRedConfig
 from core.utils import generate_equation
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from gamspy import Alias, Expression
@@ -181,7 +182,12 @@ class EqflomrkMod(GamsClass):
                             Sum(g.RtpVntbyr[g.r, g.t, g.p, g.v], include_cal_red)
                             # * Balance coarser than variable or balance finer than variable
                             * g.rs_fr[g.r, g.sl, g.ts]
-                            * (1.0 + g.rtcs_fr[g.r, g.t, g.c, g.sl, g.ts]),
+                            * (
+                                1.0
+                                + macro.rtcs_fr.rtcs_fr_GP(
+                                    g.r, g.t, g.c, g.sl, g.ts, sow
+                                )
+                            ),
                         )
                         * (
                             1.0
@@ -229,7 +235,10 @@ class EqflomrkMod(GamsClass):
                         )
                         # * Balance coarser than variable or balance finer than variable
                         * g.rs_fr[g.r, g.sl, g.ts]
-                        * (1.0 + g.rtcs_fr[g.r, g.t, g.c, g.sl, g.ts]),
+                        * (
+                            1.0
+                            + macro.rtcs_fr.rtcs_fr_GP(g.r, g.t, g.c, g.sl, g.ts, sow)
+                        ),
                     ).where[g.RpIre[g.r, g.p]]
                     # * Storage contribution
                     + Sum(
@@ -251,7 +260,10 @@ class EqflomrkMod(GamsClass):
                         )
                         # * Balance coarser than variable or balance finer than variable
                         * g.rs_fr[g.r, g.sl, g.ts]
-                        * (1.0 + g.rtcs_fr[g.r, g.t, g.c, g.sl, g.ts]),
+                        * (
+                            1.0
+                            + macro.rtcs_fr.rtcs_fr_GP(g.r, g.t, g.c, g.sl, g.ts, sow)
+                        ),
                     ).where[g.PrcMap[g.r, "STG", g.p]],
                 ),
             ),

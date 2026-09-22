@@ -93,7 +93,7 @@ class EqcaflacVda(GamsClass):
             cal_red=self.env.cal_red,
             pgprim=self.env.pgprim,
             def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
-            arg1=self.arg1,
+            sense=self.arg1,
             arg2=self.arg2,
         )
 
@@ -114,22 +114,11 @@ class EqcaflacVda(GamsClass):
     ) -> None:
         g = self.tc
 
-        if arg4 != ():
-            raise NotImplementedError(f"Need to call variable COEF_AF{arg4}.")
-
         eq_caflac = g.get_equation(f"{eq}{arg1}_CAFLAC")
         VAR_FLO = g.get_variable(f"{var}_FLO")
         VAR_SIN = g.get_variable(f"{var}_SIN")
         VAR_SOUT = g.get_variable(f"{var}_SOUT")
         VAR_IRE = g.get_variable(f"{var}_IRE")
-
-        varm_id, varm_set = varm
-        VARM_NCAP = g.get_variable(f"{varm_id}_NCAP")
-        varm_ncap_expr = (
-            VARM_NCAP[g.r, g.k, g.p, *sws]
-            if varm_set is None
-            else Sum(varm_set, VARM_NCAP[g.r, g.k, g.p, *sws])
-        )
 
         eq_caflac[g.RtpVintyr[*r_v_t, g.p], g.s, *swt].where[
             (g.Afs[g.r, g.t, g.p, g.s, arg2].where[g.RpsCaflac[g.r, g.p, g.s, arg2]])
@@ -174,7 +163,12 @@ class EqcaflacVda(GamsClass):
                                 + (
                                     VAR_SOUT[g.r, g.v, g.t, g.p, g.c, g.ts, *sow]
                                     * g.stg_eff[g.r, g.v, g.p]
-                                    * (1.0 + g.rtcs_fr[g.r, g.t, g.c, g.s, g.ts])
+                                    * (
+                                        1.0
+                                        + macro.rtcs_fr.rtcs_fr_GP(
+                                            g.r, g.t, g.c, g.s, g.ts, sow
+                                        )
+                                    )
                                 ).where[(~(g.ips[g.io]))],
                             )
                             + Sum(
@@ -213,14 +207,15 @@ class EqcaflacVda(GamsClass):
                 Sum(
                     g.RvpKmap[g.r, g.v, g.p, g.Modlyear[g.k]],
                     g.coef_vnt[g.r, g.t, g.p, g.k]
-                    * g.coef_af[g.r, g.k, g.t, g.p, g.s, arg2]
+                    * macro.coef_af_mx.coef_af_GP(arg4, g.r, g.k, g.t, g.p, g.s, arg2)
                     * (
-                        varm_ncap_expr.where[g.t[g.k]]
+                        macro.VAR_NCAP_GP(varm, g.r, g.k, g.p, sws).where[g.t[g.k]]
                         + g.ncap_pasti[g.r, g.k, g.p].where[g.pyr[g.k]]
                         + rcapsbm
                     ),
                 )
-                + g.coef_af[g.r, g.v, g.t, g.p, g.s, arg2] * upscap0
+                + macro.coef_af_mx.coef_af_GP(arg4, g.r, g.v, g.t, g.p, g.s, arg2)
+                * upscap0
             )
             * g.prc_capact[g.r, g.p]
             * g.g_yrfr[g.r, g.s],
@@ -241,7 +236,7 @@ class EqcaflacVda(GamsClass):
         cal_red: str,
         pgprim: str,
         def_rtp_ffcs: bool,
-        arg1: Literal["L", "E", "N", "G"],
+        sense: Literal["L", "E", "N", "G"],
         arg2: str,
     ) -> None:
         g = self.tc
@@ -250,14 +245,6 @@ class EqcaflacVda(GamsClass):
         VAR_ACT = g.get_variable(f"{var}_ACT")
         VAR_SIN = g.get_variable(f"{var}_SIN")
         VAR_SOUT = g.get_variable(f"{var}_SOUT")
-
-        varm_id, varm_set = varm
-        VARM_NCAP = g.get_variable(f"{varm_id}_NCAP")
-        varm_ncap_expr = (
-            VARM_NCAP[g.r, g.k, g.p, *sws]
-            if varm_set is None
-            else Sum(varm_set, VARM_NCAP[g.r, g.k, g.p, *sws])
-        )
 
         if cal_red == "cal_red.red":
             from core.cal_red_red import cal_red_red_GP as cal_red_func_GP
@@ -293,7 +280,7 @@ class EqcaflacVda(GamsClass):
                         g.rs_fr[g.r, g.s, g.ts]
                     ],
                     g.rs_fr[g.r, g.s, g.ts]
-                    * (1.0 + g.rtcs_fr[g.r, g.t, g.c, g.s, g.ts])
+                    * (1.0 + macro.rtcs_fr.rtcs_fr_GP(g.r, g.t, g.c, g.s, g.ts, sow))
                     * include_cal_red,
                 ),
             )
@@ -316,7 +303,7 @@ class EqcaflacVda(GamsClass):
                         g.Top[g.r, g.p, g.c, g.io], g.RpcsVar[g.r, g.p, g.c, g.ts]
                     ).where[g.rs_fr[g.r, g.s, g.ts]],
                     g.rs_fr[g.r, g.s, g.ts]
-                    * (1.0 + g.rtcs_fr[g.r, g.t, g.c, g.s, g.ts])
+                    * (1.0 + macro.rtcs_fr.rtcs_fr_GP(g.r, g.t, g.c, g.s, g.ts, sow))
                     * (
                         VAR_SIN[g.r, g.v, g.t, g.p, g.c, g.ts, *sow].where[
                             (~(g.Top[g.r, g.p, g.c, "OUT"])) & g.ips[g.io]
@@ -327,7 +314,7 @@ class EqcaflacVda(GamsClass):
                     ),
                 ),
             ),
-            arg1,
+            sense,
             (
                 (
                     # * process capacity - vintaged or not
@@ -335,7 +322,7 @@ class EqcaflacVda(GamsClass):
                         g.RvpKmap[g.r, g.v, g.p, g.Modlyear[g.k]],
                         g.coef_vnt[g.r, g.t, g.p, g.k]
                         * (
-                            varm_ncap_expr.where[g.t[g.k]]
+                            macro.VAR_NCAP_GP(varm, g.r, g.k, g.p, sws).where[g.t[g.k]]
                             + g.ncap_pasti[g.r, g.k, g.p].where[g.pyr[g.k]]
                             + rcapsbm
                         ),

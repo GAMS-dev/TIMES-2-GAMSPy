@@ -26,7 +26,7 @@ from core.sol_flo_red import sol_flo_red
 from core.sol_ire_rpt import sol_ire_rpt
 from core.solsetv_v3 import SolsetvV3
 from core.solsysd_v3 import SolsysdV3
-from core.utils import add_records, resolve_ctst
+from core.utils import add_records, apply_v_scope, resolve_ctst
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -35,11 +35,19 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# rptlite.rpt:143-144: $BATINCLUDE sol_flo.red PAR_FLO '' .L / M .M - both
+# calls leave sol_flo.red's %4 blank, single source of truth for every
+# caller (RptliteRpt._label_report, solve_stc.py) that must resolve V
+# (sol_flo.red:11's SET%4 V VAR) before reaching rptlite_rpt_part1, which
+# has no env access of its own to do it.
+SOL_FLO_RED_V_SCOPE = "SCOPED"
+
+
 @dataclass
 class RptliteRptConfig:
     arg1: str = ""  # Alias s
     arg2: tuple[Alias] | tuple[()] = ()  # Alias ww
-    arg3: tuple[Literal["'1'"] | Alias | Set] | tuple[()] = ()
+    arg3: tuple[Literal["'1',"] | Alias | Set] | tuple[()] = ()
     arg4: tuple[Literal["NO"]] | tuple[()] | str = ()
 
 
@@ -613,6 +621,10 @@ class RptliteRpt(GamsClass):
         if self.env.var_uc != "YES":
             declare_par_uc_rpt_params(self.tc)
 
+        # Snapshot V (sol_flo.red:11's SET%4 V VAR) right before the enqueue
+        # below, matching sol_flo_red.py's own SolFloRed.compile().
+        apply_v_scope(self.env, SOL_FLO_RED_V_SCOPE, self.env.var)
+
         self.tc.enqueue(
             self.exec_label_report_part1,
             config=cc,
@@ -621,6 +633,7 @@ class RptliteRpt(GamsClass):
             sensis=self.env.sensis,
             stages=self.env.stages,
             var=self.env.var,
+            v=self.env.v,
             pgprim=self.env.pgprim,
             bencost=self.env.bencost,
             rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
@@ -647,7 +660,7 @@ class RptliteRpt(GamsClass):
                 config=CostAnnRptConfig(
                     arg1=next(iter(cc.arg1), ""),
                     arg2=tuple(
-                        arg.strip("'") if isinstance(arg, str) else arg
+                        arg.strip("',") if isinstance(arg, str) else arg
                         for arg in cc.arg3
                     ),
                 ),
@@ -685,6 +698,7 @@ class RptliteRpt(GamsClass):
         sensis: str,
         stages: str,
         var: str,
+        v: str,
         pgprim: str,
         rtp_ffcs_defined: bool,
         etl: str,
@@ -711,6 +725,7 @@ class RptliteRpt(GamsClass):
                 sensis=sensis,
                 stages=stages,
                 var=var,
+                v=v,
                 pgprim=pgprim,
                 rtp_ffcs_defined=rtp_ffcs_defined,
                 bencost=bencost,
@@ -853,6 +868,7 @@ def rptlite_rpt(
     obmac: str,
     abs_: str,
     var: str,
+    v: str,
     pgprim: str,
     rtp_ffcs_defined: bool,
     etl: str,
@@ -887,6 +903,10 @@ def rptlite_rpt(
     Kept for solve.stc, which embeds the whole block into a GAMS ``LOOP`` it
     builds itself. :class:`RptliteRpt` instead emits part 1, runs the translated
     :class:`~core.cost_ann_rpt.CostAnnRpt` and then emits part 2.
+
+    TODO: drop once solve.stc is translated. Also drops the need for arg3 to
+    carry raw GAMS text (e.g. "'1',") for this function, and thus the
+    ``.strip("',")`` adapter in :meth:`RptliteRpt._label_report`.
     """
     arg1 = next(iter(config.arg1), "")
     arg3_raw = next(iter(config.arg3), "")
@@ -900,6 +920,7 @@ def rptlite_rpt(
             sensis=sensis,
             stages=stages,
             var=var,
+            v=v,
             pgprim=pgprim,
             rtp_ffcs_defined=rtp_ffcs_defined,
             etl=etl,
@@ -980,6 +1001,7 @@ def rptlite_rpt_part1(
     sensis: str,
     stages: str,
     var: str,
+    v: str,
     pgprim: str,
     rtp_ffcs_defined: bool,
     etl: str,
@@ -1014,6 +1036,7 @@ def rptlite_rpt_part1(
             arg1="PAR_FLO",
             arg2="",
             arg3=".L",
+            v=v,
             pgprim=pgprim,
             sow=sow,
             rtp_ffcs_defined=rtp_ffcs_defined,
@@ -1024,12 +1047,13 @@ def rptlite_rpt_part1(
             arg1="PAR_FLO",
             arg2="M",
             arg3=".M",
+            v=v,
             pgprim=pgprim,
             sow=sow,
             rtp_ffcs_defined=rtp_ffcs_defined,
         )
     }
-{sol_ire_rpt(sow=sow, mx=mx, rtp_ffcs_defined=rtp_ffcs_defined)}
+{sol_ire_rpt(v=v, sow=sow, mx=mx, rtp_ffcs_defined=rtp_ffcs_defined)}
 
 *------------------------------------------------------------------------------
 * Objective function

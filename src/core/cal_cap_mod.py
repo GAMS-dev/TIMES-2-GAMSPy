@@ -20,12 +20,14 @@ from typing import TYPE_CHECKING, Literal
 
 from gamspy import Sum
 
+from utils.macros import macro_config as macro
+
 if TYPE_CHECKING:
-    from gamspy import Alias, Parameter, Set, Variable
+    from gamspy import Alias, Parameter, Set
     from gamspy._algebra.condition import Condition
     from gamspy._algebra.expression import Expression
     from gamspy._algebra.number import Number
-    from gamspy._symbols.implicits import ImplicitSet, ImplicitVariable
+    from gamspy._symbols.implicits import ImplicitSet
 
     from utils.times_model_class import TimesModelClass
 
@@ -54,14 +56,10 @@ def cal_cap_mod_GP(
     """
     cc = config
     r, v, t, p, c, s = g.r, g.v, g.t, g.p, g.c, g.s
-    varv_id, varv_set = cc.varv
-    VARV_NCAP: Variable = g.get_variable(f"{varv_id}_NCAP{cc.arg4}")
     coef_com: Parameter = g.get_parameter(f"COEF_{cc.arg2}COM")
 
     def capacity(with_rcapsub: bool) -> Expression | ImplicitSet:
-        ncap: ImplicitVariable | Sum = VARV_NCAP[r, v, p, *cc.sws]
-        if varv_set is not None:
-            ncap = Sum(varv_set, ncap)
+        ncap = macro.VAR_NCAP_GP(cc.varv, r, v, p, cc.sws)
         installed = ncap.where[g.t[v]] + g.ncap_pasti[r, v, p].where[g.Pastyear[v]]
         return installed + cc.rcapsub if with_rcapsub else installed
 
