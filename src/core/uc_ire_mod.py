@@ -48,17 +48,17 @@ def uc_ire_mod(
 
     var_id, domain = extract_var_domain(var=var)
 
-    VAR_IRE = wrap_in_sum(target=g.get_variable(f"{var_id}_IRE"), domain=domain)
-    VAR_ACT = wrap_in_sum(target=g.get_variable(f"{var_id}_ACT"), domain=domain)
+    VAR_IRE = g.get_variable(f"{var_id}_IRE")
+    VAR_ACT = g.get_variable(f"{var_id}_ACT")
 
     r, v, p, c, s, ts, sl = g.r, g.v, g.p, g.c, g.s, g.ts, g.sl
     ucn, t, ie, cur = g.ucn, g.t, g.ie, g.cur
 
     uc_ire = g.uc_ire[ucn, cc.arg5, r, cc.arg7, p, c, ts, ie]
 
-    ire_term = (
+    ire_term = wrap_in_sum(
         (
-            (VAR_IRE[r, v, cc.arg4, p, c, ts, ie, *sow_GP]).where[~g.RpcAire[r, p, c]]
+            VAR_IRE[r, v, cc.arg4, p, c, ts, ie, *sow_GP].where[~g.RpcAire[r, p, c]]
             + (VAR_ACT[r, v, cc.arg4, p, ts, *sow_GP] * g.prc_actflo[r, v, p, c]).where[
                 g.RpcAire[r, p, c]
             ]
@@ -69,8 +69,10 @@ def uc_ire_mod(
         * Product(g.Annual, 1)
         * Product(
             g.RsBelow[r, ts, s],
-            g.rs_fr[r, s, ts] * (1 + g.rtcs_fr[r, cc.arg4, c, s, ts]),
-        )
+            g.rs_fr[r, s, ts]
+            * (1 + macro.rtcs_fr.rtcs_fr_GP(r, cc.arg4, c, s, ts, sow=sow_GP)),
+        ),
+        domain,
     )
 
     if cc.arg6 == 1:
@@ -96,16 +98,16 @@ def uc_ire_mod(
         g.Reg[r].where[Sum(g.UcAttr[r, ucn, cc.arg5, "IRE", g.UcCost], 1)],
         Sum(
             Domain(g.Rdcur[r, cur], g.TsAnn[ts, sl]),
-            macro.obj_fcost_GP(r, cc.arg4, p, c, sl, cur).where[  # type: ignore[arg-type]
+            macro.obj_fcost_GP(r, cc.arg4, p, c, sl, cur).where[
                 g.UcAttr[r, ucn, cc.arg5, "IRE", "COST"]
             ]
-            + macro.obj_fdelv_GP(r, cc.arg4, p, c, sl, cur).where[  # type: ignore[arg-type]
+            + macro.obj_fdelv_GP(r, cc.arg4, p, c, sl, cur).where[
                 g.UcAttr[r, ucn, cc.arg5, "IRE", "DELIV"]
             ]
-            + Min(0, macro.obj_ftax_GP(r, cc.arg4, p, c, sl, cur)).where[  # type: ignore[arg-type]
+            + Min(0, macro.obj_ftax_GP(r, cc.arg4, p, c, sl, cur)).where[
                 g.UcAttr[r, ucn, cc.arg5, "IRE", "SUB"]
             ]
-            + Max(0, macro.obj_ftax_GP(r, cc.arg4, p, c, sl, cur)).where[  # type: ignore[arg-type]
+            + Max(0, macro.obj_ftax_GP(r, cc.arg4, p, c, sl, cur)).where[
                 g.UcAttr[r, ucn, cc.arg5, "IRE", "TAX"]
             ],
         ),

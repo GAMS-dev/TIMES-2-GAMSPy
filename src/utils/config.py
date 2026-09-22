@@ -301,8 +301,15 @@ class EnvironmentVariableSchema(BaseModel):
     swtd: str = Field(
         description="Time-step differentiation switch expression string mapped to parameters."
     )
-    swtd_GP: tuple[Set | Alias | ImplicitSet, ...] | tuple[()] | str = Field(
-        description="Time-step differentiation switch expression string mapped to parameters."
+    swtd_GP: (
+        tuple[Set | Alias | ImplicitSet, ...]
+        | tuple[ImplicitSet, ImplicitParameter]
+        | tuple[()]
+        | str
+    ) = Field(
+        description="Time-step differentiation switch expression string mapped to"
+        " parameters. A 2-tuple (domain, weight) form is used when the summand"
+        " needs weighting by the state probability (the scum=='1' case)."
     )
     x1: str = Field(
         description="First arbitrary evaluation coordinate mapping temporary data values."
@@ -376,16 +383,24 @@ class EnvironmentVariableSchema(BaseModel):
     vart: str = Field(
         description="Temporal indexing mapping string tracking current variable periods."
     )
-    vart_GP: tuple[str, ImplicitSet | None] | tuple[ImplicitSet, ImplicitParameter] = (
+    vart_GP: tuple[str, ImplicitSet | tuple[ImplicitSet, ImplicitParameter] | None] = (
         Field(
-            description="vart is always a tuple with format <(variable prefix, set identifier for sum statement)>. A third entry weights the summand with the state probability."
+            description="vart is always a 2-tuple <(variable prefix, domain)>. The"
+            " domain is either a plain set/condition for wrap_in_sum, or itself a"
+            " (condition, weight) pair so wrap_in_sum multiplies in the SW_TPROB"
+            " state-probability weight (the scum=='1' aggregated case)."
         )
     )
     vartt: str = Field(
         description="Nested temporal index mapping string tracking cumulative variable horizons."
     )
-    vartt_GP: tuple[str, ImplicitSet | None] = Field(
-        description="vartt is always a tuple with format <(variable prefix, set identifier for sum statement)>."
+    vartt_GP: tuple[str, ImplicitSet | tuple[ImplicitSet, ImplicitParameter] | None] = (
+        Field(
+            description="vartt is always a 2-tuple <(variable prefix, domain)>. The"
+            " domain is either a plain set/condition for wrap_in_sum, or itself a"
+            " (condition, weight) pair so wrap_in_sum multiplies in the SW_TPROB"
+            " state-probability weight (the solveda=='1' aggregated case)."
+        )
     )
     varv: str = Field(
         description="Vintage index mapping identifier tracking installed configuration years."
@@ -426,7 +441,7 @@ class EnvironmentVariableSchema(BaseModel):
     sw2: str = Field(
         description="Secondary configuration flag used in file inclusion loops."
     )
-    sw2_GP: tuple[str, Set] | tuple[()] = Field(
+    sw2_GP: tuple[str, Set] | tuple[Set | Alias] | tuple[()] = Field(
         description="Secondary configuration flag used in file inclusion loops."
     )
     uclim: str = Field(
@@ -500,6 +515,10 @@ class EnvironmentVariableSchema(BaseModel):
     )
     tst: str = Field(
         description="Target time-slice testing configuration parameters identifier."
+    )
+    tst_GP: tuple[Condition | ImplicitSet, ...] = Field(
+        description="GAMSPy counterpart of tst: a snapshot of the TSUM domain"
+        " taken before a later branch (e.g. STAGES=='YES') overwrites it."
     )
     varmac: str = Field(
         description="Macro expansion variable configuration property indicator."
@@ -577,6 +596,9 @@ class EnvironmentVariableSchema(BaseModel):
     )
     sw_stvars: str = Field(
         description="Stochastic step evaluation parameters active variable indicator."
+    )
+    vsum: str = Field(
+        description="SPINES stochastic summation prefix text fragment used to build SW_STVARS set definitions."
     )
     scum: str = Field(
         description="Cumulative scaling parameters check array parameter tracking strings."
@@ -701,6 +723,7 @@ class UserConfig(BaseModel):
     damage: Literal["LP", "NLP", "NO"] = "LP"
     stages: Literal["YES", "Yes", "NO", "%stages%"] = "%stages%"
     sensis: Literal["YES", "NO", "%sensis%"] = "%sensis%"
+    spines: Literal["YES", "Yes", "NO", "%spines%"] = "%spines%"
     solveda: Literal["YES", "1", "%solveda%"] = "%solveda%"
     varcost: Literal["LIN", "%varcost%"] = "%varcost%"
     dscauto: Literal["YES", "%dscauto%"] = "%dscauto%"

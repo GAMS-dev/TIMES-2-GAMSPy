@@ -61,7 +61,6 @@ class EqstgtssMod(GamsClass):
             PrcNstts,
             RpcStgn,
             rs_fr,
-            rtcs_fr,
             prc_actflo,
             PrcMap,
             PrcStgtss,
@@ -105,7 +104,6 @@ class EqstgtssMod(GamsClass):
             g.PrcNstts,
             g.RpcStgn,
             g.rs_fr,
-            g.rtcs_fr,
             g.prc_actflo,
             g.PrcMap,
             g.PrcStgtss,
@@ -168,7 +166,7 @@ class EqstgtssMod(GamsClass):
                             ]
                         )
                         * rs_fr[r, allts, ts]
-                        * (1 + rtcs_fr[r, t, c, allts, ts])
+                        * (1 + macro.rtcs_fr.rtcs_fr_GP(r, t, c, allts, ts, sow))
                         / prc_actflo[r, v, p, c],
                     )
                 ).where[PrcMap[r, "NST", p]]

@@ -18,6 +18,7 @@ from gamspy import Ord, Set
 from core.base_class import GamsClass
 from core.fillsow_stc import FillsowStc
 from core.pp_lvlfc_mod import PpLvlfcMod, PpLvlfcModConfig
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -557,7 +558,7 @@ LOOP(J, RTP_SAFS(R,T,P,S,W) $= SUM(SW_MAP(T,W,J,WW),S_NCAP_AFS(R,T,P,S,J,WW)));
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=r"""
+            code=rf"""
   T0(T)=YES; T0('0')=YES; SW_T2W(SW_TSW(SOW,T,WW),T)=YES; SW_T2W(SW_TSW(SOW,T,WW),'0')$SW_TSTG(T,'2')=YES;
   LOOP(J, RTCS_SFR(R,T,C,S,W,S) $= SUM(SW_MAP(T,W,J,WW),S_COM_FR(R,T,C,S,J,WW)));
   RTCS_SFR(R,T,C,S,W,S)$RTCS_SFR(R,T,C,S,W,S) = RTCS_SFR(R,T,C,S,W,S)-1;
@@ -574,7 +575,7 @@ LOOP(J, RTP_SAFS(R,T,P,S,W) $= SUM(SW_MAP(T,W,J,WW),S_NCAP_AFS(R,T,P,S,J,WW)));
   ));
   S_COM_FR(R,T,C,S,'1',W)$RTCSW(R,T,C,S,W) = (1+RTCS_SFR(R,T,C,S,W,S))/(1+RTCS_SFR(R,T,C,'ANNUAL',W,'ANNUAL'))-1;
   OPTION CLEAR=RTCS_SFR;
-  RTCS_SFR(RTCSW(R,T,C,S,W),TS)$RS_BELOW(R,TS,S) = (1+RTCS_FRMX(R,T,C,S,TS))*(((1+S_COM_FR(R,T,C,S,'1',W))/MAX(1E-9,1+S_COM_FR(R,T,C,TS,'1',W)))-1);
+  RTCS_SFR(RTCSW(R,T,C,S,W),TS)$RS_BELOW(R,TS,S) = (1+{macro.rtcs_fr.rtcs_frmx("R", "T", "C", "S", "TS")})*(((1+S_COM_FR(R,T,C,S,'1',W))/MAX(1E-9,1+S_COM_FR(R,T,C,TS,'1',W)))-1);
   RTCS_SFR(RTCSW(R,T,C,S,W),TS)$(ABS(RTCS_SFR(R,T,C,S,W,TS)) < 1E-9) = 0;
   RTCS_SFR(R,LL--ORD(LL),C,S,W,TS)$SW_TSTG(LL,'2') $= RTCS_SFR(R,LL,C,S,W,TS);
   RTCS_SFR(R,T,C,S,W,TS)$(SW_TSTG(T,'2')$RTCS_SFR(R,'0',C,S,W,TS)) = RTCS_SFR(R,T,C,S,W,TS)-RTCS_SFR(R,'0',C,S,W,TS);

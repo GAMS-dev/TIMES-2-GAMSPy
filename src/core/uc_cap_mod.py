@@ -46,10 +46,10 @@ class UcCapModConfig:
     abs: Literal["YES", "NO", "%abs%"]
     arg1: Domain | ImplicitSet | None
     arg2: (
-        None
-        | SET_OR_ALIAS
+        SET_OR_ALIAS
         | Condition
         | tuple[Condition | ImplicitSet, ImplicitParameter]
+        | None
     )
     arg3: SET_OR_ALIAS  # T or TT
     arg4: SET_OR_ALIAS | str  # SIDE or 'LHS'
@@ -66,11 +66,10 @@ def uc_cap_mod(g: TimesModelClass, config: UcCapModConfig) -> Expression | Sum:
     ucn, lA, t = g.ucn, g.lA, g.t
 
     var_id, domain = extract_var_domain(cc.var)
-    var_cap = wrap_in_sum(target=g.get_variable(f"{var_id}_CAP"), domain=domain)
 
     uc_cap = g.uc_cap[ucn, cc.arg4, r, cc.arg6, p]
     # * VAR_CAP can always be directly used for UC_CAP
-    cap_term = var_cap[r, cc.arg3, p, *cc.sow] * uc_cap
+    cap_term = macro.VAR_CAP_GP(cc.var, r, cc.arg3, p, cc.sow) * uc_cap
 
     # * PROD operator needs to be 'tweaked' due to bug in older GAMS versions
     if cc.arg5 == 1:
@@ -109,8 +108,7 @@ def uc_cap_mod(g: TimesModelClass, config: UcCapModConfig) -> Expression | Sum:
     if cc.abs.upper() != "YES":
         return term
 
-    # BS_* come with the Ancillary Balancing Services extension
-    var_bsprs = wrap_in_sum(target=g.get_variable(f"{var_id}_BSPRS"), domain=domain)
+    var_bsprs = g.get_variable(f"{var_id}_BSPRS")
 
     # * Add reserve flows if requested
     sub_expr2 = Sum(
@@ -124,7 +122,7 @@ def uc_cap_mod(g: TimesModelClass, config: UcCapModConfig) -> Expression | Sum:
             g.rs_fr[r, ts, s]
             * Sum(
                 g.Lnx[lA],
-                var_bsprs[r, v, t, p, c, ts, lA, *cc.sow].where[
+                wrap_in_sum(var_bsprs[r, v, t, p, c, ts, lA, *cc.sow], domain).where[
                     g.ips[lA] + g.BsSupp[r, p].where[abs(g.bs_rtype[r, c]) > 2]
                 ],
             ),

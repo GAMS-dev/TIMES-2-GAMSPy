@@ -73,7 +73,7 @@ def run_times(
     )
 
     # Add Times Model Class to macros
-    macro._g = model
+    macro.bind(model)
 
     # Dynamically apply non default %<key>% Environment Variables
     validated_config = UserConfig.model_validate(config.env_vars)

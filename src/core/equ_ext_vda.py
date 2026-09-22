@@ -125,7 +125,7 @@ class EquExtVda(GamsClass):
                     arg4=args[3],
                 )
             )
-        self.include(EqactupsVda(self.tc, self.env, arg1_mx=self.env.mx_GP))
+        self.include(EqactupsVda(self.tc, self.env, arg1=self.env.mx_GP))
         self.include(EqlducsVda(self.tc, self.env, arg1="EQU"))
 
         # * ASHAR equations:

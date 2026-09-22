@@ -14,6 +14,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Equation, Parameter, Set
+
 from core.base_class import GamsClass
 from utils.macros import macro_config as macro
 
@@ -24,7 +26,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class RecurrinStc(GamsClass):  # FilenameExt
+class RecurrinStc(GamsClass):
     """Translation unit for recurrin.stc."""
 
     # Instance attributes
@@ -44,166 +46,192 @@ class RecurrinStc(GamsClass):  # FilenameExt
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
+
         self.env.set_scoped("tst", "NO")
         if self.env.obmac.upper() == "YES":
             self.env.set_scoped("tst", "YES")
 
+        # --------------------------------------------------------
+
+        # GOTO %1 == MXPAR
         if self.arg1.upper() == "MXPAR":
             if self.env.stages == "YES":
                 self.env.set_global("varmac", "1==1")
                 self.env.set_global("vas", "VAS")
+            # Do we need MX parameter macroes?
             self.env.set_scoped("need", "NO")
 
             if (
-                self.tc.defined("S_NCAP_AFS")
-                or self.tc.defined("S_COM_FR")
+                g.defined("S_NCAP_AFS")
+                or g.defined("S_COM_FR")
                 or self.env.spines.upper() == "YES"
             ):
                 self.env.set_scoped("need", "YES")
 
-            if self.env.need != "NO":
-                if not self.env.tst == "TST":
-                    raise Exception("Macro support needed. Upgrade your GAMS system.")
+            # ------------------------------------------
+
+            if self.env.need != "NO":  # GOTO NONEED -> EXIT
+                if not self.env.tst == "YES":  # GOTO DEFPAR
+                    raise ModuleNotFoundError(
+                        "Macro support needed. Upgrade your GAMS system."
+                    )
+                # LABEL DEFPAR
                 self.env.set_scoped("sw1", "")
                 self.env.set_scoped("sw1_GP", ())
                 self.env.set_scoped("sw2", "")
+                self.env.set_scoped("sw2_GP", ())
                 if self.env.stages != "YES":
                     self.env.set_scoped("sw1", "SUM")
-                    self.env.set_scoped(
-                        "sw1_GP", ("SUM",)
-                    )  # NOTE: UPDATE THIS USAGE, AS REQUIRED
                     self.env.set_scoped("sw2", "SOW,")
+                    self.env.set_scoped("sw2_GP", (g.Sow,))
+
                 self.env.set_global("mx", "MX")
-                self.env.set_global("mx_GP", "MX")
-                self.tc.add_gams_code(module=self, phase="init", code=r"$macro MX")
-                if not self.tc.defined("S_NCAP_AFS"):
-                    self.tc.add_gams_code(
-                        module=self, phase="init", code=r"$MACRO COEF_AFMX COEF_AF"
+                self.env.set_global("mx_GP", ("MX",))
+                g.add_gams_code(module=self, phase="init", code=r"$macro MX")
+
+                # Mirrors recurrin.stc's two mutually exclusive $IF/$IF NOT
+                # DEFINED pairs (COEF_AFMX: lines 41/46, COM_FRMX: lines
+                # 43/49) as explicit if/else branches
+                if g.defined("S_NCAP_AFS"):
+                    # recurrin.stc line 46: $MACRO COEF_AFMX(...) COEF_AF(...)*%SW1%(%SW2%1+RTP_SAFS(...))
+                    macro.coef_af_mx.activate(
+                        g=g,
+                        sw1=self.env.sw1,
+                        sw2=self.env.sw2,
+                        sw2_GP=self.env.sw2_GP,
                     )
-                if not self.tc.defined("S_COM_FR"):
-                    self.tc.add_gams_code(
-                        module=self,
-                        phase="init",
-                        code=r"""$MACRO RTCS_FRMX RTCS_FR
-$MACRO COM_FRMX COM_FR""",
+                if g.defined("S_COM_FR"):
+                    # recurrin.stc line 47: PARAMETER RTCS_FRMX(R,T,C,S,S);
+                    macro.rtcs_fr.activate(g=g)
+                    # recurrin.stc line 48: $MACRO RTCS_FR(R,T,C,S,TS) RTCS_FRMX(...)+SUM(...)
+                    g.rtcs_frmx = Parameter(
+                        m, name="RTCS_FRMX", domain=[g.r, g.t, g.c, g.s, g.s]
                     )
-                if self.env.spines.upper() != "YES":
-                    self.tc.add_gams_code(
-                        module=self, phase="init", code=r"$MACRO PRC_DYNUCMX PRC_DYNUC"
-                    )
-                if self.tc.defined("S_NCAP_AFS"):
-                    self.tc.add_gams_code(
-                        module=self,
-                        phase="init",
-                        code=rf"$MACRO COEF_AFMX(R,V,T,P,S,BD) COEF_AF(R,V,T,P,S,BD)*{self.env.sw1}({self.env.sw2}1+RTP_SAFS(R,T,P,S,SOW))",
-                    )
-                if self.tc.defined("S_COM_FR"):
-                    self.tc.add_gams_code(
-                        module=self,
-                        phase="init",
-                        code=rf"""
-PARAMETER  RTCS_FRMX(R,T,C,S,S);
-$MACRO RTCS_FR(R,T,C,S,TS) RTCS_FRMX(R,T,C,S,TS)+SUM(SW_T2W(SOW,T,W,T0),RCS_SSFR(R,C,S,TS,W,T0))
-$MACRO COM_FRMX(R,T,C,S) COM_FR(R,T,C,S)*{self.env.sw1}({self.env.sw2}1+S_COM_FR(R,T,C,S,'1',SOW))
-""",
+                    # recurrin.stc line 49: $MACRO COM_FRMX(...) COM_FR(...)*%SW1%(%SW2%1+S_COM_FR(...))
+                    macro.com_fr.activate(
+                        g=g,
+                        sw1=self.env.sw1,
+                        sw2=self.env.sw2,
+                        sw2_GP=self.env.sw2_GP,
                     )
 
+        # ------------------------------------------------
+
         elif self.arg1.upper() == "SPINES":
+            # Do we need SPINES macroes?
             if self.env.spines.upper() == "YES":
-                if not self.env.tst == "TST":
-                    raise Exception("Macro support needed. Upgrade your GAMS system.")
+                if not self.env.tst == "YES":
+                    raise ModuleNotFoundError(
+                        "Macro support needed. Upgrade your GAMS system."
+                    )
                 self.env.set_scoped("vsum", "SUM(SW_TSW(SOW,")
                 self.env.set_global(
                     "sw_stvars",
-                    rf"SET VAR \"Z\" SET VART '{self.env.vsum}T,W),Z' SET VARM '{self.env.vsum}MODLYEAR,W),Z' SET VARV '{self.env.vsum}V,W),Z'",
+                    rf"SET VAR 'Z' SET VART '{self.env.vsum}T,W),Z' SET VARM '{self.env.vsum}MODLYEAR,W),Z' SET VARV '{self.env.vsum}V,W),Z'",
                 )
                 self.env.set_global("witspine", True)
                 self.env.set_global("ewispine", True)
-                self.tc.add_gams_code(
-                    module=self,
-                    phase="init",
-                    code=r"SET OBJSW1(OBV); SET UCRTPSW1(UC_GRPTYPE,WW);",
-                )
-                self.tc.enqueue(self.spines_exec)
-                self.tc.add_gams_code(
-                    module=self,
-                    phase="init",
-                    code=r"""
-$macro QED
-$macro PRC_DYNUCMX(uc,side,r,t,p,grp,bd) PRC_DYNUC(uc,side,r,t,p,grp,bd)$UCRTPSW1(grp,SOW)
-*-----------------------------------------------------------------------------
-* Equations (only if needed)
-$macro Q_OBJELS          ES_OBJELS
-$macro Q_OBJFIX(rc,sow)  ES_OBJFIX(rc,SOW('1'))
-$macro Q_OBJINV(rc,sow)  ES_OBJINV(rc,SOW('1'))
-$macro Q_OBJSALV(rc,sow) ES_OBJSALV(rc,SOW('1'))
-$macro Q_OBJVAR          ES_OBJVAR
-$macro Q_ROBJ            ES_ROBJ
-$macro Q_SOBJ            ES_SOBJ
 
-$macro QG_CPT(rtp,swt)   ESG_CPT(rtp,T,SOW('1'))
-$macro QE_CPT(rtp,swt)   ESE_CPT(rtp,T,SOW('1'))
-$macro QL_CPT(rtp,swt)   ESL_CPT(rtp,T,SOW('1'))
-$macro Q_DSCRET(cpt,sw)  ES_DSCRET(cpt,T,SOW('1'))
-$macro Q_CUMRET(r,v,p,w) ES_CUMRET(r,v,p,T,SOW('1'))
-$macro QL_REFIT(rttp,l,swt) ESL_REFIT(rttp,l,T,SOW('1'))
-$macro Q_DSCNCAP(rtp,sw) ES_DSCNCAP(rtp,T,SOW('1'))
-$macro Q_DSCONE(rtp,swt) ES_DSCONE(rtp,T,SOW('1'))
+                g.Objsw1 = Set(m, name="OBJSW1", domain=g.obv)
+                g.UcrtpSw1 = Set(m, name="UCRTPSW1", domain=[g.ucgrptype, g.ww])
+                g.enqueue(self.spines_exec)
 
-$macro QE_UCT    ESE_UCT
-$macro QE_UCRT   ESE_UCRT
-$macro QE_UCTS   ESE_UCTS
-$macro QE_UCRS   ESE_UCRS
-$macro QE_UCRTS  ESE_UCRTS
-""",
-                )
+                g.add_gams_code(module=self, phase="init", code="$macro QED")
+                macro.prc_dynuc_mx.activate(g=g)
 
+                # Equations (only if needed)
+                g.q_objels = g.es_objels
+                macro.q_objfix_active = True
+                macro.q_objinv_active = True
+                macro.q_objsalv_active = True
+                g.q_objvar = g.es_objvar
+                g.q_robj = g.es_robj
+                g.q_sobj = g.es_sobj
+
+                macro.q_cpt_active = True  # QG_CPT, QE_CPT, QL_CPT
+                macro.q_dscret_active = True
+                macro.q_cumret_active = True
+                macro.ql_refit_active = True
+                macro.q_dscncap_active = True
+                macro.q_dscone_active = True
+
+                g.qe_uct = g.ese_uct
+                g.qe_ucrt = g.ese_ucrt
+                g.qe_ucts = g.ese_ucts
+                g.qe_ucrs = g.ese_ucrs
+                g.qe_ucrts = g.ese_ucrts
+
+                # Cumulative / dynamic
                 if self.env.solveda != "1":
                     self.env.set_global(
                         "sw_stvars",
                         f"{self.env.sw_stvars} SET VARTT '{self.env.vsum}TT,W),Z' SET SWSW SW_TSW(SOW,T,WW),",
                     )
-                    self.tc.add_gams_code(
-                        module=self,
-                        phase="init",
-                        code=r"""
-$macro Q_CUMNET  ES_CUMNET
-$macro Q_CUMPRD  ES_CUMPRD
-$macro Q_CUMFLO  ES_CUMFLO
-$macro Q_BNDCST  ES_BNDCST
-$macro QE_UC     ESE_UC
-$macro QE_UCR    ESE_UCR
-$macro QE_UCSU   ESE_UCSU
-$macro QE_UCSUS  ESE_UCSUS
-$macro QE_UCRSU  ESE_UCRSU
-$macro QE_UCRSUS ESE_UCRSUS
-$macro QL_SCAP   ESL_SCAP
-""",
-                    )
-                else:
+                    g.q_cumnet = g.es_cumnet
+                    g.q_cumprd = g.es_cumprd
+                    g.q_cumflo = g.es_cumflo
+                    g.q_bndcst = g.es_bndcst
+                    g.qe_uc = g.ese_uc
+                    g.qe_ucr = g.ese_ucr
+                    g.qe_ucsu = g.ese_ucsu
+                    g.qe_ucsus = g.ese_ucsus
+                    g.qe_ucrsu = g.ese_ucrsu
+                    g.qe_ucrsus = g.ese_ucrsus
+                    g.ql_scap = g.esl_scap
+                else:  # LABEL DYQAGG
                     self.env.set_global("scum", "1")
                     self.env.set_global(
                         "sw_stvars",
                         f"{self.env.sw_stvars} SET VARTT 'SUM(SW_TSW(W,TT,W),SW_TPROB(TT,W)*Z' SET SWSW SW_TSW(SOW(WW),T,WW),SW_TPROB(T,WW)*",
                     )
-                    self.tc.add_gams_code(
-                        module=self,
-                        phase="init",
-                        code=r"""
-$macro Q_CUMNET(rc,y1,y2,sow) ES_CUMNET(rc,y1,y2,'1')
-$macro Q_CUMPRD(rc,y1,y2,sow) ES_CUMPRD(rc,y1,y2,'1')
-$macro Q_CUMFLO(rpcyy,sw)     ES_CUMFLO(rpcyy,'1')
-$macro Q_BNDCST(r,y,y2,c,m,w) ES_BNDCST(r,y,y2,c,m,'1')
-$macro QE_UC(uc,sow)          ESE_UC(uc,'1')
-$macro QE_UCR(ruc,sow)        ESE_UCR(ruc,'1')
-$macro QE_UCSU(uc,t,sw)       ESE_UCSU(uc,t,'1')
-$macro QE_UCSUS(uc,t,s,sw)    ESE_UCSUS(uc,t,s,'1')
-$macro QE_UCRSU(rtuc,sw)      ESE_UCRSU(rtuc,'1')
-$macro QE_UCRSUS(rtuc,s,sw)   ESE_UCRSUS(rtuc,s,'1')
-$macro QL_SCAP(rtp,ip,sow)    ESL_SCAP(rtp,ip,'1')
-""",
-                    )
-                self.tc.add_gams_code(
+                    macro.q_cum_active = True  # Q_CUMNET, Q_CUMPRD
+                    macro.q_cumflo_active = True
+                    macro.q_bndcst_active = True
+                    macro.eq_uc.activate(g=g)  # UC, UCR, UCSU, UCSUS, UCRSU, UCRSUS
+                    macro.ql_scap_active = True
+
+                # -----------------------------------------------------------
+
+                # Variables (must have for all standard)
+                g.Z_OBJ = g.VAS_OBJ
+                g.Z_OBJELS = g.VAS_OBJELS
+
+                g.Z_ACT = g.VAS_ACT
+                g.Z_FLO = g.VAS_FLO
+                g.Z_IRE = g.VAS_IRE
+                g.Z_SIN = g.VAS_SIN
+                g.Z_SOUT = g.VAS_SOUT
+                g.Z_BLND = g.VAS_BLND
+                g.Z_COMNET = g.VAS_COMNET
+                g.Z_COMPRD = g.VAS_COMPRD
+                g.Z_ELAST = g.VAS_ELAST
+                g.Z_DEM = g.VAS_DEM
+                g.Z_UPS = g.VAS_UPS
+                g.Z_UPT = g.VAS_UPT
+                g.Z_UDP = g.VAS_UDP
+                g.Z_RLD = g.VAS_RLD
+                g.Z_GRIDIO = g.VAS_GRIDIO
+                g.Z_COMAUX = g.VAS_COMAUX
+
+                macro.z_cap_active = True
+                macro.z_ncap_active = True
+                macro.z_rcap_active = True
+                macro.z_scap_active = True
+                macro.z_drcap_active = True
+                macro.z_dncap_active = True
+                macro.z_sncap_active = True
+                macro.z_xcap_active = True
+
+                g.Z_UC = g.VAS_UC
+                g.Z_UCR = g.VAS_UCR
+                g.Z_UCT = g.VAS_UCT
+                g.Z_UCRT = g.VAS_UCRT
+                g.Z_UCTS = g.VAS_UCTS
+                g.Z_UCRTS = g.VAS_UCRTS
+
+                g.add_gams_code(
                     module=self,
                     phase="init",
                     code=r"""
@@ -228,15 +256,6 @@ $macro Z_RLD VAS_RLD
 $macro Z_GRIDIO VAS_GRIDIO
 $macro Z_COMAUX VAS_COMAUX
 
-$macro Z_CAP(r,t,p,sow)     VAS_CAP(r,t,p,'1')
-$macro Z_NCAP(r,t,p,sow)    VAS_NCAP(r,t,p,'1')
-$macro Z_RCAP(r,v,t,p,sow)  VAS_RCAP(r,v,t,p,'1')
-$macro Z_SCAP(r,v,t,p,sow)  VAS_SCAP(r,v,t,p,'1')
-$macro Z_DRCAP(r,v,t,p,w,j) VAS_DRCAP(r,v,t,p,'1',j)
-$macro Z_DNCAP(r,t,p,sow,j) VAS_DNCAP(r,t,p,'1',j)
-$macro Z_SNCAP(r,t,p,sow)   VAS_SNCAP(r,t,p,'1')
-$macro Z_XCAP(r,t,p,sow)    VAS_XCAP(r,t,p,'1')
-
 $macro Z_UC VAS_UC
 $macro Z_UCR VAS_UCR
 $macro Z_UCT VAS_UCT
@@ -246,7 +265,11 @@ $macro Z_UCRTS VAS_UCRTS
 """,
                 )
                 if self.env.solveda != "1":
-                    self.tc.add_gams_code(
+                    g.Z_CUMCOM = g.VAS_CUMCOM
+                    g.Z_CUMFLO = g.VAS_CUMFLO
+                    g.Z_CUMCST = g.VAS_CUMCST
+
+                    g.add_gams_code(
                         module=self,
                         phase="init",
                         code=r"""
@@ -255,40 +278,41 @@ $macro Z_CUMFLO VAS_CUMFLO
 $macro Z_CUMCST VAS_CUMCST
 """,
                     )
-                else:
-                    self.tc.add_gams_code(
-                        module=self,
-                        phase="init",
-                        code=r"""
-$macro Z_CUMCOM(r,c,cv,y1,y2,w) VAS_CUMCOM(r,c,cv,y1,y2,'1')
-$macro Z_CUMFLO(r,p,cv,y1,y2,w) VAS_CUMFLO(r,p,cv,y1,y2,'1')
-$macro Z_CUMCST(r,y1,y2,cg,m,w) VAS_CUMCST(r,y1,y2,cg,m,'1')
-""",
-                    )
-                macro.recurrin.activate(g=self.tc, solveda=self.env.solveda == "1")
-                self.tc.add_gams_code(
+                else:  # LABEL DYZAGG
+                    macro.z_cumcom_active = True
+                    macro.z_cumflo_active = True
+                    macro.z_cumcst_active = True
+
+                g.Z_CLITOT = g.VAS_CLITOT
+                g.Z_CLIBOX = g.VAS_CLIBOX
+                g.add_gams_code(
                     module=self,
                     phase="init",
-                    code=rf"""
+                    code=r"""
 $macro Z_CLITOT VAS_CLITOT
 $macro Z_CLIBOX VAS_CLIBOX
-
-* Map objective components
- EQUATION {self.env.eq}_OBW1(OBV,R,CUR,ALLSOW);
- {self.env.eq}_OBW1(OBJSW1(OBV),RDCUR(R,CUR),SOW) .. {self.env.var}_OBJ(R,OBV,CUR,SOW) =E= {self.env.var}_OBJ(R,OBV,CUR,'1');
 """,
                 )
 
+                obv, r, cur, allsow = g.obv, g.r, g.cur, g.allsow
+                Objsw1, Rdcur, Sow = g.Objsw1, g.Rdcur, g.Sow
+
+                VAR_OBJ = g.get_variable(name=f"{self.env.var}_OBJ")
+                # Map objective components
+                g.es_obw1 = Equation(
+                    m, name=f"{self.env.eq}_OBW1", domain=[obv, r, cur, allsow]
+                )
+                g.es_obw1[Objsw1[obv], Rdcur[r, cur], Sow] = (
+                    VAR_OBJ[r, obv, cur, Sow] == VAR_OBJ[r, obv, cur, "1"]
+                )
+
     def spines_exec(self: RecurrinStc) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-  OBJSW1('OBJINV')=YES;
-  OBJSW1('OBJFIX')=YES;
-  OBJSW1('OBJSAL')=YES;
-  UCRTPSW1('ACT',SOW) = YES;
-  UCRTPSW1('CAP','1') = YES;
-  UCRTPSW1('NCAP','1') = YES;
-""",
-        )
+        g = self.tc
+
+        g.Objsw1["OBJINV"] = True
+        g.Objsw1["OBJFIX"] = True
+        g.Objsw1["OBJSAL"] = True
+
+        g.UcrtpSw1["ACT", g.Sow] = True
+        g.UcrtpSw1["CAP", "1"] = True
+        g.UcrtpSw1["NCAP", "1"] = True

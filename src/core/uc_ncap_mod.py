@@ -23,11 +23,11 @@ from typing import TYPE_CHECKING, Literal
 from gamspy import Domain, Product, Sum
 from gamspy.math import abs, power
 
-from core.utils import SET_OR_ALIAS, extract_var_domain, wrap_in_sum
+from core.utils import SET_OR_ALIAS, wrap_in_sum
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
-    from gamspy import Alias, Set, Variable
+    from gamspy import Alias, Set
     from gamspy._algebra.condition import Condition
     from gamspy._algebra.expression import Expression
     from gamspy._algebra.operation import Operation
@@ -68,14 +68,8 @@ def uc_ncap_mod(g: TimesModelClass, config: UcNcapModConfig) -> Expression | Sum
 
     r, v, p, cur, ucn = g.r, g.v, g.p, g.cur, g.ucn
 
-    var_id, var_set = extract_var_domain(cc.var)
-    varv_id, varv_set = extract_var_domain(cc.varv)
-
-    VAR_NCAP: Variable = g.get_variable(f"{var_id}_NCAP")
-    VARV_NCAP: Variable = g.get_variable(f"{varv_id}_NCAP")
-
     uc_ncap = g.uc_ncap[ucn, cc.arg4, r, cc.arg6, p]
-    ncap = wrap_in_sum(target=VAR_NCAP[r, cc.arg3, p, *cc.sow], domain=var_set)
+    ncap = macro.VAR_NCAP_GP(cc.var, r, cc.arg3, p, cc.sow)
 
     # * [AL] VAR_NCAP(R,arg3,P) can be active even if there is no RTP_CPTYR(R,V,T,P)
     # * (due to ILED)!
@@ -85,7 +79,7 @@ def uc_ncap_mod(g: TimesModelClass, config: UcNcapModConfig) -> Expression | Sum
         + (
             Sum(
                 g.Rvpt[r, v, p, cc.arg3],
-                wrap_in_sum(target=VARV_NCAP[r, v, p, *cc.sws], domain=varv_set),
+                macro.VAR_NCAP_GP(cc.varv, r, v, p, cc.sws),
             )
             + ncap
             * (

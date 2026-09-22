@@ -74,10 +74,10 @@ class EqstgauxMod(GamsClass):
 * flow depends on storage in- or outflow in period T
     SUM((COM_GMAP(R,CG,COM),TOP(RPC_STG(R,P,COM),'IN'),RPCS_VAR(R,P,COM,TS))$COEF_PTRAN(R,V,P,CG,COM,C,TS),
         ({self.env.var}_SIN(R,V,T,P,COM,TS {self.env.sow}) * COEF_PTRAN(R,V,P,CG,COM,C,TS))$((NOT PRC_MAP(R,'NST',P))+PRC_NSTTS(R,P,TS)) *
-         RS_FR(R,S,TS) * (1+RTCS_FR(R,T,C,S,TS))) +
+         RS_FR(R,S,TS) * (1+{macro.rtcs_fr.rtcs_fr("R", "T", "C", "S", "TS")})) +
     SUM((COM_GMAP(R,CG,C),TOP(RPC_STG(R,P,COM),'OUT'),RPCS_VAR(R,P,COM,TS))$COEF_PTRAN(R,V,P,CG,C,COM,S),
         ({self.env.var}_SOUT(R,V,T,P,COM,TS {self.env.sow}) * (1/COEF_PTRAN(R,V,P,CG,C,COM,S)))$(PRC_NSTTS(R,P,TS) EQV RPC_STGN(R,P,COM,'OUT')) *
-         RS_FR(R,S,TS) * (1+RTCS_FR(R,T,C,S,TS)))
+         RS_FR(R,S,TS) * (1+{macro.rtcs_fr.rtcs_fr("R", "T", "C", "S", "TS")}))
 
 ;
 

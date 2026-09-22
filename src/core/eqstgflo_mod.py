@@ -24,6 +24,7 @@ from gamspy import Sum
 
 from core.base_class import GamsClass
 from core.utils import generate_equation
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -75,7 +76,6 @@ class EqstgfloMod(GamsClass):
             v,
             t,
             rs_fr,
-            rtcs_fr,
             PrcNstts,
             PrcVint,
             RpsPrcts,
@@ -90,7 +90,6 @@ class EqstgfloMod(GamsClass):
             g.v,
             g.t,
             g.rs_fr,
-            g.rtcs_fr,
             g.PrcNstts,
             g.PrcVint,
             g.RpsPrcts,
@@ -124,7 +123,7 @@ class EqstgfloMod(GamsClass):
                 RpcsVar[r, p, c, ts].where[rs_fr[r, s, ts] * multiplier],
                 Sum(RtpVintyr[r, v, t, p], VAR_S[r, v, t, p, c, ts, *sow])
                 * rs_fr[r, s, ts]
-                * (1 + rtcs_fr[r, t, c, s, ts]),
+                * (1 + macro.rtcs_fr.rtcs_fr_GP(r, t, c, s, ts, sow)),
             ),
             cc.arg2,
             stginout_bnd[r, t, p, c, s, cc.arg3],

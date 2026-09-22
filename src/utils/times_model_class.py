@@ -659,6 +659,8 @@ class TimesModelClass:
     UcGmapC: Set = None  # type: ignore[assignment] # [Reg,ucn,comvar,Com,ucgrptype] UC_GMAP_C: Assigning commodities to UC_GRP
     UcGmapP: Set = None  # type: ignore[assignment] # [Reg,ucn,ucgrptype,prc] UC_GMAP_P: Assigning processes to UC_GRP
     UcGmapU: Set = None  # type: ignore[assignment] # [allr,ucn,ucn] UC_GMAP_U: Assigning constraints to UC_GRP
+    UcrtpSw1: Set = None  # type: ignore[assignment] # [ucgrptype,ww] UCRTPSW1: SPINES flag for which SOW(s) each UC_RTP process-type dynamic constraint applies to
+    Objsw1: Set = None  # type: ignore[assignment] # [obv] OBJSW1: SPINES flag marking which objective components get the pinned-SOW EQ_OBW1 treatment
     UcJmap: Set = None  # type: ignore[assignment] # [j,ucn,side,Reg,t,prc,ucgrptype] UC_JMAP: Collecting all processes for GMAP
     UcDyndir: Set = None  # type: ignore[assignment] # [allr,ucn,side] UC_DYNDIR: Direction of dynamic constraint
     UcDs: Set = None  # type: ignore[assignment] # [allr,ucn,tslvl] UC_DS: Levels of TS-dynamic constraints
@@ -914,6 +916,7 @@ class TimesModelClass:
     Agefil: Set = None  # type: ignore[assignment] # [age] AGEFIL:
     UcCapflo: Set = None  # type: ignore[assignment] # [ucn,side,r,p,c] UC_CAPFLO:
     rtcs_fr: Parameter = None  # type: ignore[assignment] # [r,t,c,s,s] RTCS_FR:
+    rtcs_frmx: Parameter = None  # type: ignore[assignment] # [r,t,c,s,s] RTCS_FRMX: real storage backing RTCS_FR when S_COM_FR is defined (see RtcsFrContext)
     RpcPkc: Set = None  # type: ignore[assignment] # [r,p,c] RPC_PKC:
     rpc_pkf: Parameter = None  # type: ignore[assignment] # [r,p,c] RPC_PKF:
     ChpElc: Set = None  # type: ignore[assignment] # [r,p,c] CHP_ELC:
@@ -991,34 +994,47 @@ class TimesModelClass:
     Obvann: Set = None  # type: ignore[assignment] # [obv] OBVANN: Annualized objective components
     VAR_ACT: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,s] VAR_ACT: Overall activity of a process
     VAS_ACT: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,s] VAS_ACT: Overall activity of a process
+    Z_ACT: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_ACT ($macro Z_ACT)
     VAR_CAP: Variable = None  # type: ignore[assignment]# [r,allyear,p] VAR_CAP: Installed capacity of a process
     VAS_CAP: Variable = None  # type: ignore[assignment]# [r,allyear,p] VAS_CAP: Installed capacity of a process
     VAR_FLO: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,s] VAR_FLO: Level of process commodity flow
     VAS_FLO: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,s] VAS_FLO: Level of process commodity flow
+    Z_FLO: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_FLO ($macro Z_FLO)
     VAR_IRE: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,s,ie] VAR_IRE: Inter-regional trade flow
     VAS_IRE: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,s,ie] VAS_IRE: Inter-regional trade flow
+    Z_IRE: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_IRE ($macro Z_IRE)
     VAR_NCAP: Variable = None  # type: ignore[assignment]# [r,allyear,p] VAR_NCAP: New capacity of a process
     VAS_NCAP: Variable = None  # type: ignore[assignment]# [r,allyear,p] VAS_NCAP: New capacity of a process
     VAR_COMNET: Variable = None  # type: ignore[assignment]# [r,allyear,c,s] VAR_COMNET: Net commodity level
     VAS_COMNET: Variable = None  # type: ignore[assignment]# [r,allyear,c,s] VAS_COMNET: Net commodity level
+    Z_COMNET: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_COMNET ($macro Z_COMNET)
     VAR_COMPRD: Variable = None  # type: ignore[assignment]# [r,allyear,c,s] VAR_COMPRD: Production of commodity
     VAS_COMPRD: Variable = None  # type: ignore[assignment]# [r,allyear,c,s] VAS_COMPRD: Production of commodity
+    Z_COMPRD: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_COMPRD ($macro Z_COMPRD)
     VAR_ELAST: Variable = None  # type: ignore[assignment]# [r,allyear,c,s,j,bd] VAR_ELAST: Demand change due to price elasticity
     VAS_ELAST: Variable = None  # type: ignore[assignment]# [r,allyear,c,s,j,bd] VAS_ELAST: Demand change due to price elasticity
+    Z_ELAST: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_ELAST ($macro Z_ELAST)
     VAR_DEM: Variable = None  # type: ignore[assignment]# [r,Milestonyr,c] VAR_DEM: Demand variable for MACRO
     VAS_DEM: Variable = None  # type: ignore[assignment]# [r,Milestonyr,c] VAS_DEM: Demand variable for MACRO
+    Z_DEM: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_DEM ($macro Z_DEM)
     VAR_CUMCOM: Variable = None  # type: ignore[assignment]# [r,c,comvar,allyear,allyear] VAR_CUMCOM: Cumulative commodity PRD or NET
     VAS_CUMCOM: Variable = None  # type: ignore[assignment]# [r,c,comvar,allyear,allyear] VAS_CUMCOM: Cumulative commodity PRD or NET
+    Z_CUMCOM: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_CUMCOM ($macro Z_CUMCOM)
     VAR_CUMFLO: Variable = None  # type: ignore[assignment]# [r,p,c,allyear,allyear] VAR_CUMFLO: Cumulative process flow
     VAS_CUMFLO: Variable = None  # type: ignore[assignment]# [r,p,c,allyear,allyear] VAS_CUMFLO: Cumulative process flow
+    Z_CUMFLO: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_CUMFLO ($macro Z_CUMFLO)
     VAR_CUMCST: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,costagg,cur] VAR_CUMCST: Cumulative regional cost
     VAS_CUMCST: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,costagg,cur] VAS_CUMCST: Cumulative regional cost
+    Z_CUMCST: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_CUMCST ($macro Z_CUMCST)
     VAR_SIN: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,s] VAR_SIN: Input flow into storage
     VAS_SIN: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,s] VAS_SIN: Input flow into storage
+    Z_SIN: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_SIN ($macro Z_SIN)
     VAR_SOUT: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,s] VAR_SOUT: Output flow from storage
     VAS_SOUT: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,c,s] VAS_SOUT: Output flow from storage
+    Z_SOUT: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_SOUT ($macro Z_SOUT)
     VAR_BLND: Variable = None  # type: ignore[assignment]  # [r,allyear,Com,Com] VAR_BLND: Refinery blending
     VAS_BLND: Variable = None  # type: ignore[assignment]  # [r,allyear,Com,Com] VAS_BLND: Refinery blending
+    Z_BLND: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_BLND ($macro Z_BLND)
     VAR_DAM: Variable = None  # type: ignore[assignment]  # [r,t,c,bd,j] VAR_DAM: Damage variables
     VAS_DAM: Variable = None  # type: ignore[assignment]  # [r,t,c,bd,j] VAS_DAM: Damage variables
     VAR_RCAP: Variable = None  # type: ignore[assignment]  # [r,allyear,ll,p] VAR_RCAP: New retirements
@@ -1027,12 +1043,16 @@ class TimesModelClass:
     VAS_SCAP: Variable = None  # type: ignore[assignment]# [r,allyear,ll,p] VAS_SCAP: Cumulative retirements
     VAR_UPS: Variable = None  # type: ignore[assignment]  # [r,allyear,allyear,p,s,l] VAR_UPS: Start-ups
     VAS_UPS: Variable = None  # type: ignore[assignment]  # [r,allyear,allyear,p,s,l] VAS_UPS: Start-ups
+    Z_UPS: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_UPS ($macro Z_UPS)
     VAR_UPT: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,s,upt] VAR_UPT: Start-ups by type
     VAS_UPT: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,s,upt] VAS_UPT: Start-ups by type
+    Z_UPT: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_UPT ($macro Z_UPT)
     VAR_UDP: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,s,l] VAR_UDP: Unit dispatching
     VAS_UDP: Variable = None  # type: ignore[assignment]# [r,allyear,allyear,p,s,l] VAS_UDP: Unit dispatching
+    Z_UDP: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_UDP ($macro Z_UDP)
     VAR_RLD: Variable = None  # type: ignore[assignment]  # [r,t,s,item] VAR_RLD: Residual loads
     VAS_RLD: Variable = None  # type: ignore[assignment]  # [r,t,s,item] VAS_RLD: Residual loads
+    Z_RLD: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_RLD ($macro Z_RLD)
     VAR_BSPRS: Variable = None  # type: ignore[assignment]  # [r,year,t,p,c,s,l] VAR_BSPRS: Balancing services
     VAS_BSPRS: Variable = None  # type: ignore[assignment]  # [r,year,t,p,c,s,l] VAS_BSPRS: Balancing services
     VAR_ANNCST: Variable = None  # type: ignore[assignment]# [obv,r,allyear,cur] VAR_ANNCST: Annualized objective costs
@@ -1051,22 +1071,30 @@ class TimesModelClass:
     VAR_NTX: Variable = None  # type: ignore[assignment]  # [r,t] VAR_NTX: Trade in numeraire
     VAR_OBJ: Variable = None  # type: ignore[assignment]# [r,obv,cur] VAR_OBJ: Objective costs INV,SAL,FIX,VAR,DAM
     VAS_OBJ: Variable = None  # type: ignore[assignment]# [r,obv,cur] VAS_OBJ: Objective costs INV,SAL,FIX,VAR,DAM
+    Z_OBJ: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_OBJ ($macro Z_OBJ)
     VAR_OBJELS: Variable = None  # type: ignore[assignment]# [r,bd,cur] VAR_OBJELS: Change in Consumer surplus
     VAS_OBJELS: Variable = None  # type: ignore[assignment]# [r,bd,cur] VAS_OBJELS: Change in Consumer surplus
+    Z_OBJELS: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_OBJELS ($macro Z_OBJELS)
     VAS_EXPOBJ: Variable = None  # type: ignore[assignment] # VAS_EXPOBJ Expected value of total OBJ
     VAS_UPDEV: Variable = None  # type: ignore[assignment]  # [allsow] VAS_UPDEV: Upside deviation of OBJ
     VAR_UC: Variable = None  # type: ignore[assignment]  # [ucn] VAR_UC: Slacks for UC constraints
     VAS_UC: Variable = None  # type: ignore[assignment]  # [ucn] VAS_UC: Slacks for UC constraints
+    Z_UC: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_UC ($macro Z_UC)
     VAR_UCR: Variable = None  # type: ignore[assignment]  # [ucn,r] VAR_UCR: Slacks for UCR constraints
     VAS_UCR: Variable = None  # type: ignore[assignment]  # [ucn,r] VAS_UCR: Slacks for UCR constraints
+    Z_UCR: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_UCR ($macro Z_UCR)
     VAR_UCT: Variable = None  # type: ignore[assignment]  # [ucn,t] VAR_UCT: Slacks for UCT constraints
     VAS_UCT: Variable = None  # type: ignore[assignment]  # [ucn,t] VAS_UCT: Slacks for UCT constraints
+    Z_UCT: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_UCT ($macro Z_UCT)
     VAR_UCRT: Variable = None  # type: ignore[assignment]  # [ucn,r,t] VAR_UCRT: Slacks for UCRT constraints
     VAS_UCRT: Variable = None  # type: ignore[assignment]  # [ucn,r,t] VAS_UCRT: Slacks for UCRT constraints
+    Z_UCRT: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_UCRT ($macro Z_UCRT)
     VAR_UCTS: Variable = None  # type: ignore[assignment]  # [ucn,t,s] VAR_UCTS: Slacks for UCTS constraints
     VAS_UCTS: Variable = None  # type: ignore[assignment]  # [ucn,t,s] VAS_UCTS: Slacks for UCTS constraints
+    Z_UCTS: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_UCTS ($macro Z_UCTS)
     VAR_UCRTS: Variable = None  # type: ignore[assignment] # [ucn,r,t,s] VAR_UCRTS: Slacks for UCRTS constraints
     VAS_UCRTS: Variable = None  # type: ignore[assignment] # [ucn,r,t,s] VAS_UCRTS: Slacks for UCRTS constraints
+    Z_UCRTS: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_UCRTS ($macro Z_UCRTS)
     VAR_DNCAP: Variable = None  # type: ignore[assignment]  # [r,allyear,p,unit] VAR_DNCAP:
     VAS_DNCAP: Variable = None  # type: ignore[assignment]  # [r,allyear,p,unit] VAS_DNCAP:
     VAR_SNCAP: Variable = None  # type: ignore[assignment]  # [r,allyear,p] VAR_SNCAP:
@@ -1151,23 +1179,30 @@ class TimesModelClass:
     eq_gg_weymtx: Equation = None  # type: ignore[assignment] # EQ_GG_WEYMTX
     VAR_CLITOT: Variable = None  # type: ignore[assignment]  # [cmitem,ll] VAR_CLITOT: Total emissions or forcing by milestone year
     VAS_CLITOT: Variable = None  # type: ignore[assignment]  # [cmitem,ll] VAS_CLITOT: Total emissions or forcing by milestone year
+    Z_CLITOT: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_CLITOT ($macro Z_CLITOT)
     VAR_CLIBOX: Variable = None  # type: ignore[assignment]  # [cmitem,CmBox,ll] VAR_CLIBOX: Quantities in the climate reservoirs
     VAS_CLIBOX: Variable = None  # type: ignore[assignment]  # [cmitem,CmBox,ll] VAS_CLIBOX: Quantities in the climate reservoirs
+    Z_CLIBOX: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_CLIBOX ($macro Z_CLIBOX)
     eq_dscncap: Equation = None  # type: ignore[assignment]  # [r,allyear,p] EQ_DSCNCAP
     eq_dscone: Equation = None  # type: ignore[assignment]  # [r,allyear,p] EQ_DSCONE
+    es_dscncap: Equation = None  # type: ignore[assignment]  # SPINES-only alias of EQ_DSCNCAP ($macro Q_DSCNCAP)
+    es_dscone: Equation = None  # type: ignore[assignment]  # SPINES-only alias of EQ_DSCONE ($macro Q_DSCONE)
     eq_obj: Equation = None  # type: ignore[assignment]  #  EQ_OBJ: Overall Objective Function
     eq_ccdm: Equation = None  # type: ignore[assignment]  # [r,mdm,year] EQ_CCDM: Damage from climate change
     eq_utilp: Equation = None  # type: ignore[assignment]  # EQ_UTILP: Utility function
     eq_objels: Equation = None  # type: ignore[assignment]  # [r,bd,cur] EQ_OBJELS: Costs of elastic demands
     es_objels: Equation = None  # type: ignore[assignment]
+    q_objels: Equation = None  # type: ignore[assignment]  # SPINES-only alias of ES_OBJELS ($macro Q_OBJELS)
     eq_objfix: Equation = None  # type: ignore[assignment]  # [r,cur] EQ_OBJFIX: Fixed Costs
     es_objfix: Equation = None  # type: ignore[assignment]
     eq_objinv: Equation = None  # type: ignore[assignment]  # [r,cur] EQ_OBJINV: Investment component
     es_objinv: Equation = None  # type: ignore[assignment]
+    es_obw1: Equation = None  # type: ignore[assignment]  # [obv,r,cur,allsow] ES_OBW1: SPINES pinned-SOW objective-component mapping
     eq_objsalv: Equation = None  # type: ignore[assignment]  # [r,cur] EQ_OBJSALV: Salvage
     es_objsalv: Equation = None  # type: ignore[assignment]  # [r,cur] EQ_OBJSALV: Salvage
     eq_objvar: Equation = None  # type: ignore[assignment]  # [r,cur] EQ_OBJVAR: Variable operating costs
     es_objvar: Equation = None  # type: ignore[assignment]  # [r,cur] EQ_OBJVAR: Variable operating costs
+    q_objvar: Equation = None  # type: ignore[assignment]  # SPINES-only alias of ES_OBJVAR ($macro Q_OBJVAR)
     eq_objdam: Equation = None  # type: ignore[assignment]  # [r,cur] EQ_OBJDAM: Damage costs
     es_objdam: Equation = None  # type: ignore[assignment]  # [r,cur] EQ_OBJDAM: Damage costs
     eq_clitot: Equation = None  # type: ignore[assignment]  # [cmitem,t,ll] EQ_CLITOT: Balances for the total emissions or forcing
@@ -1225,10 +1260,13 @@ class TimesModelClass:
     esl_cpt: Equation = None  # type: ignore[assignment]  # [r,allyear,p] EQL_CPT: Capacity Transfer (=L=)
     eq_cumnet: Equation = None  # type: ignore[assignment]# [r,c,allyear,allyear] EQ_CUMNET: Cummulative Net Commodity Limit (=E=)
     es_cumnet: Equation = None  # type: ignore[assignment]# [r,c,allyear,allyear] EQ_CUMNET: Cummulative Net Commodity Limit (=E=)
+    q_cumnet: Equation = None  # type: ignore[assignment]  # SPINES-only alias of ES_CUMNET ($macro Q_CUMNET)
     eq_cumprd: Equation = None  # type: ignore[assignment]# [r,c,allyear,allyear] EQ_CUMPRD: Cummulative Commodity Production Limit (=E=)
     es_cumprd: Equation = None  # type: ignore[assignment]# [r,c,allyear,allyear] EQ_CUMPRD: Cummulative Commodity Production Limit (=E=)
+    q_cumprd: Equation = None  # type: ignore[assignment]  # SPINES-only alias of ES_CUMPRD ($macro Q_CUMPRD)
     eq_cumflo: Equation = None  # type: ignore[assignment]# [r,p,c,allyear,ll] EQ_CUMFLO: Cummulative Commodity Flow Limit (=E=)
     es_cumflo: Equation = None  # type: ignore[assignment]# [r,p,c,allyear,ll] EQ_CUMFLO: Cummulative Commodity Flow Limit (=E=)
+    q_cumflo: Equation = None  # type: ignore[assignment]  # SPINES-only alias of ES_CUMFLO ($macro Q_CUMFLO)
     eqg_flofr: Equation = None  # type: ignore[assignment]  # [r,t,p,c,s,l] EQG_FLOFR: Flow fraction (=G=)
     esg_flofr: Equation = None  # type: ignore[assignment]  # [r,t,p,c,s,l] EQG_FLOFR: Flow fraction (=G=)
     eqe_flofr: Equation = None  # type: ignore[assignment]  # [r,t,p,c,s,l] EQE_FLOFR: Flow fraction (=E=)
@@ -1305,30 +1343,43 @@ class TimesModelClass:
     esl_refit: Equation = None  # type: ignore[assignment] # [r,allyear,allyear,p,l] EQL_REFIT: Retrofit/life-extension (=L=)
     eql_scap: Equation = None  # type: ignore[assignment] # [r,allyear,p,ips] EQL_SCAP: Salvage capacity (=L=)
     esl_scap: Equation = None  # type: ignore[assignment] # [r,allyear,p,ips] EQL_SCAP: Salvage capacity (=L=)
+    ql_scap: Equation = None  # type: ignore[assignment]  # SPINES-only alias of ESL_SCAP ($macro QL_SCAP)
     eq_bndcst: Equation = None  # type: ignore[assignment] # [Reg,allyear,t,allyear,costcat,cur] EQ_BNDCST: Bound on cumulative costs
     es_bndcst: Equation = None  # type: ignore[assignment] # [Reg,allyear,t,allyear,costcat,cur] EQ_BNDCST: Bound on cumulative costs
+    q_bndcst: Equation = None  # type: ignore[assignment]  # SPINES-only alias of ES_BNDCST ($macro Q_BNDCST)
     eqe_uc: Equation = None  # type: ignore[assignment]  # [ucn] EQE_UC: User-constraints (=E=)
     ese_uc: Equation = None  # type: ignore[assignment]  # [ucn] EQE_UC: User-constraints (=E=)
+    qe_uc: Equation = None  # type: ignore[assignment]  # SPINES-only alias of ESE_UC ($macro QE_UC)
     eqe_ucr: Equation = None  # type: ignore[assignment]  # [r,ucn] EQE_UCR: User-constraints (=E=)
     ese_ucr: Equation = None  # type: ignore[assignment]  # [r,ucn] EQE_UCR: User-constraints (=E=)
+    qe_ucr: Equation = None  # type: ignore[assignment]  # SPINES-only alias of ESE_UCR ($macro QE_UCR)
     eqe_uct: Equation = None  # type: ignore[assignment]  # [ucn,t] EQE_UCT: User-constraints (=E=)
     ese_uct: Equation = None  # type: ignore[assignment]  # [ucn,t] EQE_UCT: User-constraints (=E=)
+    qe_uct: Equation = None  # type: ignore[assignment]  # SPINES-only alias of ESE_UCT ($macro QE_UCT)
     eqe_ucrt: Equation = None  # type: ignore[assignment]  # [r,t,ucn] EQE_UCRT: User-constraints (=E=)
     ese_ucrt: Equation = None  # type: ignore[assignment]  # [r,t,ucn] EQE_UCRT: User-constraints (=E=)
+    qe_ucrt: Equation = None  # type: ignore[assignment]  # SPINES-only alias of ESE_UCRT ($macro QE_UCRT)
     eqe_ucts: Equation = None  # type: ignore[assignment]  # [ucn,t,s] EQE_UCTS: User-constraints (=E=)
     ese_ucts: Equation = None  # type: ignore[assignment]  # [ucn,t,s] EQE_UCTS: User-constraints (=E=)
+    qe_ucts: Equation = None  # type: ignore[assignment]  # SPINES-only alias of ESE_UCTS ($macro QE_UCTS)
     eqe_ucrs: Equation = None  # type: ignore[assignment]  # [r,t,ucn,tsl,s] EQE_UCRS: User-constraints (=E=)
     ese_ucrs: Equation = None  # type: ignore[assignment]  # [r,t,ucn,tsl,s] EQE_UCRS: User-constraints (=E=)
+    qe_ucrs: Equation = None  # type: ignore[assignment]  # SPINES-only alias of ESE_UCRS ($macro QE_UCRS)
     eqe_ucrts: Equation = None  # type: ignore[assignment]  # [r,t,ucn,s] EQE_UCRTS: User-constraints (=E=)
     ese_ucrts: Equation = None  # type: ignore[assignment]  # [r,t,ucn,s] EQE_UCRTS: User-constraints (=E=)
+    qe_ucrts: Equation = None  # type: ignore[assignment]  # SPINES-only alias of ESE_UCRTS ($macro QE_UCRTS)
     eqe_ucsu: Equation = None  # type: ignore[assignment]  # [ucn,t] EQE_UCSU: User-constraints (=E=)
     ese_ucsu: Equation = None  # type: ignore[assignment]  # [ucn,t] EQE_UCSU: User-constraints (=E=)
+    qe_ucsu: Equation = None  # type: ignore[assignment]  # SPINES-only alias of ESE_UCSU ($macro QE_UCSU)
     eqe_ucsus: Equation = None  # type: ignore[assignment]  # [ucn,t,s] EQE_UCSUS: User-constraints (=E=)
     ese_ucsus: Equation = None  # type: ignore[assignment]  # [ucn,t,s] EQE_UCSUS: User-constraints (=E=)
+    qe_ucsus: Equation = None  # type: ignore[assignment]  # SPINES-only alias of ESE_UCSUS ($macro QE_UCSUS)
     eqe_ucrsus: Equation = None  # type: ignore[assignment]  # [r,t,ucn,s] EQE_UCRSUS: User-constraints (=E=)
     ese_ucrsus: Equation = None  # type: ignore[assignment]  # [r,t,ucn,s] EQE_UCRSUS: User-constraints (=E=)
+    qe_ucrsus: Equation = None  # type: ignore[assignment]  # SPINES-only alias of ESE_UCRSUS ($macro QE_UCRSUS)
     eqe_ucrsu: Equation = None  # type: ignore[assignment]  # [r,t,ucn] EQE_UCRSU: User-constraints (=E=)
     ese_ucrsu: Equation = None  # type: ignore[assignment]  # [r,t,ucn] EQE_UCRSU: User-constraints (=E=)
+    qe_ucrsu: Equation = None  # type: ignore[assignment]  # SPINES-only alias of ESE_UCRSU ($macro QE_UCRSU)
     eql_blnd: Equation = None  # type: ignore[assignment]  # [r,year,Ble,spe,allsow] EQL_BLND: Blending (=L=)
     esl_blnd: Equation = None  # type: ignore[assignment]  # [r,year,Ble,spe,allsow] EQL_BLND: Blending (=L=)
     eqg_blnd: Equation = None  # type: ignore[assignment]  # [r,year,Ble,spe,allsow] EQG_BLND: Blending (=G=)
@@ -1341,8 +1392,10 @@ class TimesModelClass:
     es_damage: Equation = None  # type: ignore[assignment]  # [r,t,c] EQ_DAMAGE: Damages
     eq_robj: Equation = None  # type: ignore[assignment] # [r] EQ_ROBJ: Deterministic objective by region and SOW
     es_robj: Equation = None  # type: ignore[assignment] # [r] EQ_ROBJ: Deterministic objective by region and SOW
+    q_robj: Equation = None  # type: ignore[assignment]  # SPINES-only alias of ES_ROBJ ($macro Q_ROBJ)
     eq_sobj: Equation = None  # type: ignore[assignment]  # [lim] EQ_SOBJ: Deterministic objective by SOW
     es_sobj: Equation = None  # type: ignore[assignment]  # [lim] EQ_SOBJ: Deterministic objective by SOW
+    q_sobj: Equation = None  # type: ignore[assignment]  # SPINES-only alias of ES_SOBJ ($macro Q_SOBJ)
     eq_expobj: Equation = None  # type: ignore[assignment] # [allsow] EQ_EXPOBJ: Expected value of total system cost
     es_expobj: Equation = None  # type: ignore[assignment] # [allsow] EQ_EXPOBJ: Expected value of total system cost
     eq_updev: Equation = None  # type: ignore[assignment]  # [allsow] EQ_UPDEV: Upper absolute deviation
@@ -1977,8 +2030,14 @@ class TimesModelClass:
     VAR_ONIND: Variable = None  # type: ignore[assignment]  # [r, ll, t, p, s, lA] VAR_ONIND: on-line status of unit in timeslice s
     VAR_IC: Variable = None  # type: ignore[assignment] # [r, year, Rpc] # VAR_IC
     VAR_GRIDIO: Variable = None  # type: ignore[assignment]  # [r, year, c, c, s, io, *swd] VAR_GRIDIO
+    VAS_GRIDIO: Variable = None  # type: ignore[assignment]  # [r, year, c, c, s, io, *swd] VAS_GRIDIO
+    Z_GRIDIO: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_GRIDIO ($macro Z_GRIDIO)
     VAR_XCAP: Variable = None  # type: ignore[assignment]  # [r, year, item, *swd] VAR_XCAP
+    VAS_XCAP: Variable = None  # type: ignore[assignment]  # [r, year, item, *swd] VAS_XCAP
+    Z_XCAP: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_XCAP ($macro Z_XCAP)
     VAR_COMAUX: Variable = None  # type: ignore[assignment]  # [r, t, c, s, *swd] VAR_COMAUX
+    VAS_COMAUX: Variable = None  # type: ignore[assignment]  # [r, t, c, s, *swd] VAS_COMAUX
+    Z_COMAUX: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_COMAUX ($macro Z_COMAUX)
     eq_msncap: Equation = None  # type: ignore[assignment]  # [r, year, c, swd] eq_msncap
     eq_msncapb: Equation = None  # type: ignore[assignment]  # [r, year, c, p, swd] eq_msncapb
     SwChild: Set = None  # type: ignore[assignment]
@@ -2058,6 +2117,13 @@ class TimesModelClass:
         """
         self.logger = logging.getLogger("TimesModel")
         self.container = Container()
+        # macro_config is a process-wide singleton (module import survives
+        # across model builds in the same process, e.g. in a pytest run), so
+        # without an explicit reset here a Context activated by a previous
+        # build (e.g. CoefAfMxContext when S_NCAP_AFS was defined) would leak
+        # into this build even when the GAMS module that would activate it
+        # (recurrin.stc's MXPAR label) never runs for this instance.
+        macro_config.reset()
 
     def register_module(self, module: GamsClass) -> None:
         """Register a module object."""
@@ -2165,21 +2231,13 @@ class TimesModelClass:
         setattr(self, name.lower(), eq)
 
     def get_equation(self, name: str) -> Equation:
-        try:
-            return getattr(self, name.lower())  # type: ignore [no-any-return]
-        except AttributeError:
-            # Q_xxx is a $macro of recurrin.stc rather than an equation of its own
-            return macro_config.recurrin.equation_GP(name)  # type: ignore [no-any-return]
+        return getattr(self, name.lower())  # type: ignore [no-any-return]
 
     def get_parameter(self, name: str) -> Parameter:
         return getattr(self, name.lower())  # type: ignore [no-any-return]
 
     def get_variable(self, name: str) -> Variable:
-        try:
-            return getattr(self, name.upper())  # type: ignore [no-any-return]
-        except AttributeError:
-            # Z_xxx is a $macro of recurrin.stc rather than a variable of its own
-            return macro_config.recurrin.variable_GP(name)  # type: ignore [no-any-return]
+        return getattr(self, name.upper())  # type: ignore [no-any-return]
 
     def set_parameter(self, name: str, parameter: Parameter) -> None:
         setattr(self, name.lower(), parameter)

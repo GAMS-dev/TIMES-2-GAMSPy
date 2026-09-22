@@ -52,7 +52,7 @@ def inner_sum(
     cc = config
 
     var_id, domain = extract_var_domain(var)
-    var_act = wrap_in_sum(target=g.get_variable(name=f"{var_id}_ACT"), domain=domain)
+    var_act = g.get_variable(name=f"{var_id}_ACT")
 
     expr2: Product | int
     if cc.arg6 == 1:
@@ -78,7 +78,7 @@ def inner_sum(
                 g.PrcTs[g.r, g.p, g.ts].where[
                     (g.rs_fr[g.r, g.s, g.ts] * g.RtpVara[g.r, cc.arg4, g.p])
                 ],
-                var_act[g.r, g.v, cc.arg4, g.p, g.ts, *sow]
+                wrap_in_sum(var_act[g.r, g.v, cc.arg4, g.p, g.ts, *sow], domain)
                 * g.uc_act[g.ucn, cc.arg5, g.r, cc.arg7, g.p, g.ts]
                 * Product(
                     g.Annual, g.rs_fr[g.r, g.s, g.ts]

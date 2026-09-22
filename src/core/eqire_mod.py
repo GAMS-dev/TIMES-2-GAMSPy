@@ -20,6 +20,7 @@ from gamspy import Domain, Sum
 from gamspy.math import same_as
 
 from core.base_class import GamsClass
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -79,7 +80,7 @@ class EqireMod(GamsClass):
             g.ire_ccvt,
             g.imp,
         )
-        ire_flo, rs_fr, rtcs_fr = g.ire_flo, g.rs_fr, g.rtcs_fr
+        ire_flo, rs_fr = g.ire_flo, g.rs_fr
 
         tx = self.env.tx_GP
         swt = self.env.swt_GP
@@ -118,7 +119,7 @@ class EqireMod(GamsClass):
                         * ire_ccvt[r, c, Reg, com1]
                         * ire_tscvt[r, allts, Reg, s]
                         * rs_fr[r, allts, ts]
-                        * (1 + rtcs_fr[r, t, c, allts, ts]),
+                        * (1 + macro.rtcs_fr.rtcs_fr_GP(r, t, c, allts, ts, sow)),
                     )
                     * ire_ccvt[Reg, com1, Reg, Com],
                 )
@@ -143,7 +144,7 @@ class EqireMod(GamsClass):
                         / ire_flo[Reg, v, p, Com, r, c, ts]
                         * ire_tscvt[r, allts, Reg, s]
                         * rs_fr[r, allts, ts]
-                        * (1 + rtcs_fr[r, t, c, allts, ts]),
+                        * (1 + macro.rtcs_fr.rtcs_fr_GP(r, t, c, allts, ts, sow)),
                     )
                     * ire_ccvt[r, c, Reg, Com],
                 )
@@ -169,7 +170,7 @@ class EqireMod(GamsClass):
                         * ire_flo[r, v, p, c, Reg, Com, s]
                         * ire_tscvt[r, allts, Reg, s]
                         * rs_fr[r, allts, ts]
-                        * (1 + rtcs_fr[r, t, c, allts, ts]),
+                        * (1 + macro.rtcs_fr.rtcs_fr_GP(r, t, c, allts, ts, sow)),
                     )
                     * ire_ccvt[r, c, Reg, Com],
                 )

@@ -20,7 +20,7 @@ from gamspy.math import Max, Min, Round, same_as
 
 from core.base_class import GamsClass
 from core.cal_red_red import CalRedRedConfig
-from core.utils import extract_var_domain, wrap_in_sum
+from core.utils import SowGPType, extract_var_domain, wrap_in_sum
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
@@ -222,12 +222,9 @@ class EqbndcstMod(GamsClass):
         temp_vart = self.env.vart_GP
         # $IF %SCUM%==1 $SET VART SUM(SW_TSW(W,T,W),SW_TPROB(T,W)*Z
         if self.env.scum == "1":
-            # The Z_xxx prefix is resolved by the $macros of recurrin.stc, which alias
-            # the stochastic VAS_xxx variables and pin the SOW index of the capacity and
-            # cumulative ones to '1'; that macro half belongs to recurrin.stc
             self.env.set_scoped("vart", "SUM(SW_TSW(W,T,W),SW_TPROB(T,W)*Z")
             self.env.set_scoped(
-                "vart_GP", (g.SwTsw[g.w, g.t, g.w], g.sw_tprob[g.t, g.w] * g.z)
+                "vart_GP", ("Z", (g.SwTsw[g.w, g.t, g.w], g.sw_tprob[g.t, g.w]))
             )
 
         sowend = self.env.sow_GP
@@ -260,7 +257,7 @@ class EqbndcstMod(GamsClass):
     def equation(
         self: EqbndcstMod,
         eq: str,
-        sowstart: tuple[Literal["0", "1"] | Set | Alias, ...] | tuple[()],
+        sowstart: SowGPType,
         swt: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
         vart1: tuple[str, ImplicitSet | None],
         sws: tuple[Set | Alias, ...] | tuple[()],
@@ -271,7 +268,7 @@ class EqbndcstMod(GamsClass):
         swsw: tuple[ImplicitSet] | tuple[ImplicitSet, ImplicitParameter] | tuple[()],
         cal_red: str,
         var: str,
-        sowend: tuple[Literal["0", "1"] | Set | Alias, ...] | tuple[()],
+        sowend: SowGPType,
         pgprim: str,
         sow: tuple[Literal["0", "1"] | Set | Alias, ...] | tuple[()],
         def_rtp_ffcs: bool,
@@ -296,24 +293,15 @@ class EqbndcstMod(GamsClass):
             g.obj_diviv,
         )
 
-        eq_bndcst = g.get_equation(f"{eq}_BNDCST")
-        VAR_CUMCST = g.get_variable(f"{var}_CUMCST")
+        eq_bndcst, sowstart = macro.EQ_BNDCST_GP(eq, sowstart)
         ncap_declif = g.get_parameter(f"NCAP_{declif}")
         tpulse_domain, tpulse_mult = tpulse
 
-        # %VART1%_NCAP(R,T,P %SWS%), the (stochastic) new capacity variable
-        vart1_id, vart1_set = extract_var_domain(vart1)
-        VART1_NCAP = g.get_variable(f"{vart1_id}_NCAP")
-        ncap1 = wrap_in_sum(target=VART1_NCAP[r, t, p, *sws], domain=vart1_set)
-
-        # Every %VART%_xxx occurrence closes its own SUM over the SOW mapping, weighted
-        # by the state probability when cumulating over the states (%SCUM%==1)
         vart_id, vart_set = extract_var_domain(vart)
         suffixes = ["COMNET", "COMPRD", "IRE", "ACT"]
-        VART_COMNET, VART_COMPRD, VART_IRE, VART_ACT = [
-            wrap_in_sum(target=g.get_variable(f"{vart_id}_{suffix}"), domain=vart_set)
-            for suffix in suffixes
-        ]
+        VART_COMNET, VART_COMPRD, VART_IRE, VART_ACT = (
+            g.get_variable(f"{vart_id}_{suffix}") for suffix in suffixes
+        )
 
         # ------------------------------------------------------------------------------
         # Investment Costs
@@ -332,13 +320,14 @@ class EqbndcstMod(GamsClass):
                         - Max(g.yearval[year], g.yearval[Y]),
                     ),
                 )
-                * ncap1
+                * macro.VAR_NCAP_GP(vart1, r, t, p, sws)
                 * g.obj_crf[r, t, p, cur]
                 / g.obj_divi[r, t, p],
             ).where[~g.RtIan[r, year, allyear, cur, "INV"]]
             + Sum(
                 Domain(t, p).where[g.cst_annc[r, t, p, tt, "INVCOST", cur]],
-                g.cst_annc[r, t, p, tt, "INVCOST", cur] * ncap1,
+                g.cst_annc[r, t, p, tt, "INVCOST", cur]
+                * macro.VAR_NCAP_GP(vart1, r, t, p, sws),
             ).where[g.RtIan[r, year, allyear, cur, "INV"]]
         ).where[same_as(costcat, "INV")]
 
@@ -354,7 +343,7 @@ class EqbndcstMod(GamsClass):
                     - Max(Ord(year), Ord(ll)),
                 ),
             )
-            * ncap1
+            * macro.VAR_NCAP_GP(vart1, r, t, p, sws)
             * g.obj_crfd[r, t, p, cur]
             / g.obj_diviii[r, t, p],
         ).where[same_as(costcat, "INV")]
@@ -379,7 +368,7 @@ class EqbndcstMod(GamsClass):
                         - Max(Ord(year), Ord(ll))
                     ),
                 )
-                * ncap1
+                * macro.VAR_NCAP_GP(vart1, r, t, p, sws)
                 * g.obj_crf[r, t, p, cur]
                 / g.obj_divi[r, t, p],
             ).where[~g.RtIan[r, year, allyear, cur, "INVTAXSUB"]]
@@ -388,7 +377,8 @@ class EqbndcstMod(GamsClass):
             """The pre-calculated annual INVTAX / INVSUB coefficients (see exec1)."""
             return Sum(
                 Domain(t, p).where[g.cst_annc[r, t, p, tt, item, cur]],
-                g.cst_annc[r, t, p, tt, item, cur] * ncap1,
+                g.cst_annc[r, t, p, tt, item, cur]
+                * macro.VAR_NCAP_GP(vart1, r, t, p, sws),
             ).where[g.RtIan[r, year, allyear, cur, "INVTAXSUB"]]
 
         invtax = (
@@ -422,7 +412,7 @@ class EqbndcstMod(GamsClass):
                         - Max(g.yearval[year], g.yearval[k]),
                     ),
                 )
-                * ncap1
+                * macro.VAR_NCAP_GP(vart1, r, t, p, sws)
                 / obj_diviv[r, t, p],
             )
             shaped = Sum(
@@ -443,7 +433,7 @@ class EqbndcstMod(GamsClass):
                     )
                     * obj_macro(r, ll, p, cur),
                 )
-                * ncap1
+                * macro.VAR_NCAP_GP(vart1, r, t, p, sws)
                 / obj_diviv[r, t, p],
             )
             return (unshaped + shaped).where[same_as(costcat, item)]
@@ -472,12 +462,12 @@ class EqbndcstMod(GamsClass):
                 * (
                     Sum(
                         g.RhsCombal[r, t, c, s],
-                        VART_COMNET[r, t, c, s, *sws]
+                        wrap_in_sum(VART_COMNET[r, t, c, s, *sws], vart_set)
                         * g.obj_comnt[r, YEoh, c, s, item, cur],
                     )
                     + Sum(
                         g.RhsComprd[r, t, c, s],
-                        VART_COMPRD[r, t, c, s, *sws]
+                        wrap_in_sum(VART_COMPRD[r, t, c, s, *sws], vart_set)
                         * g.obj_compd[r, YEoh, c, s, item, cur],
                     )
                 ),
@@ -531,10 +521,13 @@ class EqbndcstMod(GamsClass):
         trade = (
             Sum(
                 g.RpcIre[r, p, c, ie],
-                VART_IRE[r, v, t, p, c, s, ie, *sws].where[~g.RpcAire[r, p, c]]
-                + (VART_ACT[r, v, t, p, s, *sws] * g.prc_actflo[r, v, p, c]).where[
-                    g.RpcAire[r, p, c]
-                ],
+                wrap_in_sum(VART_IRE[r, v, t, p, c, s, ie, *sws], vart_set).where[
+                    ~g.RpcAire[r, p, c]
+                ]
+                + (
+                    wrap_in_sum(VART_ACT[r, v, t, p, s, *sws], vart_set)
+                    * g.prc_actflo[r, v, p, c]
+                ).where[g.RpcAire[r, p, c]],
             )
             + Sum(
                 Domain(g.RpcIre[r, p, Com, ie], io).where[
@@ -543,9 +536,12 @@ class EqbndcstMod(GamsClass):
                 ],
                 g.ire_flosum[r, t, p, Com, s, ie, c, io]
                 * (
-                    VART_IRE[r, v, t, p, Com, s, ie, *sws].where[~g.RpcAire[r, p, Com]]
+                    wrap_in_sum(VART_IRE[r, v, t, p, Com, s, ie, *sws], vart_set).where[
+                        ~g.RpcAire[r, p, Com]
+                    ]
                     + (
-                        VART_ACT[r, v, t, p, s, *sws] * g.prc_actflo[r, v, p, Com]
+                        wrap_in_sum(VART_ACT[r, v, t, p, s, *sws], vart_set)
+                        * g.prc_actflo[r, v, p, Com]
                     ).where[g.RpcAire[r, p, Com]]
                 ),
             )
@@ -578,7 +574,7 @@ class EqbndcstMod(GamsClass):
         # DIAG(COSTYPE,'SUB') flips the sign of the subsidy components
         components = Sum(
             g.CostGmap[costcat, costagg, costype],
-            VAR_CUMCST[r, year, allyear, costagg, cur, *sowend]
+            macro.VAR_CUMCST_GP(var, r, year, allyear, costagg, cur, sowend)
             * (1 - Number(2).where[same_as(costype, "SUB")]),
         )
 
@@ -603,7 +599,7 @@ class EqbndcstMod(GamsClass):
             + flow_tax
             + flow_sub
             + components
-            == VAR_CUMCST[r, year, allyear, costcat, cur, *sowend]
+            == macro.VAR_CUMCST_GP(var, r, year, allyear, costcat, cur, sowend)
         )
 
     def exec1(self: EqbndcstMod, declif: str) -> None:

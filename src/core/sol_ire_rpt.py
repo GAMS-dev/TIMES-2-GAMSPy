@@ -13,9 +13,10 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from core.base_class import GamsClass
+from core.utils import apply_v_scope
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -50,32 +51,35 @@ class SolIreRpt(GamsClass):
         self.compile()
 
     def compile(self) -> None:
-        self._set_v_scope(self.arg1, "VAR")
+        # sol_ire.rpt:8 `SET%1 V VAR`. Verified against real GAMS (see
+        # sol_ire_rpt()'s docstring): a $SETGLOBAL is a no-op if an
+        # ancestor's own env already has a scoped/local V - only
+        # resolvable from this class's own (still-live) self.env, at
+        # arg1=self.arg1,
+        # compile time, before enqueueing exec1. LOCAL/scoped (the
+        # non-GLOBAL default) never needs this: sol_ire_rpt always
+        # resolves that case to VAR on its own.
+        apply_v_scope(self.env, self.arg1, "VAR")
 
         self.tc.enqueue(
             self.exec1,
+            arg1=self.arg1,
             arg2=self.arg2,
             arg3=self.arg3,
             arg4=self.arg4,
+            v=self.env.v,
             sow=self.env.sow,
             mx=self.env.mx,
             rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),
         )
 
-    def _set_v_scope(self, scope: str, value: str) -> None:
-        scope_upper = scope.upper()
-        if scope_upper == "LOCAL":
-            self.env.set_local("v", value)
-        elif scope_upper == "GLOBAL":
-            self.env.set_global("v", value)
-        else:
-            self.env.set_scoped("v", value)
-
     def exec1(
         self: SolIreRpt,
+        arg1: str,
         arg2: str,
         arg3: str,
         arg4: str,
+        v: str,
         sow: str,
         mx: str,
         rtp_ffcs_defined: bool,
@@ -84,9 +88,11 @@ class SolIreRpt(GamsClass):
             module=self,
             phase="run",
             code=sol_ire_rpt(
+                arg1=arg1,  # type: ignore[arg-type]
                 arg2=arg2,
                 arg3=arg3,
                 arg4=arg4,
+                v=v,
                 sow=sow,
                 mx=mx,
                 rtp_ffcs_defined=rtp_ffcs_defined,
@@ -96,15 +102,35 @@ class SolIreRpt(GamsClass):
 
 def sol_ire_rpt(
     *,
+    arg1: Literal["", "LOCAL", "GLOBAL"] = "",
     arg2: str = "",
     arg3: str = "",
     arg4: str = "",
+    v: str,
     sow: str,
     mx: str,
     rtp_ffcs_defined: bool,
 ) -> str:
+    """sol_ire.rpt:8's `SET%1 V VAR`.
+
+    Verified against real GAMS (a minimal $SET/$BATINCLUDE repro, checked
+    with $log): this unconditionally resolves V to the literal VAR whenever
+    arg1 is "" or "LOCAL" - regardless of any caller state - so `v` is
+    overridden to "VAR" here in that case, ignoring whatever the caller
+    passed. But a $SETGLOBAL (arg1="GLOBAL") turned out to be a complete
+    no-op whenever an ancestor file already has an active (local or scoped)
+    V of its own: the ancestor's value wins outright, not just on return
+    but even within sol_ire.rpt's own remaining body. Whether that's the
+    case here depends on the CALLER's own CompileEnvironment (e.g.
+    RptmainStc may have already scoped-set "v" before including SolIreRpt),
+    which this stateless function has no access to - so for arg1="GLOBAL",
+    the passed-in `v` is used as-is: it must already be pre-resolved by
+    SolIreRpt.compile() (via apply_v_scope on its own self.env, before
+    enqueuing exec1).
+    """
+    if arg1 != "GLOBAL":
+        v = "VAR"
     src = "PAR_IRE(R,V,T,P,C,S,IE)"
-    v = "VAR"
 
     sws = (
         f"{v}_IRE.L(R,V,T,P,C,S,IE{arg2})$(NOT RPC_AIRE(R,P,C))"

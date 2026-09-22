@@ -444,18 +444,12 @@ class EqobjfixMod(GamsClass):
         KEoh, YEoh, Y, obv = g.KEoh, g.YEoh, g.Y, g.obv
         ObjSumiv, ObjSumivs, RtpIshpr = g.ObjSumiv, g.ObjSumivs, g.RtpIshpr
 
-        eq_objfix = g.get_equation(f"{eq}_OBJFIX")
-        varv_id, varv_set = varv
-        vart_id, vart_set = vart
-        VARV_NCAP = g.get_variable(f"{varv_id}_NCAP")
-        VART_CAP = g.get_variable(f"{vart_id}_CAP")
+        eq_objfix, sow = macro.EQ_OBJFIX_GP(eq, sow)
         VAR_OBJ = g.get_variable(f"{var}_OBJ")
 
-        shared_ncap = VARV_NCAP[r, v, p, *sws]
-        ncap = Sum(varv_set, shared_ncap) if varv_set is not None else shared_ncap
-
         capacity = (
-            ncap.where[g.Milestonyr[v]] + g.ncap_pasti[r, v, p].where[g.Pastyear[v]]
+            macro.VAR_NCAP_GP(varv, r, v, p, sws).where[g.Milestonyr[v]]
+            + g.ncap_pasti[r, v, p].where[g.Pastyear[v]]
         )
 
         def shaped(cost: ImplicitParameter, index: str) -> Expression:
@@ -510,11 +504,9 @@ class EqobjfixMod(GamsClass):
             # * [UR] 07.10.2003: for validating MARKAL using VAR_CAP instead of VAR_NCAP+NCAP_PASTI,
             # *                  since it is possible in MARKAL to decommission capacity of demand
             # *                  devices (DMD)
-            shared_cap = VART_CAP[r, t, p, *sws]
-            cap = Sum(vart_set, shared_cap) if vart_set is not None else shared_cap
 
             shaped_costs = shaped_costs * (
-                Sum(g.Periodyr[t[v], YEoh], cap).where[
+                Sum(g.Periodyr[t[v], YEoh], macro.VAR_CAP_GP(vart, r, t, p, sws)).where[
                     g.Obj1a[r, v, p] + g.Obj1b[r, v, p]
                 ]
                 + capacity.where[g.Obj2a[r, v, p] + g.Obj2b[r, v, p]]
@@ -543,7 +535,7 @@ class EqobjfixMod(GamsClass):
             * macro.obj_dlagc_GP(r, k, p, cur)
             # * Case 2.a-b
             * (
-                ncap.where[g.Milestonyr[v]]
+                macro.VAR_NCAP_GP(varv, r, v, p, sws).where[g.Milestonyr[v]]
                 + g.ncap_pasti[r, v, p].where[g.Pastyear[v] & g.Obj2a[r, v, p]]
             ),
         )

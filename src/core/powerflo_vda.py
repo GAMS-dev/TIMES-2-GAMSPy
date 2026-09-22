@@ -696,15 +696,15 @@ $ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,'{pgprim}',s,ie{sow}
 *------------------------------------------------------------------------
 * Implied capacity of virtual powerflow
   {eq}_GR_VIRTCAP(GR_CANDID({r_t},P),C,{rts},BDNEQ(BD){swt})$((GR_FLOW(R,P,C)>0)$RPS_S1(R,P,S))..
-    SUM(GR_TOP(R,C,RC,P),VAR_GRVIRT(R,T,P,C,S))*BDSIG(BD)  =L=  {var}_XCAP(R,T,P{sow})*PRC_CAPACT(R,P)*G_YRFR(R,S)
+    SUM(GR_TOP(R,C,RC,P),VAR_GRVIRT(R,T,P,C,S))*BDSIG(BD)  =L=  {macro.VAR_XCAP(var, "R", "T", "P", sow)}*PRC_CAPACT(R,P)*G_YRFR(R,S)
   ;
 *------------------------------------------------------------------------
 * Bounds on virtual capacity
   {eq}_GR_VIRTBND(GR_CANDID({r_t},P){swt})..
 *...Upper bound on virtual flow capacity: Zero if line is installed, less than BIGM*F if line not installed
-    {var}_XCAP(R,T,P{sow}) =E=  {bigm}*GR_CAPUP(R,T,P) *
+    {macro.VAR_XCAP(var, "R", "T", "P", sow)} =E=  {bigm}*GR_CAPUP(R,T,P) *
 *...Virtual capacity indicator
-    (1 - (VAR_PTDNCAP(r,t,p)$GR_DNCAP(R,P) + (1-(1-SUM(RTP(R,T,P),{var}_CAP(R,T,P{sow}))/GR_CAPUP(R,T,P))/{bigm})$(NOT GR_DNCAP(R,P))))
+    (1 - (VAR_PTDNCAP(r,t,p)$GR_DNCAP(R,P) + (1-(1-SUM(RTP(R,T,P),{macro.VAR_CAP(var, "R", "T", "P", sow)})/GR_CAPUP(R,T,P))/{bigm})$(NOT GR_DNCAP(R,P))))
   ;
 *------------------------------------------------------------------------
 * Generation fractions for all grid nodes C
@@ -714,7 +714,7 @@ $ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,'{pgprim}',s,ie{sow}
   SUM((GR_PRCMAP(RP_STD(R,P),COM,ITEM),GR_ALGMAP(R,CG,COM)), GR_GENMAP(R,P,ITEM)*GR_GENFR(R,T,C,ITEM) *
     SUM((RTP_VINTYR(R,V,T,P),RTPCS_VARF(R,T,P,COM,TS))$RS_FR(R,S,TS),
 {include_cal_red}
-         * RS_FR(R,S,TS)*(1+RTCS_FR(R,T,COM,S,TS)))$GR_ALLMAP(R,C,COM)) +
+         * RS_FR(R,S,TS)*(1+{macro.rtcs_fr.rtcs_fr("R", "T", "COM", "S", "TS")}))$GR_ALLMAP(R,C,COM)) +
 * Imports
   SUM((GR_PRCMAP(RP_IRE(R,P),COM,ITEM),RPC_IRE(R,P,COM,IE('IMP')))$GR_ALGMAP(R,CG,COM), GR_GENMAP(R,P,ITEM)*GR_GENFR(R,T,C,ITEM) *
     SUM((RTP_VINTYR(R,V,T,P),RTPCS_VARF(R,T,P,COM,TS))$RS_FR(R,S,TS),
@@ -740,7 +740,7 @@ $ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,'{pgprim}',s,ie{sow}
     SUM(TOP(RP_STD(R,P),COM,'OUT')$(NOT GR_GENP(R,P)*GR_DEMMAP(R,C,COM)),
       SUM((RTP_VINTYR(R,V,T,P),RTPCS_VARF(R,T,P,COM,TS))$RS_FR(R,S,TS),
 {include_cal_red}
-         * RS_FR(R,S,TS)*(1+RTCS_FR(R,T,COM,S,TS))) *
+         * RS_FR(R,S,TS)*(1+{macro.rtcs_fr.rtcs_fr("R", "T", "COM", "S", "TS")})) *
       (SUM(GR_PRCMAP(R,P,COM,ITEM),GR_GENMAP(R,P,ITEM)*GR_GENFR(R,T,C,ITEM))-GR_ENDFR(R,T,C,COM)*(1+GR_ENDFR(R,T,COM,COM))-GR_DEMFR(R,T,C,S)$GR_GENP(R,P)$GR_ENDC(R,'NRG')))) +
 * Exports
   SUM((GR_PRCMAP(RP_IRE(R,P),COM,ITEM),RPC_IRE(R,P,COM,IE('EXP')))$GR_ALGMAP(R,'NRG',COM), GR_GENMAP(R,P,ITEM) *
@@ -765,14 +765,14 @@ $ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,'{pgprim}',s,ie{sow}
   =L=
   SUM((GR_GRID(J,R,C),TOP_IRE(R,C,ALL_R,COM,P))$((NOT SAMEAS(R,ALL_R))$RC_GRID(R,T,C)),
     SUM(V$COEF_VNT(R,T,P,V), COEF_VNT(R,T,P,V) * PRC_CAPACT(R,P) * GR_XBND(R,T) * G_YRFR(R,S) *
-      ({varv}_NCAP(R,V,P {sws})$TT(V)+NCAP_PASTI(R,V,P)$PASTYEAR(V)))$PRC_CAP(R,P) +
+      ({macro.VAR_NCAP(varv, "R", "V", "P", sws)}$TT(V)+NCAP_PASTI(R,V,P)$PASTYEAR(V)))$PRC_CAP(R,P) +
     SUM((REG(ALL_R),V)$COEF_VNT(REG,T,P,V), COEF_VNT(REG,T,P,V) * PRC_CAPACT(REG,P) * GR_XBND(R,T) * G_YRFR(R,S) *
-      ({varv}_NCAP(REG,V,P {sws})$TT(V)+NCAP_PASTI(REG,V,P)$PASTYEAR(V))$PRC_CAP(REG,P))$(NOT PRC_CAP(R,P)))$XPT(IE) +
+      ({macro.VAR_NCAP(varv, "REG", "V", "P", sws)}$TT(V)+NCAP_PASTI(REG,V,P)$PASTYEAR(V))$PRC_CAP(REG,P))$(NOT PRC_CAP(R,P)))$XPT(IE) +
   SUM((TOP_IRE(ALL_R,COM,R,C,P),GR_GRID(J,R,C))$((NOT SAMEAS(R,ALL_R))$RC_GRID(R,T,C)),
     SUM(V$COEF_VNT(R,T,P,V), COEF_VNT(R,T,P,V) * PRC_CAPACT(R,P) * GR_XBND(R,T) * G_YRFR(R,S) *
-      ({varv}_NCAP(R,V,P {sws})$TT(V)+NCAP_PASTI(R,V,P)$PASTYEAR(V)))$PRC_CAP(R,P) +
+      ({macro.VAR_NCAP(varv, "R", "V", "P", sws)}$TT(V)+NCAP_PASTI(R,V,P)$PASTYEAR(V)))$PRC_CAP(R,P) +
     SUM((REG(ALL_R),V)$COEF_VNT(REG,T,P,V), COEF_VNT(REG,T,P,V) * PRC_CAPACT(REG,P) * GR_XBND(R,T) * G_YRFR(R,S) *
-      ({varv}_NCAP(REG,V,P {sws})$TT(V)+NCAP_PASTI(REG,V,P)$PASTYEAR(V))$PRC_CAP(REG,P))$(NOT PRC_CAP(R,P)))$IMP(IE)
+      ({macro.VAR_NCAP(varv, "REG", "V", "P", sws)}$TT(V)+NCAP_PASTI(REG,V,P)$PASTYEAR(V))$PRC_CAP(REG,P))$(NOT PRC_CAP(R,P)))$IMP(IE)
 ;
 """,
         )

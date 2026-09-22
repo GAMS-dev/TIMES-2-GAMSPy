@@ -49,6 +49,9 @@ class RptmainStc(GamsClass):
         arg2: str,
         model_name: str,
         arg1_GP: tuple[Set | Alias | str] | tuple[()] = (),
+        arg3: str = "",
+        arg4: str = "",
+        arg3_GP: tuple[Set | Alias | str] | tuple[()] = (),
     ):
         self.env = env.fork()
         self._sub_modules = {}
@@ -56,6 +59,9 @@ class RptmainStc(GamsClass):
         self.arg1 = arg1
         self.arg2 = arg2
         self.arg1_GP = arg1_GP
+        self.arg3 = arg3
+        self.arg4 = arg4
+        self.arg3_GP = arg3_GP
         self.model_name = model_name
         self.compile()
 
@@ -85,9 +91,11 @@ PARAMETERS SW_UNPC(LL,WW);
             self.env.set_scoped("solveda", "1")
 
         if self.env.spines.upper() == "YES":
-            self.arg1 = ""
-            self.arg2 = ""
-            self.arg1_GP = ()
+            # $SHIFT SHIFT (rptmain.stc:19): %1/%2 drop, so what the caller
+            # passed as arg3/arg4 become the new arg1/arg2.
+            self.arg1 = self.arg3
+            self.arg2 = self.arg4
+            self.arg1_GP = self.arg3_GP
 
         if str(self.env.spines + self.env.solveda).upper() != "YES1":
             self.env.set_scoped("solveda", "1")
@@ -172,7 +180,7 @@ PARAMETERS SW_UNPC(LL,WW);
 
         self.env.set_scoped("sow", ",SOW")
         self.env.set_scoped("sow_GP", (g.Sow,))
-        self.env.set_scoped("EQ", self.env.eqs)
+        self.env.set_scoped("eq", self.env.eqs)
         self.env.set_scoped("var", self.env.v)
 
         self.include(
@@ -211,7 +219,7 @@ PARAMETERS SW_UNPC(LL,WW);
 
         self.env.set_scoped("sow", "")
         self.env.set_scoped("sow_GP", ())
-        self.env.set_scoped("EQ", "EQ")
+        self.env.set_scoped("eq", "EQ")
         self.env.set_scoped("var", "VAR")
 
         if self.tc.defined("RTP_FFCS"):
@@ -223,7 +231,7 @@ PARAMETERS SW_UNPC(LL,WW);
                 self.tc,
                 self.env,
                 config=RptliteRptConfig(
-                    arg1="S", arg2=(self.tc.ww,), arg3=("'1'",), arg4=("NO",)
+                    arg1="S", arg2=(self.tc.ww,), arg3=("'1',",), arg4=("NO",)
                 ),
             )
         )
@@ -392,6 +400,7 @@ OPTION CLEAR=RPC_EMIS,CLEAR=RPC_FFUNC,CLEAR=F_IOSET; SOW(W)=AUXSOW(W);
                     arg1="PAR_FLO",
                     arg2="",
                     arg3=".L",
+                    v=v,
                     pgprim=pgprim,
                     sow=sow,
                     rtp_ffcs_defined=rtp_ffcs_defined,
@@ -402,12 +411,13 @@ OPTION CLEAR=RPC_EMIS,CLEAR=RPC_FFUNC,CLEAR=F_IOSET; SOW(W)=AUXSOW(W);
                     arg1="PAR_FLO",
                     arg2="M",
                     arg3=".M",
+                    v=v,
                     pgprim=pgprim,
                     sow=sow,
                     rtp_ffcs_defined=rtp_ffcs_defined,
                 )
             }
-{sol_ire_rpt(sow=sow, mx=mx, rtp_ffcs_defined=rtp_ffcs_defined)}
+{sol_ire_rpt(v=v, sow=sow, mx=mx, rtp_ffcs_defined=rtp_ffcs_defined)}
   OPTION CLEAR=COEF_OBJINV;
 {
                 rpt_obj_rpt(
