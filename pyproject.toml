@@ -9,10 +9,10 @@ readme = "README.md"
 description = "Migration of TIMES to GAMSPy"
 requires-python = ">=3.12"
 dependencies = [
-  "gamspy>=1.27.0",
+  "gamspy>=1.28.0",
   "pandas",
   "dotenv",
-  "filelock"
+  "filelock",
 ]
 
 [tool.setuptools.packages.find]

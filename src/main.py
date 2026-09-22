@@ -8,7 +8,7 @@ import sys
 import time
 from pathlib import Path
 
-from gamspy import Options, Set
+from gamspy import Options, Set, set_options
 
 from core.initmty_mod import InitmtyMod
 from core.initsys_mod import InitsysMod
@@ -21,6 +21,13 @@ from utils.config import RunConfig, UserConfig
 from utils.macros import macro_config as macro
 from utils.run_registry import REGISTRY
 from utils.times_model_class import TimesModelClass
+
+# GAMSPy options
+set_options(
+    {
+        "STRICT_POWER_OPERATOR": 1  # Maps ** to GAMS rPower for every exponent
+    }
+)
 
 # Create logs directory if it doesn't exist
 os.makedirs("logs", exist_ok=True)
