@@ -20,6 +20,7 @@ from gamspy import Equation, Sum
 
 from core.base_class import GamsClass
 from core.utils import apply_sw_stvars
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -89,10 +90,12 @@ class EquExtDsc(GamsClass):
         )
 
         r_t = self.env.r_t_GP
-        swt = self.env.swt_GP
         sow = self.env.sow_GP
 
-        eq_dscncap[Rtp[*r_t, p, *swt]].where[PrcDscncap[r, p]] = VAR_NCAP[
+        eq_dscncap_final, dscncap_swt = macro.EQ_DSCNCAP_GP(
+            self.env.eq, self.env.swt_GP
+        )
+        eq_dscncap_final[Rtp[*r_t, p, *dscncap_swt]].where[PrcDscncap[r, p]] = VAR_NCAP[
             r, t, p, *sow
         ] == (
             Sum(
@@ -101,7 +104,8 @@ class EquExtDsc(GamsClass):
             )
             + VAR_SNCAP[r, t, p, *sow].where[ncap_semi[r, t, p]]
         )
-        eq_dscone[Rtp[*r_t, p, *swt]].where[
+        eq_dscone_final, dscone_swt = macro.EQ_DSCONE_GP(self.env.eq, self.env.swt_GP)
+        eq_dscone_final[Rtp[*r_t, p, *dscone_swt]].where[
             ncap_disc[r, t, p, "0"].where[PrcDscncap[r, p]]
         ] = (
             Sum(

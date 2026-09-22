@@ -15,6 +15,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from core.base_class import GamsClass
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -213,7 +214,9 @@ def rptmisc_rpt(
   OPTION AGR < COM_AGG;
   {arg1}AGG_OUT({arg2}R,T,C,S)$(RTCS_VARC(R,T,C,S)$AGR(R,C)) =
     SUM(RTC(R,T,COM)$COM_AGG(RTC,C),COM_AGG(RTC,C) *
-       SUM(RTCS_VARC(RTC,TS)$RS_FR(R,S,TS),RS_FR(R,S,TS)*(1+RTCS_FR(R,T,COM,S,TS)) *
+       SUM(RTCS_VARC(RTC,TS)$RS_FR(R,S,TS),RS_FR(R,S,TS)*(1+{
+        macro.rtcs_fr.rtcs_fr("R", "T", "COM", "S", "TS")
+    }) *
          (VAR_COMNET.L(RTC,TS)$RC_AGP(R,COM,'LO') + VAR_COMPRD.L(RTC,TS)$RC_AGP(R,COM,'FX'))));
   OPTION CLEAR=AGR;
 
@@ -292,14 +295,18 @@ def rptmisc_rpt(
     }R,V,T,P,C,S); OPTION RVTPC<F_IOS;
     {arg1}F_IN({arg2}RVTPC,S)$F_IOS(RVTPC,S)=0;
     {arg1}F_IN({arg2}RVTPC(R,V,T,P,C),TS)$RCS(R,C,TS) = {arg1}F_IN({arg2}RVTPC,TS) +
-      SUM(RS_TREE(R,TS,S)$F_IOS(RVTPC,S),RS_FR(R,TS,S)*(1+RTCS_FR(R,T,C,TS,S))*F_IOS(RVTPC,S));
+      SUM(RS_TREE(R,TS,S)$F_IOS(RVTPC,S),RS_FR(R,TS,S)*(1+{
+        macro.rtcs_fr.rtcs_fr("R", "T", "C", "TS", "S")
+    })*F_IOS(RVTPC,S));
     OPTION CLEAR=RVTPC,CLEAR=F_IOS;
     F_IOS(R,V,T,P,C,S)$(NOT RCS(R,C,S)) $= {arg1}F_OUT({
         arg2
     }R,V,T,P,C,S); OPTION RVTPC<F_IOS;
     {arg1}F_OUT({arg2}RVTPC,S)$F_IOS(RVTPC,S)=0;
     {arg1}F_OUT({arg2}RVTPC(R,V,T,P,C),TS)$RCS(R,C,TS) = {arg1}F_OUT({arg2}RVTPC,TS) +
-      SUM(RS_TREE(R,TS,S)$F_IOS(RVTPC,S),RS_FR(R,TS,S)*(1+RTCS_FR(R,T,C,TS,S))*F_IOS(RVTPC,S));
+      SUM(RS_TREE(R,TS,S)$F_IOS(RVTPC,S),RS_FR(R,TS,S)*(1+{
+        macro.rtcs_fr.rtcs_fr("R", "T", "C", "TS", "S")
+    })*F_IOS(RVTPC,S));
     OPTION CLEAR=RCS,CLEAR=RVTPC,CLEAR=F_IOS;
     {arg1}PAR_COMPRDL({arg2}RTCS_VARC(RTTC(R,T,C),S)) = SUM((VNT(V,T),P)${arg1}F_OUT({
         arg2

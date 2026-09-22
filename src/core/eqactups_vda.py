@@ -5,7 +5,7 @@
 # * under the GNU General Public License v3.0 (see file NOTICE-GPLv3.txt).
 # *=============================================================================*
 # * EQACTUPS - implements the linear dispatching equations
-# *   arg1_mx - MX control
+# *   arg1 - MX control
 # *=============================================================================*
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Literal
 
-from gamspy import Alias, Domain, Expression, Loop, Number, Ord, Set, Smax, Sum
+from gamspy import Alias, Domain, Expression, Loop, Number, Ord, Set, Smax, Sum, sparse
 from gamspy.math import Max, Min, diag, exp, mod, project
 
 from core.base_class import GamsClass
@@ -22,9 +22,8 @@ from core.utils import SET_OR_ALIAS
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
-    from gamspy import Parameter, Variable
     from gamspy._algebra.condition import Condition
-    from gamspy._symbols.implicits.implicit_set import ImplicitSet
+    from gamspy._symbols.implicits import ImplicitSet
 
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
@@ -43,16 +42,12 @@ class EqactupsVda(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1_mx: Sum
-        | Condition
-        | Expression
-        | tuple[Set | Alias | str, ...]
-        | tuple[()],
+        arg1: Sum | Condition | Expression | tuple[Set | Alias | str, ...] | tuple[()],
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1_mx = arg1_mx
+        self.arg1 = arg1
         self.compile()
 
     def compile(self) -> None:
@@ -61,41 +56,37 @@ class EqactupsVda(GamsClass):
 
         self.env.set_scoped(
             "capon",
-            f"(COEF_CPT(R,V,T,P)*({self.env.varv}_NCAP(R,V,P{self.env.sws})$T(V)+NCAP_PASTI(R,V,P){self.env.rcapsub}))$PRC_VINT(R,P)+{self.env.var}_CAP(R,T,P{self.env.sow})$RP_UX(R,P)",
+            f"(COEF_CPT(R,V,T,P)*({macro.VAR_NCAP(self.env.varv, 'R', 'V', 'P', self.env.sws)}$T(V)+NCAP_PASTI(R,V,P){self.env.rcapsub}))$PRC_VINT(R,P)+{macro.VAR_CAP(self.env.var, 'R', 'T', 'P', self.env.sow)}$RP_UX(R,P)",
         )
 
         sws = self.env.sws_GP
         sow = self.env.sow_GP
         rcapsub = self.env.rcapsub_GP
-        varv_id, varv_set = self.env.varv_GP
-        varv_ncap = self.tc.get_variable(f"{varv_id}_NCAP")
-        VAR_CAP = self.tc.get_variable(f"{self.env.var}_CAP")
         if isinstance(rcapsub, Number) and rcapsub._value == 1:
             raise ValueError("rcapsub cannot be Number(1) in this assignment.")
 
-        varv_ncap_expr = (
-            varv_ncap[g.r, g.v, g.p, *sws]
-            if varv_set is None
-            else Sum(varv_set, varv_ncap[g.r, g.v, g.p, *sws])
-        )
-
-        expr: Expression = g.coef_cpt[g.r, g.v, g.t, g.p] * (
-            varv_ncap_expr.where[g.t[g.v]] + g.ncap_pasti[g.r, g.v, g.p] + rcapsub
-        )
         self.env.set_scoped(
             "capon_GP",
             (
-                expr.where[g.PrcVint[g.r, g.p]]
-                + VAR_CAP[g.r, g.t, g.p, *sow].where[g.RpUx[g.r, g.p]]
+                g.coef_cpt[g.r, g.v, g.t, g.p]
+                * (
+                    macro.VAR_NCAP_GP(self.env.varv_GP, g.r, g.v, g.p, sws).where[
+                        g.t[g.v]
+                    ]
+                    + g.ncap_pasti[g.r, g.v, g.p]
+                    + rcapsub
+                ).where[g.PrcVint[g.r, g.p]]
+                + macro.VAR_CAP_GP(self.env.var, g.r, g.t, g.p, sow).where[
+                    g.RpUx[g.r, g.p]
+                ]
             ),
         )
 
         self.set_scoped_mx()
 
-        VAR_CAP = g.get_variable(f"{self.env.var}_CAP")
         tmp = (
             ~g.RpUx[g.r, g.p],
-            VAR_CAP[g.r, g.t, g.p, *sow].where[g.RpUx[g.r, g.p]]
+            macro.VAR_CAP_GP(self.env.var, g.r, g.t, g.p, sow).where[g.RpUx[g.r, g.p]]
             + macro.upscaps.render_GP(),
         )
 
@@ -106,7 +97,7 @@ class EqactupsVda(GamsClass):
             var=self.env.var,
             sow=self.env.sow_GP,
             capon=self.env.capon_GP,
-            arg1_mx=self.arg1_mx,
+            arg1=self.arg1,
         )
 
         rts = macro.rts_GP(s=g.s, g=self.tc, env=self.env)
@@ -189,24 +180,15 @@ class EqactupsVda(GamsClass):
 
         self.env.set_scoped(
             "mx",
-            f"SUM(RVP_KMAP(R,V,P,MODLYEAR(K)),COEF_VNT(R,T,P,K)*({self.env.varm}_NCAP(R,K,P{self.env.sws})$T(K)+NCAP_PASTI(R,K,P){self.env.rcapsbm}))",
-        )
-
-        varm_id, varm_set = self.env.varm_GP
-        VARM_NCAP = g.get_variable(f"{varm_id}_NCAP")
-
-        varm_ncap_expr = (
-            VARM_NCAP[r, k, p, *sws]
-            if varm_set is None
-            else Sum(varm_set, VARM_NCAP[r, k, p, *sws])
-        )
-
-        inner_expr = (
-            varm_ncap_expr.where[t[k]] + g.ncap_pasti[r, k, p] + self.env.rcapsbm_GP
+            f"SUM(RVP_KMAP(R,V,P,MODLYEAR(K)),COEF_VNT(R,T,P,K)*({macro.VAR_NCAP(self.env.varm, 'R', 'K', 'P', self.env.sws)}$T(K)+NCAP_PASTI(R,K,P){self.env.rcapsbm}))",
         )
 
         mx_GP = Sum(
-            g.RvpKmap[r, v, p, g.Modlyear[k]], g.coef_vnt[r, t, p, k] * inner_expr
+            g.RvpKmap[r, v, p, g.Modlyear[k]],
+            g.coef_vnt[r, t, p, k]
+            * macro.VAR_NCAP_GP(self.env.varm_GP, r, k, p, sws).where[t[k]]
+            + g.ncap_pasti[r, k, p]
+            + self.env.rcapsbm_GP,
         )
 
         self.env.set_scoped("mx_GP", mx_GP)
@@ -219,11 +201,9 @@ class EqactupsVda(GamsClass):
         # IF(CARD(RP_UPL)+CARD(RP_PL)+CARD(ACT_CSTRMP),
         if RpPl.number_records + RpUpl.number_records + act_cstrmp.number_records:
             g.Uncd7.setRecords(None)
-            sparseExpr = g.Afs[g.r, g.t, g.p, g.s, "UP"].where[g.RpUpl[g.r, g.p, "FX"]]
             g.Afups[g.r, g.t, g.p, g.s].where[
-                ((~(g.RpsCaflac[g.r, g.p, g.s, "UP"])).where[g.PrcTs[g.r, g.p, g.s]])
-                & sparseExpr
-            ] = sparseExpr
+                (~(g.RpsCaflac[g.r, g.p, g.s, "UP"])).where[g.PrcTs[g.r, g.p, g.s]]
+            ] = sparse(g.Afs[g.r, g.t, g.p, g.s, "UP"].where[g.RpUpl[g.r, g.p, "FX"]])
             g.Afs[g.Afups, g.bd] = False
             g.RpsUps[g.r, g.p, g.s].where[
                 (
@@ -236,16 +216,12 @@ class EqactupsVda(GamsClass):
                 g.PrcTs[g.r, g.p, g.ts].where[g.RsBelow[g.r, g.s, g.ts]],
                 (g.RsBelow1[g.r, g.s, g.ts]) | (g.stoa[g.s]),
             )
-            g.RpUx[g.Rp].where[(~(g.PrcVint[g.Rp])) & g.RpUpl[g.Rp, "FX"]] = g.RpUpl[
-                g.Rp, "FX"
-            ]
+            g.RpUx[g.Rp].where[~(g.PrcVint[g.Rp])] = sparse(g.RpUpl[g.Rp, "FX"])
             g.RtpVarp[g.Rtp[g.r, g.t, g.p]].where[g.RpUx[g.r, g.p]] = True
-            sparseExpr = g.ncap_af[g.r, g.t, g.p, g.s, "UP"].where[g.RpUx[g.r, g.p]]
             g.coef_af[g.r, g.t, g.t, g.p, g.s, "UP"].where[
-                g.Afups[g.r, g.t, g.p, g.s] & sparseExpr
-            ] = sparseExpr
+                g.Afups[g.r, g.t, g.p, g.s]
+            ] = sparse(g.ncap_af[g.r, g.t, g.p, g.s, "UP"].where[g.RpUx[g.r, g.p]])
             # * Check for startup costs
-            sparseExpr = g.act_cstup[g.r, g.ll, g.p, g.tsl, g.cur]  # type: ignore [assignment]
             g.Uncd7[
                 g.r,
                 g.ll.lag(Ord(g.ll), "circular"),
@@ -253,8 +229,7 @@ class EqactupsVda(GamsClass):
                 g.tsl,
                 g.Rdcur[g.r, g.cur],
                 "UP",
-            ].where[sparseExpr] = sparseExpr
-            sparseExpr = g.act_cstrmp[g.r, g.ll, g.p, g.bd, g.cur]  # type: ignore [assignment]
+            ] = sparse(g.act_cstup[g.r, g.ll, g.p, g.tsl, g.cur])
             g.Uncd7[
                 g.r,
                 g.ll.lag(Ord(g.ll), "circular"),
@@ -262,7 +237,7 @@ class EqactupsVda(GamsClass):
                 g.bd,
                 g.Rdcur[g.r, g.cur],
                 "N",
-            ].where[sparseExpr] = sparseExpr
+            ] = sparse(g.act_cstrmp[g.r, g.ll, g.p, g.bd, g.cur])
             with Loop(g.Uncd7[g.r, g.ll, g.p, g.item, g.r, g.cur, g.lA]):
                 g.RpUps[g.r, g.p, g.tsl[g.item], g.lA].where[
                     (g.tslvlnum[g.tsl].where[g.RpUpl[g.r, g.p, "FX"]] > 1.0)
@@ -274,10 +249,12 @@ class EqactupsVda(GamsClass):
             g.RpsUps[g.Rp, g.s].where[
                 Sum(g.RpUps[g.PrcTsl[g.Rp, g.tsl], g.lA], 1.0)
             ] = False
-            sparseExpr = Sum(
-                g.RpUps[g.r, g.p, g.tsl, g.lA].where[g.TsGroup[g.r, g.tsl, g.s]], 1.0
-            )  # type: ignore [assignment]
-            g.RpsUps[g.r, g.p, g.s].where[sparseExpr] = sparseExpr
+            g.RpsUps[g.r, g.p, g.s] = sparse(
+                Sum(
+                    g.RpUps[g.r, g.p, g.tsl, g.lA].where[g.TsGroup[g.r, g.tsl, g.s]],
+                    1.0,
+                )
+            )
             g.RpUps[g.r, g.p, g.tsl, g.Lnx[g.lA]].where[
                 g.RpUps[g.r, g.p, g.tsl, "UP"]
             ] = Sum(
@@ -317,23 +294,20 @@ class EqactupsVda(GamsClass):
             )
 
             g.RtpPl[g.Rtp[g.r, g.v, g.p]].where[
-                (
-                    (g.act_lospl[g.Rtp, "LO"] == g.act_minld[g.Rtp]).where[
-                        g.RpUpl[g.r, g.p, "FX"]
-                    ]
-                )
-                & g.RpPl[g.r, g.p, "N"]
-            ] = g.RpPl[g.r, g.p, "N"]
+                (g.act_lospl[g.Rtp, "LO"] == g.act_minld[g.Rtp]).where[
+                    g.RpUpl[g.r, g.p, "FX"]
+                ]
+            ] = sparse(g.RpPl[g.r, g.p, "N"])
             # * Check for cycling limits
-            sparseExpr = Sum(
-                g.RpUps[g.PrcTsl[g.r, g.p, g.tslvl], g.lA], g.Rlup[g.r, g.tslvl, g.tsl]
-            )  # type: ignore [assignment]
-            g.RpUpc[g.r, g.p, g.tsl, "N"].where[g.RpUpr[g.r, g.p, "N"] & sparseExpr] = (
-                sparseExpr
+            g.RpUpc[g.r, g.p, g.tsl, "N"].where[g.RpUpr[g.r, g.p, "N"]] = sparse(
+                Sum(
+                    g.RpUps[g.PrcTsl[g.r, g.p, g.tslvl], g.lA],
+                    g.Rlup[g.r, g.tslvl, g.tsl],
+                )
             )
             g.RpUpc[g.PrcTsl[g.Rp, g.tsl], g.Bdneq[g.bd]].where[
-                g.RpUps[g.Rp, g.tsl, "UP"] & g.RpUpr[g.Rp, g.bd]
-            ] = g.RpUpr[g.Rp, g.bd]
+                g.RpUps[g.Rp, g.tsl, "UP"]
+            ] = sparse(g.RpUpr[g.Rp, g.bd])
 
         g = self.tc
         project(source=g.act_cstrmp, target=g.RpUpr)
@@ -346,29 +320,13 @@ class EqactupsVda(GamsClass):
         var: str,
         sow: tuple[Literal["0", "1"] | Set | Alias] | tuple[()],
         capon: Expression | Condition,
-        arg1_mx: Sum
-        | Condition
-        | Expression
-        | tuple[Set | Alias | str, ...]
-        | tuple[()],
-        # arg1_mx: str | tuple[()],
+        arg1: Sum | Condition | Expression | tuple[Set | Alias | str, ...] | tuple[()],
     ) -> None:
         g = self.tc
 
         eq_capload = g.get_equation(f"{eq}_CAPLOAD")
         var_act = g.get_variable(f"{var}_ACT")
         var_ups = g.get_variable(f"{var}_UPS")
-        coef_af: Parameter | Variable
-        if arg1_mx == ():
-            coef_af = g.coef_af
-        elif isinstance(arg1_mx, tuple):
-            # GAMS macro expands COEF_AF%1 by literal string concatenation,
-            # e.g. arg1_mx=("1",) -> "COEF_AF1", not "COEF_AF('1',)".
-            coef_af = g.get_variable(f"COEF_AF{''.join(str(x) for x in arg1_mx)}")
-        else:
-            raise TypeError(
-                f"arg1_mx must be a tuple of strings for COEF_AF lookup, got {type(arg1_mx)}"
-            )
 
         eq_capload[g.RtpVintyr[*r_v_t, g.p], g.s, g.Bdneq[g.bd], *swt].where[
             g.Afups[g.r, g.t, g.p, g.s]
@@ -379,7 +337,8 @@ class EqactupsVda(GamsClass):
             ]
             + (capon + macro.upscaps.render_GP())
             * Min(
-                coef_af[g.r, g.v, g.t, g.p, g.s, "UP"] * g.bdsig[g.bd],
+                macro.coef_af_mx.coef_af_GP(arg1, g.r, g.v, g.t, g.p, g.s, "UP")
+                * g.bdsig[g.bd],
                 Sum(
                     g.TsAnn[g.s, g.ts].where[(~(g.RtpPl[g.r, g.v, g.p]))],
                     g.act_ups[g.r, g.v, g.p, g.ts, "FX"],
@@ -790,7 +749,10 @@ class EqactupsVda(GamsClass):
                         * VAR_COMPRD[g.r, g.t, g.c, g.ts, *sow]
                         / g.com_ie[g.Rtc, g.ts]
                         * g.rs_fr[g.r, g.s, g.ts]
-                        * (1.0 + g.rtcs_fr[g.r, g.t, g.c, g.s, g.ts]),
+                        * (
+                            1.0
+                            + macro.rtcs_fr.rtcs_fr_GP(g.r, g.t, g.c, g.s, g.ts, sow)
+                        ),
                     ),
                 )
                 # * Get net sifting, force zero shifting at seasonal level
@@ -804,7 +766,12 @@ class EqactupsVda(GamsClass):
                             ).where[g.rs_fr[g.r, g.s, g.ts]],
                             VAR_SOUT[g.r, g.v, g.t, g.p, g.c, g.ts, *sow]
                             * g.rs_fr[g.r, g.s, g.ts]
-                            * (1.0 + g.rtcs_fr[g.r, g.t, g.c, g.s, g.ts]),
+                            * (
+                                1.0
+                                + macro.rtcs_fr.rtcs_fr_GP(
+                                    g.r, g.t, g.c, g.s, g.ts, sow
+                                )
+                            ),
                         )
                         - Sum(
                             g.Top[g.RpcStg[g.r, g.p, g.c], "IN"],

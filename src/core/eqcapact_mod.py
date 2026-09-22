@@ -148,37 +148,17 @@ class EqcapactMod(GamsClass):
         RtpVintyr, PrcVint, g_yrfr = g.RtpVintyr, g.PrcVint, g.g_yrfr
         Afs, RtpVara, bd, RtpsOff = g.Afs, g.RtpVara, g.bd, g.RtpsOff
 
-        varv_id, varv_set = varv
-        varm_id, varm_set = varm
-
-        VAR_CAP = g.get_variable(f"{var}_CAP")
         VAR_ACT = g.get_variable(f"{var}_ACT")
-        VARV_NCAP = g.get_variable(f"{varv_id}_NCAP")
-        VARM_NCAP = g.get_variable(f"{varm_id}_NCAP")
         eqe_capact = g.get_equation(f"{eq}{sense}_CAPACT")
-
-        shared_varm_ncap = VARM_NCAP[r, Modlyear, p, *sws]
-        VARM_NCAP_expr = (
-            shared_varm_ncap if varm_set is None else Sum(varm_set, shared_varm_ncap)
-        )
-
-        shared_varv_ncap = VARV_NCAP[r, v, p, *sws]
-        VARV_NCAP_expr = (
-            shared_varv_ncap if varv_set is None else Sum(varv_set, shared_varv_ncap)
-        )
-
-        # TODO: arg3 is left out for now.
-        if arg3 != ():
-            raise NotImplementedError("arg3 not yet implemented here.")
 
         if not validate:
             rhs_start = (
                 Sum(
                     Modlyear.where[coef_cpt[r, Modlyear, t, p]],
                     coef_cpt[r, Modlyear, t, p]
-                    * coef_af[r, Modlyear, t, p, s, arg2]
+                    * macro.coef_af_mx.coef_af_GP(arg3, r, Modlyear, t, p, s, arg2)
                     * (
-                        VARM_NCAP_expr.where[t[Modlyear]]
+                        macro.VAR_NCAP_GP(varm, r, Modlyear, p, sws).where[t[Modlyear]]
                         + ncap_pasti[r, Modlyear, p].where[Pastyear[Modlyear]]
                         + rcapsbm
                     ),
@@ -187,7 +167,9 @@ class EqcapactMod(GamsClass):
             )
         else:
             rhs_start = (
-                coef_af[r, t, t, p, s, arg2] * prc_capact[r, p] * VAR_CAP[r, t, p, *sow]
+                coef_af[r, t, t, p, s, arg2]
+                * prc_capact[r, p]
+                * macro.VAR_CAP_GP(var, r, t, p, sow)
             )
 
         if sense == "L":
@@ -220,11 +202,11 @@ class EqcapactMod(GamsClass):
                 rhs_start.where[~PrcVint[r, p]]
                 + (
                     # process is vintaged
-                    coef_af[r, v, t, p, s, arg2]
+                    macro.coef_af_mx.coef_af_GP(arg3, r, v, t, p, s, arg2)
                     * coef_cpt[r, v, t, p]
                     * prc_capact[r, p]
                     * (
-                        VARV_NCAP_expr.where[t[v]]
+                        macro.VAR_NCAP_GP(varv, r, v, p, sws).where[t[v]]
                         + ncap_pasti[r, v, p].where[Pastyear[v]]
                         + rcapsub
                     )

@@ -117,7 +117,6 @@ class PpActefVda(GamsClass):
             RpcPg,
             RpPgact,
             prc_actflo,
-            rtcs_fr,
             RpgPace,
             RpPl,
             lA,
@@ -147,7 +146,6 @@ class PpActefVda(GamsClass):
             g.RpcPg,
             g.RpPgact,
             g.prc_actflo,
-            g.rtcs_fr,
             g.RpgPace,
             g.RpPl,
             g.lA,
@@ -188,7 +186,7 @@ class PpActefVda(GamsClass):
                                     / prc_actflo[r, v, p, c]
                                 ).where[~RpPgact[r, p]]
                             )
-                            * (1 + rtcs_fr[r, t, c, s, ts]),
+                            * (1 + macro.rtcs_fr.rtcs_fr_GP(r, t, c, s, ts, sow)),
                         )
                     ).where[RpPgflo[r, p]]
                 ),
@@ -207,7 +205,7 @@ class PpActefVda(GamsClass):
                         ).where[~RpPgact[r, p]]
                     )
                     / (1 + (act_eff[r, v, p, c, ts] - 1).where[act_eff[r, v, p, c, ts]])
-                    * (1 + rtcs_fr[r, t, c, s, ts]),
+                    * (1 + macro.rtcs_fr.rtcs_fr_GP(r, t, c, s, ts, sow)),
                 ),
             )
         ).where[RpgPace[r, p, cg]] + Sum(  # Partial loads

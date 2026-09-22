@@ -156,7 +156,7 @@ class ResloadcVda(GamsClass):
   SUM(TOP(R,P,C,'OUT')$(NRG_TMAP(R,'ELC',C)$GR_GENMAP(R,P,'RL-DISP')),
     SUM((RTP_VINTYR(R,V,T,P),RTPCS_VARF(R,T,P,C,TS))$RS_FR(R,S,TS),
          {cal_red_code}
-         * RS_FR(R,S,TS)*(1+RTCS_FR(R,T,C,S,TS)))) +
+         * RS_FR(R,S,TS)*(1+{macro.rtcs_fr.rtcs_fr("R", "T", "C", "S", "TS")}))) +
   SUM(RLDC('RL-THMIN'),{self.env.var}_RLD(R,T,S,RLDC{self.env.sow})*G_YRFR(R,S)) -
 * Net storage input
   SUM(TOP(RPC_STG(R,P,C),IO)$NRG_TMAP(R,'ELC',C),
@@ -164,7 +164,7 @@ class ResloadcVda(GamsClass):
      ({self.env.var}_SIN(R,V,T,P,C,TS {self.env.sow})$IPS(IO)-{self.env.var}_SOUT(R,V,T,P,C,TS {self.env.sow})*STG_EFF(R,V,P)$(NOT IPS(IO)))*RS_FR(R,S,TS))) -
 * Curtailment
   SUM(RHS_COMBAL(R,T,C,TS)$(RS_FR(R,S,TS)$NRG_TMAP(R,'ELC',C)$GR_RLDC(R,'0')),
-    ({self.env.var}_COMNET(R,T,C,TS{self.env.sow})/COM_IE(R,T,C,TS)*RS_FR(R,S,TS)*(1+RTCS_FR(R,T,C,S,TS)))$(NOT SUM(COM$COM_AGG(R,T,C,COM),1)))
+    ({self.env.var}_COMNET(R,T,C,TS{self.env.sow})/COM_IE(R,T,C,TS)*RS_FR(R,S,TS)*(1+{macro.rtcs_fr.rtcs_fr("R", "T", "C", "S", "TS")}))$(NOT SUM(COM$COM_AGG(R,T,C,COM),1)))
 
   =E=  {self.env.var}_RLD(R,T,S,'RL-DISP'{self.env.sow})*G_YRFR(R,S);
 
@@ -175,7 +175,7 @@ class ResloadcVda(GamsClass):
   SUM(TOP(R,P,C,'OUT')$(NRG_TMAP(R,'ELC',C)$GR_RLGT(R,P,RLDC)),
     SUM((RTP_VINTYR(R,V,T,P),RTPCS_VARF(R,T,P,C,TS))$RS_FR(R,S,TS),
          {cal_red_code}
-         * RS_FR(R,S,TS)*(1+RTCS_FR(R,T,C,S,TS))))
+         * RS_FR(R,S,TS)*(1+{macro.rtcs_fr.rtcs_fr("R", "T", "C", "S", "TS")})))
   =E=  {self.env.var}_RLD(R,T,S,RLDC {self.env.sow})*G_YRFR(R,S);
 *-----------------------------------------------------------------------
 * Available storage capacity must be at least thermal min minus residual load with lower variation
@@ -187,7 +187,7 @@ class ResloadcVda(GamsClass):
        SMIN(TS_MAP(R,TS,S)$COEF_AF(R,V,T,P,TS,'UP'),COEF_AF(R,V,T,P,TS,'UP') / RS_FR(R,S,TS) *
          PROD(TS_GROUP(R,TSL,TS)$RPS_CAFLAC(R,P,TS,'UP'), 1 / RS_STGPRD(R,S) / STG_EFF(R,V,P) *
            (NCAP_AFCS(R,V,P,C,TS)+PROD(COM_TMAP(R,COM_TYPE(CG),C)$NCAP_AFCS(R,V,P,CG,TS),NCAP_AFCS(R,V,P,CG,TS))$(NOT NCAP_AFCS(R,V,P,C,TS))))) *
-       ({self.env.varv}_NCAP(R,V,P {self.env.sws})$MILESTONYR(V) + NCAP_PASTI(R,V,P)$PASTYEAR(V){self.env.rcapsub})))
+       ({macro.VAR_NCAP(self.env.varv, "R", "V", "P", self.env.sws)}$MILESTONYR(V) + NCAP_PASTI(R,V,P)$PASTYEAR(V){self.env.rcapsub})))
 
   =G=
 
@@ -203,14 +203,14 @@ class ResloadcVda(GamsClass):
 * Dispatchable capacity
   SUM(GR_RLGT(PRC_CAP(R,P),'RL-DISP'), PRC_CAPACT(R,P) *
      SUM(V$COEF_CPT(R,V,T,P), COEF_CPT(R,V,T,P) * SMAX(RPC_PG(R,P,C)$NRG_TMAP(R,'ELC',C),PRC_ACTFLO(R,V,P,C)) * SUM(PRC_TS(R,P,TS)$RS_FR(R,S,TS),COEF_AF(R,V,T,P,S,'UP')) *
-         ({self.env.varv}_NCAP(R,V,P {self.env.sws})$TT(V) + NCAP_PASTI(R,V,P)$PYR(V){self.env.rcapsub}))) +
+         ({macro.VAR_NCAP(self.env.varv, "R", "V", "P", self.env.sws)}$TT(V) + NCAP_PASTI(R,V,P)$PYR(V){self.env.rcapsub}))) +
 * Storage output capacity
   SUM(TOP(RPC_STG(PRC_CAP(R,P),C),'OUT')$(PRC_TS(R,P,S)$NRG_TMAP(R,'ELC',C)), PRC_CAPACT(R,P) * RS_STGPRD(R,S) *
      SUM(RTP_CPTYR(R,V,T,P), COEF_CPT(R,V,T,P) * COEF_AF(R,V,T,P,S,'UP') * PRC_ACTFLO(R,V,P,C) * STG_EFF(R,V,P) *
        PROD(L('N'),
          PROD(TS_GROUP(R,TSL,S)$RPS_CAFLAC(R,P,S,'UP'), 1 / RS_STGPRD(R,S) / STG_EFF(R,V,P) *
            (NCAP_AFCS(R,V,P,C,S)+PROD(COM_TMAP(R,COM_TYPE(CG),C)$NCAP_AFCS(R,V,P,CG,S),NCAP_AFCS(R,V,P,CG,S))$(NOT NCAP_AFCS(R,V,P,C,S))))) *
-       ({self.env.varv}_NCAP(R,V,P {self.env.sws})$TT(V) + NCAP_PASTI(R,V,P)$PYR(V){self.env.rcapsub})))
+       ({macro.VAR_NCAP(self.env.varv, "R", "V", "P", self.env.sws)}$TT(V) + NCAP_PASTI(R,V,P)$PYR(V){self.env.rcapsub})))
 
   =G=
 
@@ -232,7 +232,7 @@ class ResloadcVda(GamsClass):
       SUM((RTP_VINTYR(R,V,T,P),PRC_TS(R,P,S))$RS_FR(R,TS,S),SMAX(RPC_PG(R,P,C)$NRG_TMAP(R,'ELC',C),PRC_ACTFLO(R,V,P,C)) *
         (SUM(BD$BDNEQ(BD),GR_THBND(R,T,P,BD))+SUM(TS_ANN(S,SL),ACT_UPS(R,V,P,SL,'FX'))$(NOT GR_THMIN(R,T,P))) *
         (SUM(MODLYEAR(K)$(COEF_CPT(R,K,T,P)$(DIAG(V,K)>=1$PRC_VINT(R,P))),COEF_CPT(R,MODLYEAR,T,P) *
-          ({self.env.varm}_NCAP(R,K,P {self.env.sws})$TT(K)+NCAP_PASTI(R,K,P)$PYR(K){self.env.rcapsbm})){macro.upscaps.render()}))))$BDLOX(BDNEQ);
+          ({macro.VAR_NCAP(self.env.varm, "R", "K", "P", self.env.sws)}$TT(K)+NCAP_PASTI(R,K,P)$PYR(K){self.env.rcapsbm})){macro.upscaps.render()}))))$BDLOX(BDNEQ);
 """,
             )
 

@@ -119,7 +119,7 @@ class EqptransMod(GamsClass):
 
 * dependent commodities - consider that the commodity may have a COM_TS shape
        SUM((COM_GMAP(R,CG,C),RS_TREE(R,S,TS))$RTPCS_VARF(R,T,P,C,TS),
-           RS_FR(R,S,TS)*(1+RTCS_FR(R,T,C,S,TS)) *
+           RS_FR(R,S,TS)*(1+{macro.rtcs_fr.rtcs_fr("R", "T", "C", "S", "TS")}) *
 * [UR] model reduction REDUCE is set in *.run
 {include_cal_red}
           )
@@ -129,7 +129,7 @@ class EqptransMod(GamsClass):
 * control commodities
        SUM((RTPCS_VARF(R,T,P,C,TS),RS_TREE(R,S,TS))$COEF_PTRAN(R,V,P,COM_GRP,C,CG,TS),
            COEF_PTRAN(R,V,P,COM_GRP,C,CG,TS) *
-           RS_FR(R,S,TS)*(1+RTCS_FR(R,T,C,S,TS)) *
+           RS_FR(R,S,TS)*(1+{macro.rtcs_fr.rtcs_fr("R", "T", "C", "S", "TS")}) *
 * [UR] model reduction REDUCE is set in *.run
 {include_cal_red}
           ) * {shp1} * (1+(ACT_FLO(R,V,P,CG,S)-1$ACT_FLO(R,V,P,CG,S))$PRC_CG(R,P,COM_GRP))

@@ -37,6 +37,7 @@ from core.uc_ire_mod import UcIreModConfig, uc_ire_mod
 from core.uc_ncap_mod import UcNcapModConfig, uc_ncap_mod
 from core.uc_pasti_mod import UcPastiModConfig, uc_pasti_mod
 from core.utils import extract_var_domain, generate_equation, wrap_in_sum
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from gamspy import Alias, Expression, Set
@@ -85,10 +86,7 @@ class EqusercoMod(GamsClass):
     gams_source: str = "equserco.mod"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        config: EqusercoModConfig,
+        self, tc: TimesModelClass, env: CompileEnvironment, config: EqusercoModConfig
     ):
         self.env = env.fork()
         self.tc = tc
@@ -107,6 +105,19 @@ class EqusercoMod(GamsClass):
     def compile(self) -> None:
         g = self.tc
         cc = self.config
+
+        eq = cc.arg2["eq"]
+        domain = cc.arg2["dom"]
+        condition = cc.arg2["cond"]
+        if macro.eq_uc.redirects(cc.arg1, eq):
+            eq_uc, uc_sow = macro.eq_uc.EQ_UC_GP(
+                self.env.eq, cc.arg1, eq, self.env.sow_GP
+            )
+            fixed_sets = domain.sets[: len(domain.sets) - len(self.env.sow_GP)]
+            eq_index: tuple[Any, ...] = (*fixed_sets, *uc_sow)
+        else:
+            eq_uc = g.get_equation(name=f"{self.env.eq}{cc.arg1}_UC{eq}")
+            eq_index = domain.sets
 
         if cc.arg6 == 1:
             lhs = self._label_dynamic(
@@ -142,11 +153,8 @@ class EqusercoMod(GamsClass):
                     + g.lagt[g.t].where[(~(g.UcDyndir[g.r, g.ucn, "RHS"]))]
                 ),
             )
-        eq = cc.arg2["eq"]
-        domain = cc.arg2["dom"]
-        condition = cc.arg2["cond"]
-        eq_uc = g.get_equation(name=f"{self.env.eq}{cc.arg1}_UC{eq}")
-        eq_uc[domain.sets].where[condition] = generate_equation(
+
+        eq_uc[eq_index].where[condition] = generate_equation(
             lhs=lhs, type=cc.arg1, rhs=rhs + time_term
         )
 
@@ -284,25 +292,21 @@ class EqusercoMod(GamsClass):
         if not is_several:
             return sum_all_include
 
-        var_cumcom = g.get_variable(
-            name=f"{self.env.var}_CUMCOM"
-        )  # self.env.var changes value later
-
         arg7_rep = (cc.arg5,) if cc.arg5 is not None else ()
         cumcom_term = Sum(
             Domain(*arg7_rep, g.comvar, g.c, g.year, g.ll).where[
                 g.uc_cumcom[g.ucn, g.r, g.comvar, g.c, g.year, g.ll]
             ],
             g.uc_cumcom[g.ucn, g.r, g.comvar, g.c, g.year, g.ll]
-            * var_cumcom[g.r, g.c, g.comvar, g.year, g.ll, *self.env.swt_GP]
+            * macro.VAR_CUMCOM_GP(
+                self.env.var, g.r, g.c, g.comvar, g.year, g.ll, self.env.swt_GP
+            )
             * self.env.cucscal,
         )
         return sum_all_include + cumcom_term
 
     def _label_dynamic(
-        self: EqusercoMod,
-        is_stages: bool,
-        is_cli: bool,
+        self: EqusercoMod, is_stages: bool, is_cli: bool
     ) -> Expression | Condition:
         g = self.tc
         cc = self.config
@@ -454,12 +458,13 @@ class EqusercoMod(GamsClass):
 
         arg7_rep = (cc.arg5,) if cc.arg5 is not None else ()
         var_id, domain = extract_var_domain(self.env.var_GP)
-        var_ucrt = wrap_in_sum(
-            target=g.get_variable(name=f"{var_id}_UCRT"), domain=domain
-        )
-        var_ucrt_reduced = var_ucrt[g.ucn, g.r, g.tt, *self.env.sow_GP].where[
-            g.uc_rhsrt[g.r, g.ucn, g.tt, "N"]
-        ]
+        # Indexed first, then wrap_in_sum applied: wrapping the bare variable
+        # here and indexing it later mis-counts dimensions once domain
+        # becomes a weighted (condition, weight) 2-tuple.
+        var_ucrt = g.get_variable(name=f"{var_id}_UCRT")
+        var_ucrt_reduced = wrap_in_sum(
+            var_ucrt[g.ucn, g.r, g.tt, *self.env.sow_GP], domain
+        ).where[g.uc_rhsrt[g.r, g.ucn, g.tt, "N"]]
         inner_sum = wrap_in_sum(
             target=g.uc_ucn[g.ucn, g.side, g.r, g.tt, g.ucn] * var_ucrt_reduced,
             domain=tsum,

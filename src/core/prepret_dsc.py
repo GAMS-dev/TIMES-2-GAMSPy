@@ -39,6 +39,7 @@ from gamspy.math import Max, Min, Round, abs, floor, map_value, mod, project, sa
 from core.base_class import GamsClass
 from core.fillparm_gms import FillparmGms, FillparmGmsConfig
 from core.prepparm_gms import PrepparmGms, PrepparmGmsConfig
+from core.utils import wrap_in_sum
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
@@ -55,12 +56,11 @@ logger = logging.getLogger(__name__)
 class PrepretDscConfig:
     # NOTE: arg1 includes its own values and everything from arg2 and arg3 to satisfy type-checker
     # This is due to the shift operation on argument values in comp_prep()
-    arg1: (
-        Literal["PREP", "DECL", "EQOBJ", "OBJFIX", "OBSALV", ""]  # ORGINAL arg1 values
-        | Literal["PRC_RCAP", "RCAP_BND"]
-    )
+    arg1: Literal[
+        "PREP", "DECL", "EQOBJ", "OBJFIX", "OBSALV", "", "PRC_RCAP", "RCAP_BND"
+    ]
     # arg2 includes its own values, PLUS arg3
-    arg2: Literal["PRC_RCAP", ""] | Literal["RCAP_BND"] = ""
+    arg2: Literal["PRC_RCAP", "", "RCAP_BND"] = ""
     arg3: Literal["RCAP_BND", ""] = ""
 
 
@@ -425,7 +425,7 @@ class PrepretDsc(GamsClass):
 
         self.env.set_global(
             "rcapsub",
-            rf"-SUM(VNRET(V,T),{self.env.vart}_SCAP(R,V,T,P{self.env.sws}))$PRC_RCAP(R,P)",
+            rf"-SUM(VNRET(V,T),{macro.VAR_SCAP(self.env.vart, 'R', 'V', 'T', 'P', self.env.sws)})$PRC_RCAP(R,P)",
         )
 
         shared_vart_scap = VART_SCAP[r, v, t, p, *sws]
@@ -438,7 +438,7 @@ class PrepretDsc(GamsClass):
         )
         self.env.set_global(
             "rcapsbm",
-            rf"-SUM(VNRET(MODLYEAR,T),{self.env.vart}_SCAP(R,MODLYEAR,T,P{self.env.sws}))$PRC_RCAP(R,P)",
+            rf"-SUM(VNRET(MODLYEAR,T),{macro.VAR_SCAP(self.env.vart, 'R', 'MODLYEAR', 'T', 'P', self.env.sws)})$PRC_RCAP(R,P)",
         )
 
         shared_vart_scap = VART_SCAP[r, Modlyear, t, p, *sws]
@@ -468,14 +468,14 @@ class PrepretDsc(GamsClass):
         g = self.tc
         sow_GP = self.env.sow_GP
 
-        eq = g.get_equation(name=f"{self.env.eq}_DSCRET")
+        eq, swt = macro.EQ_DSCRET_GP(self.env.eq, self.env.swt_GP)
         var_scap = g.get_variable(name=f"{self.env.var}_SCAP")
         var_drcap = g.get_variable(name=f"{self.env.var}_DRCAP")
         dom1 = (g.r, g.v, g.t, g.p)
         dom2 = (g.r, g.v, g.p)
 
         # * Allow retirements in integer multiples of a user-defined block-size or the full residual capacity
-        eq[g.RtpCptyr[*self.env.r_v_t_GP, g.p], *self.env.swt_GP].where[
+        eq[g.RtpCptyr[*self.env.r_v_t_GP, g.p], *swt].where[
             (g.Vnret[g.v, g.t].where[g.rcap_blk[*dom2]])
         ] = (
             var_scap[*dom1, *sow_GP] - g.rtforc[*dom1]
@@ -486,7 +486,7 @@ class PrepretDsc(GamsClass):
     def cumulative_retirments_equation(self: PrepretDsc) -> None:
         g = self.tc
 
-        eq_cumret: Equation = g.get_equation(f"{self.env.eq}_CUMRET")
+        eq_cumret, swt = macro.EQ_CUMRET_GP(self.env.eq, self.env.swt_GP)
         var_scap = g.get_variable(name=f"{self.env.var}_SCAP")
         var_rcap = g.get_variable(name=f"{self.env.var}_RCAP")
 
@@ -517,7 +517,7 @@ class PrepretDsc(GamsClass):
             g.r,
             g.Vnret[g.v, g.k[g.t.lag(1 - Number(1).where[g.rp_rtf[g.r, g.p]])]],
             g.p,
-            *self.env.swt_GP,
+            *swt,
         ].where[(g.RtpCptyr[*dom1].where[g.PrcRcap[g.r, g.p]])] = sum_a - sum_b == 0.0
 
     def max_salvage_capacity_equation(self: PrepretDsc) -> None:
@@ -525,7 +525,7 @@ class PrepretDsc(GamsClass):
         sws_GP = self.env.sws_GP
         sow_GP = self.env.sow_GP
 
-        eq_l_scap: Equation = g.get_equation(f"{self.env.eq}L_SCAP")
+        eq_l_scap, eq_sow_GP = macro.EQL_SCAP_GP(self.env.eq, sow_GP)
         var_scap = g.get_variable(name=f"{self.env.var}_SCAP")
 
         var_v_id, var_v_set = self.env.varv_GP
@@ -537,10 +537,8 @@ class PrepretDsc(GamsClass):
         vartt_id, vartt_set = self.env.vartt_GP
         var_tt_act = g.get_variable(name=f"{vartt_id}_ACT")
 
-        inner_sum_1 = (
-            var_tt_act[g.r, g.v, g.tt, g.p, g.s, *sws_GP]
-            if vartt_set is None
-            else Sum(vartt_set, var_tt_act[g.r, g.v, g.tt, g.p, g.s, *sws_GP])
+        inner_sum_1 = wrap_in_sum(
+            var_tt_act[g.r, g.v, g.tt, g.p, g.s, *sws_GP], vartt_set
         )
 
         inner_sum_2 = (
@@ -555,7 +553,7 @@ class PrepretDsc(GamsClass):
             else Sum(var_v_set, var_v_ncap[g.r, g.v, g.p, *sws_GP])
         )
         # * Maximum salvage capacity
-        eq_l_scap[g.Rtp[g.r, g.v[g.ll], g.p], g.ips, *sow_GP].where[
+        eq_l_scap[g.Rtp[g.r, g.v[g.ll], g.p], g.ips, *eq_sow_GP].where[
             (
                 (
                     (
@@ -590,7 +588,7 @@ class PrepretDsc(GamsClass):
     def retrofit_equation(self: PrepretDsc) -> None:
         g = self.tc
 
-        eq_l_refit: Equation = g.get_equation(f"{self.env.eq}L_REFIT")
+        eq_l_refit, swt = macro.EQL_REFIT_GP(self.env.eq, self.env.swt_GP)
         var_rcap = g.get_variable(name=f"{self.env.var}_RCAP")
 
         var_v_id, var_v_set = self.env.varv_GP
@@ -605,14 +603,12 @@ class PrepretDsc(GamsClass):
             else Sum(var_v_set, var_v_ncap[g.r, g.v, g.p, *self.env.sws_GP])
         )
 
-        inner_sum_2 = (
-            vartt_rcap[g.r, g.v, g.tt, g.prc, *self.env.sws_GP]
-            if vartt_set is None
-            else Sum(vartt_set, vartt_rcap[g.r, g.v, g.tt, g.prc, *self.env.sws_GP])
+        inner_sum_2 = wrap_in_sum(
+            vartt_rcap[g.r, g.v, g.tt, g.prc, *self.env.sws_GP], vartt_set
         )
 
         # * Retrofits and life-extensions
-        eq_l_refit[g.RtpTt[g.r, g.tt, g.t, g.prc], g.Lnx[g.lA], *self.env.swt_GP].where[
+        eq_l_refit[g.RtpTt[g.r, g.tt, g.t, g.prc], g.Lnx[g.lA], *swt].where[
             (
                 (
                     g.bd[g.lA] + g.Vnt[g.t, g.tt].where[(g.rp_rtf[g.r, g.prc] == 3.0)]
@@ -776,7 +772,7 @@ def objfix(capwd: str, vart: str, sws: str) -> str:
                 {macro.obj_fsb("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'3',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1))
              )
         ) *
-        {vart}_SCAP(R,V,T,P {sws}) / OBJ_DIVIV(R,V,P)) +
+        {macro.VAR_SCAP(vart, "R", "V", "T", "P", sws)} / OBJ_DIVIV(R,V,P)) +
 
 * RESIDS require special handling
    SUM(RTP_CPTYR(R,PYR_S(V(K)),T,P)$((NOT RVPRL(R,V,P))$PRC_RCAP(R,P)),
@@ -786,7 +782,7 @@ def objfix(capwd: str, vart: str, sws: str) -> str:
                 {macro.obj_ftx("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'2',J,JJ),MULTI(JJ,Y_EOH)-1)) -
                 {macro.obj_fsb("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'3',J,JJ),MULTI(JJ,Y_EOH)-1))
              )) *
-        {vart}_SCAP(R,V,T,P {sws})) +
+        {macro.VAR_SCAP(vart, "R", "V", "T", "P", sws)}) +
 """
 
 
@@ -795,7 +791,7 @@ def objsalv(var: str, varv: str, sws: str, sow: str) -> str:
 * Discredit salvage value for retired capacity
    SUM(OBJ_SUMS(R,V,P)$((NOT NCAP_FDR(R,V,P)$RVPRL(R,'0',P))$RVPRL(R,V,P)),
      OBJSCC(R,V,P,CUR) * OBJ_DCEOH(R,CUR) *
-     ({var}_SCAP(R,V,'0',P{sow})-{varv}_NCAP(R,V,P{sws})$T(V)-NCAP_PASTI(R,V,P))) +
+     ({macro.VAR_SCAP(var, "R", "V", "'0'", "P", sow)}-{macro.VAR_NCAP(varv, "R", "V", "P", sws)}$T(V)-NCAP_PASTI(R,V,P))) +
 """
 
 

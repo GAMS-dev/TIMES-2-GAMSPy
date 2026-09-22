@@ -19,6 +19,7 @@ from gamspy import Domain, Sum
 from gamspy.math import power
 
 from core.base_class import GamsClass
+from core.utils import wrap_in_sum
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -34,11 +35,7 @@ class EqstgipsMod(GamsClass):
     module_name: str = "eqstgips_mod"
     gams_source: str = "eqstgips.mod"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
@@ -114,15 +111,8 @@ class EqstgipsMod(GamsClass):
         VAR_SIN = g.get_variable(f"{var}_SIN")
         VAR_SOUT = g.get_variable(f"{var}_SOUT")
 
-        shared_vartt_v = VARTT_ACT[r, v, tt, p, "ANNUAL", *sws]
-        VARTT_ACT_V = (
-            shared_vartt_v if vartt_set is None else Sum(vartt_set, shared_vartt_v)
-        )
-
-        shared_vartt_tt = VARTT_ACT[r, tt, tt, p, "ANNUAL", *sws]
-        VARTT_ACT_TT = (
-            shared_vartt_tt if vartt_set is None else Sum(vartt_set, shared_vartt_tt)
-        )
+        VARTT_ACT_V = wrap_in_sum(VARTT_ACT[r, v, tt, p, "ANNUAL", *sws], vartt_set)
+        VARTT_ACT_TT = wrap_in_sum(VARTT_ACT[r, tt, tt, p, "ANNUAL", *sws], vartt_set)
 
         eq_stgips = g.get_equation(f"{self.env.eq}_STGIPS")
 

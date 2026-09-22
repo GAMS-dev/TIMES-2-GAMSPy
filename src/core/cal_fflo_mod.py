@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Literal
 from gamspy import Domain, Number, Sum
 
 from core.cal_red_red import CalRedRedConfig, cal_red_red_GP
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from gamspy import Alias, Set, Variable
@@ -85,7 +86,7 @@ def cal_fflo_mod_GP(
                 (
                     VAR_FLO[r, v, t, p, c, ts, *cc.sow]
                     * g.rs_fr[r, s, ts]
-                    * (1 + g.rtcs_fr[r, t, c, s, ts])
+                    * (1 + macro.rtcs_fr.rtcs_fr_GP(r, t, c, s, ts, cc.sow))
                     * cc.arg3
                 ),
             ),
@@ -106,7 +107,7 @@ def cal_fflo_mod_GP(
                     ),
                 )
                 * g.rs_fr[r, s, ts]
-                * (1 + g.rtcs_fr[r, t, com2, s, ts]),
+                * (1 + macro.rtcs_fr.rtcs_fr_GP(r, t, com2, s, ts, cc.sow)),
             ),
         )
 
@@ -143,7 +144,7 @@ def cal_fflo_mod_GP(
                 reduced_cal_red_red(arg7="T", arg10=Number(1))
                 # * equation coarser than variable or equation finer than variabl
                 * g.rs_fr[r, s, ts]
-                * (1 + g.rtcs_fr[r, t, c, s, ts])
+                * (1 + macro.rtcs_fr.rtcs_fr_GP(r, t, c, s, ts, cc.sow))
                 * cc.arg3
             ),
         ),
@@ -155,5 +156,5 @@ def cal_fflo_mod_GP(
         reduced_cal_red_red(arg7="V", arg9=g.RtpVntbyr[r, t, p, v], arg10=cc.arg3)
         # * equation coarser than variable or equation finer than variable
         * g.rs_fr[r, s, ts]
-        * (1 + g.rtcs_fr[r, t, c, s, ts]),
+        * (1 + macro.rtcs_fr.rtcs_fr_GP(r, t, c, s, ts, cc.sow)),
     )

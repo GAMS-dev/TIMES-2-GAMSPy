@@ -5,13 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
-from gamspy import Sum
+from gamspy import Domain, Sum
 from gamspy.math import Max, power, sqrt
 
-from core.utils import SET_OR_ALIAS
+from core.utils import SET_OR_ALIAS, SowGPType, extract_var_domain, wrap_in_sum
 
 if TYPE_CHECKING:
-    from gamspy import Equation, Expression, Number, Variable
+    from gamspy import Alias, Equation, Expression, Number, Set
+    from gamspy._algebra.condition import Condition
     from gamspy._algebra.expression import ShiftExpression
     from gamspy._symbols.implicits import (
         ImplicitParameter,
@@ -163,92 +164,287 @@ class UpscapsContext:
 
 
 @dataclass
-class RecurrinSymbol:
-    name: str
-    symbol: Equation | Variable
+class RtcsFrContext:
+    """$macro RTCS_FR(R,T,C,S,TS) of recurrin.stc, active when S_COM_FR is defined.
 
-    def __getitem__(self, indices: Any) -> Any:
-        keys = list(indices) if isinstance(indices, tuple) else [indices]
-        dimension = sum(getattr(key, "dimension", 1) for key in keys)
-        if dimension != self.symbol.dimension or (
-            keys and getattr(keys[-1], "dimension", 1) != 1
-        ):
-            raise ValueError(
-                f"$macro {self.name} expands to {self.symbol.name}, which needs "
-                f"{self.symbol.dimension} indices ending on the state, got: {keys}"
-            )
-        return self.symbol[(*keys[:-1], "1")]
+    RTCS_FR(R,T,C,S,TS) = RTCS_FRMX(R,T,C,S,TS)
+        + SUM(SW_T2W(SOW,T,W,T0), RCS_SSFR(R,C,S,TS,W,T0))
+    """
 
-    def __getattr__(self, item: str) -> Any:
-        raise NotImplementedError(
-            f"$macro {self.name} is only translated for indexing, not for '.{item}'"
+    active: bool = False
+
+    def activate(self, g: TimesModelClass) -> None:
+        self.g = g
+        self.active = True
+
+    def deactivate(self) -> None:
+        self.active = False
+
+    def rtcs_frmx(self, r: str, t: str, c: str, s: str, ts: str) -> str:
+        """Raw-text form of whichever real parameter RTCS_FRMX refers to
+        (recurrin.stc line 42: $MACRO RTCS_FRMX RTCS_FR, when inactive;
+        line 47: PARAMETER RTCS_FRMX(...), when active). For callers still
+        emitting raw GAMS text (e.g. stages.stc)."""
+        name = "RTCS_FRMX" if self.active else "RTCS_FR"
+        return f"{name}({r},{t},{c},{s},{ts})"
+
+    def rtcs_frmx_GP(self, *domain: SET_OR_ALIAS | str) -> ImplicitParameter:
+        """Native counterpart of rtcs_frmx: the value RTCS_FRMX(...) currently
+        reads/writes as, for callers that index/assign into it themselves
+        (e.g. ppmain.mod's RTCS_FR%MX% assignment target). `domain` is
+        whatever the caller would pass directly to g.rtcs_frmx/g.rtcs_fr -
+        5 separate r,t,c,s,ts, or a combined subset (e.g. an RTC tuple) in
+        place of separate r,t,c."""
+        g = self.g
+        base = g.rtcs_frmx if self.active else g.rtcs_fr
+        return base[domain]
+
+    def rtcs_fr(self, r: str, t: str, c: str, s: str, ts: str) -> str:
+        """String counterpart of rtcs_fr_GP, for callers still emitting raw
+        GAMS text (see class docstring for the SOW caveat, which applies
+        identically here: leave the literal SOW token untouched)."""
+        if not self.active:
+            return f"RTCS_FR({r},{t},{c},{s},{ts})"
+        return (
+            f"RTCS_FRMX({r},{t},{c},{s},{ts})"
+            f"+SUM(SW_T2W(SOW,{t},W,T0),RCS_SSFR({r},{c},{s},{ts},W,T0))"
+        )
+
+    def rtcs_fr_GP(
+        self,
+        r: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        c: SET_OR_ALIAS,
+        s: SET_OR_ALIAS,
+        ts: SET_OR_ALIAS | str,
+        sow: tuple[Literal["0", "1"] | SET_OR_ALIAS, ...] | tuple[()],
+    ) -> Any:
+        """SOW is not one of RTCS_FR's formal params: GAMS's textual $macro
+        expansion makes it refer to whichever SOW is already bound by the
+        calling equation's own domain, so callers pass their own current
+        `sow` (e.g. self.env.sow_GP or cc.sow).
+        """
+        g = self.g
+        if not self.active:
+            return g.rtcs_fr[r, t, c, s, ts]
+        sow_scalar = sow[0] if sow else None
+        return self.rtcs_frmx_GP(r, t, c, s, ts) + Sum(
+            Domain(g.w, g.T0).where[g.SwT2w[sow_scalar, t, g.w, g.T0]],
+            g.rcs_ssfr[r, c, s, ts, g.w, g.T0],
         )
 
 
 @dataclass
-class RecurrinContext:
+class ComFrContext:
+    """$macro COM_FRMX(R,T,C,S) of recurrin.stc, active when S_COM_FR is defined.
+
+    recurrin.stc line 49:
+    COM_FRMX(R,T,C,S) = COM_FR(R,T,C,S) * %SW1%(%SW2%1+S_COM_FR(R,T,C,S,'1',SOW))
+    """
+
     active: bool = False
-    solveda: bool = False
+    sw1: str = ""
+    sw2: str = ""
+    sw2_GP: tuple[SET_OR_ALIAS] | tuple[()] = ()
 
-    prefixes: ClassVar[dict[str, str]] = {"Q": "ES", "Z": "VAS"}
-    pinned_variables: ClassVar[frozenset[str]] = frozenset(
-        {"CAP", "NCAP", "RCAP", "SCAP", "SNCAP", "XCAP"}
-    )
-    pinned_solveda_variables: ClassVar[frozenset[str]] = frozenset(
-        {"CUMCOM", "CUMFLO", "CUMCST"}
-    )
-    pinned_solveda_equations: ClassVar[frozenset[str]] = frozenset(
-        {
-            "BNDCST",
-            "CUMNET",
-            "CUMPRD",
-            "CUMFLO",
-            "E_UC",
-            "E_UCR",
-            "E_UCSU",
-            "E_UCSUS",
-            "E_UCRSU",
-            "E_UCRSUS",
-            "L_SCAP",
-        }
-    )
-
-    def activate(self, g: TimesModelClass, solveda: bool) -> None:
+    def activate(
+        self,
+        g: TimesModelClass,
+        sw1: str,
+        sw2: str,
+        sw2_GP: tuple[SET_OR_ALIAS] | tuple[()],
+    ) -> None:
         self.g = g
         self.active = True
-        self.solveda = solveda
+        self.sw1 = sw1
+        self.sw2 = sw2
+        self.sw2_GP = sw2_GP
 
     def deactivate(self) -> None:
         self.active = False
-        self.solveda = False
 
-    def equation_GP(self, name: str) -> Any:
-        """%EQ%_xxx of a SPINES run, i.e. the ES_xxx equation the Q_xxx $macro aliases."""
-        pinned = self.pinned_solveda_equations if self.solveda else frozenset()
-        return self._expand(name, pinned, is_equation=True)
+    def com_fr(self, mx: str, r: str, t: str, c: str, s: str) -> str:
+        """String counterpart of com_fr_GP, for callers still emitting raw
+        GAMS text. `mx` mirrors the caller's own %MX% BATINCLUDE arg (empty
+        string when not passed)."""
+        if not self.active or not mx:
+            # recurrin.stc line 43: $MACRO COM_FRMX COM_FR (plain rename)
+            return f"COM_FR({r},{t},{c},{s})"
+        inner = f"{self.sw2}1+S_COM_FR({r},{t},{c},{s},'1',SOW)"
+        return f"COM_FR({r},{t},{c},{s})*{self.sw1}({inner})"
 
-    def variable_GP(self, name: str) -> Any:
-        """%VAR%_xxx of a SPINES run, i.e. the VAS_xxx variable the Z_xxx $macro aliases."""
-        pinned = self.pinned_variables
-        if self.solveda:
-            pinned = pinned | self.pinned_solveda_variables
-        return self._expand(name, pinned, is_equation=False)
+    def com_fr_GP(
+        self,
+        mx: Sum | Condition | Expression | tuple[Set | Alias | str, ...] | tuple[()],
+        r: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        c: SET_OR_ALIAS,
+        s: SET_OR_ALIAS,
+    ) -> Any:
+        g = self.g
+        if not self.active or mx == ():
+            # recurrin.stc line 43 (or recurrin never reached DEFPAR at all)
+            return g.com_fr[r, t, c, s]
+        # recurrin.stc line 49: COM_FR(...)*%SW1%(%SW2%1+S_COM_FR(...,SOW))
+        sow_domain = self.sw2_GP[0] if self.sw2_GP else None
+        factor = 1 + g.s_com_fr[r, t, c, s, "1", g.Sow]
+        return g.com_fr[r, t, c, s] * wrap_in_sum(factor, sow_domain)
 
-    def _expand(self, name: str, pinned: frozenset[str], is_equation: bool) -> Any:
-        name = name.upper()
-        alias = self.prefixes.get(name[:1]) if self.active else None
-        if alias is None:
-            # not a macro of recurrin.stc, so report the symbol as the getters would
-            raise AttributeError(f"'TimesModelClass' object has no attribute '{name}'")
-        aliased = f"{alias}{name[1:]}"
-        symbol = (
-            self.g.get_equation(aliased)
-            if is_equation
-            else self.g.get_variable(aliased)
-        )
-        if name[1:].lstrip("_") not in pinned:
-            return symbol
-        return RecurrinSymbol(name=name, symbol=symbol)
+
+@dataclass
+class CoefAfMxContext:
+    """$macro COEF_AFMX(R,V,T,P,S,BD) of recurrin.stc, active when S_NCAP_AFS is defined.
+
+    recurrin.stc line 46:
+    COEF_AFMX(R,V,T,P,S,BD) = COEF_AF(R,V,T,P,S,BD) * %SW1%(%SW2%1+RTP_SAFS(R,T,P,S,SOW))
+    """
+
+    active: bool = False
+    sw1: str = ""
+    sw2: str = ""
+    sw2_GP: tuple[SET_OR_ALIAS] | tuple[()] = ()
+
+    def activate(
+        self,
+        g: TimesModelClass,
+        sw1: str,
+        sw2: str,
+        sw2_GP: tuple[SET_OR_ALIAS] | tuple[()],
+    ) -> None:
+        self.g = g
+        self.active = True
+        self.sw1 = sw1
+        self.sw2 = sw2
+        self.sw2_GP = sw2_GP
+
+    def deactivate(self) -> None:
+        self.active = False
+
+    def coef_af(self, mx: str, r: str, v: str, t: str, p: str, s: str, bd: str) -> str:
+        """String counterpart of coef_af_GP, for callers still emitting raw
+        GAMS text. `mx` mirrors the caller's own %MX% BATINCLUDE arg (empty
+        string when not passed)."""
+        if not self.active or not mx:
+            # recurrin.stc line 41: $MACRO COEF_AFMX COEF_AF (plain rename)
+            return f"COEF_AF({r},{v},{t},{p},{s},{bd})"
+        # recurrin.stc line 46: COEF_AF(...)*%SW1%(%SW2%1+RTP_SAFS(...,SOW))
+        inner = f"{self.sw2}1+RTP_SAFS({r},{t},{p},{s},SOW)"
+        return f"COEF_AF({r},{v},{t},{p},{s},{bd})*{self.sw1}({inner})"
+
+    def coef_af_GP(
+        self,
+        mx: Sum | Condition | Expression | tuple[Set | Alias | str, ...] | tuple[()],
+        r: SET_OR_ALIAS,
+        v: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        s: SET_OR_ALIAS,
+        bd: SET_OR_ALIAS | str,
+    ) -> ImplicitParameter | Expression:
+        g = self.g
+        coef_af = g.get_parameter("COEF_AF")
+        if not self.active or mx == ():
+            # recurrin.stc line 41 (or recurrin never reached DEFPAR at all)
+            return coef_af[r, v, t, p, s, bd]
+        # recurrin.stc line 46: COEF_AF(...)*%SW1%(%SW2%1+RTP_SAFS(...,SOW))
+        sow_domain = self.sw2_GP[0] if self.sw2_GP else None
+        factor = 1 + g.rtp_safs[r, t, p, s, g.Sow]
+        return coef_af[r, v, t, p, s, bd] * wrap_in_sum(factor, sow_domain)
+
+
+@dataclass
+class PrcDynucMxContext:
+    """$macro PRC_DYNUCMX(UC,SIDE,R,T,P,GRP,BD) of recurrin.stc, active when SPINES is YES.
+
+    PRC_DYNUCMX(UC,SIDE,R,T,P,GRP,BD) = PRC_DYNUC(UC,SIDE,R,T,P,GRP,BD)$UCRTPSW1(GRP,SOW)
+
+    SOW is not one of PRC_DYNUCMX's formal params: GAMS's textual $macro
+    expansion makes it refer to whichever SOW is already bound by the
+    calling equation's own domain, so callers must pass their own current
+    `sow` rather than a fresh dummy.
+    """
+
+    active: bool = False
+
+    def activate(self, g: TimesModelClass) -> None:
+        self.g = g
+        self.active = True
+
+    def deactivate(self) -> None:
+        self.active = False
+
+    def prc_dynuc(
+        self, uc: str, side: str, r: str, t: str, p: str, grp: str, bd: str
+    ) -> str:
+        base = f"PRC_DYNUC({uc},{side},{r},{t},{p},{grp},{bd})"
+        if not self.active:
+            return base
+        return f"{base}$UCRTPSW1({grp},'SOW')"
+
+    def prc_dynuc_GP(
+        self,
+        uc: SET_OR_ALIAS,
+        side: SET_OR_ALIAS | str,
+        r: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        grp: SET_OR_ALIAS,
+        bd: SET_OR_ALIAS | str,
+    ) -> ImplicitParameter | Condition:
+        g = self.g
+        base = g.prc_dynuc[uc, side, r, t, p, grp, bd]
+        if not self.active:
+            return base
+        return base.where[g.UcrtpSw1[grp, g.Sow]]
+
+
+@dataclass
+class EqUcContext:
+    """EQ_UC/ESE_UC{suffix}/QE_UC{suffix} of recurrin.stc."""
+
+    active: bool = False
+    _REDIRECTED_SUFFIXES = frozenset({"", "R", "SU", "SUS", "RSU", "RSUS"})
+    #: recurrin.stc's $macro QE_UC(uc,sow) ESE_UC(uc,'1') etc.: the SOW
+    #: literal every Q_UC* redirect pins to, single source of truth for
+    #: both this equation's own domain (below) and any expression that
+    #: embeds a SOW-sensitive $macro inside such a redirected equation
+    #: (e.g. RtcsFrContext.rtcs_fr_GP).
+    PINNED_SOW: ClassVar[tuple[Literal["1"]]] = ("1",)
+
+    def activate(self, g: TimesModelClass) -> None:
+        self.g = g
+        self.active = True
+
+    def deactivate(self) -> None:
+        self.active = False
+
+    def redirects(self, arg1: str, suffix: str) -> bool:
+        """True when QE_UC{suffix} is $macro-redirected to ESE_UC{suffix}
+        with SOW pinned to PINNED_SOW: only for arg1=="E" and one of the
+        six covered suffixes."""
+        return self.active and arg1 == "E" and suffix in self._REDIRECTED_SUFFIXES
+
+    def EQ_UC(self, eq: str, arg1: str, suffix: str, sow: str) -> tuple[str, str]:
+        """String counterpart of EQ_UC_GP, for callers still emitting raw
+        GAMS text: returns (equation name, sow text) for the caller to
+        combine into its own call."""
+        if self.redirects(arg1, suffix):
+            return f"ESE_UC{suffix}", f"'{self.PINNED_SOW[0]}'"
+        return f"{eq}{arg1}_UC{suffix}", sow
+
+    def EQ_UC_GP(
+        self,
+        eq: str,
+        arg1: str,
+        suffix: str,
+        sow: SowGPType,
+    ) -> tuple[Equation, SowGPType]:
+        """QE_UC/QE_UCR/QE_UCSU/QE_UCSUS/QE_UCRSU/QE_UCRSUS(...,sow): each
+        renames to ESE_UC{suffix}, with sow pinned to PINNED_SOW."""
+        g = self.g
+        if self.redirects(arg1, suffix):
+            return g.get_equation(f"ESE_UC{suffix}"), self.PINNED_SOW
+        return g.get_equation(f"{eq}{arg1}_UC{suffix}"), sow
 
 
 class Macros:
@@ -256,13 +452,32 @@ class Macros:
         self._g: TimesModelClass
         self.reset()
 
+    def bind(self, g: TimesModelClass) -> None:
+        """Give this build's model to every sub-context."""
+        self._g = g
+        for context in (
+            self.var_sift,
+            self.var_sts,
+            self.upscaps,
+            self.rtcs_fr,
+            self.com_fr,
+            self.coef_af_mx,
+            self.prc_dynuc_mx,
+            self.eq_uc,
+        ):
+            context.g = g
+
     def reset(self) -> None:
         """Clear all $macro activation state left over from a prior model build."""
         self._active: dict[str, bool] = {}
         self.var_sift = VarSiftContext()
         self.var_sts = VarStsContext()
         self.upscaps = UpscapsContext()
-        self.recurrin = RecurrinContext()
+        self.rtcs_fr = RtcsFrContext()
+        self.com_fr = ComFrContext()
+        self.coef_af_mx = CoefAfMxContext()
+        self.prc_dynuc_mx = PrcDynucMxContext()
+        self.eq_uc = EqUcContext()
 
     # ICOST
     @property
@@ -562,6 +777,583 @@ class Macros:
             return rts
         # Return the Alias
         return g.rts
+
+    # VAR_CAP / VAS_CAP / Z_CAP
+    @property
+    def z_cap_active(self) -> bool:
+        return self._active.get("Z_CAP", False)
+
+    @z_cap_active.setter
+    def z_cap_active(self, value: bool) -> None:
+        self._active["Z_CAP"] = value
+
+    def VAR_CAP(self, var: str, r: str, t: str, p: str, sow: str) -> str:
+        if self.z_cap_active:
+            return f"VAS_CAP({r},{t},{p},'1')"
+        return f"{var}_CAP({r},{t},{p}{sow})"
+
+    def VAR_CAP_GP(
+        self,
+        var: str | tuple[str, ImplicitSet | None],
+        r: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        sow: tuple[Literal["0", "1"] | SET_OR_ALIAS, ...] | tuple[()],
+    ) -> ImplicitVariable | Sum:
+        if self.z_cap_active:
+            return self._g.VAS_CAP[r, t, p, "1"]
+        else:
+            var_id, var_set = extract_var_domain(var)
+            cap = self._g.get_variable(f"{var_id}_CAP")
+            return wrap_in_sum(cap[r, t, p, *sow], var_set)
+
+    # VAR_NCAP / VAS_NCAP / Z_NCAP
+    # $macro Z_NCAP(r,t,p,sow)    VAS_NCAP(r,t,p,'1')
+    @property
+    def z_ncap_active(self) -> bool:
+        return self._active.get("Z_NCAP", False)
+
+    @z_ncap_active.setter
+    def z_ncap_active(self, value: bool) -> None:
+        self._active["Z_NCAP"] = value
+
+    def VAR_NCAP(self, var: str, r: str, t: str, p: str, sow: str) -> str:
+        if self.z_ncap_active:
+            return f"VAS_NCAP({r},{t},{p},'1')"
+        return f"{var}_NCAP({r},{t},{p}{sow})"
+
+    def VAR_NCAP_GP(
+        self,
+        var: str | tuple[str, ImplicitSet | None],
+        r: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        sow: tuple[Literal["0", "1"] | SET_OR_ALIAS, ...] | tuple[()],
+        is_output: bool = False,
+    ) -> ImplicitVariable | Sum:
+        if self.z_ncap_active:
+            ncap_var = self._g.VAS_NCAP.l if is_output else self._g.VAS_NCAP
+            return ncap_var[r, t, p, "1"]  # type: ignore[return-value]
+        else:
+            var_id, var_set = extract_var_domain(var)
+            NCAP = self._g.get_variable(f"{var_id}_NCAP")
+            ncap_var = NCAP.l if is_output else NCAP
+            return wrap_in_sum(ncap_var[r, t, p, *sow], var_set)  # type: ignore[arg-type]
+
+    # VAR_RCAP / VAS_RCAP / Z_RCAP
+    # $macro Z_RCAP(r,v,t,p,sow)  VAS_RCAP(r,v,t,p,'1')
+    @property
+    def z_rcap_active(self) -> bool:
+        return self._active.get("Z_RCAP", False)
+
+    @z_rcap_active.setter
+    def z_rcap_active(self, value: bool) -> None:
+        self._active["Z_RCAP"] = value
+
+    def VAR_RCAP(self, var: str, r: str, v: str, t: str, p: str, sow: str) -> str:
+        if self.z_rcap_active:
+            return f"VAS_RCAP({r},{v},{t},{p},'1')"
+        return f"{var}_RCAP({r},{v},{t},{p}{sow})"
+
+    def VAR_RCAP_GP(
+        self,
+        var: str | tuple[str, ImplicitSet | None],
+        r: SET_OR_ALIAS,
+        v: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        sow: tuple[Literal["0", "1"] | SET_OR_ALIAS, ...] | tuple[()],
+    ) -> ImplicitVariable | Sum:
+        if self.z_rcap_active:
+            return self._g.VAS_RCAP[r, v, t, p, "1"]
+        else:
+            var_id, var_set = extract_var_domain(var)
+            rcap = self._g.get_variable(f"{var_id}_RCAP")
+            return wrap_in_sum(rcap[r, v, t, p, *sow], var_set)
+
+    # VAR_SCAP / VAS_SCAP / Z_SCAP
+    # $macro Z_SCAP(r,v,t,p,sow)  VAS_SCAP(r,v,t,p,'1')
+    @property
+    def z_scap_active(self) -> bool:
+        return self._active.get("Z_SCAP", False)
+
+    @z_scap_active.setter
+    def z_scap_active(self, value: bool) -> None:
+        self._active["Z_SCAP"] = value
+
+    def VAR_SCAP(self, var: str, r: str, v: str, t: str, p: str, sow: str) -> str:
+        if self.z_scap_active:
+            return f"VAS_SCAP({r},{v},{t},{p},'1')"
+        return f"{var}_SCAP({r},{v},{t},{p}{sow})"
+
+    def VAR_SCAP_GP(
+        self,
+        var: tuple[str, ImplicitSet | None],
+        r: SET_OR_ALIAS,
+        v: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        sow: tuple[Literal["0", "1"] | SET_OR_ALIAS, ...] | tuple[()],
+        is_output: bool = False,
+    ) -> ImplicitVariable | Sum:
+        if self.z_scap_active:
+            scap_var = self._g.VAS_SCAP.l if is_output else self._g.VAS_SCAP
+            return scap_var[r, v, t, p, "1"]  # type: ignore[return-value]
+        else:
+            var_id, var_set = var
+            SCAP = self._g.get_variable(f"{var_id}_SCAP")
+            scap_var = SCAP.l if is_output else SCAP
+            return wrap_in_sum(scap_var[r, v, t, p, *sow], var_set)  # type: ignore[arg-type]
+
+    # VAR_DRCAP / VAS_DRCAP / Z_DRCAP
+    # $macro Z_DRCAP(r,v,t,p,w,j) VAS_DRCAP(r,v,t,p,'1',j)
+    @property
+    def z_drcap_active(self) -> bool:
+        return self._active.get("Z_DRCAP", False)
+
+    @z_drcap_active.setter
+    def z_drcap_active(self, value: bool) -> None:
+        self._active["Z_DRCAP"] = value
+
+    def VAR_DRCAP(
+        self, var: str, r: str, v: str, t: str, p: str, sow: str, j: str
+    ) -> str:
+        if self.z_drcap_active:
+            return f"VAS_DRCAP({r},{v},{t},{p},'1',{j})"
+        return f"{var}_DRCAP({r},{v},{t},{p}{sow},{j})"
+
+    def VAR_DRCAP_GP(
+        self,
+        var: str | tuple[str, ImplicitSet | None],
+        r: SET_OR_ALIAS,
+        v: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        sow: tuple[Literal["0", "1"] | SET_OR_ALIAS, ...] | tuple[()],
+        j: SET_OR_ALIAS | str,
+    ) -> ImplicitVariable | Sum:
+        if self.z_drcap_active:
+            return self._g.VAS_DRCAP[r, v, t, p, "1", j]
+        else:
+            var_id, var_set = extract_var_domain(var)
+            drcap = self._g.get_variable(f"{var_id}_DRCAP")
+            return wrap_in_sum(drcap[r, v, t, p, *sow, j], var_set)
+
+    # VAR_DNCAP / VAS_DNCAP / Z_DNCAP
+    # $macro Z_DNCAP(r,t,p,sow,j) VAS_DNCAP(r,t,p,'1',j)
+    @property
+    def z_dncap_active(self) -> bool:
+        return self._active.get("Z_DNCAP", False)
+
+    @z_dncap_active.setter
+    def z_dncap_active(self, value: bool) -> None:
+        self._active["Z_DNCAP"] = value
+
+    def VAR_DNCAP(self, var: str, r: str, t: str, p: str, sow: str, j: str) -> str:
+        if self.z_dncap_active:
+            return f"VAS_DNCAP({r},{t},{p},'1',{j})"
+        return f"{var}_DNCAP({r},{t},{p}{sow},{j})"
+
+    def VAR_DNCAP_GP(
+        self,
+        var: str | tuple[str, ImplicitSet | None],
+        r: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        sow: tuple[Literal["0", "1"] | SET_OR_ALIAS, ...] | tuple[()],
+        j: SET_OR_ALIAS | str,
+    ) -> ImplicitVariable | Sum:
+        if self.z_dncap_active:
+            return self._g.VAS_DNCAP[r, t, p, "1", j]
+        else:
+            var_id, var_set = extract_var_domain(var)
+            dncap = self._g.get_variable(f"{var_id}_DNCAP")
+            return wrap_in_sum(dncap[r, t, p, *sow, j], var_set)
+
+    # VAR_SNCAP / VAS_SNCAP / Z_SNCAP
+    # $macro Z_SNCAP(r,t,p,sow)   VAS_SNCAP(r,t,p,'1')
+    @property
+    def z_sncap_active(self) -> bool:
+        return self._active.get("Z_SNCAP", False)
+
+    @z_sncap_active.setter
+    def z_sncap_active(self, value: bool) -> None:
+        self._active["Z_SNCAP"] = value
+
+    def VAR_SNCAP(self, var: str, r: str, t: str, p: str, sow: str) -> str:
+        if self.z_sncap_active:
+            return f"VAS_SNCAP({r},{t},{p},'1')"
+        return f"{var}_SNCAP({r},{t},{p}{sow})"
+
+    def VAR_SNCAP_GP(
+        self,
+        var: str | tuple[str, ImplicitSet | None],
+        r: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        sow: tuple[Literal["0", "1"] | SET_OR_ALIAS, ...] | tuple[()],
+    ) -> ImplicitVariable | Sum:
+        if self.z_sncap_active:
+            return self._g.VAS_SNCAP[r, t, p, "1"]
+        else:
+            var_id, var_set = extract_var_domain(var)
+            sncap = self._g.get_variable(f"{var_id}_SNCAP")
+            return wrap_in_sum(sncap[r, t, p, *sow], var_set)
+
+    # VAR_XCAP / VAS_XCAP / Z_XCAP
+    # $macro Z_XCAP(r,t,p,sow)  VAS_XCAP(r,t,p,'1')
+    @property
+    def z_xcap_active(self) -> bool:
+        return self._active.get("Z_XCAP", False)
+
+    @z_xcap_active.setter
+    def z_xcap_active(self, value: bool) -> None:
+        self._active["Z_XCAP"] = value
+
+    def VAR_XCAP(self, var: str, r: str, t: str, p: str, sow: str) -> str:
+        if self.z_xcap_active:
+            return f"VAS_XCAP({r},{t},{p},'1')"
+        return f"{var}_XCAP({r},{t},{p}{sow})"
+
+    # EQ_OBJINV / ES_OBJINV / Q_OBJINV
+    @property
+    def q_objinv_active(self) -> bool:
+        return self._active.get("Q_OBJINV", False)
+
+    @q_objinv_active.setter
+    def q_objinv_active(self, value: bool) -> None:
+        self._active["Q_OBJINV"] = value
+
+    def EQ_OBJINV_GP(
+        self,
+        eq: str,
+        sow: SowGPType,
+    ) -> tuple[Any, SowGPType]:
+        """$macro Q_OBJINV(rc,sow) ES_OBJINV(rc,SOW('1')) of recurrin.stc."""
+        if self.q_objinv_active:
+            return self._g.es_objinv, ("1",)
+        return self._g.get_equation(f"{eq}_OBJINV"), sow
+
+    # EQ_OBJFIX / ES_OBJFIX / Q_OBJFIX
+    @property
+    def q_objfix_active(self) -> bool:
+        return self._active.get("Q_OBJFIX", False)
+
+    @q_objfix_active.setter
+    def q_objfix_active(self, value: bool) -> None:
+        self._active["Q_OBJFIX"] = value
+
+    def EQ_OBJFIX_GP(
+        self,
+        eq: str,
+        sow: SowGPType,
+    ) -> tuple[Any, SowGPType]:
+        """$macro Q_OBJFIX(rc,sow) ES_OBJFIX(rc,SOW('1')) of recurrin.stc."""
+        if self.q_objfix_active:
+            return self._g.es_objfix, ("1",)
+        return self._g.get_equation(f"{eq}_OBJFIX"), sow
+
+    # EQ_OBJSALV / ES_OBJSALV / Q_OBJSALV
+    @property
+    def q_objsalv_active(self) -> bool:
+        return self._active.get("Q_OBJSALV", False)
+
+    @q_objsalv_active.setter
+    def q_objsalv_active(self, value: bool) -> None:
+        self._active["Q_OBJSALV"] = value
+
+    def EQ_OBJSALV_GP(
+        self,
+        eq: str,
+        sow: SowGPType,
+    ) -> tuple[Any, SowGPType]:
+        """$macro Q_OBJSALV(rc,sow) ES_OBJSALV(rc,SOW('1')) of recurrin.stc."""
+        if self.q_objsalv_active:
+            return self._g.es_objsalv, ("1",)
+        return self._g.get_equation(f"{eq}_OBJSALV"), sow
+
+    # EQ_CPT / ES{G,E,L}_CPT / Q{G,E,L}_CPT
+    @property
+    def q_cpt_active(self) -> bool:
+        return self._active.get("Q_CPT", False)
+
+    @q_cpt_active.setter
+    def q_cpt_active(self, value: bool) -> None:
+        self._active["Q_CPT"] = value
+
+    def EQ_CPT_GP(
+        self,
+        eq: str,
+        sense: Literal["G", "E", "L"],
+        swt: tuple[SET_OR_ALIAS, ...] | tuple[()],
+    ) -> tuple[Any, tuple[Literal["1"] | SET_OR_ALIAS, ...] | tuple[()]]:
+        """$macro QG_CPT/QE_CPT/QL_CPT(rtp,swt) ES{G,E,L}_CPT(rtp,T,SOW('1')) of
+        recurrin.stc."""
+
+        if self.q_cpt_active:
+            return self._g.get_equation(f"ES{sense}_CPT"), (self._g.t, "1")
+        return self._g.get_equation(f"{eq}{sense}_CPT"), swt
+
+    # EQ_DSCRET / ES_DSCRET / Q_DSCRET
+    @property
+    def q_dscret_active(self) -> bool:
+        return self._active.get("Q_DSCRET", False)
+
+    @q_dscret_active.setter
+    def q_dscret_active(self, value: bool) -> None:
+        self._active["Q_DSCRET"] = value
+
+    def EQ_DSCRET_GP(
+        self,
+        eq: str,
+        swt: tuple[SET_OR_ALIAS, ...] | tuple[()],
+    ) -> tuple[Any, tuple[Literal["1"] | SET_OR_ALIAS, ...] | tuple[()]]:
+        """$macro Q_DSCRET(cpt,sw) ES_DSCRET(cpt,T,SOW('1')) of recurrin.stc."""
+        if self.q_dscret_active:
+            return self._g.es_dscret, (self._g.t, "1")
+        return self._g.get_equation(f"{eq}_DSCRET"), swt
+
+    # EQ_CUMRET / ES_CUMRET / Q_CUMRET
+    @property
+    def q_cumret_active(self) -> bool:
+        return self._active.get("Q_CUMRET", False)
+
+    @q_cumret_active.setter
+    def q_cumret_active(self, value: bool) -> None:
+        self._active["Q_CUMRET"] = value
+
+    def EQ_CUMRET_GP(
+        self,
+        eq: str,
+        swt: tuple[SET_OR_ALIAS, ...] | tuple[()],
+    ) -> tuple[Any, tuple[Literal["1"] | SET_OR_ALIAS, ...] | tuple[()]]:
+        """$macro Q_CUMRET(r,v,p,w) ES_CUMRET(r,v,p,T,SOW('1')) of
+        recurrin.stc: the equation is always ES_CUMRET, and its swt argument
+        is pinned to '1'."""
+        if self.q_cumret_active:
+            return self._g.es_cumret, (self._g.t, "1")
+        return self._g.get_equation(f"{eq}_CUMRET"), swt
+
+    # EQL_REFIT / ESL_REFIT / QL_REFIT
+    @property
+    def ql_refit_active(self) -> bool:
+        return self._active.get("QL_REFIT", False)
+
+    @ql_refit_active.setter
+    def ql_refit_active(self, value: bool) -> None:
+        self._active["QL_REFIT"] = value
+
+    def EQL_REFIT_GP(
+        self,
+        eq: str,
+        swt: tuple[SET_OR_ALIAS, ...] | tuple[()],
+    ) -> tuple[Any, tuple[Literal["1"] | SET_OR_ALIAS, ...] | tuple[()]]:
+        """$macro QL_REFIT(rttp,l,swt) ESL_REFIT(rttp,l,T,SOW('1')) of
+        recurrin.stc: the equation is always ESL_REFIT, and its swt argument
+        is pinned to '1'."""
+        if self.ql_refit_active:
+            return self._g.esl_refit, (self._g.t, "1")
+        return self._g.get_equation(f"{eq}L_REFIT"), swt
+
+    # EQL_SCAP / ESL_SCAP / QL_SCAP (solveda=="1" only; the solveda!="1" case
+    # is the plain g.ql_scap = g.esl_scap alias set in recurrin_stc.py)
+    @property
+    def ql_scap_active(self) -> bool:
+        return self._active.get("QL_SCAP", False)
+
+    @ql_scap_active.setter
+    def ql_scap_active(self, value: bool) -> None:
+        self._active["QL_SCAP"] = value
+
+    def EQL_SCAP_GP(
+        self,
+        eq: str,
+        sow: SowGPType,
+    ) -> tuple[Any, SowGPType]:
+        """$macro QL_SCAP(rtp,ip,sow) ESL_SCAP(rtp,ip,'1') of recurrin.stc"""
+        if self.ql_scap_active:
+            return self._g.esl_scap, ("1",)
+        return self._g.get_equation(f"{eq}L_SCAP"), sow
+
+    # EQ_DSCNCAP / ES_DSCNCAP / Q_DSCNCAP
+    @property
+    def q_dscncap_active(self) -> bool:
+        return self._active.get("Q_DSCNCAP", False)
+
+    @q_dscncap_active.setter
+    def q_dscncap_active(self, value: bool) -> None:
+        self._active["Q_DSCNCAP"] = value
+
+    def EQ_DSCNCAP_GP(
+        self,
+        eq: str,
+        swt: tuple[SET_OR_ALIAS, ...] | tuple[()],
+    ) -> tuple[Any, tuple[Literal["1"] | SET_OR_ALIAS, ...] | tuple[()]]:
+        """$macro Q_DSCNCAP(rtp,sw) ES_DSCNCAP(rtp,T,SOW('1')) of
+        recurrin.stc."""
+        if self.q_dscncap_active:
+            return self._g.es_dscncap, (self._g.t, "1")
+        return self._g.get_equation(f"{eq}_DSCNCAP"), swt
+
+    # EQ_DSCONE / ES_DSCONE / Q_DSCONE
+    @property
+    def q_dscone_active(self) -> bool:
+        return self._active.get("Q_DSCONE", False)
+
+    @q_dscone_active.setter
+    def q_dscone_active(self, value: bool) -> None:
+        self._active["Q_DSCONE"] = value
+
+    def EQ_DSCONE_GP(
+        self,
+        eq: str,
+        swt: tuple[SET_OR_ALIAS, ...] | tuple[()],
+    ) -> tuple[Any, tuple[Literal["1"] | SET_OR_ALIAS, ...] | tuple[()]]:
+        """$macro Q_DSCONE(rtp,swt) ES_DSCONE(rtp,T,SOW('1')) of recurrin.stc."""
+        if self.q_dscone_active:
+            return self._g.es_dscone, (self._g.t, "1")
+        return self._g.get_equation(f"{eq}_DSCONE"), swt
+
+    # EQ_CUM / ES_CUM{NET,PRD} / Q_CUM{NET,PRD}
+    @property
+    def q_cum_active(self) -> bool:
+        return self._active.get("Q_CUM", False)
+
+    @q_cum_active.setter
+    def q_cum_active(self, value: bool) -> None:
+        self._active["Q_CUM"] = value
+
+    def EQ_CUM_GP(
+        self,
+        eq: str,
+        arg2: Literal["NET", "PRD"],
+        sow: SowGPType,
+    ) -> tuple[Any, SowGPType]:
+        """$macro Q_CUMNET/Q_CUMPRD(rc,y1,y2,sow) ES_CUM{NET,PRD}(rc,y1,y2,'1')
+        of recurrin.stc."""
+        if self.q_cum_active:
+            return self._g.get_equation(f"ES_CUM{arg2}"), ("1",)
+        return self._g.get_equation(f"{eq}_CUM{arg2}"), sow
+
+    # VAR_CUMCOM / VAS_CUMCOM / Z_CUMCOM
+    @property
+    def z_cumcom_active(self) -> bool:
+        return self._active.get("Z_CUMCOM", False)
+
+    @z_cumcom_active.setter
+    def z_cumcom_active(self, value: bool) -> None:
+        self._active["Z_CUMCOM"] = value
+
+    def VAR_CUMCOM_GP(
+        self,
+        var: str,
+        r: SET_OR_ALIAS,
+        c: SET_OR_ALIAS,
+        cv: SET_OR_ALIAS | str,
+        y1: SET_OR_ALIAS,
+        y2: SET_OR_ALIAS,
+        w: SowGPType,
+    ) -> ImplicitVariable:
+        """$macro Z_CUMCOM(r,c,cv,y1,y2,w) VAS_CUMCOM(r,c,cv,y1,y2,'1') of
+        recurrin.stc.
+        """
+        if self.z_cumcom_active:
+            return self._g.VAS_CUMCOM[r, c, cv, y1, y2, "1"]
+        cumcom = self._g.get_variable(f"{var}_CUMCOM")
+        return cumcom[r, c, cv, y1, y2, *w]
+
+    # EQ_CUMFLO / ES_CUMFLO / Q_CUMFLO
+    @property
+    def q_cumflo_active(self) -> bool:
+        return self._active.get("Q_CUMFLO", False)
+
+    @q_cumflo_active.setter
+    def q_cumflo_active(self, value: bool) -> None:
+        self._active["Q_CUMFLO"] = value
+
+    def EQ_CUMFLO_GP(
+        self,
+        eq: str,
+        sow: SowGPType,
+    ) -> tuple[Any, SowGPType]:
+        """$macro Q_CUMFLO(rpcyy,sw) ES_CUMFLO(rpcyy,'1') of recurrin.stc
+        (solveda=="1" branch): the equation is always ES_CUMFLO, and its sw
+        argument is pinned to '1'."""
+        if self.q_cumflo_active:
+            return self._g.es_cumflo, ("1",)
+        return self._g.get_equation(f"{eq}_CUMFLO"), sow
+
+    # VAR_CUMFLO / VAS_CUMFLO / Z_CUMFLO
+    @property
+    def z_cumflo_active(self) -> bool:
+        return self._active.get("Z_CUMFLO", False)
+
+    @z_cumflo_active.setter
+    def z_cumflo_active(self, value: bool) -> None:
+        self._active["Z_CUMFLO"] = value
+
+    def VAR_CUMFLO_GP(
+        self,
+        var: str,
+        r: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        cv: SET_OR_ALIAS | str,
+        y1: SET_OR_ALIAS,
+        y2: SET_OR_ALIAS,
+        w: SowGPType | tuple[SET_OR_ALIAS, ...],
+    ) -> ImplicitVariable:
+        """$macro Z_CUMFLO(r,p,cv,y1,y2,w) VAS_CUMFLO(r,p,cv,y1,y2,'1') of
+        recurrin.stc .
+        """
+        if self.z_cumflo_active:
+            return self._g.VAS_CUMFLO[r, p, cv, y1, y2, "1"]
+        cumflo = self._g.get_variable(f"{var}_CUMFLO")
+        return cumflo[r, p, cv, y1, y2, *w]
+
+    # EQ_BNDCST / ES_BNDCST / Q_BNDCST
+    @property
+    def q_bndcst_active(self) -> bool:
+        return self._active.get("Q_BNDCST", False)
+
+    @q_bndcst_active.setter
+    def q_bndcst_active(self, value: bool) -> None:
+        self._active["Q_BNDCST"] = value
+
+    def EQ_BNDCST_GP(
+        self,
+        eq: str,
+        sow: SowGPType,
+    ) -> tuple[Any, SowGPType]:
+        """$macro Q_BNDCST(r,y,y2,c,m,w) ES_BNDCST(r,y,y2,c,m,'1') of
+        recurrin.stc"""
+        if self.q_bndcst_active:
+            return self._g.get_equation("ES_BNDCST"), ("1",)
+        return self._g.get_equation(f"{eq}_BNDCST"), sow
+
+    # VAR_CUMCST / VAS_CUMCST / Z_CUMCST
+    @property
+    def z_cumcst_active(self) -> bool:
+        return self._active.get("Z_CUMCST", False)
+
+    @z_cumcst_active.setter
+    def z_cumcst_active(self, value: bool) -> None:
+        self._active["Z_CUMCST"] = value
+
+    def VAR_CUMCST_GP(
+        self,
+        var: str,
+        r: SET_OR_ALIAS,
+        y1: SET_OR_ALIAS,
+        y2: SET_OR_ALIAS,
+        cg: SET_OR_ALIAS,
+        m: SET_OR_ALIAS,
+        w: SowGPType,
+    ) -> ImplicitVariable:
+        """$macro Z_CUMCST(r,y1,y2,cg,m,w) VAS_CUMCST(r,y1,y2,cg,m,'1')"""
+        if self.z_cumcst_active:
+            return self._g.VAS_CUMCST[r, y1, y2, cg, m, "1"]
+        cumcst = self._g.get_variable(f"{var}_CUMCST")
+        return cumcst[r, y1, y2, cg, m, *w]
 
     # From gasgrids_vda
 

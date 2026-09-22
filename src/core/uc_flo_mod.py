@@ -150,7 +150,8 @@ def uc_flo_mod(g: TimesModelClass, config: UcFloModConfig) -> Expression | Sum:
         * Product(g.Annual, 1)
         * Product(
             g.RsBelow[r, ts, s],
-            g.rs_fr[r, s, ts] * (1 + g.rtcs_fr[r, cc.arg4, c, s, ts]),
+            g.rs_fr[r, s, ts]
+            * (1 + macro.rtcs_fr.rtcs_fr_GP(r, cc.arg4, c, s, ts, sow=sow)),
         )
     )
     capflo_term: Expression | Sum = include_cal_caps
@@ -208,16 +209,16 @@ def uc_flo_mod(g: TimesModelClass, config: UcFloModConfig) -> Expression | Sum:
 
     # * Add Cumflos
     var_id, domain = extract_var_domain(var)
-    var_cumflo = wrap_in_sum(target=g.get_variable(f"{var_id}_CUMFLO"), domain=domain)
+    var_cumflo = wrap_in_sum(
+        target=macro.VAR_CUMFLO_GP(var_id, r, p, c, allyear, ll, cc.swt), domain=domain
+    )
     cumflo_region = (cc.arg8,) if cc.arg8 is not None else ()
 
     cumflo_sum = Sum(
         Domain(*cumflo_region, g.RpcCumflo[r, p, c, allyear, ll]).where[
             g.uc_cumflo[ucn, r, p, c, allyear, ll]
         ],
-        g.uc_cumflo[ucn, r, p, c, allyear, ll]
-        * var_cumflo[r, p, c, allyear, ll, *cc.swt]
-        * cc.cufscal,
+        g.uc_cumflo[ucn, r, p, c, allyear, ll] * var_cumflo * cc.cufscal,
     )
 
     return term + cumflo_sum

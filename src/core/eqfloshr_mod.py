@@ -26,6 +26,7 @@ from gamspy import Domain, Number, Sum
 from core.base_class import GamsClass
 from core.cal_red_red import CalRedRedConfig
 from core.utils import EquationSenseTypes, generate_equation
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from gamspy._algebra.condition import Condition
@@ -130,7 +131,7 @@ class EqfloshrMod(GamsClass):
                     ).where[g.ComGmap[g.r, g.cg, g.Com]],
                     VAR_FLO[g.r, g.v, g.t, g.p, g.Com, g.ts, *sow]
                     * g.rs_fr[g.r, g.s, g.ts]
-                    * (1.0 + g.rtcs_fr[g.r, g.t, g.Com, g.s, g.ts]),
+                    * (1.0 + macro.rtcs_fr.rtcs_fr_GP(g.r, g.t, g.Com, g.s, g.ts, sow)),
                 ).where[(~(g.RpgRed[g.r, g.p, g.cg, cc.arg3]))]
                 + Sum(
                     Domain(
@@ -140,7 +141,7 @@ class EqfloshrMod(GamsClass):
                     include_cal_red1
                     # * share-ts coarser than variable or share finer than variable
                     * g.rs_fr[g.r, g.s, g.ts]
-                    * (1.0 + g.rtcs_fr[g.r, g.t, g.Com, g.s, g.ts]),
+                    * (1.0 + macro.rtcs_fr.rtcs_fr_GP(g.r, g.t, g.Com, g.s, g.ts, sow)),
                 ).where[g.RpgRed[g.r, g.p, g.cg, cc.arg3]]
             ).where[(g.flo_shar[g.r, g.v, g.p, g.c, g.cg, g.s, cc.arg2] > 0.0)],
             cc.sense,

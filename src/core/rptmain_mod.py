@@ -108,7 +108,7 @@ class RptmainMod(GamsClass):
                                 self.tc,
                                 self.env,
                                 config=RptliteRptConfig(
-                                    arg1="S", arg2=(self.tc.ww,), arg3=("'1'",)
+                                    arg1="S", arg2=(self.tc.ww,), arg3=("'1',",)
                                 ),
                             )
                         )
@@ -118,6 +118,7 @@ class RptmainMod(GamsClass):
 
                 #  If running stochastics, streamline reports
                 if self.env.stages.upper() == "YES":
+                    # rptmain.mod:32: $BATINCLUDE rptmain.stc SOW %SWS% "'1'" ",'1')"
                     self.include(
                         RptmainStc(
                             self.tc,
@@ -126,9 +127,11 @@ class RptmainMod(GamsClass):
                             arg2=self.env.sws,
                             model_name=self.model_name,
                             arg1_GP=(self.tc.Sow,),
+                            arg3="'1'",
+                            arg4=",'1')",
+                            arg3_GP=("1",),
                         )
                     )
-                    # NOTE: RptmainStc takes only 2 args, but on L32, it is included with 3 arg3 = "'1'" ",'1')"
 
                 if self.env.etl.upper() == "YES":
                     self.include(AtlearnEtl(self.tc, self.env))

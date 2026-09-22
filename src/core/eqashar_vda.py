@@ -205,7 +205,7 @@ class EqasharVda(GamsClass):
                         )
                         # * timeslice S coarser than variable or finer than variable
                         * g.rs_fr[r, sl, ts]
-                        * (1 + g.rtcs_fr[r, t, Com, sl, ts]),
+                        * (1 + macro.rtcs_fr.rtcs_fr_GP(r, t, Com, sl, ts, sow)),
                     )
                     # * Allow referring to activity as well
                     + Sum(
@@ -233,7 +233,7 @@ class EqasharVda(GamsClass):
                                 ).where[~g.RpPgact[r, p]]
                             )
                             * g.rs_fr[r, sl, ts]
-                            * (1 + g.rtcs_fr[r, t, Com, sl, ts]),
+                            * (1 + macro.rtcs_fr.rtcs_fr_GP(r, t, Com, sl, ts, sow)),
                         ).where[g.RpPgflo[r, p]],
                     ).where[g.Actcg[cg2]]
                 ),
@@ -295,7 +295,7 @@ class EqasharVda(GamsClass):
             + Sum(
                 Domain(g.Top[g.RpcStg[r, p, c[cg]], "OUT"], g.RpcsVar[r, p, c, ts]),
                 g.rs_fr[r, s, ts]
-                * (1 + g.rtcs_fr[r, t, c, s, ts])
+                * (1 + macro.rtcs_fr.rtcs_fr_GP(r, t, c, s, ts, sow))
                 * VAR_SOUT[r, v, t, p, c, ts, *sow]
                 / g.prc_actflo[r, v, p, c],
             ).where[g.Actcg[cg2]],

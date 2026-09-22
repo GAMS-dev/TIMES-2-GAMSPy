@@ -23,7 +23,8 @@ from gamspy.math import power, same_as
 
 from core.base_class import GamsClass
 from core.prepparm_gms import PrepparmGmsConfig, prepparm
-from core.utils import generate_equation
+from core.utils import generate_equation, wrap_in_sum
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -357,58 +358,36 @@ class EqucrtpVda(GamsClass):
         sws = self.env.sws_GP
         sow = self.env.sow_GP
         swt = self.env.swt_GP
-        varv_id, varv_set = self.env.varv_GP
         vartt_id, vartt_set = self.env.vartt_GP
 
-        VAR_CAP = g.get_variable(f"{self.env.var}_CAP")
-        VAR_NCAP = g.get_variable(f"{self.env.var}_NCAP")
         VAR_ACT = g.get_variable(f"{self.env.var}_ACT")
-        VARV_CAP = g.get_variable(f"{varv_id}_CAP")
-        VARV_NCAP = g.get_variable(f"{varv_id}_NCAP")
         VARTT_ACT = g.get_variable(f"{vartt_id}_ACT")
         eqe_ucrtp = g.get_equation(f"{self.env.eq}{cc.arg2}_UCRTP")
 
-        shared_varv_cap = VARV_CAP[r, v, p, *sws]
-        VARV_CAP_expr = (
-            shared_varv_cap if varv_set is None else Sum(varv_set, shared_varv_cap)
-        )
-
-        shared_varv_ncap = VARV_NCAP[r, v, p, *sws]
-        VARV_NCAP_expr = (
-            shared_varv_ncap if varv_set is None else Sum(varv_set, shared_varv_ncap)
-        )
-
-        shared_vartt_act = VARTT_ACT[r, Modlyear, v, p, s, *sws]
-        VARTT_ACT_expr = (
-            shared_vartt_act if vartt_set is None else Sum(vartt_set, shared_vartt_act)
-        )
-
-        # TODO: self.env.mx is ignored
-        if self.env.mx != "":
-            raise NotImplementedError("MX is not implemented here yet.")
-
         eqe_ucrtp[ucn, Rtp[*r_t, p], ucgrptype, bd[*cc.arg4], *swt].where[
-            prc_dynuc[ucn, "RHS", r, t, p, ucgrptype, bd]
+            macro.prc_dynuc_mx.prc_dynuc_GP(ucn, "RHS", r, t, p, ucgrptype, bd)
         ] = generate_equation(
             (
                 # * Difference in capacity between previous and current period
                 Sum(
                     same_as(t - 1, v[tt]).where[Rtp[r, v, p]],
                     power(prc_dynuc[ucn, "LHS", r, t, p, ucgrptype, bd], lead[t])
-                    * VARV_CAP_expr,
+                    * macro.VAR_CAP_GP(self.env.varv_GP, r, v, p, sws),
                 )
                 * (1 - (Number(2)).where[Bdupx[bd]])
-                - VAR_CAP[r, t, p, *sow] * (1 - (Number(2)).where[Bdupx[bd]])
+                - macro.VAR_CAP_GP(self.env.var, r, t, p, sow)
+                * (1 - (Number(2)).where[Bdupx[bd]])
             ).where[same_as("CAP", ucgrptype)]
             + (
                 # * Difference in NCAP between previous and current period
                 Sum(
                     same_as(t - 1, v[tt]).where[Rtp[r, v, p]],
                     power(prc_dynuc[ucn, "LHS", r, t, p, ucgrptype, bd], lead[t])
-                    * VARV_NCAP_expr,
+                    * macro.VAR_NCAP_GP(self.env.varv_GP, r, v, p, sws),
                 )
                 * (1 - (Number(2)).where[Bdupx[bd]])
-                - VAR_NCAP[r, t, p, *sow] * (1 - (Number(2)).where[Bdupx[bd]])
+                - macro.VAR_NCAP_GP(self.env.var, r, t, p, sow)
+                * (1 - (Number(2)).where[Bdupx[bd]])
             ).where[same_as("NCAP", ucgrptype)]
             + (
                 # * Difference in ACT between previous and current period
@@ -417,7 +396,7 @@ class EqucrtpVda(GamsClass):
                     power(prc_dynuc[ucn, "LHS", r, t, p, ucgrptype, bd], lead[t])
                     * Sum(
                         Domain(RtpVintyr[r, Modlyear, v, p], PrcTs[r, p, s]),
-                        VARTT_ACT_expr,
+                        wrap_in_sum(VARTT_ACT[r, Modlyear, v, p, s, *sws], vartt_set),
                     ),
                 )
                 * (1 - (Number(2)).where[Bdupx[bd]])
@@ -489,19 +468,8 @@ class EqucrtpVda(GamsClass):
         VARTT_COMPRD = g.get_variable(f"{vartt_id}_COMPRD")
         eqe_ucrtc = g.get_equation(f"{self.env.eq}{cc.arg2}_UCRTC")
 
-        shared_vartt_comnet = VARTT_COMNET[r, Y, c, s, *sws]
-        VARTT_COMNET_expr = (
-            shared_vartt_comnet
-            if vartt_set is None
-            else Sum(vartt_set, shared_vartt_comnet)
-        )
-
-        shared_vartt_comprd = VARTT_COMPRD[r, Y, c, s, *sws]
-        VARTT_COMPRD_expr = (
-            shared_vartt_comprd
-            if vartt_set is None
-            else Sum(vartt_set, shared_vartt_comprd)
-        )
+        VARTT_COMNET_expr = wrap_in_sum(VARTT_COMNET[r, Y, c, s, *sws], vartt_set)
+        VARTT_COMPRD_expr = wrap_in_sum(VARTT_COMPRD[r, Y, c, s, *sws], vartt_set)
 
         eqe_ucrtc[ucn, comvar, Rtc[*r_t, c], Annual[s], bd[*cc.arg4], *swt].where[
             uc_com[ucn, comvar, "RHS", Rtc, s, "UCN"] & UcDynbnd[ucn, bd]

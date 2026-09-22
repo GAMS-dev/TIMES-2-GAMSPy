@@ -24,6 +24,8 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from gamspy import Domain, Number, Sum
 
+from utils.macros import macro_config as macro
+
 if TYPE_CHECKING:
     from gamspy import Variable
     from gamspy._algebra.condition import Condition
@@ -135,7 +137,7 @@ def cal_red_red_GP(
                 * shp1
             )
             * g.rs_fr[r, allts, s2]
-            * (1 + g.rtcs_fr[r, cc.arg5, cc.arg2, allts, s2]),
+            * (1 + macro.rtcs_fr.rtcs_fr_GP(r, cc.arg5, cc.arg2, allts, s2, cc.sow)),
         ).where[g.RpcFfunc[r, cc.arg4, com2]]
     )
     emis_term = Sum(
@@ -147,7 +149,7 @@ def cal_red_red_GP(
             * cc.arg10
         )
         * g.rs_fr[r, cc.arg3, allts]
-        * (1 + g.rtcs_fr[r, cc.arg5, com2, cc.arg3, allts]),
+        * (1 + macro.rtcs_fr.rtcs_fr_GP(r, cc.arg5, com2, cc.arg3, allts, cc.sow)),
     ).where[g.RpcEmis[r, cc.arg4, cc.arg1]]
 
     # *  flow variable equals activity variable
@@ -167,7 +169,7 @@ def cal_red_red_GP(
             * shp2
         )
         * g.rs_fr[r, cc.arg3, s2]
-        * (1 + g.rtcs_fr[r, cc.arg5, cc.arg2, cc.arg3, s2]),
+        * (1 + macro.rtcs_fr.rtcs_fr_GP(r, cc.arg5, cc.arg2, cc.arg3, s2, cc.sow)),
     ).where[g.RpcFfunc[r, cc.arg4, cc.arg1]]
 
     return (
@@ -234,10 +236,10 @@ def cal_red_red(
          SUM((RPC_ACT(R,{arg4},{arg2}),PRC_TS2(R,{arg4},S2))$RS_FR(R,ALL_TS,S2),
              (
               {var}_ACT{arg6}(R,{vnt},{arg5},{arg4},S2{sow}) * ACT_FLO(R,{vnt},{arg4},COM2,ALL_TS){shp1}
-             ) * RS_FR(R,ALL_TS,S2)*(1+RTCS_FR(R,{arg5},{arg2},ALL_TS,S2))
+             ) * RS_FR(R,ALL_TS,S2)*(1+{macro.rtcs_fr.rtcs_fr("R", arg5, arg2, "ALL_TS", "S2")})
             )$RPC_FFUNC(R,{arg4},COM2)
         ) * COEF_PTRAN(R,{vnt},{arg4},CG1,COM2,{arg1},ALL_TS){shp3} {arg10}
-       ) * RS_FR(R,{arg3},ALL_TS)*(1+RTCS_FR(R,{arg5},COM2,{arg3},ALL_TS))
+       ) * RS_FR(R,{arg3},ALL_TS)*(1+{macro.rtcs_fr.rtcs_fr("R", arg5, "COM2", arg3, "ALL_TS")})
       )$RPC_EMIS(R,{arg4},{arg1})
    )$(NOT RPC_ACT(R,{arg4},{arg1})+RPC_FFUNC(R,{arg4},{arg1}))
    +
@@ -247,7 +249,7 @@ def cal_red_red(
    SUM((RPC_ACT(R,{arg4},{arg2}),PRC_TS2(R,{arg4},S2))$RS_FR(R,{arg3},S2),
        (
        {arg8}({arg9} {var}_ACT{arg6}(R,{vnt},{arg5},{arg4},S2{sow}) {arg10} * ACT_FLO(R,{vnt},{arg4},{arg1},{arg3}){shp2})
-       ) * RS_FR(R,{arg3},S2)*(1+RTCS_FR(R,{arg5},{arg2},{arg3},S2))
+       ) * RS_FR(R,{arg3},S2)*(1+{macro.rtcs_fr.rtcs_fr("R", arg5, arg2, arg3, "S2")})
     )$RPC_FFUNC(R,{arg4},{arg1})
 )
 """

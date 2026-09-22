@@ -20,6 +20,8 @@ from typing import TYPE_CHECKING
 
 from gamspy import Domain, Sum
 
+from utils.macros import macro_config as macro
+
 if TYPE_CHECKING:
     from gamspy._algebra.condition import Condition
     from gamspy._algebra.expression import Expression
@@ -56,29 +58,27 @@ def cal_caps_mod_GP(g: TimesModelClass, config: CalCapsModConfig) -> Sum:
     """
     cc = config
     r, v, p, c, s, ts, io = g.r, g.v, g.p, g.c, g.s, g.ts, g.io
-    varv_id, varv_set = cc.varv
-    varm_id, varm_set = cc.varm
-    VARV_NCAP = g.get_variable(f"{varv_id}_NCAP")
-    VARM_SCAP = g.get_variable(f"{varm_id}_SCAP")
-    varv_ncap = VARV_NCAP.l if cc.is_output else VARV_NCAP
-    varm_scap = VARM_SCAP.l if cc.is_output else VARM_SCAP
-
-    ncap_expr = varv_ncap[r, v, p, *cc.sws]
-    ncap = ncap_expr if varv_set is None else Sum(varv_set, ncap_expr)
-
-    scap_expr = varm_scap[r, v, cc.arg1, p, *cc.sws]
-    scap = scap_expr if varm_set is None else Sum(varm_set, scap_expr)
 
     # SUM(RPCS_VAR(R,P,C,%3), RS_FR(R,TS,S) * %2)
     coefficient = Sum(g.RpcsVar[r, p, c, cc.arg3], g.rs_fr[r, ts, s] * cc.arg2)
 
     invest_decom = g.coef_icom[r, v, cc.arg1, p, c] + g.coef_ocom[r, v, cc.arg1, p, c]
     # * Flows related to existing capacity over lifetime
-    installed = ncap.where[g.t[v]] + g.ncap_pasti[r, v, p]
+    installed = (
+        macro.VAR_NCAP_GP(cc.varv, r, v, p, cc.sws, is_output=cc.is_output).where[
+            g.t[v]
+        ]
+        + g.ncap_pasti[r, v, p]
+    )
     if cc.is_vnret_defined:
         installed = (
             installed
-            - Sum(g.Vnret[v, g.Modlyear[cc.arg1]], scap).where[g.PrcRcap[r, p]]
+            - Sum(
+                g.Vnret[v, g.Modlyear[cc.arg1]],
+                macro.VAR_SCAP_GP(
+                    cc.varm, r, v, cc.arg1, p, cc.sws, is_output=cc.is_output
+                ),
+            ).where[g.PrcRcap[r, p]]
         )
 
     # *V05c 980923 - use the capacity flow control set
@@ -89,7 +89,12 @@ def cal_caps_mod_GP(g: TimesModelClass, config: CalCapsModConfig) -> Sum:
         (
             invest_decom
             * g.g_yrfr[r, s]
-            * (ncap.where[g.Milestonyr[v]] + g.ncap_pasti[r, v, p])
+            * (
+                macro.VAR_NCAP_GP(
+                    cc.varv, r, v, p, cc.sws, is_output=cc.is_output
+                ).where[g.Milestonyr[v]]
+                + g.ncap_pasti[r, v, p]
+            )
             * coefficient
         ).where[invest_decom]
         + Sum(

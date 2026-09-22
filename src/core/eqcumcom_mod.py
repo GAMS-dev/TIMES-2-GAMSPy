@@ -22,7 +22,8 @@ from gamspy import Ord, Sum
 from gamspy.math import Max, Min
 
 from core.base_class import GamsClass
-from core.utils import generate_equation
+from core.utils import generate_equation, wrap_in_sum
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -103,13 +104,9 @@ class EqcumcomMod(GamsClass):
         vartt_id, vartt_set = self.env.vartt_GP
 
         Rtc = g.get_set(f"RTC_{self.arg2}")
-        VAR_CUMCOM = g.get_variable(f"{self.env.var}_CUMCOM")
         VARTT_COM = g.get_variable(f"{vartt_id}_COM{self.arg2}")
 
-        shared_vartt_com = VARTT_COM[r, t, c, s, *sws]
-        VARRT_COM_expr = (
-            shared_vartt_com if vartt_set is None else Sum(vartt_set, shared_vartt_com)
-        )
+        VARRT_COM_expr = wrap_in_sum(VARTT_COM[r, t, c, s, *sws], vartt_set)
 
         if self.env.obj.upper() != "LIN":
             condition = (e[t] >= yearval[allyear]).where[b[t] <= yearval[ll]]
@@ -128,7 +125,7 @@ class EqcumcomMod(GamsClass):
                 Tpulse[t, year],
             )
 
-        eq_cum = g.get_equation(f"{self.env.eq}_CUM{self.arg2}")
+        eq_cum, sow = macro.EQ_CUM_GP(self.env.eq, self.arg2, sow)
 
         eq_cum[Rc[r, c], allyear, ll, *sow].where[
             RcCumcom[r, self.arg2, allyear, ll, c]
@@ -142,5 +139,5 @@ class EqcumcomMod(GamsClass):
                 ),
             ),
             self.sense,
-            VAR_CUMCOM[r, c, self.arg2, allyear, ll, *sow],
+            macro.VAR_CUMCOM_GP(self.env.var, r, c, self.arg2, allyear, ll, sow),
         )

@@ -18,9 +18,15 @@ from core.bnd_ucw_mod import bnd_ucw_mod
 from core.par_uc_rpt import declare_par_uc_rpt_params
 from core.rpt_dam_mod import rpt_dam_mod
 from core.rpt_par_cli import rpt_par_cli
-from core.rptlite_rpt import RptliteRpt, RptliteRptConfig, rptlite_rpt
+from core.rptlite_rpt import (
+    SOL_FLO_RED_V_SCOPE,
+    RptliteRpt,
+    RptliteRptConfig,
+    rptlite_rpt,
+)
 from core.sensis_stc import sensis_stc
 from core.solve_mod import solve_mod, solve_mod_GP
+from core.utils import apply_v_scope
 
 if TYPE_CHECKING:
     from gamspy import Equation
@@ -96,6 +102,10 @@ class SolveStc(GamsClass):
             # rptlite_rpt() below embeds par_uc_rpt()'s assignments into "run"-phase code
             declare_par_uc_rpt_params(self.tc)
 
+        # Snapshot V (sol_flo.red:11's SET%4 V VAR) right before the call
+        # below, matching sol_flo_red.py's own SolFloRed.compile().
+        apply_v_scope(self.env, SOL_FLO_RED_V_SCOPE, self.env.var)
+
         rptlite_no_code = (
             rptlite_rpt(
                 config=RptliteRptConfig(
@@ -109,6 +119,7 @@ class SolveStc(GamsClass):
                 obmac=self.env.obmac,
                 abs_=self.env.abs,
                 var=self.env.var,
+                v=self.env.v,
                 pgprim=self.env.pgprim,
                 bencost=self.env.bencost,
                 rtp_ffcs_defined=self.tc.defined("RTP_FFCS"),

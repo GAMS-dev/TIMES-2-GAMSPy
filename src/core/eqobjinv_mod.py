@@ -624,11 +624,8 @@ class EqobjinvMod(GamsClass):
         KEoh, Y, obv = g.KEoh, g.Y, g.obv
         ObjSumii, ObjSumiii, Invspred = g.ObjSumii, g.ObjSumiii, g.Invspred
 
-        eq_objinv = g.get_equation(f"{eq}_OBJINV")
+        eq_objinv, sow = macro.EQ_OBJINV_GP(eq, sow)
         vart_id, vart_set = vart
-        varv_id, varv_set = varv
-        VART_NCAP = g.get_variable(f"{vart_id}_NCAP")
-        VARV_NCAP = g.get_variable(f"{varv_id}_NCAP")
         VAR_OBJ = g.get_variable(f"{var}_OBJ")
 
         def icost_net(year: Set | Alias) -> Expression:
@@ -650,7 +647,7 @@ class EqobjinvMod(GamsClass):
             * Sum(Invspred[KEoh, jot, Y, k], g.obj_disc[r, k, cur] * icost_net(k))
             * g.cor_salvi[r, t, p, cur]
             / g.obj_divi[r, t, p]
-            * wrap_in_sum(VART_NCAP[r, t, p, *sws], vart_set)
+            * macro.VAR_NCAP_GP(vart, r, t, p, sws)
         )
         if etl_yes:
             # * handle ETL
@@ -673,7 +670,6 @@ class EqobjinvMod(GamsClass):
         )
 
         if stages_yes:
-            VAR_NCAP = g.get_variable(f"{var}_NCAP")
             lhs = lhs + Sum(
                 Domain(
                     ObjSumii[r, t, p, life, KEoh, jot], g.SwTsw[g.Sow, t, g.ww]
@@ -688,7 +684,7 @@ class EqobjinvMod(GamsClass):
                 * g.obj_sic[r, t, p, g.ww]
                 * g.cor_salvi[r, t, p, cur]
                 / g.obj_divi[r, t, p]
-                * VAR_NCAP[r, t, p, *swd],
+                * macro.VAR_NCAP_GP(var, r, t, p, swd),
             )
 
         # * PASTI charge
@@ -714,7 +710,7 @@ class EqobjinvMod(GamsClass):
             * g.cor_salvd[r, v, p, cur]
             * macro.obj_dcost_GP(r, k, p, cur)
             * (
-                wrap_in_sum(VARV_NCAP[r, v, p, *sws], varv_set).where[g.Milestonyr[v]]
+                macro.VAR_NCAP_GP(varv, r, v, p, sws).where[g.Milestonyr[v]]
                 + g.obj_pasti[r, v, p, cur].where[g.Pastyear[v]]
             )
             / g.obj_diviii[r, v, p],

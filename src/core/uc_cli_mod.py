@@ -59,23 +59,21 @@ def inner_sum(
 
     var_id, domain = extract_var_domain(var)
 
-    var_clitot = wrap_in_sum(
-        target=g.get_variable(name=f"{var_id}_CLITOT"), domain=domain
-    )
-    var_clibox = wrap_in_sum(
-        target=g.get_variable(name=f"{var_id}_CLIBOX"), domain=domain
-    )
+    var_clitot = g.get_variable(name=f"{var_id}_CLITOT")
+    var_clibox = g.get_variable(name=f"{var_id}_CLIBOX")
 
     return Sum(
         g.CmVar.where[g.uc_cli[g.ucn, cc.arg5, g.r, cc.arg7, g.CmVar]],
         g.uc_cli[g.ucn, cc.arg5, g.r, cc.arg7, g.CmVar]
         * (
-            var_clitot[g.CmVar, cc.arg4, *sow_GP].where[g.CmKind[g.CmVar]]
+            wrap_in_sum(var_clitot[g.CmVar, cc.arg4, *sow_GP], domain).where[
+                g.CmKind[g.CmVar]
+            ]
             + Sum(
                 g.CmBoxmap[g.CmKind, g.CmVar, g.CmBox].where[
                     (~(g.CmAtmap[g.CmKind, g.CmVar].where[g.CmEmis[g.CmKind]]))
                 ],
-                var_clibox[g.CmVar, g.CmBox, cc.arg4, *sow_GP],
+                wrap_in_sum(var_clibox[g.CmVar, g.CmBox, cc.arg4, *sow_GP], domain),
             )
             + Sum(
                 g.CmBoxmap[g.CmEmis, g.CmHists, g.CmBox].where[
@@ -85,7 +83,8 @@ def inner_sum(
                         ]
                     )
                 ],
-                var_clibox[g.CmVar, g.CmBox, cc.arg4, *sow_GP] / g.cm_ppm[g.CmEmis],
+                wrap_in_sum(var_clibox[g.CmVar, g.CmBox, cc.arg4, *sow_GP], domain)
+                / g.cm_ppm[g.CmEmis],
             ).where[(~(g.CmTkind[g.CmVar]))]
         )
         * Product(g.Annual, 1.0)

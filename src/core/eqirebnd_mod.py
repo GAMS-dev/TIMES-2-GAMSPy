@@ -23,7 +23,8 @@ from typing import TYPE_CHECKING, Literal
 from gamspy import Domain, Expression, Number, Sum
 
 from core.base_class import GamsClass
-from core.utils import generate_equation, get_callable_parameter_type
+from core.utils import generate_equation
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -75,10 +76,6 @@ class EqirebndMod(GamsClass):
         VAR_ACT = g.get_variable(f"{self.env.var}_ACT")
         VAR_IRE = g.get_variable(f"{self.env.var}_IRE")
 
-        CALLABLE_RTCS_FR_REG = get_callable_parameter_type(
-            g.rtcs_fr, g.Reg, t, com, allts, ts
-        )
-
         eq = g.get_equation(f"{self.env.eq}{cc.arg1}_IREBND")
 
         # V0.5b 980902 - avoid equations if LO=0/UP=INF
@@ -116,7 +113,12 @@ class EqirebndMod(GamsClass):
                             * g.ire_tscvt[g.Reg, allts, r, sl]
                             * g.rs_fr[g.Reg, allts, ts]
                             # bound coarser than variable or bound finer than variable
-                            * (1 + CALLABLE_RTCS_FR_REG),
+                            * (
+                                1
+                                + macro.rtcs_fr.rtcs_fr_GP(
+                                    g.Reg, t, com, allts, ts, sow
+                                )
+                            ),
                         )
                         * (
                             Number(1).where[g.TsMap[r, s, sl]]
@@ -181,7 +183,7 @@ class EqirebndMod(GamsClass):
                         * g.ire_ccvt[g.Reg, com, r, c]
                         * g.ire_tscvt[g.Reg, allts, r, s]
                         * g.rs_fr[g.Reg, allts, ts]
-                        * (1 + CALLABLE_RTCS_FR_REG),
+                        * (1 + macro.rtcs_fr.rtcs_fr_GP(g.Reg, t, com, allts, ts, sow)),
                     ),
                 )
                 +
