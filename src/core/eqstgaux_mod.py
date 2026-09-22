@@ -44,7 +44,7 @@ class EqstgauxMod(GamsClass):
     def compile(self) -> None:
         g = self.tc
 
-        rts = macro.rts(s="S", g=g, env=self.env)
+        rts = macro.rts_GP(s=g.s, g=g, env=self.env)
         r_v_t = self.env.r_v_t_GP
         swt = self.env.swt_GP
         sow = self.env.sow_GP
@@ -55,7 +55,7 @@ class EqstgauxMod(GamsClass):
         VAR_SIN = g.get_variable(f"{self.env.var}_SIN")
         VAR_SOUT = g.get_variable(f"{self.env.var}_SOUT")
 
-        eq[g.RtpVintyr[r_v_t, g.p], g.c, rts, *swt].where[
+        eq[g.RtpVintyr[*r_v_t, g.p], g.c, rts, *swt].where[
             (
                 (
                     g.RpcsVar[g.r, g.p, g.c, g.s]
