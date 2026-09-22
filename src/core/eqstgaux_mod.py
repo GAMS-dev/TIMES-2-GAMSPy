@@ -131,7 +131,7 @@ class EqstgauxMod(GamsClass):
                 * g.coef_ptran[g.r, g.v, g.p, g.cg, g.Com, g.c, g.ts]
             ).where[((~(g.PrcMap[g.r, "NST", g.p])) + g.PrcNstts[g.r, g.p, g.ts])]
             * g.rs_fr[g.r, g.s, g.ts]
-            * (1.0 + g.rtcs_fr[g.r, g.t, g.c, g.s, g.ts]),
+            * (1.0 + macro.rtcs_fr.rtcs_fr_GP(g.r, g.t, g.c, g.s, g.ts, sow)),
         ) + Sum(
             Domain(
                 g.ComGmap[g.r, g.cg, g.c],
@@ -154,5 +154,5 @@ class EqstgauxMod(GamsClass):
                 )
             ]
             * g.rs_fr[g.r, g.s, g.ts]
-            * (1.0 + g.rtcs_fr[g.r, g.t, g.c, g.s, g.ts]),
+            * (1.0 + macro.rtcs_fr.rtcs_fr_GP(g.r, g.t, g.c, g.s, g.ts, sow)),
         )
