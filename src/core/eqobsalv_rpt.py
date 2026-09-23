@@ -18,6 +18,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter
+
 from core.base_class import GamsClass
 from utils.macros import macro_config as macro
 
@@ -48,14 +50,12 @@ class EqobsalvRpt(GamsClass):
     def compile(self) -> None:
         self.tc.enqueue(self.exec1, etl=self.env.etl)
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="""
-PARAMETER PAR_OBJCAP(R,YEAR,PRC,CUR) //;
-PARAMETER COEF_OBJINV(R,YEAR,PRC)    //;
-""",
+        g = self.tc
+        m = g.container
+        g.par_objcap = Parameter(
+            m, name="PAR_OBJCAP", domain=[g.r, g.year, g.prc, g.cur]
         )
+        g.coef_objinv = Parameter(m, name="COEF_OBJINV", domain=[g.r, g.year, g.prc])
 
         self.tc.enqueue(self.exec2, capjd=self.env.capjd)
 
