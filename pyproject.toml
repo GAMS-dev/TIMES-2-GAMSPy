@@ -35,6 +35,7 @@ source = ["src"]
 
 [tool.coverage.report]
 show_missing = true
+precision = 2
 
 [tool.coverage.xml]
 output = "coverage.xml"
