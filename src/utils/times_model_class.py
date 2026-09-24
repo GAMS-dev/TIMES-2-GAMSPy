@@ -489,6 +489,8 @@ class TimesModelClass:
     wwdam: Set = None  # type: ignore[assignment] # [*] WWDAM: Commodities damaged via total concentration/box rather than flow
     rtdam: Set = None  # type: ignore[assignment] # [Reg,allyear,Com,allsow] RTDAM: Region/period/commodity/SOW triples with an active damage cost
     sww: Set = None  # type: ignore[assignment] # [allsow,allsow] SWW: SOW-pair projection of SW_TSW, used to weight damage cost across sample windows
+    Jsubj: Set = None  # type: ignore[assignment] # [j,j] JSUBJ: All steps up to J
+    DamNum: Set = None  # type: ignore[assignment] # [r,c,j,bd] DAM_NUM: Damage steps per bound type
     rpt_opt: Parameter = None  # type: ignore[assignment] # [item,j] RPT_OPT: Reporting options
     cst_dam: Parameter = None  # type: ignore[assignment] # [Reg,t,Com] CST_DAM: Damage costs
     scst_dam: Parameter = None  # type: ignore[assignment] # [Reg,t,Com] CST_DAM: Damage costs
