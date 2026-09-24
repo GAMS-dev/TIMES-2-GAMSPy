@@ -32,6 +32,7 @@ from gamspy import (
 from core.base_class import GamsClass
 from core.err_stat_mod import ErrStatMod
 from core.pp_clean_mod import pp_clean_mod
+from core.utils import model_status_symbol
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -168,6 +169,7 @@ def solve_times(
         sense="MAX",
         objective=module.tc.VAR_UTIL,
     )
+    module.tc.model_status_GP = model_status_symbol(model)
 
     # dump the algebraic model representation before the real solve, mirroring
     # solve_times_as_lp_mip's convert step for the LP/MIP path
@@ -204,6 +206,7 @@ def solve_times_as_lp_mip(
         sense="MIN",
         objective=obj,
     )
+    module.tc.model_status_GP = model_status_symbol(model)
 
     set_options({"VALIDATION": 0})
 
@@ -240,12 +243,19 @@ def solve_times_as_lp_mip(
         # fake model status in GAMS -- declared once as a real symbol (not via
         # raw GAMS text) so the declaration never ends up textually nested
         # inside a caller's LOOP/IF, where GAMS forbids declarations.
-        if "savepointModelstat" not in module.tc.container.listSymbols():
-            Parameter(module.tc.container, name="savepointModelstat", records=0)
+        if "savepointModelstat" in module.tc.container.listSymbols():
+            savepoint_modelstat: Parameter = module.tc.container.getParameter(
+                "savepointModelstat"
+            )
+        else:
+            savepoint_modelstat = Parameter(
+                module.tc.container, name="savepointModelstat", records=0
+            )
         module.tc.container.addGamsCode(f"""
 execute_load '{modelstat_gdx}', savepointModelstat;
 {model_name}.modelstat = savepointModelstat;
 """)
+        module.tc.model_status_GP[...] = savepoint_modelstat
 
         # fake model status in GAMSPy
         modelstat_container = Container(load_from=modelstat_gdx)

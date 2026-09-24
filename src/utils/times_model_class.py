@@ -59,6 +59,9 @@ class TimesModelClass:
     # POST-INIT VARIABLES
     logger: logging.Logger = field(init=False)
     container: Container = field(init=False)
+    # Live %MODEL_NAME%.MODELSTAT of the most recently built Model, see
+    # core.utils.model_status_symbol
+    model_status_GP: Parameter = field(init=False)
 
     # region TIMES symbols
     allts: Set = None  # type: ignore[assignment] # [*] ALL_TS: The universe for time-slices

@@ -21,17 +21,19 @@ from typing import TYPE_CHECKING
 from core.base_class import GamsClass
 
 # from core.rpt_chp_ire import RrpChpIre
-from core.cost_ann_rpt import CostAnnRpt, CostAnnRptConfig
+from core.cost_ann_rpt import CostAnnRpt, CostAnnRptConfig, arg2_repr
 from core.ddfupd_msa import ddfupd_msa
 from core.par_uc_rpt import ParUcRpt, ParUcRptConfig
 from core.rpt_obj_rpt import RptObjRpt
 from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
-from core.rptmisc_rpt import RptmiscRpt
+from core.rptmisc_rpt import RptmiscRpt, RptmiscRptConfig
 from core.sol_flo_red import SolFloRed, SolFloRedConfig
 from core.sol_ire_rpt import SolIreRpt
 from core.writeddf_msa import writeddf_msa
 
 if TYPE_CHECKING:
+    from gamspy import Alias, Set
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -51,7 +53,7 @@ class RptmainTm(GamsClass):
         env: CompileEnvironment,
         arg1: str = "",
         arg2: str = "",
-        arg3: str = "",
+        arg3: tuple[Set | Alias | str, ...] | tuple[()] = (),
     ):
         self.env = env.fork()
         self._sub_modules = {}
@@ -112,23 +114,30 @@ class RptmainTm(GamsClass):
                 self.tc,
                 self.env,
                 arg1=self.arg1,
-                arg2=self.arg3,
+                arg2=arg2_repr(self.arg3),
                 arg3="",
                 arg4="",
                 arg5="0",
             )
         )
         # $ BATINCLUDE cost_ann.rpt '%1' "%3"
-        if self.arg3 != "":
-            raise NotImplementedError(
-                "rptmain.tm: a SOW index (%3) for cost_ann.rpt is not supported."
-            )
         self.include(
-            CostAnnRpt(self.tc, self.env, config=CostAnnRptConfig(arg1=self.arg1))
+            CostAnnRpt(
+                self.tc,
+                self.env,
+                config=CostAnnRptConfig(arg1=self.arg1, arg2=self.arg3),
+            )
         )
 
         # * Miscellaneous reportings
-        self.include(RptmiscRpt(self.tc, self.env, arg1=self.arg1, arg2=self.arg3))
+        # $ BATINCLUDE rptmisc.rpt '%1' "%3"
+        self.include(
+            RptmiscRpt(
+                self.tc,
+                self.env,
+                config=RptmiscRptConfig(arg1=self.arg1, arg2=self.arg3),
+            )
+        )
         self.tc.enqueue(self.exec_miscellaneous_reportings)
 
         # * CHP-related reporting parameters
