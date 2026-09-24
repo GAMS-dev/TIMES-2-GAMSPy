@@ -22,6 +22,18 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import (
+    Alias,
+    Domain,
+    Loop,
+    Number,
+    Parameter,
+    Set,
+    SpecialValues,
+    Sum,
+    sparse,
+)
+
 from core.base_class import GamsClass
 from core.eqobjels_rpt import EqobjelsRpt, EqobjelsRptConfig
 from core.eqobjfix_rpt import EqobjfixRpt
@@ -30,6 +42,7 @@ from core.eqobjvar_rpt import EqobjvarRpt, EqobjvarRptConfig
 from core.eqobsalv_rpt import EqobsalvRpt
 from core.par_uc_rpt import ParUcRpt, ParUcRptConfig
 from core.sol_flo_red import SolFloRed, SolFloRedConfig
+from core.sol_ire_rpt import SolIreRpt
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -76,8 +89,7 @@ class RptmainRpt(GamsClass):
 
         self.tc.enqueue(self.exec_loop)
 
-        # self.include(SolIreRed(self.tc, self.env))
-        raise FileNotFoundError("sol_ire.rpt not found in TIMES source")
+        self.include(SolIreRpt(self.tc, self.env))
 
         # * Calculation of annual cost terms
         self.include(EqobjinvRpt(self.tc, self.env))
@@ -101,38 +113,34 @@ class RptmainRpt(GamsClass):
         # * Include explicit EPS values for zero flows
         self.tc.enqueue(self.exec_objective_values, self.env.supzero)
 
+        m = g.container
+        r, allyear, cur, p, c, ts = g.r, g.allyear, g.cur, g.p, g.c, g.ts
         # **Aggregate Undiscounted Costs w/out CUR
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="""
-PARAMETER TOT_OBJV(R,ALLYEAR) //;
-""",
-        )
+        g.tot_objv = Parameter(m, name="TOT_OBJV", domain=[r, allyear])
         self.tc.enqueue(self.exec1)
 
         # * Discounted objective value by region
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="""
-PARAMETER REG_OBJ(REG) //;
-""",
-        )
+        if not g.declared(g.reg_obj):
+            g.reg_obj = Parameter(m, name="REG_OBJ", domain=[g.Reg])
         self.tc.enqueue(self.exec2)
 
         # *calculate discounting for the period
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="""
-PARAMETER VDA_DISC(R,ALLYEAR) //;
-""",
-        )
+        if not g.declared(g.vda_disc):
+            g.vda_disc = Parameter(m, name="VDA_DISC", domain=[r, allyear])
         self.tc.enqueue(self.exec3)
 
         # * Annual undiscounted costs by process/commodity w/out CUR
-        self.comp_parameter_declarations()
+        g.cst_invv = Parameter(m, name="CST_INVV", domain=[r, allyear, allyear, p])
+        g.cst_decv = Parameter(m, name="CST_DECV", domain=[r, allyear, allyear, p])
+        g.cst_fixv = Parameter(m, name="CST_FIXV", domain=[r, allyear, allyear, p])
+        g.cst_salv = Parameter(m, name="CST_SALV", domain=[r, allyear, p])
+        g.cst_latv = Parameter(m, name="CST_LATV", domain=[r, allyear, p])
+        g.cst_actv = Parameter(m, name="CST_ACTV", domain=[r, allyear, allyear, p, ts])
+        g.cst_flov = Parameter(
+            m, name="CST_FLOV", domain=[r, allyear, allyear, p, c, ts]
+        )
+        g.cst_comv = Parameter(m, name="CST_COMV", domain=[r, allyear, c, ts])
+        g.cst_elsv = Parameter(m, name="CST_ELSV", domain=[r, allyear, c])
 
         self.tc.enqueue(self.exec4)
 
@@ -154,323 +162,477 @@ PARAMETER VDA_DISC(R,ALLYEAR) //;
         self.tc.enqueue(self.exec_options)
 
         # * Add regional total discounted cost paramete
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="""
- PARAMETER REG_WOBJ(REG,ITEM,CUR)     //;
-""",
-        )
+        if not g.declared(g.reg_wobj):
+            g.reg_wobj = Parameter(m, name="REG_WOBJ", domain=[g.Reg, g.item, cur])
         self.tc.enqueue(self.exec6, self.env.timesed)
 
     def comp_declarations(
         self: RptmainRpt,
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="""
-* Declarations
- PARAMETER PAR_CAPL(R,T,P);
- PARAMETER PAR_CAPM(R,T,P);
- PARAMETER PAR_PASTI(R,T,P);
- PARAMETER PAR_CAPLO(R,T,P);
- PARAMETER PAR_CAPUP(R,T,P);
- PARAMETER PAR_NCAPL(R,ALLYEAR,P);
- PARAMETER PAR_NCAPM(R,ALLYEAR,P);
- PARAMETER PAR_ACTL(REG,ALLYEAR,ALLYEAR,PRC,ALL_TS);
- PARAMETER PAR_ACTM(REG,ALLYEAR,ALLYEAR,PRC,ALL_TS);
- PARAMETER PAR_COMPRDL(R,ALLYEAR,C,S);
- PARAMETER PAR_COMPRDM(R,ALLYEAR,C,S);
- PARAMETER PAR_COMNETL(R,ALLYEAR,C,S);
- PARAMETER PAR_COMNETM(R,ALLYEAR,C,S);
- PARAMETER PAR_COMBALEM(R,ALLYEAR,C,S);
- PARAMETER PAR_COMBALGM(R,ALLYEAR,C,S);
- PARAMETER PAR_PEAKM(R,ALLYEAR,COM_GRP,S);
- PARAMETER PAR_UCLOM(UC_N,*,*,*);
- PARAMETER PAR_UCUPM(UC_N,*,*,*);
- PARAMETER PAR_UCFXM(UC_N,*,*,*);
- PARAMETER F_IN(R,ALLYEAR,T,P,C,S);
- PARAMETER F_OUT(R,ALLYEAR,T,P,C,S);
- PARAMETER F_INOUT(R,ALLYEAR,T,P,C,IO);
- PARAMETER F_INOUTS(R,ALLYEAR,T,P,C,TS,IO);
- SET F_IOSET(R,ALLYEAR,T,P,C,TS,IO);
+        g = self.tc
+        m = g.container
+        r, t, p, c, s, io, allyear, cur = (
+            g.r,
+            g.t,
+            g.p,
+            g.c,
+            g.s,
+            g.io,
+            g.allyear,
+            g.cur,
+        )
+        # * Declarations
+        g.par_capl = Parameter(m, name="PAR_CAPL", domain=[r, t, p])
+        g.par_capm = Parameter(m, name="PAR_CAPM", domain=[r, t, p])
+        g.par_pasti = Parameter(m, name="PAR_PASTI", domain=[r, t, p])
+        g.par_caplo = Parameter(m, name="PAR_CAPLO", domain=[r, t, p])
+        g.par_capup = Parameter(m, name="PAR_CAPUP", domain=[r, t, p])
+        g.par_ncapl = Parameter(m, name="PAR_NCAPL", domain=[r, allyear, p])
+        g.par_ncapm = Parameter(m, name="PAR_NCAPM", domain=[r, allyear, p])
+        g.par_actl = Parameter(
+            m, name="PAR_ACTL", domain=[g.Reg, allyear, allyear, g.prc, g.allts]
+        )
+        g.par_actm = Parameter(
+            m, name="PAR_ACTM", domain=[g.Reg, allyear, allyear, g.prc, g.allts]
+        )
+        g.par_comprdl = Parameter(m, name="PAR_COMPRDL", domain=[r, allyear, c, s])
+        g.par_comprdm = Parameter(m, name="PAR_COMPRDM", domain=[r, allyear, c, s])
+        g.par_comnetl = Parameter(m, name="PAR_COMNETL", domain=[r, allyear, c, s])
+        g.par_comnetm = Parameter(m, name="PAR_COMNETM", domain=[r, allyear, c, s])
+        g.par_combalem = Parameter(m, name="PAR_COMBALEM", domain=[r, allyear, c, s])
+        g.par_combalgm = Parameter(m, name="PAR_COMBALGM", domain=[r, allyear, c, s])
+        g.par_peakm = Parameter(m, name="PAR_PEAKM", domain=[r, allyear, g.comgrp, s])
+        g.par_uclom = Parameter(m, name="PAR_UCLOM", domain=[g.ucn, "*", "*", "*"])
+        g.par_ucupm = Parameter(m, name="PAR_UCUPM", domain=[g.ucn, "*", "*", "*"])
+        g.par_ucfxm = Parameter(m, name="PAR_UCFXM", domain=[g.ucn, "*", "*", "*"])
+        g.f_in = Parameter(m, name="F_IN", domain=[r, allyear, t, p, c, s])
+        g.f_out = Parameter(m, name="F_OUT", domain=[r, allyear, t, p, c, s])
+        if not g.declared(g.f_inout):
+            g.f_inout = Parameter(m, name="F_INOUT", domain=[r, allyear, t, p, c, io])
+        if not g.declared(g.f_inouts):
+            g.f_inouts = Parameter(
+                m, name="F_INOUTS", domain=[r, allyear, t, p, c, g.ts, io]
+            )
+        if not g.declared(g.FIoset):
+            g.FIoset = Set(m, name="F_IOSET", domain=[r, allyear, t, p, c, g.ts, io])
 
- PARAMETERS
-   TOT_INV(R,ALLYEAR,CUR)  'Total annual disocunted investment costs'      //
-   TOT_DEC(R,ALLYEAR,CUR)  'Total annual disocunted decommissioning costs' //
-   TOT_FIX(R,ALLYEAR,CUR)  'Total annual disocunted FOM costs'             //
-   TOT_SAL(R,ALLYEAR,CUR)  'Total annual disocunted salvage value'         //
-   TOT_LAT(R,ALLYEAR,CUR)  'Total annual disocunted late costs'            //
-   TOT_ACT(R,ALLYEAR,CUR)  'Total annual disocunted variable costs'        //
-   TOT_COM(R,ALLYEAR,CUR)  'Total annual disocunted commodity costs'       //
-   TOT_FLO(R,ALLYEAR,CUR)  'Total annual disocunted flow costs'            //
-   TOT_BLE(R,ALLYEAR,CUR)  'Total annual disocunted blending costs'        //
-   TOT_OBJ(R,ALLYEAR,CUR)  'Annual discounted objective value '            //;
-""",
+        domain: list[Set | Alias] = [r, allyear, cur]
+        g.tot_inv = Parameter(
+            m,
+            name="TOT_INV",
+            domain=domain,
+            description="Total annual disocunted investment costs",
+        )
+        g.tot_dec = Parameter(
+            m,
+            name="TOT_DEC",
+            domain=domain,
+            description="Total annual disocunted decommissioning costs",
+        )
+        g.tot_fix = Parameter(
+            m,
+            name="TOT_FIX",
+            domain=domain,
+            description="Total annual disocunted FOM costs",
+        )
+        g.tot_sal = Parameter(
+            m,
+            name="TOT_SAL",
+            domain=domain,
+            description="Total annual disocunted salvage value",
+        )
+        g.tot_lat = Parameter(
+            m,
+            name="TOT_LAT",
+            domain=domain,
+            description="Total annual disocunted late costs",
+        )
+        g.tot_act = Parameter(
+            m,
+            name="TOT_ACT",
+            domain=domain,
+            description="Total annual disocunted variable costs",
+        )
+        g.tot_com = Parameter(
+            m,
+            name="TOT_COM",
+            domain=domain,
+            description="Total annual disocunted commodity costs",
+        )
+        g.tot_flo = Parameter(
+            m,
+            name="TOT_FLO",
+            domain=domain,
+            description="Total annual disocunted flow costs",
+        )
+        g.tot_ble = Parameter(
+            m,
+            name="TOT_BLE",
+            domain=domain,
+            description="Total annual disocunted blending costs",
+        )
+        g.tot_obj = Parameter(
+            m,
+            name="TOT_OBJ",
+            domain=domain,
+            description="Annual discounted objective value ",
         )
 
     def exec_loop(
         self: RptmainRpt,
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""
-* IRE auxiliary flows summed up from all IE flows
-  LOOP((RPC_IRE(R,P,COM,IE),RPCS_VAR(R,P,COM,TS)),F_IOSET(RTP_VINTYR(R,V,T,P),C,TS,IO)$IRE_FLOSUM(R,T,P,COM,TS,IE,C,IO) = RC(R,C));
-""",
-        )
+        g = self.tc
+        r, v, t, p, c, ts, io, Com = g.r, g.v, g.t, g.p, g.c, g.ts, g.io, g.Com
+        # * IRE auxiliary flows summed up from all IE flows
+        with Loop(Domain(g.RpcIre[r, p, Com, g.ie], g.RpcsVar[r, p, Com, ts])):
+            g.FIoset[g.RtpVintyr[r, v, t, p], c, ts, io].where[
+                g.ire_flosum[r, t, p, Com, ts, g.ie, c, io]
+            ] = g.Rc[r, c]
 
     def exec_objective_values(
         self: RptmainRpt,
         supzero: str,
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-{"PAR_FLO(RTP_VINTYR(R,V,T,P),C,S)$(RTPCS_VARF(R,T,P,C,S)*RP_FLO(R,P)*(NOT RPC_NOFLO(R,P,C))) $= EPS$(NOT PAR_FLO(R,V,T,P,C,S));" if supzero != "YES" else ""}
-          ;
-{"PAR_IRE(RTP_VINTYR(R,V,T,P),C,TS,IMPEXP)$(RTPCS_VARF(R,T,P,C,TS)$RPC_IRE(R,P,C,IMPEXP)) $= EPS$(NOT PAR_IRE(R,V,T,P,C,TS,IMPEXP));" if supzero != "YES" else ""}
-          ;
-*---------------------------------------------------------------------
-* Annual discounted objective values by cost type(INV, FIX, VAR etc.)
-*---------------------------------------------------------------------
+        g = self.tc
+        r, v, t, p, c, s, ts, cur, allyear = (
+            g.r,
+            g.v,
+            g.t,
+            g.p,
+            g.c,
+            g.s,
+            g.ts,
+            g.cur,
+            g.allyear,
+        )
+        RtpVintyr, RtpcsVarf, par_flo, par_ire = (
+            g.RtpVintyr,
+            g.RtpcsVarf,
+            g.par_flo,
+            g.par_ire,
+        )
+        if supzero != "YES":
+            par_flo[RtpVintyr[r, v, t, p], c, s].where[
+                RtpcsVarf[r, t, p, c, s] * g.RpFlo[r, p] * (~g.RpcNoflo[r, p, c])
+            ] = sparse(Number(SpecialValues.EPS).where[~par_flo[r, v, t, p, c, s]])
+        if supzero != "YES":
+            par_ire[RtpVintyr[r, v, t, p], c, ts, g.impexp].where[
+                RtpcsVarf[r, t, p, c, ts].where[g.RpcIre[r, p, c, g.impexp]]
+            ] = sparse(
+                Number(SpecialValues.EPS).where[~par_ire[r, v, t, p, c, ts, g.impexp]]
+            )
+        # *---------------------------------------------------------------------
+        # * Annual discounted objective values by cost type(INV, FIX, VAR etc.)
+        # *---------------------------------------------------------------------
 
-* Total investment costs
-     TOT_INV(R,ALLYEAR,CUR)=SUM(RTP(R,V,P),PAR_OBJINV(R,V,ALLYEAR,P,CUR));
-* Total decommissioning costs
-     TOT_DEC(R,ALLYEAR,CUR)=SUM(RTP(R,V,P),PAR_OBJDEC(R,V,ALLYEAR,P,CUR));
-* Total fix costs
-     TOT_FIX(R,ALLYEAR,CUR)=SUM(RTP(R,V,P),PAR_OBJFIX(R,V,ALLYEAR,P,CUR));
-* Total salvage value
-     TOT_SAL(R,V,CUR)=-SUM(P,PAR_OBJSAL(R,V,P,CUR));
-* Total late revenues
-     TOT_LAT(R,ALLYEAR,CUR)=-SUM(P,PAR_OBJLAT(R,ALLYEAR,P,CUR));
-* Total variable costs
-     TOT_ACT(R,ALLYEAR,CUR)=SUM((RTP_VINTYR(R,V,T,P),TS)$PERIODYR(T,ALLYEAR),PAR_OBJACT(R,V,ALLYEAR,P,TS,CUR));
-* Total flow related costs
-     TOT_FLO(R,ALLYEAR,CUR) = SUM((RTP_VINTYR(R,V,T,P),C,TS)$PERIODYR(T,ALLYEAR),PAR_OBJFLO(R,V,ALLYEAR,P,C,TS,CUR));
-* Total commodity related costs
-     TOT_COM(R,ALLYEAR,CUR)=SUM((C,TS),PAR_OBJCOM(R,ALLYEAR,C,TS,CUR));
-* Total blending related costs
-     TOT_BLE(R,ALLYEAR,CUR)=SUM((C),PAR_OBJBLE(R,ALLYEAR,C,CUR));
-* Total yearly objective value
-TOT_OBJ(R,ALLYEAR,CUR) = TOT_INV(R,ALLYEAR,CUR) +
-                         TOT_DEC(R,ALLYEAR,CUR) +
-                         TOT_FIX(R,ALLYEAR,CUR) +
-                         TOT_SAL(R,ALLYEAR,CUR) +
-                         TOT_LAT(R,ALLYEAR,CUR) +
-                         TOT_ACT(R,ALLYEAR,CUR) +
-                         TOT_FLO(R,ALLYEAR,CUR) +
-                         TOT_COM(R,ALLYEAR,CUR) +
-                         TOT_BLE(R,ALLYEAR,CUR);
-""",
+        # * Total investment costs
+        g.tot_inv[r, allyear, cur] = Sum(
+            g.Rtp[r, v, p], g.par_objinv[r, v, allyear, p, cur]
+        )
+        # * Total decommissioning costs
+        g.tot_dec[r, allyear, cur] = Sum(
+            g.Rtp[r, v, p], g.par_objdec[r, v, allyear, p, cur]
+        )
+        # * Total fix costs
+        g.tot_fix[r, allyear, cur] = Sum(
+            g.Rtp[r, v, p], g.par_objfix[r, v, allyear, p, cur]
+        )
+        # * Total salvage value
+        g.tot_sal[r, v, cur] = -Sum(p, g.par_objsal[r, v, p, cur])
+        # * Total late revenues
+        g.tot_lat[r, allyear, cur] = -Sum(p, g.par_objlat[r, allyear, p, cur])
+        # * Total variable costs
+        g.tot_act[r, allyear, cur] = Sum(
+            Domain(RtpVintyr[r, v, t, p], ts).where[g.Periodyr[t, allyear]],
+            g.par_objact[r, v, allyear, p, ts, cur],
+        )
+        # * Total flow related costs
+        g.tot_flo[r, allyear, cur] = Sum(
+            Domain(RtpVintyr[r, v, t, p], c, ts).where[g.Periodyr[t, allyear]],
+            g.par_objflo[r, v, allyear, p, c, ts, cur],
+        )
+        # * Total commodity related costs
+        g.tot_com[r, allyear, cur] = Sum(
+            Domain(c, ts), g.par_objcom[r, allyear, c, ts, cur]
+        )
+        # * Total blending related costs
+        g.tot_ble[r, allyear, cur] = Sum(c, g.par_objble[r, allyear, c, cur])
+        # * Total yearly objective value
+        g.tot_obj[r, allyear, cur] = (
+            g.tot_inv[r, allyear, cur]
+            + g.tot_dec[r, allyear, cur]
+            + g.tot_fix[r, allyear, cur]
+            + g.tot_sal[r, allyear, cur]
+            + g.tot_lat[r, allyear, cur]
+            + g.tot_act[r, allyear, cur]
+            + g.tot_flo[r, allyear, cur]
+            + g.tot_com[r, allyear, cur]
+            + g.tot_ble[r, allyear, cur]
         )
 
     def exec1(
         self: RptmainRpt,
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""
-TOT_OBJV(R,T) $= SUM(CUR,TOT_OBJ(R,T,CUR)/OBJ_DISC(R,T,CUR));
-""",
+        g = self.tc
+        g.tot_objv[g.r, g.t] = sparse(
+            Sum(g.cur, g.tot_obj[g.r, g.t, g.cur] / g.obj_disc[g.r, g.t, g.cur])
         )
 
     def exec2(
         self: RptmainRpt,
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""
-REG_OBJ(R) = SUM((CUR,ALLYEAR),TOT_OBJ(R,ALLYEAR,CUR));
-""",
-        )
+        g = self.tc
+        g.reg_obj[g.r] = Sum(Domain(g.cur, g.allyear), g.tot_obj[g.r, g.allyear, g.cur])
 
     def exec3(
         self: RptmainRpt,
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""
-* Refined undiscounting method (MARKAL way not sufficient for TIMES)
-*VDA_DISC(R,T) =  SUM(CUR,OBJ_DISC(R,T,CUR))*D(T);
-LOOP(RDCUR(R,CUR), VDA_DISC(R,T) =  SUM(PERIODYR(T,Y_EOH),OBJ_DISC(R,Y_EOH,CUR)));
+        g = self.tc
+        r, v, t, tt, p, c, s, pyr = g.r, g.v, g.t, g.tt, g.p, g.c, g.s, g.pyr
+        vda_disc, coef_cpt, ncap_pasti, VAR_NCAP = (
+            g.vda_disc,
+            g.coef_cpt,
+            g.ncap_pasti,
+            g.VAR_NCAP,
+        )
+        # * Refined undiscounting method (MARKAL way not sufficient for TIMES)
+        # *VDA_DISC(R,T) =  SUM(CUR,OBJ_DISC(R,T,CUR))*D(T);
+        with Loop(g.Rdcur[r, g.cur]):
+            vda_disc[r, t] = Sum(g.Periodyr[t, g.YEoh], g.obj_disc[r, g.YEoh, g.cur])
 
-* Scenario index not supported in current version, use 1
-SOW('1') = YES;
+        # * Scenario index not supported in current version, use 1
+        g.Sow["1"] = True
 
-*---------------------------------------------------------------------
-* Output of VAR_ACT
-*---------------------------------------------------------------------
+        # *---------------------------------------------------------------------
+        # * Output of VAR_ACT
+        # *---------------------------------------------------------------------
 
-PAR_ACTL(RTP_VINTYR(R,V,T,P),S)$PRC_TS(R,P,S) = EPS;
-PAR_ACTL(R,V,T,P,S)                     $= VAR_ACT.L(R,V,T,P,S);
-PAR_ACTM(R,V,T,P,S)$VAR_ACT.M(R,V,T,P,S) = VAR_ACT.M(R,V,T,P,S)/VDA_DISC(R,T);
-
-*---------------------------------------------------------------------
-* Output of VAR_CAP
-*---------------------------------------------------------------------
-
-RTP_CAPYR(RTP_CPTYR(R,TT,T,P))$VAR_NCAP.L(R,TT,P) = YES;
-RTP_CAPYR(RTP_CPTYR(R,PYR,T,P))$NCAP_PASTI(R,PYR,P) = YES;
-
-PAR_PASTI(RTP(R,T,P)) = SUM(RTP_CAPYR(R,PYR,T,P),COEF_CPT(R,PYR,T,P)*NCAP_PASTI(R,PYR,P));
-PAR_CAPL(RTP(R,T,P))  = SUM(RTP_CAPYR(R,TT,T,P), COEF_CPT(R,TT,T,P) *VAR_NCAP.L(R,TT,P)) + PAR_PASTI(R,T,P);
-
-PAR_CAPM(RTP(R,T,P))                               $= VAR_CAP.M(R,T,P)*(1/VDA_DISC(R,T));
-PAR_CAPLO(RTP(R,T,P))                              $= CAP_BND(R,T,P,'LO');
-PAR_CAPUP(RTP(R,T,P))$(CAP_BND(R,T,P,'UP') NE INF) $= CAP_BND(R,T,P,'UP');
-
-PAR_NCAPL(R,V,P) $= VAR_NCAP.L(R,V,P) ;
-
-* [UR]: undiscounting of dual variable of VAR_NCAP
-PAR_NCAPM(R,T,P)$(VAR_NCAP.M(R,T,P)*COEF_OBJINV(R,T,P)) = VAR_NCAP.M(R,T,P)/COEF_OBJINV(R,T,P);
-
-*---------------------------------------------------------------------
-* Output of VAR_FLO
-* - split by in/out
-*---------------------------------------------------------------------
-* emission tied to CAP/INV
-F_INOUT(RTP_VINTYR(R,V,T,P),C,'IN')$RPC_CAPFLO(R,T,P,C)  = COEF_CPT(R,V,T,P) * NCAP_COM(R,V,P,C,'IN') * (VAR_NCAP.L(R,V,P)$T(V) + NCAP_PASTI(R,V,P)$PASTYEAR(V)) +
-                                                           (COEF_ICOM(R,V,T,P,C) * (VAR_NCAP.L(R,V,P)$T(V) + NCAP_PASTI(R,V,P)$PASTYEAR(V)));
-F_INOUT(RTP_VINTYR(R,V,T,P),C,'OUT')$RPC_CAPFLO(R,T,P,C) = COEF_CPT(R,V,T,P) * NCAP_COM(R,V,P,C,'OUT') * (VAR_NCAP.L(R,V,P)$T(V) + NCAP_PASTI(R,V,P)$PASTYEAR(V)) +
-                                                           (COEF_OCOM(R,V,T,P,C) * (VAR_NCAP.L(R,V,P)$T(V) + NCAP_PASTI(R,V,P)$PASTYEAR(V)));
-
-* Blending flows *** PENDING!!! Code below from EQCOMBAL ***
-*PARAMETER F_BLND(R,T,C,TS,IO)  //;
-*  SUM(OPR$BLE_OPR(R,C,OPR),
-*    RTCS_TSFR(R,T,C,S,'ANNUAL') * BLE_BAL(R,T,C,OPR) * VAR_BLND(R,T,C,OPR)
-*  ) +
-* emissions due to blending operations
-*  SUM(BLE_ENV(R,COM,BLE,OPR),
-*      ENV_BL(R,COM,BLE,OPR,T) * VAR_BLND(R,T,BLE,OPR)
-*  ) +
-
-*---------------------------------------------------------------------
-* Process flows
-*---------------------------------------------------------------------
-* Flow by IN/OUT
-* main flows & emissions
-F_IN(R,V,T,P,C,S)$TOP(R,P,C,'IN')   $= PAR_FLO(R,V,T,P,C,S);
-F_OUT(R,V,T,P,C,S)$TOP(R,P,C,'OUT') $= PAR_FLO(R,V,T,P,C,S);
-* IRE flows
-* [UR] maybe exports as negativ values for net imports in primary energy balance ?
-F_IN(R,V,T,P,C,S)                   $= PAR_IRE(R,V,T,P,C,S,'EXP');
-F_OUT(R,V,T,P,C,S)                  $= PAR_IRE(R,V,T,P,C,S,'IMP');
-* Aux flows & emissions tied to INV/CAP
-F_IN(R,V,T,P,C,'ANNUAL')$F_INOUT(R,V,T,P,C,'IN')   = F_IN(R,V,T,P,C,'ANNUAL')+F_INOUT(R,V,T,P,C,'IN');
-F_OUT(R,V,T,P,C,'ANNUAL')$F_INOUT(R,V,T,P,C,'OUT') = F_OUT(R,V,T,P,C,'ANNUAL')+F_INOUT(R,V,T,P,C,'OUT');
-* IRE Aux flows & emissions
-F_IN(R,V,T,P,C,S)$F_INOUTS(R,V,T,P,C,S,'IN')   = F_IN(R,V,T,P,C,S)+F_INOUTS(R,V,T,P,C,S,'IN');
-F_OUT(R,V,T,P,C,S)$F_INOUTS(R,V,T,P,C,S,'OUT') = F_OUT(R,V,T,P,C,S)+F_INOUTS(R,V,T,P,C,S,'OUT');
-* Storage in/output flows
-F_IN(R,V,T,P,C,S)$RPCS_VAR(R,P,C,S) $= VAR_SIN.L(R,V,T,P,C,S);
-F_OUT(R,V,T,P,C,S)$RPCS_VAR(R,P,C,S)$= VAR_SOUT.L(R,V,T,P,C,S)*STG_EFF(R,V,P);
-""",
+        g.par_actl[g.RtpVintyr[r, v, t, p], s].where[g.PrcTs[r, p, s]] = (
+            SpecialValues.EPS
+        )
+        g.par_actl[r, v, t, p, s] = sparse(g.VAR_ACT.l[r, v, t, p, s])
+        g.par_actm[r, v, t, p, s].where[g.VAR_ACT.m[r, v, t, p, s]] = (
+            g.VAR_ACT.m[r, v, t, p, s] / vda_disc[r, t]
         )
 
-    def comp_parameter_declarations(
-        self: RptmainRpt,
-    ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="""
-PARAMETER CST_INVV(R,ALLYEAR,ALLYEAR,P)      //;
-PARAMETER CST_DECV(R,ALLYEAR,ALLYEAR,P)      //;
-PARAMETER CST_FIXV(R,ALLYEAR,ALLYEAR,P)      //;
-PARAMETER CST_SALV(R,ALLYEAR,P)              //;
-PARAMETER CST_LATV(R,ALLYEAR,P)              //;
-PARAMETER CST_ACTV(R,ALLYEAR,ALLYEAR,P,TS)   //;
-PARAMETER CST_FLOV(R,ALLYEAR,ALLYEAR,P,C,TS) //;
-PARAMETER CST_COMV(R,ALLYEAR,C,TS)           //;
-PARAMETER CST_ELSV(R,ALLYEAR,C)              //;
-""",
+        # *---------------------------------------------------------------------
+        # * Output of VAR_CAP
+        # *---------------------------------------------------------------------
+
+        g.RtpCapyr[g.RtpCptyr[r, tt, t, p]].where[VAR_NCAP.l[r, tt, p]] = True
+        g.RtpCapyr[g.RtpCptyr[r, pyr, t, p]].where[ncap_pasti[r, pyr, p]] = True
+
+        g.par_pasti[g.Rtp[r, t, p]] = Sum(
+            g.RtpCapyr[r, pyr, t, p], coef_cpt[r, pyr, t, p] * ncap_pasti[r, pyr, p]
+        )
+        g.par_capl[g.Rtp[r, t, p]] = (
+            Sum(g.RtpCapyr[r, tt, t, p], coef_cpt[r, tt, t, p] * VAR_NCAP.l[r, tt, p])
+            + g.par_pasti[r, t, p]
+        )
+
+        g.par_capm[g.Rtp[r, t, p]] = sparse(
+            g.VAR_CAP.m[r, t, p] * (1.0 / vda_disc[r, t])
+        )
+        g.par_caplo[g.Rtp[r, t, p]] = sparse(g.cap_bnd[r, t, p, "LO"])
+        g.par_capup[g.Rtp[r, t, p]].where[
+            g.cap_bnd[r, t, p, "UP"] != SpecialValues.POSINF
+        ] = sparse(g.cap_bnd[r, t, p, "UP"])
+
+        g.par_ncapl[r, v, p] = sparse(VAR_NCAP.l[r, v, p])
+
+        # * [UR]: undiscounting of dual variable of VAR_NCAP
+        g.par_ncapm[r, t, p].where[VAR_NCAP.m[r, t, p] * g.coef_objinv[r, t, p]] = (
+            VAR_NCAP.m[r, t, p] / g.coef_objinv[r, t, p]
+        )
+
+        # *---------------------------------------------------------------------
+        # * Output of VAR_FLO
+        # * - split by in/out
+        # *---------------------------------------------------------------------
+        # * emission tied to CAP/INV
+        capacity = (
+            VAR_NCAP.l[r, v, p].where[t[v]] + ncap_pasti[r, v, p].where[g.Pastyear[v]]
+        )
+        g.f_inout[g.RtpVintyr[r, v, t, p], c, "IN"].where[g.RpcCapflo[r, t, p, c]] = (
+            coef_cpt[r, v, t, p] * g.ncap_com[r, v, p, c, "IN"] * capacity
+            + g.coef_icom[r, v, t, p, c] * capacity
+        )
+        g.f_inout[g.RtpVintyr[r, v, t, p], c, "OUT"].where[g.RpcCapflo[r, t, p, c]] = (
+            coef_cpt[r, v, t, p] * g.ncap_com[r, v, p, c, "OUT"] * capacity
+            + g.coef_ocom[r, v, t, p, c] * capacity
+        )
+
+        # * Blending flows *** PENDING!!! Code below from EQCOMBAL ***
+        # *PARAMETER F_BLND(R,T,C,TS,IO)  //;
+        # *  SUM(OPR$BLE_OPR(R,C,OPR),
+        # *    RTCS_TSFR(R,T,C,S,'ANNUAL') * BLE_BAL(R,T,C,OPR) * VAR_BLND(R,T,C,OPR)
+        # *  ) +
+        # * emissions due to blending operations
+        # *  SUM(BLE_ENV(R,COM,BLE,OPR),
+        # *      ENV_BL(R,COM,BLE,OPR,T) * VAR_BLND(R,T,BLE,OPR)
+        # *  ) +
+
+        # *---------------------------------------------------------------------
+        # * Process flows
+        # *---------------------------------------------------------------------
+        f_in, f_out, f_inout, f_inouts, par_flo, par_ire = (
+            g.f_in,
+            g.f_out,
+            g.f_inout,
+            g.f_inouts,
+            g.par_flo,
+            g.par_ire,
+        )
+        # * Flow by IN/OUT
+        # * main flows & emissions
+        f_in[r, v, t, p, c, s].where[g.Top[r, p, c, "IN"]] = sparse(
+            par_flo[r, v, t, p, c, s]
+        )
+        f_out[r, v, t, p, c, s].where[g.Top[r, p, c, "OUT"]] = sparse(
+            par_flo[r, v, t, p, c, s]
+        )
+        # * IRE flows
+        # * [UR] maybe exports as negativ values for net imports in primary energy balance ?
+        f_in[r, v, t, p, c, s] = sparse(par_ire[r, v, t, p, c, s, "EXP"])
+        f_out[r, v, t, p, c, s] = sparse(par_ire[r, v, t, p, c, s, "IMP"])
+        # * Aux flows & emissions tied to INV/CAP
+        f_in[r, v, t, p, c, "ANNUAL"].where[f_inout[r, v, t, p, c, "IN"]] = (
+            f_in[r, v, t, p, c, "ANNUAL"] + f_inout[r, v, t, p, c, "IN"]
+        )
+        f_out[r, v, t, p, c, "ANNUAL"].where[f_inout[r, v, t, p, c, "OUT"]] = (
+            f_out[r, v, t, p, c, "ANNUAL"] + f_inout[r, v, t, p, c, "OUT"]
+        )
+        # * IRE Aux flows & emissions
+        f_in[r, v, t, p, c, s].where[f_inouts[r, v, t, p, c, s, "IN"]] = (
+            f_in[r, v, t, p, c, s] + f_inouts[r, v, t, p, c, s, "IN"]
+        )
+        f_out[r, v, t, p, c, s].where[f_inouts[r, v, t, p, c, s, "OUT"]] = (
+            f_out[r, v, t, p, c, s] + f_inouts[r, v, t, p, c, s, "OUT"]
+        )
+        # * Storage in/output flows
+        f_in[r, v, t, p, c, s].where[g.RpcsVar[r, p, c, s]] = sparse(
+            g.VAR_SIN.l[r, v, t, p, c, s]
+        )
+        f_out[r, v, t, p, c, s].where[g.RpcsVar[r, p, c, s]] = sparse(
+            g.VAR_SOUT.l[r, v, t, p, c, s] * g.stg_eff[r, v, p]
         )
 
     def exec4(
         self: RptmainRpt,
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""
-LOOP(CUR,
-CST_INVV(RTP_CPTYR(R,V,T,P))      $= PAR_OBJINV(R,V,T,P,CUR)*(1/OBJ_DISC(R,T,CUR));
-CST_DECV(RTP_CPTYR(R,V,T,P))      $= PAR_OBJDEC(R,V,T,P,CUR)*(1/OBJ_DISC(R,T,CUR));
-CST_SALV(R,V,P)                   $= PAR_OBJSAL(R,V,P,CUR);
-CST_LATV(RTP(R,T,P))              $= PAR_OBJLAT(R,T,P,CUR)*(1/OBJ_DISC(R,T,CUR));
-CST_FIXV(RTP_CPTYR(R,V,T,P))      $= PAR_OBJFIX(R,V,T,P,CUR)*(1/OBJ_DISC(R,T,CUR));
-CST_ACTV(RTP_VINTYR(R,V,T,P),TS)  $= PAR_OBJACT(R,V,T,P,TS,CUR)*(1/OBJ_DISC(R,T,CUR));
-CST_ELSV(RTC(R,T,C))              $= PAR_OBJELS(R,T,C,CUR)*(1/OBJ_DISC(R,T,CUR));
-CST_FLOV(RTP_VINTYR(R,V,T,P),C,S) $= PAR_OBJFLO(R,V,T,P,C,S,CUR)*(1/OBJ_DISC(R,T,CUR));
-CST_COMV(RTC(R,T,C),TS)           $= PAR_OBJCOM(R,T,C,TS,CUR)*(1/OBJ_DISC(R,T,CUR));
-);
+        g = self.tc
+        r, v, t, p, c, s, ts, cur = g.r, g.v, g.t, g.p, g.c, g.s, g.ts, g.cur
+        RtpCptyr, RtpVintyr, Rtc, obj_disc, vda_disc = (
+            g.RtpCptyr,
+            g.RtpVintyr,
+            g.Rtc,
+            g.obj_disc,
+            g.vda_disc,
+        )
+        with Loop(cur):
+            g.cst_invv[RtpCptyr[r, v, t, p]] = sparse(
+                g.par_objinv[r, v, t, p, cur] * (1.0 / obj_disc[r, t, cur])
+            )
+            g.cst_decv[RtpCptyr[r, v, t, p]] = sparse(
+                g.par_objdec[r, v, t, p, cur] * (1.0 / obj_disc[r, t, cur])
+            )
+            g.cst_salv[r, v, p] = sparse(g.par_objsal[r, v, p, cur])
+            g.cst_latv[g.Rtp[r, t, p]] = sparse(
+                g.par_objlat[r, t, p, cur] * (1.0 / obj_disc[r, t, cur])
+            )
+            g.cst_fixv[RtpCptyr[r, v, t, p]] = sparse(
+                g.par_objfix[r, v, t, p, cur] * (1.0 / obj_disc[r, t, cur])
+            )
+            g.cst_actv[RtpVintyr[r, v, t, p], ts] = sparse(
+                g.par_objact[r, v, t, p, ts, cur] * (1.0 / obj_disc[r, t, cur])
+            )
+            g.cst_elsv[Rtc[r, t, c]] = sparse(
+                g.par_objels[r, t, c, cur] * (1.0 / obj_disc[r, t, cur])
+            )
+            g.cst_flov[RtpVintyr[r, v, t, p], c, s] = sparse(
+                g.par_objflo[r, v, t, p, c, s, cur] * (1.0 / obj_disc[r, t, cur])
+            )
+            g.cst_comv[Rtc[r, t, c], ts] = sparse(
+                g.par_objcom[r, t, c, ts, cur] * (1.0 / obj_disc[r, t, cur])
+            )
 
-*--------------------------------------------------------------------------
-* Production (PRD) and Difference between production and consumption (NET)
-*--------------------------------------------------------------------------
+        # *--------------------------------------------------------------------------
+        # * Production (PRD) and Difference between production and consumption (NET)
+        # *--------------------------------------------------------------------------
 
-PAR_COMPRDL(R,T,C,S) $= VAR_COMPRD.L(R,T,C,S);
-PAR_COMPRDM(R,T,C,S) $= VAR_COMPRD.M(R,T,C,S)*(1/VDA_DISC(R,T));
-PAR_COMNETL(R,T,C,S) $= VAR_COMNET.L(R,T,C,S);
-PAR_COMNETM(R,T,C,S) $= VAR_COMNET.M(R,T,C,S)*(1/VDA_DISC(R,T));
+        g.par_comprdl[r, t, c, s] = sparse(g.VAR_COMPRD.l[r, t, c, s])
+        g.par_comprdm[r, t, c, s] = sparse(
+            g.VAR_COMPRD.m[r, t, c, s] * (1.0 / vda_disc[r, t])
+        )
+        g.par_comnetl[r, t, c, s] = sparse(g.VAR_COMNET.l[r, t, c, s])
+        g.par_comnetm[r, t, c, s] = sparse(
+            g.VAR_COMNET.m[r, t, c, s] * (1.0 / vda_disc[r, t])
+        )
 
-*--------------------------------------------------------------------------
-* Undiscounted annual shadow price of commodity balance and peaking equation
-*--------------------------------------------------------------------------
+        # *--------------------------------------------------------------------------
+        # * Undiscounted annual shadow price of commodity balance and peaking equation
+        # *--------------------------------------------------------------------------
 
-PAR_COMBALEM(R,T,C,S) $= EQE_COMBAL.M(R,T,C,S)*(1/VDA_DISC(R,T));
-PAR_COMBALGM(R,T,C,S) $= EQG_COMBAL.M(R,T,C,S)*(1/VDA_DISC(R,T));
-PAR_PEAKM(R,T,CG,S)   $= EQ_PEAK.M(R,T,CG,S)*(1/VDA_DISC(R,T));
-""",
+        g.par_combalem[r, t, c, s] = sparse(
+            g.eqe_combal.m[r, t, c, s] * (1.0 / vda_disc[r, t])
+        )
+        g.par_combalgm[r, t, c, s] = sparse(
+            g.eqg_combal.m[r, t, c, s] * (1.0 / vda_disc[r, t])
+        )
+        g.par_peakm[r, t, g.cg, s] = sparse(
+            g.eq_peak.m[r, t, g.cg, s] * (1.0 / vda_disc[r, t])
         )
 
     def exec5(
         self: RptmainRpt,
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""
-PAR_UCFXM(UC_N,'NONE','NONE','NONE') $= VAR_UC.M(UC_N);
-PAR_UCFXM(UC_N,R,'NONE','NONE')      $= VAR_UCR.M(UC_N,R);
-PAR_UCFXM(UC_N,'NONE',T,'NONE')      $= VAR_UCT.M(UC_N,T);
-PAR_UCFXM(UC_N,R,T,'NONE')           $= VAR_UCRT.M(UC_N,R,T)*(1/VDA_DISC(R,T));
-PAR_UCFXM(UC_N,'NONE',T,S)           $= VAR_UCTS.M(UC_N,T,S);
-PAR_UCFXM(UC_N,R,T,S)                $= VAR_UCRTS.M(UC_N,R,T,S)*(1/VDA_DISC(R,T));
-""",
+        g = self.tc
+        r, t, s, ucn, par_ucfxm, vda_disc = (
+            g.r,
+            g.t,
+            g.s,
+            g.ucn,
+            g.par_ucfxm,
+            g.vda_disc,
+        )
+        par_ucfxm[ucn, "NONE", "NONE", "NONE"] = sparse(g.VAR_UC.m[ucn])
+        par_ucfxm[ucn, r, "NONE", "NONE"] = sparse(g.VAR_UCR.m[ucn, r])
+        par_ucfxm[ucn, "NONE", t, "NONE"] = sparse(g.VAR_UCT.m[ucn, t])
+        par_ucfxm[ucn, r, t, "NONE"] = sparse(
+            g.VAR_UCRT.m[ucn, r, t] * (1.0 / vda_disc[r, t])
+        )
+        par_ucfxm[ucn, "NONE", t, s] = sparse(g.VAR_UCTS.m[ucn, t, s])
+        par_ucfxm[ucn, r, t, s] = sparse(
+            g.VAR_UCRTS.m[ucn, r, t, s] * (1.0 / vda_disc[r, t])
         )
 
     def exec_options(
         self: RptmainRpt,
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""
-OPTION CLEAR = F_INOUT;
-OPTION CLEAR = F_INOUTS;
-OPTION CLEAR = F_IOSET;
-""",
-        )
+        g = self.tc
+        g.f_inout.setRecords(None)
+        g.f_inouts.setRecords(None)
+        g.FIoset.setRecords(None)
 
     def exec6(self: RptmainRpt, timesed: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
- REG_WOBJ(R,'INV',CUR) = SUM(OBV,SUM_OBJ('OBJINV',OBV)*VAR_OBJ.L(R,OBV,CUR))-VAR_OBJ.L(R,'OBJSAL',CUR);
- REG_WOBJ(R,'FIX',CUR) = SUM(OBV,SUM_OBJ('OBJFIX',OBV)*VAR_OBJ.L(R,OBV,CUR));
- REG_WOBJ(R,'VAR',CUR) = SUM(OBV,SUM_OBJ('OBJVAR',OBV)*VAR_OBJ.L(R,OBV,CUR));
- REG_WOBJ(R,'ELS',CUR) = EPS
-{"+VAR_OBJELS.L(R,'LO',CUR)-VAR_OBJELS.L(R,'UP',CUR)" if timesed == "YES" else ""}
- ;
-""",
+        g = self.tc
+        r, cur, obv, sum_obj, VAR_OBJ = g.r, g.cur, g.obv, g.sum_obj, g.VAR_OBJ
+        g.reg_wobj[r, "INV", cur] = (
+            Sum(obv, sum_obj["OBJINV", obv] * VAR_OBJ.l[r, obv, cur])
+            - VAR_OBJ.l[r, "OBJSAL", cur]
         )
+        g.reg_wobj[r, "FIX", cur] = Sum(
+            obv, sum_obj["OBJFIX", obv] * VAR_OBJ.l[r, obv, cur]
+        )
+        g.reg_wobj[r, "VAR", cur] = Sum(
+            obv, sum_obj["OBJVAR", obv] * VAR_OBJ.l[r, obv, cur]
+        )
+        if timesed == "YES":
+            g.reg_wobj[r, "ELS", cur] = (
+                SpecialValues.EPS
+                + g.VAR_OBJELS.l[r, "LO", cur]
+                - g.VAR_OBJELS.l[r, "UP", cur]
+            )
+        else:
+            # not EPS + 0: SpecialValues.EPS is -0.0, so Python would fold it to 0
+            g.reg_wobj[r, "ELS", cur] = SpecialValues.EPS
