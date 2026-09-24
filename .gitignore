@@ -14,3 +14,4 @@ build
 *.opt
 end_gams
 src/data
+gams-lark/

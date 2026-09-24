@@ -10,7 +10,7 @@ from core.cost_ann_rpt import cost_ann_rpt
 from core.par_uc_rpt import ParUcRpt, ParUcRptConfig
 from core.rpt_obj_rpt import rpt_obj_rpt
 from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
-from core.rptmisc_rpt import RptmiscRpt
+from core.rptmisc_rpt import RptmiscRpt, RptmiscRptConfig
 from core.sol_flo_red import SolFloRed, SolFloRedConfig, sol_flo_red
 from core.sol_ire_rpt import sol_ire_rpt
 
@@ -112,7 +112,10 @@ class RptExtMlf(GamsClass):
             )
         )
         self.tc.enqueue(self.exec2)
-        self.include(RptmiscRpt(self.tc, self.env, arg1="", arg2=""))
+        # $ BATINCLUDE rptmisc.rpt '' ''
+        self.include(
+            RptmiscRpt(self.tc, self.env, config=RptmiscRptConfig(arg1="", arg2=()))
+        )
 
         self.tc.enqueue(self.exec3, dam_cost_defined=self.tc.defined("DAM_COST"))
 
@@ -274,7 +277,8 @@ class RptExtMlf(GamsClass):
       DFUNC = SMAX(MR(R),TM_SCALE_CST*SUM(PP(T),COEF_PVT(R,T)*ABS(TM_TAXREV(R,T)-RB(R,T)))/SUM(PP(T),COEF_PVT(R,T)*VAR_EC.L(R,T)*TM_HDF(R,T)));
       DISPLAY "Negishi Tolerance, Negishi Gap, Tax Gap:",F,Z,DFUNC;
       DOITER=(MAX(Z,DFUNC)>=F+MIN(0,DOITER));
-      IF(DOITER, SOLVE {model_name} MAXIMIZING VAR_UTIL USING {method})
+      IF(DOITER, SOLVE {model_name} MAXIMIZING VAR_UTIL USING {method};
+        {self.tc.model_status_GP.name} = {model_name}.MODELSTAT)
     ELSE DOITER=0));
 """,
         )
