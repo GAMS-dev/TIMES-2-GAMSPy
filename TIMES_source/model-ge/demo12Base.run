@@ -1,0 +1,70 @@
+$TITLE  TIMES -- VERSION 4.1.0
+OPTION RESLIM=50000, PROFILE=1, SOLVEOPT=REPLACE;
+OPTION ITERLIM=999999, LIMROW=0, LIMCOL=0, SOLPRINT=OFF;
+$OFFLISTING
+
+*option LP=CPLEX;
+*--If you want to use an optimizer other than cplex/xpress, enter it here:
+*OPTION LP=MyOptimizer;
+
+
+* reduction of equation system
+$SET REDUCE  YES
+*--------------------------------------------------------------*
+* BATINCLUDE calls should all be with lower case file names!!! *
+*--------------------------------------------------------------*
+
+* initialize the environment variables
+$   SET DSCAUTO               YES
+$   SET VDA                   YES
+$   SET DEBUG                 NO
+$   SET DUMPSOL               NO
+$   SET SOLVE_NOW             YES
+$   SET XTQA                  YES
+* VAR_UC being set so that non-binding constraints appear in results
+$   SET VAR_UC                YES
+$   SET OBJ                   MOD
+$   SET SOLVEDA               YES
+$   SET TIMESED               NO
+$   SET DATAGDX               YES
+$   SET ANNCOST               LEV
+ OPTION BRATIO=1;
+
+* merge declarations & data
+$   ONMULTI
+
+* the times-slices MUST come 1st to ensure ordering OK
+$BATINCLUDE demo12_ts.dd
+
+* perform fixed declarations
+$SET BOTIME 1960
+$BATINCLUDE initsys.mod
+
+* declare the (system/user) empties
+$BATINCLUDE initmty.mod
+
+* read scenario data
+$BATINCLUDE base.dd
+$BATINCLUDE newtechs.dd
+$BATINCLUDE trade_param.dd
+$BATINCLUDE dem_ref.dd
+$BATINCLUDE syssettings.dd
+$BATINCLUDE peak_rsv.dd
+$BATINCLUDE refinery.dd
+$BATINCLUDE demproj_dtcar.dd
+$BATINCLUDE uc_nuc_maxcap.dd
+$BATINCLUDE bounds-uc_wsets.dd
+$BATINCLUDE offdummy.dd
+
+*SET MILESTONYR /2005,2006,2010,2015,2020,2025,2030,2035,2040,2045,2050/;
+* Reduced model to fit with GAMS community license
+SET MILESTONYR /2005,2010,2015,2020,2030,2040,2050/;
+
+
+$SET RUN_NAME demo12Base
+
+
+$ SET VEDAVDD YES
+
+* do the rest
+$ BATINCLUDE maindrv.mod mod

@@ -1,0 +1,79 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gamspytimes"
+version = "0.1.0"
+readme = "README.md"
+description = "Migration of TIMES to GAMSPy"
+requires-python = ">=3.12"
+dependencies = [
+  "gamspy>=1.28.0",
+  "pandas",
+  "dotenv",
+  "filelock",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.optional-dependencies]
+docs = [
+    "jupyter"
+]
+
+
+[tool.pytest.ini_options]
+addopts = "--junitxml=junit-report.xml --capture=tee-sys"
+junit_family = "xunit2"
+pythonpath = ["src", ".ci"]
+
+[tool.coverage.run]
+branch = true
+source = ["src"]
+
+[tool.coverage.report]
+show_missing = true
+precision = 2
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.pylint.'MASTER']
+init-hook = 'import sys; sys.path.append("src")'
+
+[tool.ruff]
+line-length = 88
+src = ["src"]
+target-version = "py313"
+
+[tool.ruff.lint]
+extend-select = ["B", "SIM", "UP", "I", "RUF", "C4", "PIE", "PD"]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["src", "tests"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+strict = true
+warn_unused_configs = true
+warn_unused_ignores = false
+plugins = [
+  "pydantic.mypy"
+]
+
+[dependency-groups]
+dev = [
+    "detect-secrets>=1.5.0",
+    "mypy>=2.2.0",
+    "pandas-stubs>=2.3.3.260113",
+    "pre-commit>=4.6.0",
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+    "python-gitlab>=8.4.0",
+]

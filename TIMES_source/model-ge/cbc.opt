@@ -1,0 +1,3 @@
+startalg barrier
+crossover 1
+threads 63

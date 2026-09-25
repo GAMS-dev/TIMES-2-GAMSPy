@@ -1,0 +1,289 @@
+# ppm_ext_vda.py
+# *++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# * Copyright (C) 2000-2025 Energy Technology Systems Analysis Programme (ETSAP)
+# * This file is part of the IEA-ETSAP TIMES model generator, licensed
+# * under the GNU General Public License v3.0 (see file NOTICE-GPLv3.txt).
+# *=============================================================================*
+# * PPM_EXT.VDA oversees extended preprocessor activities
+# *   arg1 - mod or v# for the source code to be used
+# *=============================================================================*
+# * Questions/Comments:
+# *-----------------------------------------------------------------------------
+
+from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING
+
+from gamspy import Set
+
+from core.base_class import GamsClass
+from core.dynslite_vda import DynsliteVda
+from core.equcrtp_vda import EqucrtpVda, EqucrtpVdaConfig
+from core.pp_actef_vda import PpActefVda
+from core.pp_qaput_mod import pp_qaput
+from core.resloadc_vda import ResloadcVda
+
+if TYPE_CHECKING:
+    from utils.compile_environment import CompileEnvironment
+    from utils.times_model_class import TimesModelClass
+
+logger = logging.getLogger(__name__)
+
+
+class PpmExtVda(GamsClass):
+    """Translation unit for ppm_ext.vda."""
+
+    # Instance attributes
+    module_name: str = "ppm_ext_vda"
+    gams_source: str = "ppm_ext.vda"
+
+    def __init__(
+        self,
+        tc: TimesModelClass,
+        env: CompileEnvironment,
+        arg1: str = "",
+        arg2: str = "",
+    ):
+        self.env = env.fork()
+        self._sub_modules = {}
+        self.tc = tc
+        self.arg1 = arg1
+        self.arg2 = arg2
+        self.compile()
+
+    def compile(self) -> None:
+        g = self.tc
+        m = g.container
+        self.tc.enqueue(self.display)
+
+        if self.tc.defined("GR_VARGEN"):
+            self.include(ResloadcVda(self.tc, self.env, arg1="COEF"))
+
+        self.tc.enqueue(self.exec1, pgprim=self.env.pgprim)
+
+        self.include(PpActefVda(self.tc, self.env, arg1="LVL"))
+        self.tc.enqueue(self.catch_shape_indexes, pgprim=self.env.pgprim)
+
+        if self.tc.defined("RP_FFSGG"):
+            self.tc.enqueue(self.prepare_map)
+
+        self.tc.enqueue(
+            self.add_acteff_to_rpc_func,
+            condition=self.env.reduce != "YES",
+        )
+
+        g.RpgAfcx = Set(m, name="RPG_AFCX", domain=[g.r, g.p, g.c, g.ie])
+
+        self.tc.register_assignment(self.tc.RpsCaflac)
+        self.tc.enqueue(self.prep_commodity_factors, pgprim=self.env.pgprim)
+
+        self.include(EqucrtpVda(self.tc, self.env, EqucrtpVdaConfig(arg1="PPM_EXT")))
+
+        if self.env.rts() != "S":
+            self.include(DynsliteVda(self.tc, self.env, arg1="POSTLEV"))
+
+    def display(self: PpmExtVda) -> None:
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=r"""
+DISPLAY 'PPM_EXT Invoked';
+""",
+        )
+
+    def exec1(self: PpmExtVda, pgprim: str) -> None:
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=rf"""
+  OPTION RP_UPL < ACT_UPS;
+  RP_UPL(RP,L)$(NOT PRC_CAP(RP)*RP_STD(RP)) = NO;
+  RP_PL(R,P,LNX) $= SUM(V$ACT_LOSPL(R,V,P,'FX'),1);
+*-----------------------------------------------------------------------------
+* Prepare FLO_SUMs for VDA_EMCB emissions
+  FS_EMCB(RP_IRE(R,P),COM,C) = NO;
+  OPTION FSCK <= FLO_SUM;
+  FLO_SUM(RTP(R,V,P),COM,C,COM,S)$((NOT FLO_SUM(RTP,COM,C,COM,S))$RPCS_VAR(R,P,C,S)$FS_EMCB(R,P,COM,C)) = VDA_EMCB(R,V,C,COM);
+  VDA_EMCB(R,ALLYEAR,C,COM) = 0;
+*-----------------------------------------------------------------------------
+* Auxiliary flow variable can be replaced by term (source flow x coefficient)
+  CG_GRP(R,P,C,COM)$FSCK(R,P,C,COM,C) = YES;
+  CG_GRP(FS_EMCB) = YES;
+  TRACKPG(RPC(RP_FLO,C)) $= SUM(CG_GRP(RPC,COM),1);
+  TRACKPG(RPC_PG) = NO; TRACKPG(RPC_FFUNC) = NO; TRACKPG(RPC_EMIS) = NO;
+  LOOP(CG_GRP(R,P,C,COM)$RPC_EMIS(R,P,COM),TRACKPG(R,P,C)=NO);
+  FS_EMIS(CG_GRP(TRACKPG(R,P,C),COM),C) = YES;
+* Prevent reduction of source commodity if target reduced
+  OPTION FS_EMIT < FS_EMIS, TRACKPC < FS_EMIS; TRACKPG(TRACKPC) = NO;
+  OPTION CLEAR=CG_GRP, CLEAR=TRACKPC, CLEAR=FS_EMIS, CLEAR=FS_EMCB, CLEAR=FSCK;
+*-----------------------------------------------------------------------------
+* ACT_EFF preparation, inheritance and aggregation
+  TRACKPC(RPC_ACE(RPC)) = YES;
+  TRACKPC(RPC_SPG(RP,C))$RPC_ACE(RP,'{pgprim}') = YES;
+  OPTION CLEAR=RXX; RXX(RPC_ACE) = YES; RXX(TRACKPC) = NO;
+  RPG_ACE(RXX(R,P,CG),IO)$(SUM(TOP(R,P,C,IO)$COM_GMAP(R,CG,C),1)$(NOT RP_INOUT(R,P,IO))) = YES;
+  OPTION CLEAR=RXX;
+* Mark groups that have ACT_EFF for PG commodities
+  LOOP(TRACKPC(RPC_PG(R,P,C)), TRACKP(R,P) = YES);
+  LOOP(RPG_ACE(TRACKP(R,P),CG,IO)$(NOT SUM(TOP(R,P,C,IO)$(COM_GMAP(R,CG,C)*(NOT RPC_SPG(R,P,C))),1)),RPG_PACE(R,P,CG) = YES);
+  LOOP(RPG_PACE(R,P,CG), TRACKP(R,P) = NO);
+* Mark commodities in groups as handled; Next, try to use shadow group
+  LOOP(RPG_ACE(R,P,CG,IO),TRACKPC(R,P,C)$COM_GMAP(R,CG,C) = NO);
+  RXX(PRC_SPG(R,P,CG))$(TRACKP(R,P)+SUM(TRACKPC(RPC_SPG(R,P,C)),YES)) = YES;
+  RPG_PACE(RXX(TRACKP,CG)) = YES;
+  TRACKPC(RPC_SPG) = NO;
+* Convert any ACT_EFF for 'ACT' to SPG if ACT_EFF not provided for SPG
+  ACT_EFF(RTP(R,V,P),CG,S)$RXX(R,P,CG) $= ACT_EFF(RTP,'{pgprim}',S);
+  ACT_EFF(R,LL,P,'{pgprim}',S) = 0;
+* Set the commodity type as the Group for remaining commodities
+  LOOP((TOP(TRACKPC(R,P,C),IO),COM_TMAP(R,COM_TYPE,C))$(NOT RP_INOUT(R,P,IO)),RXX(R,P,COM_TYPE) = YES);
+  RPG_ACE(RXX(R,P,CG),IO--1)$RP_INOUT(R,P,IO) = YES;
+* Set default ACT_EFF for group to 1 if none specified
+  LOOP(IO,ACT_EFF(RTP(R,V,P),CG,ANNUAL)$((ACT_EFF(RTP,CG,ANNUAL)=0)$RPG_ACE(R,P,CG,IO)) = 1);
+""",
+        )
+
+    def catch_shape_indexes(self: PpmExtVda, pgprim: str) -> None:
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=rf"""
+* Catch shape indexes for shadow group
+  IF(CARD(FLO_FUNCX),
+  FLO_FUNCX(R,V,P,CG1,ACTCG(CG))$PRC_SPG(R,P,CG1) $= FLO_FUNCX(R,V,P,CG,CG);
+  FLO_FUNCX(R,V,P,CG,COM)$(RPC_PG(R,P,COM)$RP_GRP(R,P,CG)) $= FLO_FUNCX(R,V,P,CG,'{pgprim}');
+  FLO_FUNCX(R,V,P,CG,ACTCG)$(ACTCG(CG)+RP_GRP(R,P,CG)) = 0;
+  FLO_FUNCX(R,V,P,CG,CG2)$RP_PG(R,P,CG) $= FLO_FUNCX(R,V,P,'{pgprim}',CG2));
+* Ensure that ACT_EFF modeled flows are not reduced:
+  OPTION TRACKP < RPG_ACE;
+  LOOP(RPCG_PTRAN(TRACKP(R,P),C,COM,CG,CG2)$(RPC_ACE(R,P,C)+RPC_ACE(R,P,COM)),RPCC_FFUNC(R,P,CG,CG2) = NO);
+  RPCG_PTRAN(TRACKP,C,COM,CG,CG2)$(NOT RPCC_FFUNC(TRACKP,CG,CG2)) = NO;
+  RPC_FFUNC(RPC_ACE(R,P,C)) = NO;
+  RPC_NOFLO(RPC_ACE(R,P,C)) = NO;
+  TRACKP(RP_PGFLO) = NO;
+  PRC_ACT(NO_ACT(TRACKP)) = YES;
+  NO_ACT(TRACKP) = NO;
+  OPTION CLEAR=TRACKP;
+""",
+        )
+
+    def prepare_map(self: PpmExtVda) -> None:
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=r"""
+* Prepare map for uncertain efficiencies
+  RP_FFSGG(PRC_SPG(R,P,CG1),ACTCG(CG))$RP_FFSGG(R,P,CG,CG) = 0;
+  RP_FFSGGM(RP_GRP(PRC_SPG(R,P,CG1)),C,ACTCG(CG),CG)$RPC_PG(R,P,C) $= RP_FFSGG(R,P,CG,CG);
+  RP_FFSGGM(RP_GRP(R,P,CG),COM,CG,ACTCG)$RPC_PG(R,P,COM) $= RP_FFSGG(R,P,CG,ACTCG);
+  RP_GRP(R,P,ACTCG) $= SUM(RP_GRP(PRC_SPG(R,P,CG)),1); RP_FFSGG(RP_GRP,ACTCG) = 0;
+  RP_FFSGGM(PRC_SPG(R,P,CG1),ACTCG(CG),CG,CG)$RP_FFSGG(R,P,CG,CG)=YES;
+""",
+        )
+
+    def add_acteff_to_rpc_func(self: PpmExtVda, condition: bool) -> None:
+        include_pp_qaput_1 = pp_qaput(
+            "PUTOUT",
+            "PUTGRP",
+            "01",
+            "ACT_EFF shadow group contains only an auxiliary flow",
+        )
+        include_pp_qaput_2 = pp_qaput(
+            "PUTOUT",
+            "PUTGRP",
+            "09",
+            "Inconsistent/spurious process transformation parameters",
+        )
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=rf"""
+* Add singleton ACT_EFFs to RPC_FFUNC
+  OPTION TRACKPC < RPG_1ACE; RPC_NOFLO(TRACKPC) = NO; PUTGRP=0;
+  LOOP(TRACKPC(KEEP_FLOF(R,P,C)),
+   IF(RPC_FFUNC(R,P,C)+TRACKPG(R,P,C),RPG_1ACE(R,P,CG,C) = NO; ELSE
+{include_pp_qaput_1}
+    PUT ' WARNING       - ACT_EFF is applied to the auxiliary flow: R.P.C= 'TRACKPC.TE(TRACKPC)));
+  TRACKPC(KEEP_FLOF) = NO; PUTGRP=0;
+  LOOP(RPC_FFUNC(TRACKPC),
+{include_pp_qaput_2}
+    PUT ' SEVERE ERROR  - Same process flow definitions in conflict: R.P.C= ',TRACKPC.TE(TRACKPC));
+* Complete reduced emission flow & FFUNC indicators
+  TRACKPG(RPC_ACE) = NO; TRACKPG(TRACKPC) = NO;
+  RPC_EMIS(TRACKPG)=YES; RPCC_FFUNC(TRACKPG(RP,C),C) = YES;
+{"OPTION CLEAR=TRACKPC;" if condition else ""}
+  OPTION KEEP_FLOF < RPC_FFUNC; TRACKPC(RP_SGS,C) = NO;
+  RPC_FFUNC(TRACKPC)$(NOT RPC_ACE(TRACKPC)) = YES;
+  OPTION CLEAR=RP_GRP,CLEAR=TRACKPC,CLEAR=TRACKPG;
+""",
+        )
+
+    def prep_commodity_factors(self: PpmExtVda, pgprim: str) -> None:
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=rf"""
+*-----------------------------------------------------------------------------
+* Prepare commodity-specific availability factors
+  OPTION RP_GRP<NCAP_AFC, RP_XRED<RP_GRP;
+  RP_GRP(RP_PG(R,P,CG))$(NOT C(CG)+COM_TYPE(CG)) = NO;
+  PRC_SC(RP_STG(RP_XRED(RP)))=SUM(PRC_TSL(RP,TSL),LOG(G_CYCLE(TSL)));
+  LOOP(TSL(STL),NCAP_AFCS(R,LL,P,CG,S)$TS_GROUP(R,TSL,S) $= NCAP_AFC(R,LL,P,CG,STL)$RP_GRP(R,P,CG));
+  NCAP_AFCS(R,LL,P,CG,S(STL))$RP_GRP(R,P,CG) $= NCAP_AFC(R,LL,P,CG,STL); OPTION CLEAR=NCAP_AFC;
+  NCAP_AFCS(R,LL,P,CG,S)$(NOT PRC_CAP(R,P))=0;
+* Handle independent AFCs
+  LOOP(RP_GRP(RP_FLO(R,P),CG),IF(SUM(RC(R,C(CG))$(NOT RPC_PG(R,P,C)),1)+1$(NOT RP_PGTYPE(R,P,CG)+C(CG)),TRACKPG(R,P,CG)=YES));
+  TRACKPG(RP_GRP(RP_STG,'{pgprim}'))=YES;
+  NCAP_AFC(R,V,P,CG,STL(S))$TRACKPG(R,P,CG) $= NCAP_AFCS(R,V,P,CG,S);
+  NCAP_AFC(R,V,P,C,STL(S))$(RC(R,C)$NCAP_AFCS(R,'0',P,'{pgprim}',S)) $= NCAP_AFCS(R,V,P,C,S);
+  NCAP_AFCS(R,V,P,CG,S)$(RP_STD(R,P)$TRACKPG(R,P,CG)) = 0;
+  NCAP_AFCS(R,V,P,CG,S)$(NCAP_AFCS(R,'0',P,'{pgprim}',S)$RP_FLO(R,P)) = 0;
+  NCAP_AFCS(R,V,P,CG,S)$((NOT RP_STG(R,P))$RP_PGTYPE(R,P,CG)) $= NCAP_AFCS(R,V,P,'{pgprim}',S);
+* Set into RTPS_BD tuples to be searched
+  OPTION RVPS < NCAP_AFCS;
+* Processes with no ACTFLO are not supported:
+  RVPS(R,V,P,S)$(RTP(R,V,P)->RP_STD(R,P)$RP_PGACT(R,P)) = NO;
+* Set into RTPS_BD availability tuples found
+  RTPS_BD(RVPS(R,V,P,S),BDUPX(BD))$(PRC_TS(R,P,S)*NCAP_AF(R,V,P,S,BD)) = YES;
+  RTPS_BD(RVPS(R,V,P,S),BDUPX(BD))$NCAP_AFS(R,V,P,S,BD) = YES;
+  RTPS_BD(RVPS(R,V,P,ANNUAL),BDUPX(BD))$NCAP_AFA(R,V,P,BD) = YES;
+* Clear tuples to be searched according to found ones
+  LOOP(BDUPX,RVPS(R,V,P,S)$RTPS_BD(R,V,P,S,BDUPX) = NO);
+* Accept remaining tuples of type UP/LO only, and set missing AFS
+  RTPS_BD(RVPS,'UP') = YES;
+  NCAP_AFS(RVPS,'UP') = 1;
+  OPTION RPS_CAFLAC < RTPS_BD;
+  NCAP_AFC(RTP,C,STL(S))$(NCAP_AFCS(RTP,C,S)=0) $= NCAP_AFCS(RTP,C,S);
+  NCAP_AFCS(R,V,P,CG,S)$((NCAP_AFCS(R,V,P,CG,S)<=0)$NCAP_AFCS(R,V,P,CG,S)) = 1+INF$(RP_STD(R,P) OR (NOT C(CG)));
+* Prepare IRE/STG with both sides
+  RPG_AFCX(RPC_IRE(RP,C,IE('EXP')))$(RPC_IRE(RP,C,'IMP')+(NOT RP_AIRE(RP,IE)))=YES;
+  RPG_AFCX(RPC_STG,IE(XPT)) $= TOP(RPC_STG,'OUT');
+* Enable flexible STS only where AF on activity
+  TRACKP(RP_STS(RP)) $= SUM(RPS_CAFLAC(RPS_STG(RP,S),BD),1); OPTION RP_GRP<NCAP_AFC;
+  RP_STL(PRC_CAP(RP_STS(RP)),TSL,'UP')$(TRACKP(RP)->RP_GRP(RP,'{pgprim}')) $= RP_STL(RP,TSL,'N');
+  OPTION CLEAR=TRACKP,CLEAR=RP_GRP,CLEAR=TRACKPG,CLEAR=RVPS,CLEAR=RTPS_BD;
+*-----------------------------------------------------------------------------
+* Automatic generation of NCAP_AFC for ECT CHP
+  RVP(RTP(R,V,P))$((NOT RPS_CAFLAC(R,P,'ANNUAL','UP'))$(NCAP_CHPR(RTP,'UP')*NCAP_AFA(RTP,'UP')>0)$CHP(R,P))=YES;
+  RVP(RTP)$(NCAP_CEH(RTP)<1.5) = NO;
+* The maximum of the technical AF for ELC, corrected with ACTFLO:
+  VDA_CEH(RVP(R,V,P)) = MAX(0,SMAX((PRC_TS(R,P,S),CHP_ELC(R,P,C)),NCAP_AF(RVP,S,'UP')*PRC_ACTFLO(RVP,C)));
+  RVP(RTP)$(VDA_CEH(RTP)<=0) = NO;
+  RPS_CAFLAC(R,P,ANNUAL,'UP') $= SUM(RVP(R,V,P)$VDA_CEH(RVP),1);
+* AFAC for heat = (heat share)/(1/AFA-(elec share)/AF):
+  NCAP_AFCS(RVP(R,V,P),C,ANNUAL)$RPC_PG(R,P,C) =
+    (1/(1+1/NCAP_CHPR(RVP,'UP'))) / NCAP_AFA(RVP,'UP') / PRC_ACTFLO(RVP,C) /
+    (1/NCAP_AFA(RVP,'UP')-(1-1/(1+1/NCAP_CHPR(RVP,'UP')))/VDA_CEH(RVP));
+  NCAP_AFCS(RVP(R,V,P),C,ANNUAL)$CHP_ELC(R,P,C) = VDA_CEH(RVP) / NCAP_AFA(RVP,'UP') / PRC_ACTFLO(RVP,C);
+  OPTION CLEAR=RVP,VDA_CEH<NCAP_CEH;
+*-----------------------------------------------------------------------------
+* Have NCAP_AFSX / NCAP_AFSM by control option
+  FIL(LL)=V(LL)+LASTLL(LL);
+  PRC_YMIN(R,P)$NCAP_AFX(R,'0',P) = FLOOR(NCAP_AFX(R,'0',P)/1000);
+  NCAP_AFSX(R,FIL(LL),P,BD)$((NCAP_AFSX(R,LL,P,BD)=0)$((MOD(PRC_YMIN(R,P),2)*2-1)*(1-2$BDUPX(BD))<0)$MOD(PRC_YMIN(R,P),7-4$V(LL))) $= NCAP_AFX(R,LL,P);
+  RP_AFB(R,P,BD)$((MOD(PRC_YMIN(R,P)$((MOD(PRC_YMIN(R,P),2)*2-1)*(1-2$BDUPX(BD))<0),5)=0)$PRC_YMIN(R,P)) = -1;
+  NCAP_AFSM(R,FIL(LL),P)$MOD(FLOOR(NCAP_AFM(R,LL,P)/1000),7-4$V(LL)) $= NCAP_AFM(R,LL,P);
+  NCAP_AFM(RTP(R,V,P))$((MOD(MAX(1,FLOOR(NCAP_AFM(R,'0',P)/1000)),5)=0)$NCAP_AFM(RTP)) = 0;
+""",
+        )

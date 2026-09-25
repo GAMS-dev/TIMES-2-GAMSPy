@@ -1,0 +1,17 @@
+*------------------------------------------------------------------------------
+*  Copyright (C) 2000-2023 IEA Energy Technology Systems Analysis Programme.
+*------------------------------------------------------------------------------
+*  This dataset for the ETSAP TIMES model "TIMES_Demo" is open source:
+*  you can redistribute it and/or modify it under the terms of the
+*  Creative Commons Attribution 4.0 International Public License.
+*
+*  This model dataset is distributed in the hope that it will be useful,
+*  but WITHOUT ANY WARRANTY; without even the implied warranty of
+*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+*  Creative Commons Attribution 4.0 International Public License
+*  for more details.
+*
+*  You should have received a copy of the Creative Commons Attribution 4.0
+*  Public License along with this model dataset (see the file LICENSE.txt).
+*  If not, please visit: <https://creativecommons.org/licenses/by/4.0/>
+*------------------------------------------------------------------------------
