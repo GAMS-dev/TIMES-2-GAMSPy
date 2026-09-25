@@ -27,6 +27,7 @@ from core.sol_ire_rpt import sol_ire_rpt
 from core.solsetv_v3 import SolsetvV3
 from core.solsysd_v3 import SolsysdV3
 from core.utils import add_records, apply_v_scope, resolve_ctst
+from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -1172,7 +1173,7 @@ def rptlite_rpt_part2(
 
 {
         rf'''Z=RPT_OPT('RATE','1'); IF(Z,TRACKPC(BS_BSC)=YES; TRACKPC(BS_STGP(R,P),C)$=BS_RTYPE(R,C));
-{arg1}P_OUT({arg3}RTP(R,T,P),C,S)$(PRC_TS(R,P,S)$BS_COMTS(R,C,S)$TRACKPC(R,P,C)$Z)=SUM(RTP_VINTYR(R,V,T,P),VAR_BSFSP(R,V,T,P,C,S)+VAR_BSFNSP(R,V,T,P,C,S))*PRC_CAPACT(R,P)/Z;'''
+{arg1}P_OUT({arg3}RTP(R,T,P),C,S)$(PRC_TS(R,P,S)$BS_COMTS(R,C,S)$TRACKPC(R,P,C)$Z)=SUM(RTP_VINTYR(R,V,T,P),{macro.var_bs.var_bsfsp("R", "V", "T", "P", "C", "S")}+{macro.var_bs.var_bsfnsp("R", "V", "T", "P", "C", "S")})*PRC_CAPACT(R,P)/Z;'''
         if abs_yes
         else ""
     }

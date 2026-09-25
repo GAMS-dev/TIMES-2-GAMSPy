@@ -642,9 +642,9 @@ class EnvironmentVariableSchema(BaseModel):
     tmp: str = Field(
         description="Universal temporary string parameter utilized across structural loops."
     )
-    tmp_GP: Expression | int = Field(
+    tmp_GP: Expression | Sum | int = Field(
         default=1,
-        description="GAMSPy counterpart of tmp where it carries a multiplier, e.g. the levelization factor 1/OBJ_PVT of cost_ann.rpt.",
+        description="GAMSPy counterpart of tmp where it carries a multiplier, e.g. the levelization factor 1/OBJ_PVT of cost_ann.rpt, or a full Sum expression, e.g. the vintaged-capacity formula of equ_ext.abs.",
     )
     sic: str = Field(
         default="1",
@@ -696,6 +696,9 @@ class EnvironmentVariableSchema(BaseModel):
     eqs: str
     v: str
     r_w_t: str
+    r_w_t_GP: tuple[Set | Alias | ImplicitSet, ...] = Field(
+        description="Region, Vintage, Time tracking parameter tracking block, restricted to BS_RVT (equ_ext.abs).",
+    )
 
 
 class UserConfig(BaseModel):

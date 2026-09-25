@@ -1058,6 +1058,8 @@ class TimesModelClass:
     VAR_RLD: Variable = None  # type: ignore[assignment]  # [r,t,s,item] VAR_RLD: Residual loads
     VAS_RLD: Variable = None  # type: ignore[assignment]  # [r,t,s,item] VAS_RLD: Residual loads
     Z_RLD: Variable = None  # type: ignore[assignment]  # SPINES-only alias of VAS_RLD ($macro Z_RLD)
+    VAR_COMLV: Variable = None  # type: ignore[assignment]  # [clvt,r,year,c,s] VAR_COMLV: Commodity levels
+    VAS_COMLV: Variable = None  # type: ignore[assignment]  # [clvt,r,year,c,s] VAS_COMLV: Commodity levels
     VAR_BSPRS: Variable = None  # type: ignore[assignment]  # [r,year,t,p,c,s,l] VAR_BSPRS: Balancing services
     VAS_BSPRS: Variable = None  # type: ignore[assignment]  # [r,year,t,p,c,s,l] VAS_BSPRS: Balancing services
     VAR_ANNCST: Variable = None  # type: ignore[assignment]# [obv,r,allyear,cur] VAR_ANNCST: Annualized objective costs
