@@ -3013,5 +3013,14 @@ REGISTRY.update(
         "demo12BaseMLF_csa": derive_from(
             "demo12BaseMLF", run_name="demo12BaseMLF_csa", macro="CSA"
         ),
+        # reaches: powerflo_vda.py CSTBAL/OBJBAL/RPTB sections (coef_ext_vda.py,
+        # equ_ext_vda.py, cost_ann_rpt.py)
+        "PowFlow_cstbal": derive_from(
+            "PowFlow", run_name="power_demo_cstbal"
+        ).model_copy(
+            update={
+                "data_modules": [*REGISTRY["PowFlow"].data_modules, Path("cstbal.dd")]
+            }
+        ),
     }
 )

@@ -20,6 +20,7 @@ from gamspy import Parameter, Set, Variable
 from core.base_class import GamsClass
 from core.powerflo_vda import PowerfloVda
 from core.prepret_dsc import PrepretDsc, PrepretDscConfig
+from core.utils import expand_set
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
@@ -47,7 +48,11 @@ class ModVarsMod(GamsClass):
         m = g.container
 
         # Set of standard objective components
-        g.obv = Set(m, "OBV", records=["OBJINV", "OBJFIX", "OBJSAL", "OBJVAR"])
+        # $ONMULTI: powerflo.vda's CSTBAL may already have declared OBV / OBJBAL /
+        if g.obv is None:
+            g.obv = Set(m, "OBV", records=["OBJINV", "OBJFIX", "OBJSAL", "OBJVAR"])
+        else:
+            expand_set(g.obv, ["OBJINV", "OBJFIX", "OBJSAL", "OBJVAR"])
 
         var = self.env.var
         swd = self.env.swd_GP

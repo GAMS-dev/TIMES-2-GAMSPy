@@ -20,6 +20,7 @@ from core.fillparm_gms import FillparmGms, FillparmGmsConfig
 from core.filparam_gms import FilparamGms, FilparamGmsConfig
 from core.gasgrids_vda import GasgridsVda
 from core.pp_lvlfc_mod import PpLvlfcMod, PpLvlfcModConfig
+from core.utils import expand_set
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
@@ -259,6 +260,8 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
                         ),
                     )
                 )
+
+                self.tc.register_assignment(g.obj_combal)
                 self.tc.enqueue(self.exec7)
 
             elif label == "OBJBAL":
@@ -266,7 +269,6 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
                 self.env.set_scoped(
                     "tpulse", "TT$OBJ_LINT(R,T,TT,CUR),OBJ_LINT(R,T,TT,CUR)"
                 )
-                # needed because it is set inside the equation definition
                 self.env.set_scoped("sowpre", self.env.sow)
                 if self.env.stages == "YES":
                     self.env.set_scoped("sow", ",WW")
@@ -778,18 +780,15 @@ $ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,'{pgprim}',s,ie{sow}
         )
 
     def comp2(self: PowerfloVda) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-* Preprocess nodal balance costs
-  SET OBV / OBJBAL /;
-  SET ITEM / CON, NTX, NPG /;
-""",
-        )
-
         g = self.tc
         m = g.container
+        # * Preprocess nodal balance costs
+        if g.obv is None:
+            g.obv = Set(m, name="OBV", records=["OBJBAL"])
+        else:
+            expand_set(g.obv, ["OBJBAL"])
+        self.add_records_to_universe_item(records=["CON", "NTX", "NPG"])
+
         g.Rcgrid = Set(m, name="RC_GRID", domain=[g.r, g.t, g.c])
         g.GrAllmap = Set(m, name="GR_ALLMAP", domain=[g.r, g.cg, g.Com])
         g.GrPrcmap = Set(m, name="GR_PRCMAP", domain=[g.r, g.p, g.c, g.item])
