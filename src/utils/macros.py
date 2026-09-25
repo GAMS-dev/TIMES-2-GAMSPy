@@ -5,13 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
-from gamspy import Domain, Sum
+from gamspy import Domain, Number, Sum
 from gamspy.math import Max, power, sqrt
 
 from core.utils import SET_OR_ALIAS, SowGPType, extract_var_domain, wrap_in_sum
 
 if TYPE_CHECKING:
-    from gamspy import Alias, Equation, Expression, Number, Set
+    from gamspy import Alias, Equation, Expression, Set
     from gamspy._algebra.condition import Condition
     from gamspy._algebra.expression import ShiftExpression
     from gamspy._symbols.implicits import (
@@ -161,6 +161,368 @@ class UpscapsContext:
             return expr
         else:
             raise NotImplementedError
+
+
+_NO_EXTRA_CONDITION = Number(1)
+
+
+@dataclass
+class VarBsContext:
+    """equ_ext.abs's VAR_BS* $macros (Ancillary Balancing Services variables).
+
+    Like UpscapsContext, these have no genuine "inactive" GAMS branch of
+    their own -- `active` only guards against use before `activate()`,
+    which equ_ext_abs.py calls once it compiles (the only file that defines
+    these macros). var_off/var_gap (eqlducs.vda's own macros, used inside
+    var_bson) are inlined here in their native forms rather than delegated
+    to EqlducsContext, to keep var_bson self-contained.
+    """
+
+    active: bool = False
+    var: str = ""
+    sow: str = ""
+    pgprim: str = ""
+
+    def activate(
+        self,
+        g: TimesModelClass,
+        var: str,
+        sow: str,
+        sow_GP: tuple[Literal["0", "1"] | SET_OR_ALIAS, ...] | tuple[()],
+        pgprim: str,
+    ) -> None:
+        self.g = g
+        self.active = True
+        self.var = var
+        self.sow = sow
+        self.sow_GP = sow_GP
+        self.pgprim = pgprim
+
+    def deactivate(self) -> None:
+        self.active = False
+        self.var = ""
+        self.sow = ""
+        self.sow_GP = ()
+        self.pgprim = ""
+
+    def var_bson_GP(
+        self,
+        r: SET_OR_ALIAS,
+        v: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        s: SET_OR_ALIAS,
+    ) -> Sum:
+        if not self.active:
+            raise NotImplementedError
+        g = self.g
+        VAR_UPS = g.get_variable(f"{self.var}_UPS")
+        VAR_UDP = g.get_variable(f"{self.var}_UDP")
+        return Sum(
+            g.TsMap[r, g.allts, s].where[g.RsBelow1[r, g.allts, s] + g.Annual[s]],
+            VAR_UDP[r, v, t, p, g.allts, "FX", *self.sow_GP]
+            + (
+                VAR_UPS[r, v, t, p, g.allts, "FX", *self.sow_GP]
+                - VAR_UPS[r, v, t, p, s, "N", *self.sow_GP]
+            ).where[g.RpsUps[r, p, s]],
+        )
+
+    def var_bsd_GP(self, typ: str, rtc: Set, s: SET_OR_ALIAS) -> ImplicitVariable:
+        if not self.active:
+            raise NotImplementedError
+        g = self.g
+        VAR_COMLV = g.get_variable(f"{self.var}_COMLV")
+        return VAR_COMLV[typ, rtc, s, *self.sow_GP]
+
+    def var_bsmup_GP(
+        self,
+        r: SET_OR_ALIAS,
+        v: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        s: SET_OR_ALIAS,
+    ) -> ImplicitVariable:
+        if not self.active:
+            raise NotImplementedError
+        g = self.g
+        VAR_BSPRS = g.get_variable(f"{self.var}_BSPRS")
+        return VAR_BSPRS[r, v, t, p, self.pgprim, s, "N", *self.sow_GP]
+
+    def var_bsfsp(self, r: str, v: str, t: str, p: str, c: str, s: str) -> str:
+        if not self.active:
+            raise NotImplementedError
+        return f"{self.var}_bsprs({r},{v},{t},{p},{c},{s},'N'{self.sow})$bs_rvt({r},{v},{t})"
+
+    def var_bsfsp_GP(
+        self,
+        r: SET_OR_ALIAS,
+        v: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        c: SET_OR_ALIAS,
+        s: SET_OR_ALIAS,
+        extra: Condition
+        | Expression
+        | ImplicitSet
+        | Number
+        | Sum = _NO_EXTRA_CONDITION,
+    ) -> Condition:
+        if not self.active:
+            raise NotImplementedError
+        g = self.g
+        VAR_BSPRS = g.get_variable(f"{self.var}_BSPRS")
+        return VAR_BSPRS[r, v, t, p, c, s, "N", *self.sow_GP].where[
+            g.BsRvt[r, v, t] & extra
+        ]
+
+    def var_bsfnsp(self, r: str, v: str, t: str, p: str, c: str, s: str) -> str:
+        if not self.active:
+            raise NotImplementedError
+        return f"{self.var}_bsprs({r},{v},{t},{p},{c},{s},'FX'{self.sow})$bs_rvt({r},{v},{t})"
+
+    def var_bsfnsp_GP(
+        self,
+        r: SET_OR_ALIAS,
+        v: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        c: SET_OR_ALIAS,
+        s: SET_OR_ALIAS,
+        extra: Condition
+        | Expression
+        | ImplicitSet
+        | Number
+        | Sum = _NO_EXTRA_CONDITION,
+    ) -> Condition:
+        if not self.active:
+            raise NotImplementedError
+        g = self.g
+        VAR_BSPRS = g.get_variable(f"{self.var}_BSPRS")
+        return VAR_BSPRS[r, v, t, p, c, s, "FX", *self.sow_GP].where[
+            g.BsRvt[r, v, t] & extra
+        ]
+
+    def var_bsupsr_GP(
+        self,
+        r: SET_OR_ALIAS,
+        v: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        s: SET_OR_ALIAS,
+        bd: SET_OR_ALIAS | str,
+        extra: Condition
+        | Expression
+        | ImplicitSet
+        | Number
+        | Sum = _NO_EXTRA_CONDITION,
+    ) -> Condition:
+        if not self.active:
+            raise NotImplementedError
+        g = self.g
+        VAR_BSPRS = g.get_variable(f"{self.var}_BSPRS")
+        return VAR_BSPRS[r, v, t, p, self.pgprim, s, bd, *self.sow_GP].where[
+            g.BsRvt[r, v, t] & extra
+        ]
+
+    def var_bslack_GP(
+        self,
+        r: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        c: SET_OR_ALIAS,
+        s: SET_OR_ALIAS,
+    ) -> ImplicitVariable:
+        if not self.active:
+            raise NotImplementedError
+        g = self.g
+        VAR_BSPRS = g.get_variable(f"{self.var}_BSPRS")
+        return VAR_BSPRS[r, t, t, p, c, s, "UP", *self.sow_GP]
+
+
+@dataclass
+class EqlducsContext:
+    """eqlducs.vda's var_on/var_off/var_load/var_gap/v_u/SUDHFR/SPRSV
+    $macros -- shared here since equ_ext_abs.py needs some natively, and
+    eqlducs_vda.py's own still-raw equations call the string form instead
+    of a locally defined $macro. sdtol is a plain constant used only
+    within eqlducs_vda.py, so it's a local variable there instead."""
+
+    active: bool = False
+    var: str = ""
+    sow: str = ""
+    sprsv_condition: bool = False
+
+    def activate(
+        self,
+        g: TimesModelClass,
+        var: str,
+        sow: str,
+        sow_GP: tuple[Literal["0", "1"] | SET_OR_ALIAS, ...] | tuple[()],
+        sprsv_condition: bool = False,
+    ) -> None:
+        self.g = g
+        self.active = True
+        self.var = var
+        self.sow = sow
+        self.sow_GP = sow_GP
+        self.sprsv_condition = sprsv_condition
+
+    def deactivate(self) -> None:
+        self.active = False
+        self.var = ""
+        self.sow = ""
+        self.sow_GP = ()
+        self.sprsv_condition = False
+
+    def var_on(self, r: str, v: str, t: str, p: str, s: str) -> str:
+        """$macro var_on(r,v,t,p,s) {var}_udp(r,v,t,p,s,'N'{sow})."""
+        if not self.active:
+            raise NotImplementedError
+        return f"{self.var}_udp({r},{v},{t},{p},{s},'N'{self.sow})"
+
+    def var_on_GP(
+        self,
+        r: SET_OR_ALIAS,
+        v: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        s: SET_OR_ALIAS,
+    ) -> ImplicitVariable:
+        if not self.active:
+            raise NotImplementedError
+        g = self.g
+        VAR_UDP = g.get_variable(f"{self.var}_UDP")
+        return VAR_UDP[r, v, t, p, s, "N", *self.sow_GP]
+
+    def var_off(self, r: str, v: str, t: str, p: str, s: str) -> str:
+        """$macro var_off(r,v,t,p,s) {var}_ups(r,v,t,p,s,'N'{sow})."""
+        if not self.active:
+            raise NotImplementedError
+        return f"{self.var}_ups({r},{v},{t},{p},{s},'N'{self.sow})"
+
+    def var_off_GP(
+        self,
+        r: SET_OR_ALIAS,
+        v: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        s: SET_OR_ALIAS,
+    ) -> ImplicitVariable:
+        if not self.active:
+            raise NotImplementedError
+        g = self.g
+        VAR_UPS = g.get_variable(f"{self.var}_UPS")
+        return VAR_UPS[r, v, t, p, s, "N", *self.sow_GP]
+
+    def var_load(self, r: str, v: str, t: str, p: str, s: str) -> str:
+        """$macro var_load(r,v,t,p,s) {var}_act(r,v,t,p,s{sow})/g_yrfr(r,s)/prc_capact(r,p)."""
+        if not self.active:
+            raise NotImplementedError
+        return f"{self.var}_act({r},{v},{t},{p},{s}{self.sow})/g_yrfr({r},{s})/prc_capact({r},{p})"
+
+    def var_load_GP(
+        self,
+        r: SET_OR_ALIAS,
+        v: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        s: SET_OR_ALIAS,
+    ) -> Expression:
+        if not self.active:
+            raise NotImplementedError
+        g = self.g
+        VAR_ACT = g.get_variable(f"{self.var}_ACT")
+        return (
+            VAR_ACT[r, v, t, p, s, *self.sow_GP] / g.g_yrfr[r, s] / g.prc_capact[r, p]
+        )
+
+    def var_gap(self, r: str, v: str, t: str, p: str, s: str) -> str:
+        """$macro var_gap(r,v,t,p,s) {var}_udp(r,v,t,p,s,'FX'{sow})."""
+        if not self.active:
+            raise NotImplementedError
+        return f"{self.var}_udp({r},{v},{t},{p},{s},'FX'{self.sow})"
+
+    def var_gap_GP(
+        self,
+        r: SET_OR_ALIAS,
+        v: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        s: SET_OR_ALIAS,
+    ) -> ImplicitVariable:
+        if not self.active:
+            raise NotImplementedError
+        g = self.g
+        VAR_UDP = g.get_variable(f"{self.var}_UDP")
+        return VAR_UDP[r, v, t, p, s, "FX", *self.sow_GP]
+
+    def v_u(self, x: str, r: str, v: str, t: str, p: str, s: str, lA: str) -> str:
+        """$macro v_u(x,r,v,t,p,s,l) %var%_&x(r,v,t,p,s,l%SOW%) -- eqlducs.vda:58."""
+        if not self.active:
+            raise NotImplementedError
+        return f"{self.var}_{x}({r},{v},{t},{p},{s},{lA}{self.sow})"
+
+    def v_u_GP(
+        self,
+        x: str,
+        r: SET_OR_ALIAS,
+        v: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        s: SET_OR_ALIAS,
+        lA: SET_OR_ALIAS | str,
+    ) -> ImplicitVariable:
+        if not self.active:
+            raise NotImplementedError
+        g = self.g
+        # %var%_&x(r,v,t,p,s,l%SOW%): the & attaches to the argument x
+        VAR_X = g.get_variable(f"{self.var}_{x}")
+        return VAR_X[r, v, t, p, s, lA, *self.sow_GP]
+
+    def sudhfr(self, r: str, s: str, x: str, sl: str) -> str:
+        """$macro SUDHFR(r,s,x,sl) (G_YRFR(r,s) x G_YRFR(r,sl))/2/RS_STGPRD(r,s)."""
+        if not self.active:
+            raise NotImplementedError
+        return f"(G_YRFR({r},{s}) {x} G_YRFR({r},{sl}))/2/RS_STGPRD({r},{s})"
+
+    def sudhfr_GP(
+        self,
+        r: SET_OR_ALIAS,
+        s: SET_OR_ALIAS,
+        x: str,
+        sl: SET_OR_ALIAS,
+    ) -> Expression:
+        if not self.active:
+            raise NotImplementedError
+        g = self.g
+        if x == "-":
+            return (g.g_yrfr[r, s] - g.g_yrfr[r, sl]) / 2 / g.rs_stgprd[r, s]
+        if x == "+":
+            return (g.g_yrfr[r, s] + g.g_yrfr[r, sl]) / 2 / g.rs_stgprd[r, s]
+        raise ValueError(f"sudhfr: unsupported operator token x={x!r}")
+
+    def sprsv(self) -> str:
+        if not self.active:
+            raise NotImplementedError
+        if not self.sprsv_condition:
+            return ""
+        return (
+            "-sum(bs_comts(bs_apos(r,c),s)$bs_bsc(r,p,c),"
+            f"{self.var}_bsprs(r,v,t,p,c,s,'N'{self.sow}))$bs_supp(r,p)"
+        )
+
+    def sprsv_GP(self) -> Expression | int:
+        """Identity element (0, additive) when self.sprsv_condition is False."""
+        if not self.active:
+            raise NotImplementedError
+        if not self.sprsv_condition:
+            return 0
+        g = self.g
+        VAR_BSPRS = g.get_variable(f"{self.var}_BSPRS")
+        return -Sum(
+            g.BsComts[g.BsApos[g.r, g.c], g.s].where[g.BsBsc[g.r, g.p, g.c]],
+            VAR_BSPRS[g.r, g.v, g.t, g.p, g.c, g.s, "N", *self.sow_GP],
+        ).where[g.BsSupp[g.r, g.p]]
 
 
 @dataclass
@@ -459,6 +821,8 @@ class Macros:
             self.var_sift,
             self.var_sts,
             self.upscaps,
+            self.var_bs,
+            self.eqlducs,
             self.rtcs_fr,
             self.com_fr,
             self.coef_af_mx,
@@ -473,6 +837,8 @@ class Macros:
         self.var_sift = VarSiftContext()
         self.var_sts = VarStsContext()
         self.upscaps = UpscapsContext()
+        self.var_bs = VarBsContext()
+        self.eqlducs = EqlducsContext()
         self.rtcs_fr = RtcsFrContext()
         self.com_fr = ComFrContext()
         self.coef_af_mx = CoefAfMxContext()

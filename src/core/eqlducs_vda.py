@@ -90,7 +90,7 @@ class EqlducsVda(GamsClass):
                 ],
             )
 
-            capups = f"({self.env.capon}-SUM(rs_below(r,all_ts,s)$rps_ups(r,p,all_ts),var_off(r,v,t,p,all_ts)))"
+            capups = f"({self.env.capon}-SUM(rs_below(r,all_ts,s)$rps_ups(r,p,all_ts),{macro.eqlducs.var_off('r', 'v', 't', 'p', 'all_ts')}))"
             self.define_equation1(
                 capon=self.env.capon,
                 capups=capups,
@@ -174,20 +174,13 @@ class EqlducsVda(GamsClass):
         )
 
     def set_macros(self: EqlducsVda, var: str, sow: str, condition: bool) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-$ macro sdtol .001
-$ macro var_on(r,v,t,p,s) {var}_udp(r,v,t,p,s,'N'{sow})
-$ macro var_off(r,v,t,p,s) {var}_ups(r,v,t,p,s,'N'{sow})
-$ macro var_load(r,v,t,p,s) {var}_act(r,v,t,p,s{sow})/g_yrfr(r,s)/prc_capact(r,p)
-$ macro var_gap(r,v,t,p,s) {var}_udp(r,v,t,p,s,'FX'{sow})
-$ macro v_u(x,r,v,t,p,s,l) {var}_&x(r,v,t,p,s,l{sow})
-$ macro SUDHFR(r,s,x,sl) (G_YRFR(r,s) x G_YRFR(r,sl))/2/RS_STGPRD(r,s)
-$ macro SPRSV \
-{f"-sum(bs_comts(bs_apos(r,c),s)$bs_bsc(r,p,c),{var}_bsprs(r,v,t,p,c,s,'N'{sow}))$bs_supp(r,p)" if condition else ""}
-""",
+        # Activates all macros except sdtol which is now used as a local variable
+        macro.eqlducs.activate(
+            g=self.tc,
+            var=var,
+            sow=sow,
+            sow_GP=self.env.sow_GP,
+            sprsv_condition=condition,
         )
 
     def define_equation1(
@@ -199,6 +192,7 @@ $ macro SPRSV \
         swtx: str,
     ) -> None:
         rts = macro.rts(s="S", g=self.tc, env=self.env)
+        sdtol = ".001"  # $macro sdtol .001 -- only used within this method
 
         self.tc.add_gams_code(
             module=self,
@@ -208,62 +202,62 @@ $ macro SPRSV \
 
   eq_sdlogic(rtp_vintyr({r_v_t},p),tsl,{rts},lnx(l){swx})$({swtx}ts_group(r,tsl,s)$rp_dpl(r,p,tsl))..
 
-     (sum(ts(s--rs_stg(r,s)),var_on(r,v,t,p,ts)-var_on(r,v,t,p,s)) - SUM(bd,v_u(ups,r,v,t,p,s,bd)*BDSIG(bd)))$ips(l) +
-     (v_u(ups,r,v,t,p,s,'UP') - SUM(rp_upt(r,p,upt,'UP'),v_u(upt,r,v,t,p,s,upt)))$bd(l) =E= 0;
+     (sum(ts(s--rs_stg(r,s)),{macro.eqlducs.var_on("r", "v", "t", "p", "ts")}-{macro.eqlducs.var_on("r", "v", "t", "p", "s")}) - SUM(bd,{macro.eqlducs.v_u("ups", "r", "v", "t", "p", "s", "bd")}*BDSIG(bd)))$ips(l) +
+     ({macro.eqlducs.v_u("ups", "r", "v", "t", "p", "s", "'UP'")} - SUM(rp_upt(r,p,upt,'UP'),{macro.eqlducs.v_u("upt", "r", "v", "t", "p", "s", "upt")}))$bd(l) =E= 0;
 
 *-----------------------------------------------------------------------------
 
   eq_sudupt(rtp_vintyr({r_v_t},p),tsl,{rts},upt{swx})$({swtx}DP_NON(r,v,p,upt,tsl,'UP')$ts_group(r,tsl,s)$rp_dpl(r,p,tsl))..
 
-     v_u(upt,r,v,t,p,s,upt) =L= sum((rs_up(r,s,js),rj_sl(r,js,sl))$(ORD(s)<>ORD(sl)),
-       v_u(ups,r,v,t,p,sl,'LO')$(MOD(RS_HR(r,s)-RS_HR(r,sl)-DP_NON(r,v,p,upt,tsl,'LO')+(G_YRFR(r,sl)/4+G_YRFR(r,s))/RS_STGPRD(r,s)+2/JS_CCL(r,js),1/JS_CCL(r,js))<DP_NON(r,v,p,upt,tsl,'UP')*(1+sdtol)+G_YRFR(r,s)/RS_STGPRD(r,s)/2));
+     {macro.eqlducs.v_u("upt", "r", "v", "t", "p", "s", "upt")} =L= sum((rs_up(r,s,js),rj_sl(r,js,sl))$(ORD(s)<>ORD(sl)),
+       {macro.eqlducs.v_u("ups", "r", "v", "t", "p", "sl", "'LO'")}$(MOD(RS_HR(r,s)-RS_HR(r,sl)-DP_NON(r,v,p,upt,tsl,'LO')+(G_YRFR(r,sl)/4+G_YRFR(r,s))/RS_STGPRD(r,s)+2/JS_CCL(r,js),1/JS_CCL(r,js))<DP_NON(r,v,p,upt,tsl,'UP')*(1+{sdtol})+G_YRFR(r,s)/RS_STGPRD(r,s)/2));
 
 *-----------------------------------------------------------------------------
 
   eq_sdslant(rtp_vintyr({r_v_t},p),tsl,{rts}{swx})$({swtx}ts_group(r,tsl,s)$rp_dpl(r,p,tsl))..
 
-     var_on(r,v,t,p,s) =E= sum(rs_below1(r,ts,s),v_u(ups,r,v,t,p,ts,'FX')-{capups})$PRC_TS(R,P,S) + ({capups}) - var_off(r,v,t,p,s) -
+     {macro.eqlducs.var_on("r", "v", "t", "p", "s")} =E= sum(rs_below1(r,ts,s),{macro.eqlducs.v_u("ups", "r", "v", "t", "p", "ts", "'FX'")}-{capups})$PRC_TS(R,P,S) + ({capups}) - {macro.eqlducs.var_off("r", "v", "t", "p", "s")} -
      sum(rp_upt(r,p,upt,bd),
-      sum((rs_up(r,s,js),rj_sl(r,js,sl))$(RS_MODUS(R,SL,JS,S)<ACT_SDTIME(r,v,p,upt,bd)/8760*(1+sdtol)),
-         v_u(upt,r,v,t,p,sl,upt)*(0$DIAG(S,SL) +
-                                  MAX(0,1-MOD(RS_HR(r,sl)-RS_HR(r,s)+SUDHFR(r,sl,-,s)+2/JS_CCL(r,js),1/JS_CCL(r,js))/(ACT_SDTIME(r,v,p,upt,bd)/8760))*(1-DIAG(S,SL))))$bdupx(bd) +
-      sum((rs_up(r,s,js),rj_sl(r,js,sl))$(RS_MODUS(R,S,JS,SL)<ACT_SDTIME(r,v,p,upt,bd)/8760*(1+sdtol)),
-          v_u(ups,r,v,t,p,sl,bd)*(1$DIAG(S,SL) +
-                                  MAX(0,1-MOD(RS_HR(r,s)-RS_HR(r,sl)+SUDHFR(r,sl,-,s)+2/JS_CCL(r,js),1/JS_CCL(r,js))/(ACT_SDTIME(r,v,p,upt,bd)/8760))*(1-DIAG(S,SL))))$bdlox(bd));
+      sum((rs_up(r,s,js),rj_sl(r,js,sl))$(RS_MODUS(R,SL,JS,S)<ACT_SDTIME(r,v,p,upt,bd)/8760*(1+{sdtol})),
+         {macro.eqlducs.v_u("upt", "r", "v", "t", "p", "sl", "upt")}*(0$DIAG(S,SL) +
+                                  MAX(0,1-MOD(RS_HR(r,sl)-RS_HR(r,s)+{macro.eqlducs.sudhfr("r", "sl", "-", "s")}+2/JS_CCL(r,js),1/JS_CCL(r,js))/(ACT_SDTIME(r,v,p,upt,bd)/8760))*(1-DIAG(S,SL))))$bdupx(bd) +
+      sum((rs_up(r,s,js),rj_sl(r,js,sl))$(RS_MODUS(R,S,JS,SL)<ACT_SDTIME(r,v,p,upt,bd)/8760*(1+{sdtol})),
+          {macro.eqlducs.v_u("ups", "r", "v", "t", "p", "sl", "bd")}*(1$DIAG(S,SL) +
+                                  MAX(0,1-MOD(RS_HR(r,s)-RS_HR(r,sl)+{macro.eqlducs.sudhfr("r", "sl", "-", "s")}+2/JS_CCL(r,js),1/JS_CCL(r,js))/(ACT_SDTIME(r,v,p,upt,bd)/8760))*(1-DIAG(S,SL))))$bdlox(bd));
 
 *-----------------------------------------------------------------------------
 
   eq_sdminon(rtp_vintyr({r_v_t},p),{rts}{swx})$({swtx}prc_ts(r,p,s)$rp_dp(r,p))..
 
-     var_on(r,v,t,p,s)+sum(rs_below1(r,ts,s),var_gap(r,v,t,p,ts)) =G= var_gap(r,v,t,p,s)+v_u(ups,r,v,t,p,s,'UP')+
-     (SUM(rp_upt(r,p,upt,'UP')$(G_YRFR(r,s)/RS_STGPRD(r,s)/2<=ACT_SDTIME(R,V,P,upt,'UP')/8760),v_u(upt,r,v,t,p,s,upt))-v_u(ups,r,v,t,p,s,'UP'))$(SMIN(rp_upt(r,p,upt,'UP'),ACT_SDTIME(r,v,p,upt,'UP')/8760)<G_YRFR(r,s)/RS_STGPRD(r,s)/2);
+     {macro.eqlducs.var_on("r", "v", "t", "p", "s")}+sum(rs_below1(r,ts,s),{macro.eqlducs.var_gap("r", "v", "t", "p", "ts")}) =G= {macro.eqlducs.var_gap("r", "v", "t", "p", "s")}+{macro.eqlducs.v_u("ups", "r", "v", "t", "p", "s", "'UP'")}+
+     (SUM(rp_upt(r,p,upt,'UP')$(G_YRFR(r,s)/RS_STGPRD(r,s)/2<=ACT_SDTIME(R,V,P,upt,'UP')/8760),{macro.eqlducs.v_u("upt", "r", "v", "t", "p", "s", "upt")})-{macro.eqlducs.v_u("ups", "r", "v", "t", "p", "s", "'UP'")})$(SMIN(rp_upt(r,p,upt,'UP'),ACT_SDTIME(r,v,p,upt,'UP')/8760)<G_YRFR(r,s)/RS_STGPRD(r,s)/2);
 
 *-----------------------------------------------------------------------------
 
   eq_sudload(rtp_vintyr({r_v_t},p),{rts}{swx})$({swtx}prc_ts(r,p,s)$rp_dp(r,p))..
 
-     var_load(r,v,t,p,s) =E= ({capon}{macro.upscaps.render()})*ACT_MINLD(R,V,P) + var_gap(r,v,t,p,s)*(COEF_AF(r,v,t,p,s,'UP')-ACT_MINLD(r,v,p)) SPRSV;
+     {macro.eqlducs.var_load("r", "v", "t", "p", "s")} =E= ({capon}{macro.upscaps.render()})*ACT_MINLD(R,V,P) + {macro.eqlducs.var_gap("r", "v", "t", "p", "s")}*(COEF_AF(r,v,t,p,s,'UP')-ACT_MINLD(r,v,p)) {macro.eqlducs.sprsv()};
 
 *-----------------------------------------------------------------------------
 
   eq_sudtime(rtp_vintyr({r_v_t},p),tsl,{rts},bd{swx})$({swtx}prc_tsl(r,p,tsl)$ts_group(r,tsl,s)$act_time(r,v,p,bd)$rp_dp(r,p))..
 
-     sum(bdlox(bd), var_off(r,v,t,p,s) -
-       sum((rs_up(r,s,js),rj_sl(r,js,sl)),v_u(ups,r,v,t,p,sl,bd)$(MOD(RS_HR(r,s)-RS_HR(r,sl)-ACT_SDTIME(r,v,p,'HOT','LO')/8760+G_YRFR(r,s)/RS_STGPRD(r,s)/2+2/JS_CCL(r,js),1/JS_CCL(r,js))<ACT_TIME(r,v,p,bd)/8760))) +
-     sum(bdupx(bd), var_on(r,v,t,p,s) -
+     sum(bdlox(bd), {macro.eqlducs.var_off("r", "v", "t", "p", "s")} -
+       sum((rs_up(r,s,js),rj_sl(r,js,sl)),{macro.eqlducs.v_u("ups", "r", "v", "t", "p", "sl", "bd")}$(MOD(RS_HR(r,s)-RS_HR(r,sl)-ACT_SDTIME(r,v,p,'HOT','LO')/8760+G_YRFR(r,s)/RS_STGPRD(r,s)/2+2/JS_CCL(r,js),1/JS_CCL(r,js))<ACT_TIME(r,v,p,bd)/8760))) +
+     sum(bdupx(bd), {macro.eqlducs.var_on("r", "v", "t", "p", "s")} -
        sum((rs_up(r,s,js),rj_sl(r,js,sl)),
-        sum(rp_upt(r,p,upt,bd),v_u(upt,r,v,t,p,sl,upt)$(MOD(RS_HR(r,s)-RS_HR(r,sl)+1/JS_CCL(r,js),1/JS_CCL(r,js))<(ACT_TIME(r,v,p,bd)-ACT_SDTIME(r,v,p,'HOT','LO')-ACT_SDTIME(r,v,p,upt,bd))/8760+G_YRFR(r,sl)/RS_STGPRD(r,s)/2))))
+        sum(rp_upt(r,p,upt,bd),{macro.eqlducs.v_u("upt", "r", "v", "t", "p", "sl", "upt")}$(MOD(RS_HR(r,s)-RS_HR(r,sl)+1/JS_CCL(r,js),1/JS_CCL(r,js))<(ACT_TIME(r,v,p,bd)-ACT_SDTIME(r,v,p,'HOT','LO')-ACT_SDTIME(r,v,p,upt,bd))/8760+G_YRFR(r,sl)/RS_STGPRD(r,s)/2))))
       =G= 0;
 
 *-----------------------------------------------------------------------------
 
   eq_sudpll(rtp_vintyr({r_v_t},p),tsl,{rts}{swx})$({swtx}ts_group(r,tsl,s)$prc_tsl(r,p,tsl)$DP_LOSD(r,v,p)$rp_dp(r,p))..
 
-     v_u(ups,r,v,t,p,s,'FX') =G=
+     {macro.eqlducs.v_u("ups", "r", "v", "t", "p", "s", "'FX'")} =G=
      sum(rp_upt(r,p,upt,bd),
-       sum((rs_up(r,s,js),rj_sl(r,js,sl))$(MOD((RS_HR(r,s)-RS_HR(r,sl))*BDSIG(bd)+G_YRFR(r,sl)/RS_STGPRD(r,s)/2+2/JS_CCL(r,js),1/JS_CCL(r,js))<ACT_SDTIME(r,v,p,upt,bd)/8760*(1+sdtol)),
-         (1+MIN(1,MOD((RS_HR(r,s)-RS_HR(r,sl))*BDSIG(bd)+SUDHFR(r,sl,-,s)+2/JS_CCL(r,js),1/JS_CCL(r,js))/(ACT_SDTIME(r,v,p,upt,bd)/8760))*(DP_PSUD(r,v,p,upt,bd)-1)) *
-         (v_u(upt,r,v,t,p,sl,upt)$bdupx(bd) + v_u(ups,r,v,t,p,sl,bd)$bdlox(bd)))) * PRC_CAPACT(r,p)*G_YRFR(r,s)*ACT_MINLD(r,v,p);
+       sum((rs_up(r,s,js),rj_sl(r,js,sl))$(MOD((RS_HR(r,s)-RS_HR(r,sl))*BDSIG(bd)+G_YRFR(r,sl)/RS_STGPRD(r,s)/2+2/JS_CCL(r,js),1/JS_CCL(r,js))<ACT_SDTIME(r,v,p,upt,bd)/8760*(1+{sdtol})),
+         (1+MIN(1,MOD((RS_HR(r,s)-RS_HR(r,sl))*BDSIG(bd)+{macro.eqlducs.sudhfr("r", "sl", "-", "s")}+2/JS_CCL(r,js),1/JS_CCL(r,js))/(ACT_SDTIME(r,v,p,upt,bd)/8760))*(DP_PSUD(r,v,p,upt,bd)-1)) *
+         ({macro.eqlducs.v_u("upt", "r", "v", "t", "p", "sl", "upt")}$bdupx(bd) + {macro.eqlducs.v_u("ups", "r", "v", "t", "p", "sl", "bd")}$bdlox(bd)))) * PRC_CAPACT(r,p)*G_YRFR(r,s)*ACT_MINLD(r,v,p);
 
 """,
         )
@@ -334,20 +328,20 @@ $ macro SPRSV \
   eq_sdind_1(rtp_vintyr({r_v_t},p),tsl,ts(s--rs_stg(r,s)),ips,L)$(ts_group(r,tsl,s)$DP_UNS(r,v,t,p,tsl,ips,l))..
 
      var_onind(r,v,t,p,ts,l)*EPS +
-     (var_on(r,v,t,p,ts)-sum(rs_below1(r,sl,s)$prc_ts(r,p,s),var_ups(r,v,t,p,sl,'FX')-{capups}) - (({capups})+var_ups(r,v,t,p,ts,'LO')+var_ups(r,v,t,p,s,'UP')))$L(ips) +
-     ((var_on(r,v,t,p,ts) - var_gap(r,v,t,p,ts)$(NOT PRC_TSL(r,p,tsl)) - MAX(DP_UNS(r,v,t,p,tsl,ips,l),NCAP_SEMI(r,v,p)$PRC_TSL(r,p,tsl)/2))$ips(L) +
+     ({macro.eqlducs.var_on("r", "v", "t", "p", "ts")}-sum(rs_below1(r,sl,s)$prc_ts(r,p,s),var_ups(r,v,t,p,sl,'FX')-{capups}) - (({capups})+var_ups(r,v,t,p,ts,'LO')+var_ups(r,v,t,p,s,'UP')))$L(ips) +
+     (({macro.eqlducs.var_on("r", "v", "t", "p", "ts")} - {macro.eqlducs.var_gap("r", "v", "t", "p", "ts")}$(NOT PRC_TSL(r,p,tsl)) - MAX(DP_UNS(r,v,t,p,tsl,ips,l),NCAP_SEMI(r,v,p)$PRC_TSL(r,p,tsl)/2))$ips(L) +
       (var_ups(r,v,t,p,ts,'UP') + var_ups(r,v,t,p,ts,'LO') - MAX(DP_UNS(r,v,t,p,tsl,ips,l),NCAP_SEMI(r,v,p)$PRC_TSL(r,p,tsl)/2))$diag('FX',L) +
-      ({capon}-var_on(r,v,t,p,ts) - DP_UNS(r,v,t,p,tsl,ips,l))$diag('LO',L) +
-      (var_gap(r,v,t,p,ts) - DP_UNS(r,v,t,p,tsl,ips,l))$diag('UP',L))$io(ips) =G= 0;
+      ({capon}-{macro.eqlducs.var_on("r", "v", "t", "p", "ts")} - DP_UNS(r,v,t,p,tsl,ips,l))$diag('LO',L) +
+      ({macro.eqlducs.var_gap("r", "v", "t", "p", "ts")} - DP_UNS(r,v,t,p,tsl,ips,l))$diag('UP',L))$io(ips) =G= 0;
 
 *-----------------------------------------------------------------------------
 
   eq_sdind_0(rtp_vintyr({r_v_t},p),tsl,ts(s--rs_stg(r,s)),ips,l)$(ts_group(r,tsl,s)$DP_UNS(r,v,t,p,tsl,ips,l))..
 
-     (var_on(r,v,t,p,ts)+sum(rs_below1(r,sl,s),var_gap(r,v,t,p,sl)+var_ups(r,v,t,p,ts,'UP'))$prc_ts(r,p,s))$L(ips) +
-     ((var_on(r,v,t,p,ts) - var_gap(r,v,t,p,ts)$(NOT PRC_TSL(r,p,tsl)) + var_ups(r,v,t,p,ts,'UP'))$ips(L) +
+     ({macro.eqlducs.var_on("r", "v", "t", "p", "ts")}+sum(rs_below1(r,sl,s),{macro.eqlducs.var_gap("r", "v", "t", "p", "sl")}+var_ups(r,v,t,p,ts,'UP'))$prc_ts(r,p,s))$L(ips) +
+     (({macro.eqlducs.var_on("r", "v", "t", "p", "ts")} - {macro.eqlducs.var_gap("r", "v", "t", "p", "ts")}$(NOT PRC_TSL(r,p,tsl)) + var_ups(r,v,t,p,ts,'UP'))$ips(L) +
       (var_ups(r,v,t,p,ts,'UP') + var_ups(r,v,t,p,ts,'LO'))$diag('FX',L) +
-      ({capon}-var_on(r,v,t,p,ts)+var_ups(r,v,t,p,ts,'LO'))$diag('LO',L) +
-      (var_gap(r,v,t,p,ts))$diag('UP',L))$io(ips) =L= 0;
+      ({capon}-{macro.eqlducs.var_on("r", "v", "t", "p", "ts")}+var_ups(r,v,t,p,ts,'LO'))$diag('LO',L) +
+      ({macro.eqlducs.var_gap("r", "v", "t", "p", "ts")})$diag('UP',L))$io(ips) =L= 0;
 """,
         )

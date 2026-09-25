@@ -59,15 +59,25 @@ class ModVarsAbs(GamsClass):
             ),
         )
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-  POSITIVE VARIABLES
-  {self.env.var}_COMLV(CLVT,R,YEAR,C,S{self.env.swd})   Commodity levels
-  {self.env.var}_RLD(R,T,S,ITEM{self.env.swd})          Reserve-defining load levels
-  ;
-""",
+        g.set_variable(
+            name=f"{var}_COMLV",
+            var=Variable(
+                m,
+                name=f"{var}_COMLV",
+                type="Positive",
+                domain=[g.Clvt, g.r, g.year, g.c, g.s, *self.env.swd_GP],
+                description="Commodity levels",
+            ),
+        )
+        g.set_variable(
+            name=f"{var}_RLD",
+            var=Variable(
+                m,
+                name=f"{var}_RLD",
+                type="Positive",
+                domain=[g.r, g.t, g.s, g.item, *self.env.swd_GP],
+                description="Reserve-defining load levels",
+            ),
         )
 
         bs_equations: tuple[tuple[str, list[Alias | Set | UniverseAlias], str], ...] = (
