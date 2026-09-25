@@ -43,7 +43,7 @@ from gamspy.math import (
 )
 
 from core.base_class import GamsClass
-from core.fillsow_stc import FillsowStc, exec_fillsow_stc
+from core.fillsow_stc import FillsowStc, FillsowStcConfig, exec_fillsow_stc
 
 # from core.fillparm_gms import FillparmGms
 from core.filparam_gms import FilparamGms, FilparamGmsConfig
@@ -257,13 +257,15 @@ class CoefExtCli(GamsClass):
             FillsowStc(
                 self.tc,
                 self.env,
-                arg1="CM_MAXC",
-                arg2="",
-                arg3="CG",
-                arg4="LL",
-                arg5="YES",
-                arg6="SUPERYR(T,LL)",
-                arg7="YES",
+                config=FillsowStcConfig(
+                    arg1="CM_MAXC",
+                    arg2=(),
+                    arg3=(g.cg,),
+                    arg4=(g.ll,),
+                    arg5=True,
+                    arg6=g.Superyr[g.t, g.ll],
+                    arg7=True,
+                ),
             )
         )
 
@@ -519,23 +521,27 @@ class CoefExtCli(GamsClass):
 
             # * Set up the 2x2 SIG matrix for forcing
             if stages.upper() == "YES":
-                # fmt: off
-                batincludes = [
-                    ("CM_CONST", "CM_STCC", '', '', "YES", "YES", "YES"),
-                    ("DAM_COST", 'R,', '"DELTA-ATM",CUR', "TT", "YES", "YES", "NO")
+                batincludes: list[FillsowStcConfig] = [
+                    FillsowStcConfig(
+                        arg1="CM_CONST",
+                        arg2=(g.cmstcc,),
+                        arg3=(),
+                        arg4=(),
+                        arg5=True,
+                        arg6=Number(1),
+                        arg7=True,
+                    ),
+                    FillsowStcConfig(
+                        arg1="DAM_COST",
+                        arg2=(g.r,),
+                        arg3=("DELTA-ATM", g.cur),
+                        arg4=(g.tt,),
+                        arg5=True,
+                        arg6=Number(1),
+                    ),
                 ]
-                # fmt: on
-                for arg in batincludes:
-                    exec_fillsow_stc(
-                        module=self,
-                        arg1=arg[0],
-                        arg2=arg[1],
-                        arg3=arg[2],
-                        arg4=arg[3],
-                        arg5=arg[4],
-                        arg6=arg[5],
-                        arg7=arg[6],
-                    )
+                for config in batincludes:
+                    exec_fillsow_stc(module=self, config=config)
             if stages.upper() == "YES":
                 g.cm_sig1[g.Sow] = g.s_cm_const["SIGMA1", "1", g.Sow]
                 g.cm_sig[g.Sow, "ATM", "ATM"] = 1.0 - g.cm_sig1[g.Sow] * (

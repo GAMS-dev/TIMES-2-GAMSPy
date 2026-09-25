@@ -13,10 +13,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Ord, Set
+from gamspy import Number, Ord, Set
 
 from core.base_class import GamsClass
-from core.fillsow_stc import FillsowStc
+from core.fillsow_stc import FillsowStc, FillsowStcConfig
 from core.pp_lvlfc_mod import PpLvlfcMod, PpLvlfcModConfig
 from utils.macros import macro_config as macro
 
@@ -103,41 +103,45 @@ DISPLAY SW_START,SW_SUBS,SW_CHILD,SW_TREE,SW_MAP,SW_STAGE,SW_T,SW_TSW,SW_TPROB,S
                 )
             self.tc.enqueue(self.construct_sw_uct)
             self.tc.enqueue(self.preprocess_cumulative_bounds)
-            # fmt: off
-            fillsow_batincludes1 = [
-                ("COM_PROJ", "R,", "C", "T", "NO", "", ""),
-                ("COM_TAX", "R,", "C,S,COM_VAR,CUR", "T", "YES", "SW_T(T,WW)", "NO"),
-                ("NCAP_COST", "R,", "P", "T", "NO", "", ""),
+            fillsow_batincludes1: list[FillsowStcConfig] = [
+                FillsowStcConfig(
+                    arg1="COM_PROJ",
+                    arg2=(g.r,),
+                    arg3=(g.c,),
+                    arg4=(g.t,),
+                    arg5=False,
+                ),
+                FillsowStcConfig(
+                    arg1="COM_TAX",
+                    arg2=(g.r,),
+                    arg3=(g.c, g.s, g.comvar, g.cur),
+                    arg4=(g.t,),
+                    arg5=True,
+                    arg6=g.SwT[g.t, g.ww],
+                ),
+                FillsowStcConfig(
+                    arg1="NCAP_COST",
+                    arg2=(g.r,),
+                    arg3=(g.p,),
+                    arg4=(g.t,),
+                    arg5=False,
+                ),
             ]
-            # fmt: on
-
-            for arg in fillsow_batincludes1:
-                self.include(
-                    FillsowStc(
-                        self.tc,
-                        self.env,
-                        arg1=arg[0],
-                        arg2=arg[1],
-                        arg3=arg[2],
-                        arg4=arg[3],
-                        arg5=arg[4],
-                        arg6=arg[5],
-                        arg7=arg[6],
-                    )
-                )
+            for config in fillsow_batincludes1:
+                self.include(FillsowStc(self.tc, self.env, config=config))
 
             if self.tc.defined("S_FLO_FUNC"):
                 self.include(
                     FillsowStc(
                         self.tc,
                         self.env,
-                        arg1="FLO_FUNC",
-                        arg2="R,",
-                        arg3="P,CG,CG2",
-                        arg4="T",
-                        arg5="NO",
-                        arg6="",
-                        arg7="",
+                        config=FillsowStcConfig(
+                            arg1="FLO_FUNC",
+                            arg2=(g.r,),
+                            arg3=(g.p, g.cg, g.cg2),
+                            arg4=(g.t,),
+                            arg5=False,
+                        ),
                     )
                 )
 
@@ -146,13 +150,13 @@ DISPLAY SW_START,SW_SUBS,SW_CHILD,SW_TREE,SW_MAP,SW_STAGE,SW_T,SW_TSW,SW_TPROB,S
                     FillsowStc(
                         self.tc,
                         self.env,
-                        arg1="NCAP_AFS",
-                        arg2="R,",
-                        arg3="P,S",
-                        arg4="T",
-                        arg5="NO",
-                        arg6="",
-                        arg7="",
+                        config=FillsowStcConfig(
+                            arg1="NCAP_AFS",
+                            arg2=(g.r,),
+                            arg3=(g.p, g.s),
+                            arg4=(g.t,),
+                            arg5=False,
+                        ),
                     )
                 )
 
@@ -161,79 +165,118 @@ DISPLAY SW_START,SW_SUBS,SW_CHILD,SW_TREE,SW_MAP,SW_STAGE,SW_T,SW_TSW,SW_TPROB,S
                     FillsowStc(
                         self.tc,
                         self.env,
-                        arg1="COM_FR",
-                        arg2="R,",
-                        arg3="C,S",
-                        arg4="T",
-                        arg5="NO",
-                        arg6="",
-                        arg7="",
+                        config=FillsowStcConfig(
+                            arg1="COM_FR",
+                            arg2=(g.r,),
+                            arg3=(g.c, g.s),
+                            arg4=(g.t,),
+                            arg5=False,
+                        ),
                     )
                 )
 
-            # fmt: off
-            fillsow_batincludes2 = [
-                ("CAP_BND", "R,", "P,BD", "T", "YES", "SW_T(T,WW)", "NO"),
-                ("COM_CUM", "R,COM_VAR,ALLYEAR,", "C,BD", "LL", "YES", "SUPERYR(T,LL)", "YES"),
-                ("FLO_CUM", "R,P,C,ALLYEAR,", "BD", "LL", "YES", "SUPERYR(T,LL)", "YES"),
-                ("UC_RHST", "UC_N,", "LIM", "T", "YES", "SW_T(T,WW)", "NO"),
-                ("UC_RHSRT", "R,UC_N,", "LIM", "T", "YES", "SW_T(T,WW)", "NO"),
-                ("UC_RHSTS", "UC_N,", "TS,LIM", "T", "YES", "SW_T(T,WW)", "NO"),
-                ("UC_RHSRTS", "R,UC_N,", "TS,LIM", "T", "YES", "SW_T(T,WW)", "NO"),
+            fillsow_batincludes2: list[FillsowStcConfig] = [
+                FillsowStcConfig(
+                    arg1="CAP_BND",
+                    arg2=(g.r,),
+                    arg3=(g.p, g.bd),
+                    arg4=(g.t,),
+                    arg5=True,
+                    arg6=g.SwT[g.t, g.ww],
+                ),
+                FillsowStcConfig(
+                    arg1="COM_CUM",
+                    arg2=(g.r, g.comvar, g.allyear),
+                    arg3=(g.c, g.bd),
+                    arg4=(g.ll,),
+                    arg5=True,
+                    arg6=g.Superyr[g.t, g.ll],
+                    arg7=True,
+                ),
+                FillsowStcConfig(
+                    arg1="FLO_CUM",
+                    arg2=(g.r, g.p, g.c, g.allyear),
+                    arg3=(g.bd,),
+                    arg4=(g.ll,),
+                    arg5=True,
+                    arg6=g.Superyr[g.t, g.ll],
+                    arg7=True,
+                ),
+                FillsowStcConfig(
+                    arg1="UC_RHST",
+                    arg2=(g.ucn,),
+                    arg3=(g.lim,),
+                    arg4=(g.t,),
+                    arg5=True,
+                    arg6=g.SwT[g.t, g.ww],
+                ),
+                FillsowStcConfig(
+                    arg1="UC_RHSRT",
+                    arg2=(g.r, g.ucn),
+                    arg3=(g.lim,),
+                    arg4=(g.t,),
+                    arg5=True,
+                    arg6=g.SwT[g.t, g.ww],
+                ),
+                FillsowStcConfig(
+                    arg1="UC_RHSTS",
+                    arg2=(g.ucn,),
+                    arg3=(g.ts, g.lim),
+                    arg4=(g.t,),
+                    arg5=True,
+                    arg6=g.SwT[g.t, g.ww],
+                ),
+                FillsowStcConfig(
+                    arg1="UC_RHSRTS",
+                    arg2=(g.r, g.ucn),
+                    arg3=(g.ts, g.lim),
+                    arg4=(g.t,),
+                    arg5=True,
+                    arg6=g.SwT[g.t, g.ww],
+                ),
             ]
-            # fmt: on
-
-            for arg in fillsow_batincludes2:
-                self.include(
-                    FillsowStc(
-                        self.tc,
-                        self.env,
-                        arg1=arg[0],
-                        arg2=arg[1],
-                        arg3=arg[2],
-                        arg4=arg[3],
-                        arg5=arg[4],
-                        arg6=arg[5],
-                        arg7=arg[6],
-                    )
-                )
+            for config in fillsow_batincludes2:
+                self.include(FillsowStc(self.tc, self.env, config=config))
 
             if self.tc.defined("S_DAM_COST"):
                 self.include(
                     FillsowStc(
                         self.tc,
                         self.env,
-                        arg1="DAM_COST",
-                        arg2="R,",
-                        arg3="COM,CUR",
-                        arg4="T",
-                        arg5="YES",
-                        arg6="SW_T(T,WW)",
-                        arg7="YES",
+                        config=FillsowStcConfig(
+                            arg1="DAM_COST",
+                            arg2=(g.r,),
+                            arg3=(g.Com, g.cur),
+                            arg4=(g.t,),
+                            arg5=True,
+                            arg6=g.SwT[g.t, g.ww],
+                            arg7=True,
+                        ),
                     )
                 )
 
-            # fmt: off
-            fillsow_batincludes3 = [
-                ("UC_RHS", "UC_N,LIM", "", "", "YES", "YES", "YES"),
-                ("UC_RHSR", "R,UC_N,LIM", "", "", "YES", "YES", "YES"),
+            fillsow_batincludes3: list[FillsowStcConfig] = [
+                FillsowStcConfig(
+                    arg1="UC_RHS",
+                    arg2=(g.ucn, g.lim),
+                    arg3=(),
+                    arg4=(),
+                    arg5=True,
+                    arg6=Number(1),
+                    arg7=True,
+                ),
+                FillsowStcConfig(
+                    arg1="UC_RHSR",
+                    arg2=(g.r, g.ucn, g.lim),
+                    arg3=(),
+                    arg4=(),
+                    arg5=True,
+                    arg6=Number(1),
+                    arg7=True,
+                ),
             ]
-            # fmt: on
-
-            for arg in fillsow_batincludes3:
-                self.include(
-                    FillsowStc(
-                        self.tc,
-                        self.env,
-                        arg1=arg[0],
-                        arg2=arg[1],
-                        arg3=arg[2],
-                        arg4=arg[3],
-                        arg5=arg[4],
-                        arg6=arg[5],
-                        arg7=arg[6],
-                    )
-                )
+            for config in fillsow_batincludes3:
+                self.include(FillsowStc(self.tc, self.env, config=config))
 
             self.tc.enqueue(self.clear_superyr)
             if self.env.mca == "YES":

@@ -20,15 +20,30 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
+
+from gamspy import Alias, Card, Loop, Number, Ord, Set, Sum, sparse
+from gamspy.math import same_as
 
 from core.base_class import GamsClass
 
 if TYPE_CHECKING:
+    from gamspy._symbols.implicits import ImplicitSet
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+class FillsowStcConfig(NamedTuple):
+    arg1: str
+    arg2: tuple[Alias | Set, ...] | tuple[()]
+    arg3: tuple[Alias | Set | str, ...] | tuple[()]
+    arg4: tuple[Alias] | tuple[()]
+    arg5: bool
+    arg6: ImplicitSet | Number = Number(1)
+    arg7: bool = False
 
 
 class FillsowStc(GamsClass):
@@ -42,168 +57,140 @@ class FillsowStc(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
-        arg4: str = "",
-        arg5: str = "",
-        arg6: str = "",
-        arg7: str = "",
+        config: FillsowStcConfig,
     ) -> None:
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
-        self.arg4 = arg4
-        self.arg5 = arg5
-        self.arg6 = arg6
-        self.arg7 = arg7
+        self.config = config
         self.compile()
 
     def compile(self) -> None:
-        self.env.set_local("tail", f",{self.arg3}")
-        self.env.set_local("stg", "")
-        self.env.set_local("ix", "'0'")
+        g = self.tc
+        tail: tuple[Alias | Set | str, ...] | tuple[()] = self.config.arg3
+        ix: tuple[str] | tuple[()] = ("0",)
+        stg = False
 
-        if not len(self.arg3):
-            self.env.set_local("tail", "")
+        if not self.config.arg3:
+            tail = ()
 
-        if not len(self.arg4):
-            self.env.set_local("ix", "")
+        if not self.config.arg4:
+            ix = ()
 
-        if self.arg4 == "T":
-            self.env.set_local("stg", "SW_TSTG(T,J)$")
+        if self.config.arg4 == (g.t,):
+            stg = True
 
         self.tc.enqueue(
-            clean_up_sow,
-            module=self,
-            tail=self.env.tail,
-            ix=self.env.ix,
-            stg=self.env.stg,
-            arg1=self.arg1,
-            arg2=self.arg2,
-            arg4=self.arg4,
+            clean_up_sow, module=self, config=self.config, tail=tail, ix=ix, stg=stg
         )
 
-        if self.arg5 != "YES":
+        if not self.config.arg5:
             return
 
         self.tc.enqueue(
             update_data_indicators,
             module=self,
-            tail=self.env.tail,
-            ix=self.env.ix,
-            stg=self.env.stg,
-            arg1=self.arg1,
-            arg2=self.arg2,
-            arg4=self.arg4,
-            arg6=self.arg6,
-            arg7=self.arg7,
+            config=self.config,
+            tail=tail,
+            ix=ix,
+            stg=stg,
         )
 
 
 def clean_up_sow(
     module: GamsClass,
-    tail: str,
-    ix: str,
-    stg: str,
-    arg1: str,
-    arg2: str,
-    arg4: str,
+    config: FillsowStcConfig,
+    tail: tuple[Alias | Set | str, ...] | tuple[()],
+    ix: tuple[str] | tuple[()],
+    stg: bool,
 ) -> None:
-    module.tc.add_gams_code(
-        module=module,
-        phase="run",
-        code=rf"""
-* Clean up stage 1 from invalid SOW:
-  S_{arg1}({arg2}{arg4}{tail},'1',SOW)$(NOT SAMEAS(SOW,'1')) = 0;
-* Set up data indicators
-{f"S_{arg1}({arg2}LL--ORD(LL){tail},J,WW) $= S_{arg1}({arg2}LL{tail},J,WW);" if len(arg4) else ""}
-  F = CARD(S_{arg1});
+    g = module.tc
+    t, j, ww, Sow, ll = g.t, g.j, g.ww, g.Sow, g.ll
+    s_arg1 = g.get_parameter(f"S_{config.arg1}")
+    arg2, arg4 = config.arg2, config.arg4
 
-* Copy parameters from first to other branches when appropriate
-  S_{arg1}({arg2}{arg4}{tail},J,WW)$({stg}(NOT S_{arg1}({arg2}{ix}{tail},J,WW))) $= SUM(SW_CPMAP(J,WW,SOW),S_{arg1}({arg2}{arg4}{tail},J,SOW));
-""",
-    )
+    # * Clean up stage 1 from invalid SOW:
+    s_arg1[*arg2, *arg4, *tail, "1", Sow].where[~same_as(Sow, "1")] = 0.0
+
+    # * Set up data indicators
+    if arg4:
+        s_arg1[*arg2, ll.lag(Ord(ll), "circular"), *tail, j, ww] = sparse(
+            s_arg1[*arg2, ll, *tail, j, ww]
+        )
+    g.f[...] = Card(s_arg1)
+
+    # * Copy parameters from first to other branches when appropriate
+    not_set = ~s_arg1[*arg2, *ix, *tail, j, ww]
+    s_arg1[*arg2, *arg4, *tail, j, ww].where[
+        g.SwTstg[t, j].where[not_set] if stg else not_set
+    ] = sparse(Sum(g.SwCpmap[j, ww, Sow], s_arg1[*arg2, *arg4, *tail, j, Sow]))
 
 
 def update_data_indicators(
     module: GamsClass,
-    tail: str,
-    ix: str,
-    stg: str,
-    arg1: str,
-    arg2: str,
-    arg4: str,
-    arg6: str,
-    arg7: str,
+    config: FillsowStcConfig,
+    tail: tuple[Alias | Set | str, ...] | tuple[()],
+    ix: tuple[str] | tuple[()],
+    stg: bool,
 ) -> None:
-    module.tc.add_gams_code(
-        module=module,
-        phase="run",
-        code=rf"""
-* Update data indicators if eventual copy occurred
-{f"IF(CARD(S_{arg1})>F, S_{arg1}({arg2}LL--ORD(LL){tail},J,WW) $= S_{arg1}({arg2}LL{tail},J,WW));" if len(arg4) else ""}
+    g = module.tc
+    t, j, ww, Sow, ll = g.t, g.j, g.ww, g.Sow, g.ll
+    s_arg1 = g.get_parameter(f"S_{config.arg1}")
+    arg2, arg4 = config.arg2, config.arg4
+    arg6 = config.arg6
 
-* Copy baseline parameters to stage 1, SOW 1:
-{f"S_{arg1}({arg2}{arg4}{tail},'1','1')$(NOT S_{arg1}({arg2}{ix}{tail},'1','1')) $= {arg1}({arg2}{arg4}{tail});" if arg7 == "YES" else ""}
+    # * Update data indicators if eventual copy occurred
+    if arg4 and (Card(s_arg1) > g.f).toValue():
+        s_arg1[*arg2, ll.lag(Ord(ll), "circular"), *tail, j, ww] = sparse(
+            s_arg1[*arg2, ll, *tail, j, ww]
+        )
 
-* Merge to single stage 1:
+    # * Copy baseline parameters to stage 1, SOW 1:
+    if config.arg7:
+        arg1 = g.get_parameter(config.arg1)
+        s_arg1[*arg2, *arg4, *tail, "1", "1"].where[
+            ~s_arg1[*arg2, *ix, *tail, "1", "1"]
+        ] = sparse(arg1[*arg2, *arg4, *tail])
 
-{f"LOOP(SW_TSTG(T,J), S_{arg1}({arg2}{arg4}{tail},'1',WW)$({arg6}$SW_T(T,WW)) $= SUM(SW_REV(WW,J,SOW),S_{arg1}({arg2}{arg4}{tail},J,SOW)));" if arg4.upper() == "LL" else f"LOOP(J$SW_START(J),S_{arg1}({arg2}{arg4}{tail},'1',WW)$({stg}{arg6}) $= SUM(SW_REV(WW,J,SOW),S_{arg1}({arg2}{arg4}{tail},J,SOW)));"}
+    # * Merge to single stage 1:
+    if arg4 != (ll,):
+        with Loop(j.where[g.sw_start[j]]):
+            s_arg1[*arg2, *arg4, *tail, "1", ww].where[
+                g.SwTstg[t, j].where[arg6] if stg else arg6
+            ] = sparse(Sum(g.SwRev[ww, j, Sow], s_arg1[*arg2, *arg4, *tail, j, Sow]))
+    else:
+        with Loop(g.SwTstg[t, j]):
+            s_arg1[*arg2, *arg4, *tail, "1", ww].where[arg6.where[g.SwT[t, ww]]] = (
+                sparse(Sum(g.SwRev[ww, j, Sow], s_arg1[*arg2, *arg4, *tail, j, Sow]))
+            )
 
-* Remove flags if LL
-{f"S_{arg1}({arg2}{ix}{tail},J,WW) = 0;" if arg4 == "LL" else ""}
-""",
-    )
+    # * Remove flags if LL
+    if arg4 == (ll,):
+        s_arg1[*arg2, *ix, *tail, j, ww] = 0.0
 
 
-def exec_fillsow_stc(
-    module: GamsClass,
-    arg1: str,
-    arg2: str,
-    arg3: str,
-    arg4: str,
-    arg5: str,
-    arg6: str,
-    arg7: str,
-) -> None:
-    tail = arg3
-    stg = ""
-    ix = "0"
+def exec_fillsow_stc(module: GamsClass, config: FillsowStcConfig) -> None:
+    """Run fillsow.stc at execution time, from inside an already-enqueued block."""
+    # TODO this could be removed since its only called inside an if, which is evaluated in python
+    # BUT then need to differentiate in the class between included or not
+    # so that no second enqueue is happening!!
+    g = module.tc
+    tail: tuple[Alias | Set | str, ...] | tuple[()] = config.arg3
+    ix: tuple[str] | tuple[()] = ("0",)
+    stg = False
 
-    if not len(arg3):
-        tail = ""
+    if not config.arg3:
+        tail = ()
 
-    if not len(arg4):
-        ix = ""
+    if not config.arg4:
+        ix = ()
 
-    if arg4 == "T":
-        stg = "SW_TSTG(T,J)$"
+    if config.arg4 == (g.t,):
+        stg = True
 
-    clean_up_sow(
-        module=module,
-        tail=tail,
-        ix=ix,
-        stg=stg,
-        arg1=arg1,
-        arg2=arg2,
-        arg4=arg4,
-    )
+    clean_up_sow(module=module, config=config, tail=tail, ix=ix, stg=stg)
 
-    if arg5 != "YES":
+    if not config.arg5:
         return
 
-    update_data_indicators(
-        module=module,
-        tail=tail,
-        ix=ix,
-        stg=stg,
-        arg1=arg1,
-        arg2=arg2,
-        arg4=arg4,
-        arg6=arg6,
-        arg7=arg7,
-    )
+    update_data_indicators(module=module, config=config, tail=tail, ix=ix, stg=stg)
