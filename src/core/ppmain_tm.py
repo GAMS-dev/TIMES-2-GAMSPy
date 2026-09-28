@@ -12,6 +12,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Loop, Ord, Parameter, Smax, Sum
+from gamspy.math import Max, Min
+
 from core.base_class import GamsClass
 from core.prep_ext_tm import PrepExtTm
 
@@ -40,94 +43,123 @@ class PpmainTm(GamsClass):
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
         self.include(PrepExtTm(self.tc, self.env))
         self.tc.enqueue(self.initialize_economic_parameters)
         self.tc.enqueue(self.calc_vals_for_econ_variables)
+        self.tc.enqueue(self.calc_utility_and_production_params)
+        g.help_expf = Parameter(g.container, name="HELP_EXPF", domain=[g.r, g.t])
         self.tc.enqueue(self.execFinal)
 
     def initialize_economic_parameters(self: PpmainTm) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-*============================================================================*
-* Initialize the economic parameters
-*============================================================================*
+        g = self.tc
+        # *============================================================================*
+        # * Initialize the economic parameters
+        # *============================================================================*
 
-  TM_AEEIV(R,T,C)$DEM(R,C) = TM_DDF(R,T,C)/100;
-  TM_ASRV(R)               = 1 - TM_DEPR(R)/100;
-  TM_DFACTCURR(R,T)        = 1 - (TM_KPVS(R)/TM_KGDP(R) - TM_DEPR(R)/100 - TM_GROWV(R,T)/100);
-  TM_RHO(R)                = 1 - 1/TM_ESUB(R);
-
-* Capital survival defined as factor between the middle year of the period T+1 and the period T
-  TM_TSRV(R,T)             = TM_ASRV(R) ** NYPER(T);
-""",
+        g.tm_aeeiv[g.r, g.t, g.c].where[g.Dem[g.r, g.c]] = (
+            g.tm_ddf[g.r, g.t, g.c] / 100.0
         )
+        g.tm_asrv[g.r] = 1.0 - g.tm_depr[g.r] / 100.0
+        g.tm_dfactcurr[g.r, g.t] = 1.0 - (
+            g.tm_kpvs[g.r] / g.tm_kgdp[g.r]
+            - g.tm_depr[g.r] / 100.0
+            - g.tm_growv[g.r, g.t] / 100.0
+        )
+        g.tm_rho[g.r] = 1.0 - 1.0 / g.tm_esub[g.r]
+
+        # * Capital survival defined as factor between the middle year of the period T+1 and the period T
+        g.tm_tsrv[g.r, g.t] = g.tm_asrv[g.r] ** g.nyper[g.t]
 
     def calc_vals_for_econ_variables(self: PpmainTm) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-*============================================================================*
-*  Calculate initial values for the economic variables for the first time period
-*   - Capital Stock
-*   - Investment during time period 0
-*   - Consumption during time period 0
-*   - GDP (Consumption + Investment) + Energy Costs
-*============================================================================*
+        g = self.tc
+        # *============================================================================*
+        # *  Calculate initial values for the economic variables for the first time period
+        # *   - Capital Stock
+        # *   - Investment during time period 0
+        # *   - Consumption during time period 0
+        # *   - GDP (Consumption + Investment) + Energy Costs
+        # *============================================================================*
 
-  TM_K0(R)  = TM_KGDP(R) * TM_GDP0(R);
-  TM_IV0(R) = TM_K0(R) * (TM_DEPR(R) + SUM(T$(ORD(T) = 1),TM_GROWV(R,T)))/100;
-  TM_C0(R)  = TM_GDP0(R) - TM_IV0(R);
-  TM_Y0(R)  = TM_GDP0(R) + TM_EC0(R) + SUM(T_1(T),TM_AMP(R,T));
-
-*============================================================================*
-* Calculate intermediate values
-*============================================================================*
-  TM_AEEIFAC(R,T,C)$DEM(R,C)  = 1;
-  TM_DFACT(R,T)               = 1;
-  TM_L(R,T)                   = 1;
-
-  LOOP(T,
-    TM_AEEIFAC(R,T+1,C)$DEM(R,C) = TM_AEEIFAC(R,T,C) * (1 - TM_AEEIV(R,T+1,C)) ** NYPER(T);
-    TM_DFACT(R,T+1)              = TM_DFACT(R,T) * TM_DFACTCURR(R,T) ** NYPER(T);
-    TM_L(R,T+1)                  = TM_L(R,T) * (1 + TM_GROWV(R,T) / 100) ** NYPER(T);
-  );
-""",
+        g.tm_k0[g.r] = g.tm_kgdp[g.r] * g.tm_gdp0[g.r]
+        g.tm_iv0[g.r] = (
+            g.tm_k0[g.r]
+            * (g.tm_depr[g.r] + Sum(g.t.where[Ord(g.t) == 1.0], g.tm_growv[g.r, g.t]))
+            / 100.0
         )
+        g.tm_c0[g.r] = g.tm_gdp0[g.r] - g.tm_iv0[g.r]
+        g.tm_y0[g.r] = (
+            g.tm_gdp0[g.r] + g.tm_ec0[g.r] + Sum(g.T1[g.t], g.tm_amp[g.r, g.t])
+        )
+
+        # *============================================================================*
+        # * Calculate intermediate values
+        # *============================================================================*
+        g.tm_aeeifac[g.r, g.t, g.c].where[g.Dem[g.r, g.c]] = 1.0
+        g.tm_dfact[g.r, g.t] = 1.0
+        g.tm_l[g.r, g.t] = 1.0
+
+        with Loop(g.t):
+            g.tm_aeeifac[g.r, g.t + 1, g.c].where[g.Dem[g.r, g.c]] = g.tm_aeeifac[
+                g.r, g.t, g.c
+            ] * ((1.0 - g.tm_aeeiv[g.r, g.t + 1, g.c]) ** g.nyper[g.t])
+            g.tm_dfact[g.r, g.t + 1] = g.tm_dfact[g.r, g.t] * (
+                g.tm_dfactcurr[g.r, g.t] ** g.nyper[g.t]
+            )
+            g.tm_l[g.r, g.t + 1] = g.tm_l[g.r, g.t] * (
+                (1.0 + g.tm_growv[g.r, g.t] / 100.0) ** g.nyper[g.t]
+            )
+
+    def calc_utility_and_production_params(self: PpmainTm) -> None:
+        g = self.tc
+        # * Arbitrary multiplier on utility in last time period.
+        with Loop(g.Miyr1[g.t.lead(1, "circular")].where[g.tm_arbm != 1.0]):
+            g.tm_dfact[g.r, g.t] = (
+                g.tm_dfact[g.r, g.t]
+                * (
+                    1.0
+                    - Min(0.999, g.tm_dfactcurr[g.r, g.t]) ** (g.nyper[g.t] * g.tm_arbm)
+                )
+                / (1.0 - Min(0.999, g.tm_dfactcurr[g.r, g.t]) ** (g.nyper[g.t] * 1.0))
+            )
+        # * Weights for periods (use only if requested by TM_ARBM=1)
+        g.tm_pwt[g.t] = 1.0
+        if g.tm_sl.toValue():
+            g.z[...] = Max(1.0, Smax(g.t, g.d[g.t]))
+            g.tm_pwt[g.t] = g.d[g.t] / g.z
+
+        g.tm_d0[g.Dem[g.r, g.c]] = g.tm_scale_nrg * Sum(
+            g.Miyr1[g.t], g.com_proj[g.r, g.t, g.c]
+        )
+
+        g.tm_b[g.Dem[g.r, g.c]] = g.tm_d0[g.r, g.c] / g.tm_y0[g.r]
+        g.tm_b[g.Dem[g.r, g.c]] = g.tm_b[g.r, g.c] ** (1.0 - g.tm_rho[g.r])
+        g.tm_b[g.Dem[g.r, g.c]] = (
+            g.tm_scale_cst / g.tm_scale_nrg * g.tm_ddatpref[g.r, g.c] * g.tm_b[g.r, g.c]
+        )
+
+        g.tm_akl[g.r] = g.tm_y0[g.r] ** g.tm_rho[g.r] - Sum(
+            g.Dem[g.r, g.c], g.tm_b[g.r, g.c] * (g.tm_d0[g.r, g.c] ** g.tm_rho[g.r])
+        )
+        g.tm_akl[g.r] = g.tm_akl[g.r] / (
+            g.tm_k0[g.r] ** (g.tm_kpvs[g.r] * g.tm_rho[g.r])
+        )
+
+        g.tm_ycheck[g.r] = g.tm_akl[g.r] * (
+            g.tm_k0[g.r] ** (g.tm_kpvs[g.r] * g.tm_rho[g.r])
+        ) + Sum(
+            g.Dem[g.r, g.c], g.tm_b[g.r, g.c] * (g.tm_d0[g.r, g.c] ** g.tm_rho[g.r])
+        )
+        g.tm_ycheck[g.r] = g.tm_ycheck[g.r] ** (1.0 / g.tm_rho[g.r])
 
     def execFinal(self: PpmainTm) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Arbitrary multiplier on utility in last time period.
-  LOOP(MIYR_1(T++1)$(TM_ARBM NE 1),
-  TM_DFACT(R,T) = TM_DFACT(R,T) *
-      (1-MIN(.999,TM_DFACTCURR(R,T))**(NYPER(T)*TM_ARBM)) /
-      (1-MIN(.999,TM_DFACTCURR(R,T))**(NYPER(T) * 1 )));
-* Weights for periods (use only if requested by TM_ARBM=1)
-  TM_PWT(T) = 1; IF(TM_SL, Z=MAX(1,SMAX(T,D(T))); TM_PWT(T) = D(T)/Z);
+        g = self.tc
+        # * annual percent expansion factor converted into 1 period factor
+        g.help_expf[g.r, g.t] = g.tm_expf[g.r, g.t]
+        g.tm_expf[g.r, g.t] = (1.0 + g.help_expf[g.r, g.t] / 100.0) ** (
+            g.d[g.t] / 2.0
+        ) * ((1.0 + g.help_expf[g.r, g.t + 1] / 100.0) ** (g.d[g.t + 1] / 2.0))
+        g.help_expf.setRecords(None)
 
-  TM_D0(DEM(R,C)) = TM_SCALE_NRG * SUM(MIYR_1(T), COM_PROJ(R,T,C));
-
-  TM_B(DEM(R,C))  = TM_D0(R,C) / TM_Y0(R);
-  TM_B(DEM(R,C))  = TM_B(R,C) ** (1 - TM_RHO(R));
-  TM_B(DEM(R,C))  = TM_SCALE_CST / TM_SCALE_NRG * TM_DDATPREF(R,C) * TM_B(R,C);
-
-  TM_AKL(R)    =  TM_Y0(R) ** TM_RHO(R) - SUM(DEM(R,C), TM_B(R,C) * (TM_D0(R,C) ** TM_RHO(R)));
-  TM_AKL(R)    =  TM_AKL(R) / (TM_K0(R) ** (TM_KPVS(R) * TM_RHO(R)));
-
-  TM_YCHECK(R) = TM_AKL(R) * TM_K0(R) ** (TM_KPVS(R) * TM_RHO(R)) + SUM(DEM(R,C), TM_B(R,C) * TM_D0(R,C) ** TM_RHO(R));
-  TM_YCHECK(R) = TM_YCHECK(R) ** (1 / TM_RHO(R));
-
-* annual percent expansion factor converted into 1 period factor
-  PARAMETER HELP_EXPF(R,T);
-  HELP_EXPF(R,T) = TM_EXPF(R,T);
-  TM_EXPF(R,T) = (1+HELP_EXPF(R,T)/100)**(D(T)/2) * (1+HELP_EXPF(R,T+1)/100)**(D(T+1)/2);
-  OPTION CLEAR=HELP_EXPF;
-
-display tm_b, tm_expf;
-""",
-        )
+        print(g.tm_b.records)
+        print(g.tm_expf.records)

@@ -63,7 +63,7 @@ $IF NOT DEFINED TM_EC0 OPTION CLEAR=TM_EC0;
             FilparamGmsConfig(g.tm_expbnd, (g.r,), (g.p,), ("",) * 5, g.Datayear, g.t),
             FilparamGmsConfig(g.tm_expf,   (g.r,), (),     ("",) * 5, g.Datayear, g.t),
             FilparamGmsConfig(g.tm_gr,     (g.r,), (),     ("",) * 5, g.Datayear, g.t),
-            FilparamGmsConfig(g.tm_growv,  (g.r,), (),     ("",) * 4, g.Datayear, g.t),
+            FilparamGmsConfig(g.tm_growv,  (g.r,), (),     ("",) * 5, g.Datayear, g.t),
         ]
         # fmt: on
         for config in batincludes:
@@ -77,14 +77,8 @@ $IF NOT DEFINED TM_EC0 OPTION CLEAR=TM_EC0;
         g.Xcp = Set(m, name="XCP", domain=[g.j], records=["1", "6", "12"])
 
         g.T1 = Alias(m, "T_1", alias_with=g.Miyr1)
+        g.nyper = Parameter(m, name="NYPER", domain=[g.allyear])
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  PARAMETER NYPER(ALLYEAR);
-""",
-        )
         self.tc.enqueue(self.prep_ext_tm_exec)
 
     def prep_ext_tm_exec(self: PrepExtTm) -> None:
