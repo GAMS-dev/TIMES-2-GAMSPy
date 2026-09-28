@@ -35,7 +35,7 @@ from gamspy import (
     Smax,
     Sum,
 )
-from gamspy.math import Max, Min, Round, ceil, floor, project, rpower, same_as
+from gamspy.math import Max, Min, Round, ceil, floor, project, same_as
 
 from core.base_class import GamsClass
 from core.coef_alt_lin import CoefAltLin
@@ -261,27 +261,27 @@ class EqobjinvMod(GamsClass):
         # * Take also into account a user-defined discounting shift (0/0.5/1 years):
         g.cor_salvi[ObjIcur[r, v, p, cur]] = (
             (
-                rpower((1 + ncap_drate[r, v, p]) / (1 + obj_rfr[r, v, cur]), discshift)
+                ((1 + ncap_drate[r, v, p]) / (1 + obj_rfr[r, v, cur])) ** discshift
                 * (
                     (1 - 1 / (1 + ncap_drate[r, v, p]))
-                    * (1 - rpower(1 + obj_rfr[r, v, cur], -ncap_elife[r, v, p]))
+                    * (1 - (1 + obj_rfr[r, v, cur]) ** -ncap_elife[r, v, p])
                 )
                 / (
                     (1 - 1 / (1 + obj_rfr[r, v, cur]))
-                    * (1 - rpower(1 + ncap_drate[r, v, p], -ncap_elife[r, v, p]))
+                    * (1 - (1 + ncap_drate[r, v, p]) ** -ncap_elife[r, v, p])
                 )
                 - 1
             ).where[ncap_drate[r, v, p] > 0]
             + 1
-        ) * rpower(1 + g_drate[r, v, cur], discshift)
-        g.cor_salvi[ObjIcur[ObjI2[r, v, p], cur]] = g.cor_salvi[r, v, p, cur] / rpower(
-            1 + g_drate[r, v, cur], discshift
+        ) * (1 + g_drate[r, v, cur]) ** discshift
+        g.cor_salvi[ObjIcur[ObjI2[r, v, p], cur]] = (
+            g.cor_salvi[r, v, p, cur] / (1 + g_drate[r, v, cur]) ** discshift
         )
         # * OBJ_CRF/OBJ_CRFD must now be based on G_DRATE because we use COR_SALVI and COR_SALVD for the correction
         g.obj_crf[ObjIcur[r, v, p, cur]] = (
             g.cor_salvi[r, v, p, cur]
             * (1 - (1 / (1 + g_drate[r, v, cur])))
-            / (1 - rpower(1 + g_drate[r, v, cur], -Round(ncap_invlif[r, v, p])))
+            / (1 - (1 + g_drate[r, v, cur]) ** -Round(ncap_invlif[r, v, p]))
         )
         # *------------------------------------------------------------------------------
         # * OBJ_PASTI is the correction for past investments (similar to SALV_INV fraction)
@@ -292,16 +292,16 @@ class EqobjinvMod(GamsClass):
             Min(
                 1,
                 (
-                    rpower(
-                        1 + g_drate[r, v, cur],
+                    (1 + g_drate[r, v, cur])
+                    ** (
                         g.yearval[v]
                         + Round(g.ncap_iled[r, v, p])
                         - g.minyr
-                        + ncap_invlif[r, v, p],
+                        + ncap_invlif[r, v, p]
                     )
                     - 1
                 )
-                / (rpower(1 + g_drate[r, v, cur], ncap_invlif[r, v, p]) - 1),
+                / ((1 + g_drate[r, v, cur]) ** ncap_invlif[r, v, p] - 1),
             ),
         )
         # *------------------------------------------------------------------------------
@@ -489,9 +489,9 @@ class EqobjinvMod(GamsClass):
                     g.f[...] = g.f + g.obj_disc[r, ll, cur]
                 g.my_f[...] = g.my_f / g.f / g.cnt - 1
                 # *..Interest according to rounded and accurate spreads using constant discount rate
-                g.f[...] = (rpower(g.obj_c, g.cnt) - 1) / (1 - 1 / g.obj_c) / g.cnt - 1
+                g.f[...] = ((g.obj_c**g.cnt) - 1) / (1 - 1 / g.obj_c) / g.cnt - 1
                 g.cnt[...] = Max(0.001, g.z)
-                g.z[...] = (rpower(g.obj_c, g.cnt) - 1) / (1 - 1 / g.obj_c) / g.cnt - 1
+                g.z[...] = ((g.obj_c**g.cnt) - 1) / (1 - 1 / g.obj_c) / g.cnt - 1
             with Else():
                 g.f[...] = 1
             g.obj_divi[r, v, p] = 1 / (1 + g.z * g.my_f / g.f)

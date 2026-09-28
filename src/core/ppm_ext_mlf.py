@@ -12,6 +12,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Loop, Ord, Smax, SpecialValues, Sum, sparse
+from gamspy.math import Max, Min, power, project
+
 from core.base_class import GamsClass
 from core.filparam_gms import FilparamGms, FilparamGmsConfig
 
@@ -58,101 +61,155 @@ class PpmExtMlf(GamsClass):
         self.tc.enqueue(self.exec2)
 
     def exec1(self: PpmExtMlf) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-  OPTION TM_DM < DEM, CLEAR=TM_DMC;
-  LOOP(MI_DMAS(R,COM,C),TM_DM(R,C)=NO);
-* Marginal costs of demands
-  TM_DMC(RTC(R,T,C))$DEM(R,C) = SUM((COM_TS(R,C,S),RDCUR(R,CUR)),COM_BPRICE(RTC,S,CUR)*COM_FR(RTC,S));
-  TM_DMC(R,T,C)$(TM_DMC(R,T,C)=0) = 0;
-  TM_AMP(R,T) = SOL_ACFR(R,'COST',T)*SUM(DEM(R,C),TM_DMC(R,T,C)*COM_PROJ(R,T,C))+1-1;
-  TM_AMP(MR,T)$((M(T)>MIYR_V1+9)$PP(T)) = 0;
-""",
+        g = self.tc
+        project(source=g.Dem, target=g.TmDm)
+        g.tm_dmc.setRecords(None)
+        with Loop(g.MiDmas[g.r, g.Com, g.c]):
+            g.TmDm[g.r, g.c] = False
+        # * Marginal costs of demands
+        g.tm_dmc[g.Rtc[g.r, g.t, g.c]].where[g.Dem[g.r, g.c]] = Sum(
+            [g.ComTs[g.r, g.c, g.s], g.Rdcur[g.r, g.cur]],
+            g.com_bprice[g.Rtc, g.s, g.cur] * g.com_fr[g.Rtc, g.s],
         )
+        g.tm_dmc[g.r, g.t, g.c].where[(g.tm_dmc[g.r, g.t, g.c] == 0.0)] = 0.0
+        g.tm_amp[g.r, g.t] = (
+            g.sol_acfr[g.r, "COST", g.t]
+            * Sum(g.Dem[g.r, g.c], g.tm_dmc[g.r, g.t, g.c] * g.com_proj[g.r, g.t, g.c])
+            + 1.0
+            - 1.0
+        )
+        g.tm_amp[g.Mr, g.t].where[((g.m[g.t] > g.miyr_v1 + 9.0).where[g.Pp[g.t]])] = 0.0
 
     def exec2(self: PpmExtMlf) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Demand levels audit
-  TM_DEM(MR(R),T,C)$((COM_PROJ(R,T,C)>0)$DEM(R,C)) = COM_PROJ(R,T,C);
-  LOOP(PP(T),TM_DM(DEM(R,C))$(TM_DMC(R,T,C)=0)=NO; TM_DM(DEM(R,C))$(TM_DEM(R,T,C)=0)=NO);
-* remove elasticity steps from demands, keeping aggregates elastic
-  RCJ(TM_DM(MR,C),J,BD)=NO;
-  COM_ELAST(MR(R),PP,C,ANNUAL,BDNEQ)$TM_DM(R,C) $= RD_AGG(R,C);
-  RHS_COMBAL(RTCS_VARC(R,T,C,S))$((NOT TM_DM(R,C)$PP(T))$TM_STEP(R,C,'N')) $= RCS_COMBAL(R,T,C,S,'FX');
-*-----------------------------------------------------------------------------
-* Aggregate demand, expenditures and price
-  OPTION CLEAR=DM;  DM('ACT')=YES;
-  TM_ANNC(MR(R),T) = SUM(DEM(R,C),TM_DMC(R,T,C)*TM_DEM(R,T,C));
-  TM_DEM(MR(R),T,DM) = SUM(DEM(R,C),TM_DEM(R,T,C));
-  TM_DMC(MR(R),T,DM) = TM_ANNC(R,T)/TM_DEM(R,T,DM);
-  LOOP(TB(TT(T-1)),TM_DMC(R,TT,DM) = MAX(TM_DMC(R,TT,DM),TM_DMC(R,T,DM)*0.7));
-* Annual costs and net taxes for MACRO
-  TM_ANNC(MR(R),T) = SOL_ACFR(R,'COST',T)*TM_ANNC(R,T);
-  TM_ANNC(R,T) $= TM_AMP(R,T);
-  TM_TAXREV(MR(R),T) = SOL_ACFR(R,'TAX',T)*TM_ANNC(R,T);
-*-----------------------------------------------------------------------------
-* Quadratic supply function
-  TM_ANNC(R,T) = TM_ANNC(R,T) * TM_SCALE_CST;
-  LOOP(TB, TM_EC0(R) = TM_ANNC(R,TB); TM_DDATPREF(R,DM) = TM_DMC(R,TB,DM));
-  TM_QSFB(R,T,DM)$TM_DEM(R,T,DM) = 0.5*TM_DMC(R,T,DM)*TM_SCALE_CST/TM_DEM(R,T,DM);
-  TM_QSFA(R,T) = TM_ANNC(R,T)- SUM(DM, TM_QSFB(R,T,DM)*TM_DEM(R,T,DM)**2);
-*-----------------------------------------------------------------------------
-* Process macro parameters
-  TM_DEPR(R)$(NOT TM_DEPR(R))    = TM_DEFVAL('DEPR');
-  TM_ESUB(R)$(NOT TM_ESUB(R))    = TM_DEFVAL('ESUB');
-  TM_DESUB(R)$(NOT TM_DESUB(R))  = TM_ESUB(R);
-  TM_KGDP(R)$(NOT TM_KGDP(R))    = TM_DEFVAL('KGDP');
-  TM_KPVS(R)$(NOT TM_KPVS(R))    = TM_DEFVAL('KPVS');
-  TM_DMTOL(R)$(NOT TM_DMTOL(R))  = TM_DEFVAL('DMTOL');
-  TM_IVETOL(R)$(NOT TM_IVETOL(R))= TM_DEFVAL('IVETOL');
-* Calculate cost amplifier
-  TM_AMP(MR,T) = MAX(0,SMAX(PP(TT)$(ORD(TT)>ORD(T)),TM_ANNC(MR,TT)/(TM_GDPGOAL(MR,TT)/TM_GDPGOAL(MR,T))*POWER(TM_DEFVAL('ESC'),YEARVAL(T)-YEARVAL(TT)))-TM_ANNC(MR,T));
-
-*============================================================================*
-* Initialize the economic parameters
-*============================================================================*
-  TM_DDF(MR,T,DM)     = EPS;
-  TM_AEEIV(MR,T,DM)   = EPS;
-  TM_ASRV(R)          = 1 - TM_DEPR(R) / 100;
-  TM_GROWV(MR,T)      = TM_GR(MR,T);
-  TM_DFACTCURR(R,XTP) = 1 - (TM_KPVS(R) / TM_KGDP(R) - TM_DEPR(R)/100 - TM_GROWV(R,XTP)/100);
-  TM_RHO(R)           = 1 - 1 / TM_ESUB(R);
-  TM_TSRV(R,T)        = TM_ASRV(R) ** NYPER(T);
-
-  TM_K0(R)  = TM_KGDP(R) * TM_GDP0(R);
-  TM_IV0(R) = TM_K0(R) * (TM_DEPR(R) + SUM(TB,TM_GROWV(R,TB))) / 100;
-  TM_C0(R)  = TM_GDP0(R) - TM_IV0(R);
-  TM_Y0(R)  = TM_GDP0(R) + TM_EC0(R) + SUM(TB,TM_AMP(R,TB));
-
-*============================================================================*
-* Calculate intermediate values
-*============================================================================*
-  TM_AEEIFAC(MR,T,DM) = 1;
-  TM_DFACT(MR,TB)     = 1;
-  TM_L(MR,TB)         = 1;
-
-  LOOP(PP(T+1),
-   TM_DFACT(R,PP) = TM_DFACT(R,T) * TM_DFACTCURR(R,T) ** NYPER(T);
-   TM_L(R,PP)     = TM_L(R,T) * (1 + TM_GROWV(R,T) / 100) ** NYPER(T);
-  );
-
-* Arbitrary multiplier on utility in last time period
-  TM_DFACT(MR(R),TLAST)$(TM_ARBM > 1) = TM_DFACT(R,TLAST) *
-      (1-MIN(.999,TM_DFACTCURR(R,TLAST))**(NYPER(TLAST)*TM_ARBM)) /
-      (1-MIN(.999,TM_DFACTCURR(R,TLAST))**(NYPER(TLAST) * 1 ));
-* Weights for periods
-  Z=MAX(1,SMAX(T,D(T))); TM_PWT(T) = D(T)/Z;
-
-  TM_D0(MR(R),DM) = SUM(TB,TM_DEM(R,TB,DM))*TM_SCALE_NRG;
-  TM_B(MR(R),DM)  = (TM_D0(R,DM) / TM_Y0(R)) ** (1 - TM_RHO(R));
-  TM_B(MR(R),DM)  = TM_SCALE_CST / TM_SCALE_NRG * TM_DDATPREF(R,DM) * TM_B(R,DM);
-
-  TM_AKL(MR(R))   =  TM_Y0(R) ** TM_RHO(R) - SUM(DM, TM_B(R,DM) * (TM_D0(R,DM) ** TM_RHO(R)));
-  TM_AKL(MR(R))   =  TM_AKL(R) / (TM_K0(R) ** (TM_KPVS(R) * TM_RHO(R)));
-""",
+        g = self.tc
+        # * Demand levels audit
+        g.tm_dem[g.Mr[g.r], g.t, g.c].where[
+            ((g.com_proj[g.r, g.t, g.c] > 0.0).where[g.Dem[g.r, g.c]])
+        ] = g.com_proj[g.r, g.t, g.c]
+        with Loop(g.Pp[g.t]):
+            g.TmDm[g.Dem[g.r, g.c]].where[(g.tm_dmc[g.r, g.t, g.c] == 0.0)] = False
+            g.TmDm[g.Dem[g.r, g.c]].where[(g.tm_dem[g.r, g.t, g.c] == 0.0)] = False
+        # * remove elasticity steps from demands, keeping aggregates elastic
+        g.Rcj[g.TmDm[g.Mr, g.c], g.j, g.bd] = False
+        g.com_elast[g.Mr[g.r], g.Pp, g.c, g.Annual, g.Bdneq].where[g.TmDm[g.r, g.c]] = (
+            sparse(g.RdAgg[g.r, g.c])
+        )
+        g.RhsCombal[g.RtcsVarc[g.r, g.t, g.c, g.s]].where[
+            ((~(g.TmDm[g.r, g.c].where[g.Pp[g.t]])).where[g.tm_step[g.r, g.c, "N"]])
+        ] = sparse(g.RcsCombal[g.r, g.t, g.c, g.s, "FX"])
+        # *-----------------------------------------------------------------------------
+        # * Aggregate demand, expenditures and price
+        g.Dm.setRecords(None)
+        g.Dm["ACT"] = True
+        g.tm_annc[g.Mr[g.r], g.t] = Sum(
+            g.Dem[g.r, g.c], g.tm_dmc[g.r, g.t, g.c] * g.tm_dem[g.r, g.t, g.c]
+        )
+        g.tm_dem[g.Mr[g.r], g.t, g.Dm] = Sum(g.Dem[g.r, g.c], g.tm_dem[g.r, g.t, g.c])
+        g.tm_dmc[g.Mr[g.r], g.t, g.Dm] = g.tm_annc[g.r, g.t] / g.tm_dem[g.r, g.t, g.Dm]
+        with Loop(g.tb[g.tt[g.t - 1]]):
+            g.tm_dmc[g.r, g.tt, g.Dm] = Max(
+                g.tm_dmc[g.r, g.tt, g.Dm], g.tm_dmc[g.r, g.t, g.Dm] * 0.7
+            )
+        # * Annual costs and net taxes for MACRO
+        g.tm_annc[g.Mr[g.r], g.t] = g.sol_acfr[g.r, "COST", g.t] * g.tm_annc[g.r, g.t]
+        g.tm_annc[g.r, g.t] = sparse(g.tm_amp[g.r, g.t])
+        g.tm_taxrev[g.Mr[g.r], g.t] = g.sol_acfr[g.r, "TAX", g.t] * g.tm_annc[g.r, g.t]
+        # *-----------------------------------------------------------------------------
+        # * Quadratic supply function
+        g.tm_annc[g.r, g.t] = g.tm_annc[g.r, g.t] * g.tm_scale_cst
+        with Loop(g.tb):
+            g.tm_ec0[g.r] = g.tm_annc[g.r, g.tb]
+            g.tm_ddatpref[g.r, g.Dm] = g.tm_dmc[g.r, g.tb, g.Dm]
+        g.tm_qsfb[g.r, g.t, g.Dm].where[g.tm_dem[g.r, g.t, g.Dm]] = (
+            0.5 * g.tm_dmc[g.r, g.t, g.Dm] * g.tm_scale_cst / g.tm_dem[g.r, g.t, g.Dm]
+        )
+        g.tm_qsfa[g.r, g.t] = g.tm_annc[g.r, g.t] - Sum(
+            g.Dm, g.tm_qsfb[g.r, g.t, g.Dm] * (g.tm_dem[g.r, g.t, g.Dm] ** 2.0)
+        )
+        # *-----------------------------------------------------------------------------
+        # * Process macro parameters
+        g.tm_depr[g.r].where[(~(g.tm_depr[g.r]))] = g.tm_defval["DEPR"]
+        g.tm_esub[g.r].where[(~(g.tm_esub[g.r]))] = g.tm_defval["ESUB"]
+        g.tm_desub[g.r].where[(~(g.tm_desub[g.r]))] = g.tm_esub[g.r]
+        g.tm_kgdp[g.r].where[(~(g.tm_kgdp[g.r]))] = g.tm_defval["KGDP"]
+        g.tm_kpvs[g.r].where[(~(g.tm_kpvs[g.r]))] = g.tm_defval["KPVS"]
+        g.tm_dmtol[g.r].where[(~(g.tm_dmtol[g.r]))] = g.tm_defval["DMTOL"]
+        g.tm_ivetol[g.r].where[(~(g.tm_ivetol[g.r]))] = g.tm_defval["IVETOL"]
+        # * Calculate cost amplifier
+        g.tm_amp[g.Mr, g.t] = Max(
+            0.0,
+            Smax(
+                g.Pp[g.tt].where[(Ord(g.tt) > Ord(g.t))],
+                g.tm_annc[g.Mr, g.tt]
+                / (g.tm_gdpgoal[g.Mr, g.tt] / g.tm_gdpgoal[g.Mr, g.t])
+                * power(g.tm_defval["ESC"], g.yearval[g.t] - g.yearval[g.tt]),
+            )
+            - g.tm_annc[g.Mr, g.t],
+        )
+        # *============================================================================*
+        # * Initialize the economic parameters
+        # *============================================================================*
+        g.tm_ddf[g.Mr, g.t, g.Dm] = SpecialValues.EPS
+        g.tm_aeeiv[g.Mr, g.t, g.Dm] = SpecialValues.EPS
+        g.tm_asrv[g.r] = 1.0 - g.tm_depr[g.r] / 100.0
+        g.tm_growv[g.Mr, g.t] = g.tm_gr[g.Mr, g.t]
+        g.tm_dfactcurr[g.r, g.Xtp] = 1.0 - (
+            g.tm_kpvs[g.r] / g.tm_kgdp[g.r]
+            - g.tm_depr[g.r] / 100.0
+            - g.tm_growv[g.r, g.Xtp] / 100.0
+        )
+        g.tm_rho[g.r] = 1.0 - 1.0 / g.tm_esub[g.r]
+        g.tm_tsrv[g.r, g.t] = g.tm_asrv[g.r] ** g.nyper[g.t]
+        g.tm_k0[g.r] = g.tm_kgdp[g.r] * g.tm_gdp0[g.r]
+        g.tm_iv0[g.r] = (
+            g.tm_k0[g.r] * (g.tm_depr[g.r] + Sum(g.tb, g.tm_growv[g.r, g.tb])) / 100.0
+        )
+        g.tm_c0[g.r] = g.tm_gdp0[g.r] - g.tm_iv0[g.r]
+        g.tm_y0[g.r] = g.tm_gdp0[g.r] + g.tm_ec0[g.r] + Sum(g.tb, g.tm_amp[g.r, g.tb])
+        # *============================================================================*
+        # * Calculate intermediate values
+        # *============================================================================*
+        g.tm_aeeifac[g.Mr, g.t, g.Dm] = 1.0
+        g.tm_dfact[g.Mr, g.tb] = 1.0
+        g.tm_l[g.Mr, g.tb] = 1.0
+        with Loop(g.Pp[g.t + 1]):
+            g.tm_dfact[g.r, g.Pp] = g.tm_dfact[g.r, g.t] * (
+                g.tm_dfactcurr[g.r, g.t] ** g.nyper[g.t]
+            )
+            g.tm_l[g.r, g.Pp] = g.tm_l[g.r, g.t] * (
+                (1.0 + g.tm_growv[g.r, g.t] / 100.0) ** g.nyper[g.t]
+            )
+        # * Arbitrary multiplier on utility in last time period
+        g.tm_dfact[g.Mr[g.r], g.Tlast].where[(g.tm_arbm > 1.0)] = (
+            g.tm_dfact[g.r, g.Tlast]
+            * (
+                1.0
+                - (
+                    Min(0.999, g.tm_dfactcurr[g.r, g.Tlast])
+                    ** (g.nyper[g.Tlast] * g.tm_arbm)
+                )
+            )
+            / (
+                1.0
+                - (Min(0.999, g.tm_dfactcurr[g.r, g.Tlast]) ** (g.nyper[g.Tlast] * 1.0))
+            )
+        )
+        # * Weights for periods
+        g.z[...] = Max(1.0, Smax(g.t, g.d[g.t]))
+        g.tm_pwt[g.t] = g.d[g.t] / g.z
+        g.tm_d0[g.Mr[g.r], g.Dm] = Sum(g.tb, g.tm_dem[g.r, g.tb, g.Dm]) * g.tm_scale_nrg
+        g.tm_b[g.Mr[g.r], g.Dm] = (g.tm_d0[g.r, g.Dm] / g.tm_y0[g.r]) ** (
+            1.0 - g.tm_rho[g.r]
+        )
+        g.tm_b[g.Mr[g.r], g.Dm] = (
+            g.tm_scale_cst
+            / g.tm_scale_nrg
+            * g.tm_ddatpref[g.r, g.Dm]
+            * g.tm_b[g.r, g.Dm]
+        )
+        g.tm_akl[g.Mr[g.r]] = (g.tm_y0[g.r] ** g.tm_rho[g.r]) - Sum(
+            g.Dm, g.tm_b[g.r, g.Dm] * (g.tm_d0[g.r, g.Dm] ** g.tm_rho[g.r])
+        )
+        g.tm_akl[g.Mr[g.r]] = g.tm_akl[g.r] / (
+            g.tm_k0[g.r] ** (g.tm_kpvs[g.r] * g.tm_rho[g.r])
         )
