@@ -14,6 +14,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import If, Loop, Ord, Smax, SpecialValues, Sum, set_options, sparse
+from gamspy.math import Max, Min, abs, log
+
 from core.base_class import GamsClass
 from core.calibase_mlf import CalibaseMlf
 from core.presolve_mlf import PresolveMlf
@@ -101,198 +104,171 @@ class EquExtMlf(GamsClass):
 
     def utility_objective_function(self: EquExtMlf) -> None:
         """Utility Objective Function"""
+        g = self.tc
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  EQ_UTIL.. SUM(MR(R), SUM(T, TM_NWT(R) * TM_PWT(T) * TM_DFACT(R,T) * LOG(VAR_C(R,T))))
-	=E= VAR_UTIL * MAX(1,LOG(TM_SCALE_UTIL*1000))/1000;
-
-""",
+        g.eq_util[...] = (
+            Sum(
+                g.Mr[g.r],
+                Sum(
+                    g.t,
+                    g.tm_nwt[g.r]
+                    * g.tm_pwt[g.t]
+                    * g.tm_dfact[g.r, g.t]
+                    * log(g.VAR_C[g.r, g.t]),
+                ),
+            )
+            == g.VAR_UTIL * Max(1.0, log(g.tm_scale_util * 1000.0)) / 1000.0
         )
 
     def production_function(self: EquExtMlf) -> None:
         """Production Function"""
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  EQ_PROD_Y(MR(R),T)..  VAR_C(R,T) + VAR_INV(R,T) + VAR_EC(R,T) + VAR_NTX(R,T)$PP(T) =E=
-  (TM_AKL(R) * VAR_D(R,T,'AKL')**TM_RHO(R) + SUM(DM,TM_B(R,DM)*VAR_D(R,T,DM)**TM_RHO(R))) ** (1/TM_RHO(R));
-""",
+        g = self.tc
+        g.eq_prod_y[g.Mr[g.r], g.t] = g.VAR_C[g.r, g.t] + g.VAR_INV[
+            g.r, g.t
+        ] + g.VAR_EC[g.r, g.t] + g.VAR_NTX[g.r, g.t].where[g.Pp[g.t]] == (
+            (
+                g.tm_akl[g.r] * (g.VAR_D[g.r, g.t, "AKL"] ** g.tm_rho[g.r])
+                + Sum(
+                    g.Dm, g.tm_b[g.r, g.Dm] * (g.VAR_D[g.r, g.t, g.Dm] ** g.tm_rho[g.r])
+                )
+            )
+            ** (1.0 / g.tm_rho[g.r])
         )
 
     def akl_aggregate(self: EquExtMlf) -> None:
         """AKL aggregate"""
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  EQ_AKL(MR(R),T)..  VAR_D(R,T,'AKL') =E= (VAR_D(R,T,'KN')**(TM_KPVS(R))) * VAR_D(R,T,'LAB')**(1-TM_KPVS(R));
-""",
-        )
+        g = self.tc
+        g.eq_akl[g.Mr[g.r], g.t] = g.VAR_D[g.r, g.t, "AKL"] == (
+            g.VAR_D[g.r, g.t, "KN"] ** (g.tm_kpvs[g.r])
+        ) * (g.VAR_D[g.r, g.t, "LAB"] ** (1.0 - g.tm_kpvs[g.r]))
 
     def labor_resource(self: EquExtMlf) -> None:
         """Labor resource"""
-
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  EQ_LABOR(MR(R),T)..  VAR_D(R,T,'LAB') =E= TM_L(R,T);
-""",
-        )
+        g = self.tc
+        g.eq_labor[g.Mr[g.r], g.t] = g.VAR_D[g.r, g.t, "LAB"] == g.tm_l[g.r, g.t]
 
     def capital_dynamics_equation(self: EquExtMlf) -> None:
         """Capital Dynamics Equation"""
-
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  EQ_MCAP(MR(R),PP(T+1))..  VAR_K(R,PP) =E= VAR_K(R,T)*TM_TSRV(R,T) + (D(T+1)*VAR_INV(R,T+1)+TM_TSRV(R,T)*D(T)*VAR_INV(R,T))/2;
-""",
+        g = self.tc
+        g.eq_mcap[g.Mr[g.r], g.Pp[g.t + 1]] = (
+            g.VAR_K[g.r, g.Pp]
+            == g.VAR_K[g.r, g.t] * g.tm_tsrv[g.r, g.t]
+            + (
+                g.d[g.t + 1] * g.VAR_INV[g.r, g.t + 1]
+                + g.tm_tsrv[g.r, g.t] * g.d[g.t] * g.VAR_INV[g.r, g.t]
+            )
+            / 2.0
         )
 
     def capital_dummy_definition(self: EquExtMlf) -> None:
         """Capital dummy definition"""
-
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  EQ_KNCAP(MR(R),T)..  VAR_D(R,T,'KN') =E= VAR_K(R,T);
-""",
-        )
+        g = self.tc
+        g.eq_kncap[g.Mr[g.r], g.t] = g.VAR_D[g.r, g.t, "KN"] == g.VAR_K[g.r, g.t]
 
     def terminal_condition_investment(self: EquExtMlf) -> None:
         """Terminal Condition for investment in last period"""
-
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  EQ_TMC(MR(R),TLAST(T))..  VAR_K(R,T) * (TM_GROWV(R,T) + TM_DEPR(R))/100  =L= VAR_INV(R,T);
-""",
+        g = self.tc
+        g.eq_tmc[g.Mr[g.r], g.Tlast[g.t]] = (
+            g.VAR_K[g.r, g.t] * (g.tm_growv[g.r, g.t] + g.tm_depr[g.r]) / 100.0
+            <= g.VAR_INV[g.r, g.t]
         )
 
     def bound_sum_of_investment_and_energy(self: EquExtMlf) -> None:
         """Bound on Sum of Investment and Energy"""
-
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  EQ_IVECBND(MR(R),PP(T))..  VAR_INV(R,T) + VAR_EC(R,T)  =L=  TM_Y0(R) * TM_L(R,T) ** TM_IVETOL(R);
-""",
-        )
+        g = self.tc
+        g.eq_ivecbnd[g.Mr[g.r], g.Pp[g.t]] = g.VAR_INV[g.r, g.t] + g.VAR_EC[
+            g.r, g.t
+        ] <= g.tm_y0[g.r] * (g.tm_l[g.r, g.t] ** g.tm_ivetol[g.r])
 
     def demand_coupling_equation(self: EquExtMlf) -> None:
         """Demand Coupling Equation"""
+        g = self.tc
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  EQ_DD(MR(R),PP(T),C('ACT'))..
-  VAR_DEM(R,T,C) =E= ((1/TM_SCALE_NRG) * (TM_AEEIFAC(R,T,C) * VAR_D(R,T,C) + VAR_SP(R,T,C)));
-""",
+        g.eq_dd[g.Mr[g.r], g.Pp[g.t], g.c["ACT"]] = g.VAR_DEM[g.r, g.t, g.c] == (
+            (1.0 / g.tm_scale_nrg)
+            * (
+                g.tm_aeeifac[g.r, g.t, g.c] * g.VAR_D[g.r, g.t, g.c]
+                + g.VAR_SP[g.r, g.t, g.c]
+            )
         )
 
     def energy_system_costs(self: EquExtMlf) -> None:
         """Energy System Costs"""
-
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  EQ_ESCOST(MR(R),PP(T))..
-  SUM(DM('ACT'), TM_QSFA(R,T) + TM_QSFB(R,T,DM)*VAR_DEM(R,T,DM)**2) + TM_AMP(R,T) =E= VAR_EC(R,T)*TM_HDF(R,T);
-""",
+        g = self.tc
+        g.eq_escost[g.Mr[g.r], g.Pp[g.t]] = (
+            Sum(
+                g.Dm["ACT"],
+                g.tm_qsfa[g.r, g.t]
+                + g.tm_qsfb[g.r, g.t, g.Dm] * (g.VAR_DEM[g.r, g.t, g.Dm] ** 2.0),
+            )
+            + g.tm_amp[g.r, g.t]
+            == g.VAR_EC[g.r, g.t] * g.tm_hdf[g.r, g.t]
         )
 
     def trade_balance(self: EquExtMlf) -> None:
         """Trade balance"""
-
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  EQ_TRDBAL(PP)..  SUM(MR(R), VAR_NTX(R,PP)) =E= 0;
-""",
-        )
+        g = self.tc
+        g.eq_trdbal[g.Pp] = Sum(g.Mr[g.r], g.VAR_NTX[g.r, g.Pp]) == 0.0
 
     def set_variable_bounds(self: EquExtMlf) -> None:
-        """Variable bounds"""
-
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Variable bounds
-
-  VAR_D.LO(MR(R),T,DM) = TM_DMTOL(R) * TM_D0(R,DM);
-  VAR_D.L(MR(R),PP,DM) = TM_D0(R,DM);
-  VAR_D.FX(MR(R),T(TB),DM) = TM_D0(R,DM);
-  VAR_DEM.FX(MR,T(TB),DM)  = TM_DEM(MR,T,DM);
-
-  LOOP(MR(R), Z=TM_K0(R)*TM_DEPR(R)/100; LOOP(PP(T+1), Z=Z*TM_TSRV(R,T); VAR_INV.LO(R,PP) = Z));
-  VAR_INV.L(MR,PP)     = TM_IV0(MR) * TM_L(MR,PP);
-  VAR_INV.FX(MR,T(TB)) = TM_IV0(MR);
-  VAR_D.LO(MR,T,'AKL') = MIN(1,TM_K0(MR))/2;
-  VAR_D.LO(MR,T,'KN')  = TM_K0(MR) * 0.33;
-  VAR_D.LO(MR,T,'LAB') = TM_L(MR,T)/2;
-  VAR_K.FX(MR,T(TB))   = TM_K0(MR);
-  VAR_C.L(MR,TP)       = TM_GDP0(MR) - TM_IV0(MR);
-  VAR_C.LO(MR,TP)      = TM_GDP0(MR) * 0.33;
-  VAR_SP.FX(MR,TP,DM)  = 0;
-  VAR_EC.LO(MR,PP)     = TM_ANNC(MR,PP) * 0.33;
-  VAR_EC.LO(MR,T(TB))  = TM_EC0(MR) + TM_AMP(MR,TB);
-
-* set the bounds for the step variables for quad approx, clearing first
-  VAR_XCAPP.UP(RTP,J)   = INF;
-  VAR_XCAPP.UP(RTP,XCP(J))$(ORD(J)<7) $= TM_EXPBND(RTP);
-""",
+        g = self.tc
+        # * Variable bounds
+        g.VAR_D.lo[g.Mr[g.r], g.t, g.Dm] = g.tm_dmtol[g.r] * g.tm_d0[g.r, g.Dm]
+        g.VAR_D.l[g.Mr[g.r], g.Pp, g.Dm] = g.tm_d0[g.r, g.Dm]
+        g.VAR_D.fx[g.Mr[g.r], g.t[g.tb], g.Dm] = g.tm_d0[g.r, g.Dm]
+        g.VAR_DEM.fx[g.Mr, g.t[g.tb], g.Dm] = g.tm_dem[g.Mr, g.t, g.Dm]
+        with Loop(g.Mr[g.r]):
+            g.z[...] = g.tm_k0[g.r] * g.tm_depr[g.r] / 100.0
+            with Loop(g.Pp[g.t + 1]):
+                g.z[...] = g.z * g.tm_tsrv[g.r, g.t]
+                g.VAR_INV.lo[g.r, g.Pp] = g.z
+        g.VAR_INV.l[g.Mr, g.Pp] = g.tm_iv0[g.Mr] * g.tm_l[g.Mr, g.Pp]
+        g.VAR_INV.fx[g.Mr, g.t[g.tb]] = g.tm_iv0[g.Mr]
+        g.VAR_D.lo[g.Mr, g.t, "AKL"] = Min(1.0, g.tm_k0[g.Mr]) / 2.0
+        g.VAR_D.lo[g.Mr, g.t, "KN"] = g.tm_k0[g.Mr] * 0.33
+        g.VAR_D.lo[g.Mr, g.t, "LAB"] = g.tm_l[g.Mr, g.t] / 2.0
+        g.VAR_K.fx[g.Mr, g.t[g.tb]] = g.tm_k0[g.Mr]
+        g.VAR_C.l[g.Mr, g.tp] = g.tm_gdp0[g.Mr] - g.tm_iv0[g.Mr]
+        g.VAR_C.lo[g.Mr, g.tp] = g.tm_gdp0[g.Mr] * 0.33
+        g.VAR_SP.fx[g.Mr, g.tp, g.Dm] = 0.0
+        g.VAR_EC.lo[g.Mr, g.Pp] = g.tm_annc[g.Mr, g.Pp] * 0.33
+        g.VAR_EC.lo[g.Mr, g.t[g.tb]] = g.tm_ec0[g.Mr] + g.tm_amp[g.Mr, g.tb]
+        # * set the bounds for the step variables for quad approx, clearing first
+        g.VAR_XCAPP.up[g.Rtp, g.j] = SpecialValues.POSINF
+        g.VAR_XCAPP.up[g.Rtp, g.Xcp[g.j]].where[Ord(g.j) < 7.0] = sparse(
+            g.tm_expbnd[g.Rtp]
         )
 
     def exec1(
-        self: EquExtMlf, fixboh_set: bool, fixboh: str, reg_bdncap_defined: bool
+        # copied fixboh usage from solve_stp
+        self: EquExtMlf,
+        fixboh_set: bool,
+        fixboh: int,
+        reg_bdncap_defined: bool,
     ) -> None:
+        g = self.tc
         if fixboh_set:
-            self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code=rf"""
-LOOP(R, Z=REG_FIXT(R); IF(Z=0,Z=ABS({fixboh})); TM_PP(R,T)$(M(T) LE Z)=NO);
-""",
-            )
+            with Loop(g.r):
+                g.z[...] = g.reg_fixt[g.r]
+                with If(g.z == 0.0):
+                    g.z[...] = abs(fixboh)
+                g.TmPp[g.r, g.t].where[g.m[g.t] <= g.z] = False
+
         if reg_bdncap_defined:
-            self.tc.add_gams_code(
-                module=self,
-                phase="run",
-                code=r"""
-LOOP(BD,TM_PP(R,T)$((M(T)<=REG_BDNCAP(R,BD))$REG_BDNCAP(R,BD))=NO);
-""",
-            )
+            with Loop(g.bd):
+                g.TmPp[g.r, g.t].where[
+                    (g.m[g.t] <= g.reg_bdncap[g.r, g.bd]).where[g.reg_bdncap[g.r, g.bd]]
+                ] = False
 
     def option_lp(self: EquExtMlf) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-OPTION LP=KESTREL;
-""",
-        )
+        # Options.fromGams({"LP": "KESTREL"})
+        # NOTE: # OPTION LP=KESTREL is overridden by solve.mod's `option lp=cplex, mip=cplex;`
+        # before any LP solve, so it has no effect.
+        self.tc.solve_options.lp = "KESTREL"
 
     def option_nlp(self: EquExtMlf) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-OPTION NLP=KESTREL;
-""",
-        )
+        # Options.fromGams({"NLP": "KESTREL"})
+        self.tc.solve_options.nlp = "KESTREL"
 
     def full_model_equations(self: EquExtMlf) -> None:
         self.utility_objective_function2()
@@ -312,175 +288,248 @@ OPTION NLP=KESTREL;
 
     def utility_objective_function2(self: EquExtMlf) -> None:
         """Utility Objective Function"""
-
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  EQ_UTILP..
-  SUM(MR(R), SUM(T, TM_NWT(R)*TM_PWT(T)*TM_DFACT(R,T)*(LOG(TM_MIDCON(R,T))-SUM(LOGJ(J,BD),BDSIG(BD)*VAR_MELA(R,T,'CON',J,BD)/TM_LSC)))) +
-  SUM(R$(NOT MR(R)),SUM(T,(3*TM_ANNC(R,T)-VAR_OBJCOST(R,T)*TM_SCALE_CST)*TM_UDF(R,T)))
-  =E=  VAR_UTIL * MAX(1,LOG(TM_SCALE_UTIL*1000))/1000;
-""",
+        g = self.tc
+        g.eq_utilp[...] = (
+            Sum(
+                g.Mr[g.r],
+                Sum(
+                    g.t,
+                    g.tm_nwt[g.r]
+                    * g.tm_pwt[g.t]
+                    * g.tm_dfact[g.r, g.t]
+                    * (
+                        log(g.tm_midcon[g.r, g.t])
+                        - Sum(
+                            g.Logj[g.j, g.bd],
+                            g.bdsig[g.bd]
+                            * g.VAR_MELA[g.r, g.t, "CON", g.j, g.bd]
+                            / g.tm_lsc,
+                        )
+                    ),
+                ),
+            )
+            + Sum(
+                g.r.where[(~(g.Mr[g.r]))],
+                Sum(
+                    g.t,
+                    (
+                        3.0 * g.tm_annc[g.r, g.t]
+                        - g.VAR_OBJCOST[g.r, g.t] * g.tm_scale_cst
+                    )
+                    * g.tm_udf[g.r, g.t],
+                ),
+            )
+            == g.VAR_UTIL * Max(1.0, log(g.tm_scale_util * 1000.0)) / 1000.0
         )
 
     def consumption(self: EquExtMlf) -> None:
         """Consumption"""
-
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  EQ_CONSO(MR(R),T)..  VAR_D(R,T,'YN')  =E=  VAR_C(R,T) + VAR_INV(R,T) + VAR_EC(R,T) + VAR_NTX(R,T)$PP(T);
-""",
+        g = self.tc
+        g.eq_conso[g.Mr[g.r], g.t] = (
+            g.VAR_D[g.r, g.t, "YN"]
+            == g.VAR_C[g.r, g.t]
+            + g.VAR_INV[g.r, g.t]
+            + g.VAR_EC[g.r, g.t]
+            + g.VAR_NTX[g.r, g.t].where[g.Pp[g.t]]
         )
 
     def consumption_disaggregation(self: EquExtMlf) -> None:
         """Consumption disaggregation"""
-
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
- EQ_CONDA(MR(R),T)..  VAR_C(R,T) =E= TM_MIDCON(R,T)*(1-SUM(LOGJ(J,BD),VAR_MELA(R,T,'CON',J,BD)*TM_LOGVAL(J,BD)/TM_LSC));
-""",
+        g = self.tc
+        g.eq_conda[g.Mr[g.r], g.t] = g.VAR_C[g.r, g.t] == g.tm_midcon[g.r, g.t] * (
+            1.0
+            - Sum(
+                g.Logj[g.j, g.bd],
+                g.VAR_MELA[g.r, g.t, "CON", g.j, g.bd]
+                * g.tm_logval[g.j, g.bd]
+                / g.tm_lsc,
+            )
         )
 
     def consumption_log_steps(self: EquExtMlf) -> None:
         """Consumption LOG steps constraint"""
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  EQ_LOGBD(MR(R),T)..  SUM(LOGJ(J,BD),VAR_MELA(R,T,'CON',J,BD)/ORD(J)/TM_LOGJOT) =L= TM_LSC;
-""",
+        g = self.tc
+        g.eq_logbd[g.Mr[g.r], g.t] = (
+            Sum(
+                g.Logj[g.j, g.bd],
+                g.VAR_MELA[g.r, g.t, "CON", g.j, g.bd] / Ord(g.j) / g.tm_logjot,
+            )
+            <= g.tm_lsc
         )
 
     def macro_ces_function_shares(self: EquExtMlf) -> None:
         """Macro CES function shares"""
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  EQ_MACSH(MR(R),T,TM_DMAS(CG,CG1))..
-  VAR_D(R,T,CG1) + SUM(TM_RCJ(R,CG1,J,BD)$TM_PP(R,T),BDSIG(BD)*VAR_MELA(R,T,CG1,J,BD))
-  =E= TM_SHAR(R,T,CG,CG1)*VAR_D(R,T,CG) / TM_CIE(R,T,CG);
-""",
+        g = self.tc
+        g.eq_macsh[g.Mr[g.r], g.t, g.TmDmas[g.cg, g.cg1]] = (
+            g.VAR_D[g.r, g.t, g.cg1]
+            + Sum(
+                g.TmRcj[g.r, g.cg1, g.j, g.bd].where[g.TmPp[g.r, g.t]],
+                g.bdsig[g.bd] * g.VAR_MELA[g.r, g.t, g.cg1, g.j, g.bd],
+            )
+            == g.tm_shar[g.r, g.t, g.cg, g.cg1]
+            * g.VAR_D[g.r, g.t, g.cg]
+            / g.tm_cie[g.r, g.t, g.cg]
         )
 
     def macro_ces_function_aggregation(self: EquExtMlf) -> None:
         """Macro CES function aggregation"""
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  EQ_MACAG(TM_PP(MR(R),T),TM_CES(CG))..
-  SUM(TM_RCJ(R,CG1,J,BDNEQ(BD))$TM_DMAS(CG,CG1),
-      (TM_PREF(R,T,CG1)*(TM_AGC(R,T,CG,CG1,J,BD)-1)+TM_SHAR(R,T,CG1,CG))*BDSIG(BD)*VAR_MELA(R,T,CG1,J,BD))
-  =E= 0;
-""",
+        g = self.tc
+        g.eq_macag[g.TmPp[g.Mr[g.r], g.t], g.TmCes[g.cg]] = (
+            Sum(
+                g.TmRcj[g.r, g.cg1, g.j, g.Bdneq[g.bd]].where[g.TmDmas[g.cg, g.cg1]],
+                (
+                    g.tm_pref[g.r, g.t, g.cg1]
+                    * (g.tm_agc[g.r, g.t, g.cg, g.cg1, g.j, g.bd] - 1.0)
+                    + g.tm_shar[g.r, g.t, g.cg1, g.cg]
+                )
+                * g.bdsig[g.bd]
+                * g.VAR_MELA[g.r, g.t, g.cg1, g.j, g.bd],
+            )
+            == 0.0
         )
 
     def macro_ces_function_constraint(self: EquExtMlf) -> None:
         """Macro CES function constraint"""
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  EQ_MACES(TM_PP(MR(R),T),TM_DMAS(CG,CG1))..
-  SUM(TM_RCJ(R,CG1,J,BDNEQ(BD)),VAR_MELA(R,T,CG1,J,BD)*TM_STEP(R,CG1,BD)/ORD(J)/(TM_QREF(R,T,CG1)*TM_VOC(R,T,CG1,BD)))
-  =L= (VAR_D(R,t,CG)/TM_CIE(R,T,CG)/TM_CESLEV(R,T,CG));
-""",
+        g = self.tc
+        g.eq_maces[g.TmPp[g.Mr[g.r], g.t], g.TmDmas[g.cg, g.cg1]] = Sum(
+            g.TmRcj[g.r, g.cg1, g.j, g.Bdneq[g.bd]],
+            g.VAR_MELA[g.r, g.t, g.cg1, g.j, g.bd]
+            * g.tm_step[g.r, g.cg1, g.bd]
+            / Ord(g.j)
+            / (g.tm_qref[g.r, g.t, g.cg1] * g.tm_voc[g.r, g.t, g.cg1, g.bd]),
+        ) <= (
+            g.VAR_D[g.r, g.t, g.cg]
+            / g.tm_cie[g.r, g.t, g.cg]
+            / g.tm_ceslev[g.r, g.t, g.cg]
         )
 
     def demand_ces_function_shares(self: EquExtMlf) -> None:
         """Demand CES function shares"""
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  EQ_DEMSH(MR(R),PP(T),C)$TM_DM(R,C)..
-  VAR_DEM(R,T,C) + SUM(TM_RCJ(R,C,J,BD)$TM_PP(R,T),BDSIG(BD)*VAR_MELA(R,T,C,J,BD))
-  =E= SUM(MAG('ACT'),TM_SHAR(R,T,MAG,C)*VAR_DEM(R,T,MAG));
-""",
+        g = self.tc
+        # MAG(CG) and VAR_DEM's C domain are sibling subsets of COM_GRP, which
+        # GAMS accepts as domain-compatible but GAMSPy's stricter domain
+        # validation rejects (only ancestor/descendant chains are allowed).
+        set_options({"VALIDATION": 0})  # TODO: Remove in future GAMSPY version
+        g.eq_demsh[g.Mr[g.r], g.Pp[g.t], g.c].where[g.TmDm[g.r, g.c]] = g.VAR_DEM[
+            g.r, g.t, g.c
+        ] + Sum(
+            g.TmRcj[g.r, g.c, g.j, g.bd].where[g.TmPp[g.r, g.t]],
+            g.bdsig[g.bd] * g.VAR_MELA[g.r, g.t, g.c, g.j, g.bd],
+        ) == Sum(
+            g.Mag["ACT"], g.tm_shar[g.r, g.t, g.Mag, g.c] * g.VAR_DEM[g.r, g.t, g.Mag]
         )
+        set_options({"VALIDATION": 1})  # TODO: Remove in future GAMSPY version
 
     def demand_ces_aggregation(self: EquExtMlf) -> None:
         """Demand CES aggregation"""
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  EQ_DEMAG(TM_PP(MR(R),T))..
-  SUM(TM_RCJ(R,C,J,BDNEQ(BD))$TM_DM(R,C),
-    SUM(MAG('ACT'), (TM_PREF(R,T,C)*(TM_AGC(R,T,MAG,C,J,BD)-1)+TM_SHAR(R,T,C,MAG))*BDSIG(BD)*VAR_MELA(R,T,C,J,BD)))
-  =E= 0;
-""",
+        g = self.tc
+        # MAG(CG) and TM_AGC/TM_SHAR's C domain are sibling subsets of
+        # COM_GRP, which GAMS accepts as domain-compatible but GAMSPy's
+        # stricter domain validation rejects (only ancestor/descendant
+        # chains are allowed).
+        set_options({"VALIDATION": 0})  # TODO: Remove in future GAMSPY version
+        g.eq_demag[g.TmPp[g.Mr[g.r], g.t]] = (
+            Sum(
+                g.TmRcj[g.r, g.c, g.j, g.Bdneq[g.bd]].where[g.TmDm[g.r, g.c]],
+                Sum(
+                    g.Mag["ACT"],
+                    (
+                        g.tm_pref[g.r, g.t, g.c]
+                        * (g.tm_agc[g.r, g.t, g.Mag, g.c, g.j, g.bd] - 1.0)
+                        + g.tm_shar[g.r, g.t, g.c, g.Mag]
+                    )
+                    * g.bdsig[g.bd]
+                    * g.VAR_MELA[g.r, g.t, g.c, g.j, g.bd],
+                ),
+            )
+            == 0.0
         )
+        set_options({"VALIDATION": 1})  # TODO: Remove in future GAMSPY version
 
     def demand_linear_ces_function_constraint(self: EquExtMlf) -> None:
         """Demand linear CES function constraint"""
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  EQ_DEMCES(TM_PP(MR(R),T),C)$TM_DM(R,C)..
-  SUM(TM_RCJ(R,C,J,BDNEQ(BD)),VAR_MELA(R,T,C,J,BD)*TM_STEP(R,C,BD)/ORD(J)/(TM_QREF(R,T,C)*TM_VOC(R,T,C,BD)))
-  =L= SUM(MAG('ACT'),(VAR_DEM(R,T,MAG)/TM_DEM(R,T,MAG)));
-""",
-        )
+        g = self.tc
+        # MAG(CG) and VAR_DEM/TM_DEM's C domain are sibling subsets of
+        # COM_GRP, which GAMS accepts as domain-compatible but GAMSPy's
+        # stricter domain validation rejects (only ancestor/descendant
+        # chains are allowed).
+        set_options({"VALIDATION": 0})  # TODO: Remove in future GAMSPY version
+        g.eq_demces[g.TmPp[g.Mr[g.r], g.t], g.c].where[g.TmDm[g.r, g.c]] = Sum(
+            g.TmRcj[g.r, g.c, g.j, g.Bdneq[g.bd]],
+            g.VAR_MELA[g.r, g.t, g.c, g.j, g.bd]
+            * g.tm_step[g.r, g.c, g.bd]
+            / Ord(g.j)
+            / (g.tm_qref[g.r, g.t, g.c] * g.tm_voc[g.r, g.t, g.c, g.bd]),
+        ) <= Sum(g.Mag["ACT"], (g.VAR_DEM[g.r, g.t, g.Mag] / g.tm_dem[g.r, g.t, g.Mag]))
+        set_options({"VALIDATION": 1})  # TODO: Remove in future GAMSPY version
 
     def demand_non_linear_ces_function(self: EquExtMlf) -> None:
         """Demand non-linear CES function constraint"""
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  EQ_DNLCES(MR(R),PP(T))..
-  VAR_DEM(R,T,'ACT') =E= TM_DEM(R,T,'ACT') *
-  SUM(TM_DM(R,C),TM_CIE(R,T,C)*(VAR_DEM(R,T,C)/TM_DEM(R,T,C))**(1-1/TM_DESUB(R)))**(TM_DESUB(R)/(TM_DESUB(R)-1));
-""",
+        g = self.tc
+        g.eq_dnlces[g.Mr[g.r], g.Pp[g.t]] = g.VAR_DEM[g.r, g.t, "ACT"] == g.tm_dem[
+            g.r, g.t, "ACT"
+        ] * (
+            Sum(
+                g.TmDm[g.r, g.c],
+                g.tm_cie[g.r, g.t, g.c]
+                * (
+                    (g.VAR_DEM[g.r, g.t, g.c] / g.tm_dem[g.r, g.t, g.c])
+                    ** (1.0 - 1.0 / g.tm_desub[g.r])
+                ),
+            )
+            ** (g.tm_desub[g.r] / (g.tm_desub[g.r] - 1.0))
         )
 
     def energy_system_costs_nlp(self: EquExtMlf) -> None:
         """Energy System costs"""
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-  EQ_ENSCST(MR(R),T)..
-  TM_SCALE_CST * VAR_OBJCOST(R,T) + TM_AMP(R,T) + VAR_SP(R,T,'DEM')$(NOT TM_PP(R,T)) -
-* Credit for lump-sum rebate of tax revenues
-  TM_SCALE_CST * TM_TAXREV(R,T) +
-* quadratic market penetration curves (pending)
-  0  =E= VAR_EC(R,T)*TM_HDF(R,T);
-""",
+        g = self.tc
+        g.eq_enscst[g.Mr[g.r], g.t] = (
+            g.tm_scale_cst * g.VAR_OBJCOST[g.r, g.t]
+            + g.tm_amp[g.r, g.t]
+            + g.VAR_SP[g.r, g.t, "DEM"].where[(~(g.TmPp[g.r, g.t]))]
+            # * Credit for lump-sum rebate of tax revenues
+            - g.tm_scale_cst * g.tm_taxrev[g.r, g.t]
+            # * quadratic market penetration curves (pending)
+            + 0.0
+            == g.VAR_EC[g.r, g.t] * g.tm_hdf[g.r, g.t]
         )
 
     def full_model_bounds(self: EquExtMlf) -> None:
         """Full model bounds"""
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-  VAR_DEM.FX(R,T,C)$((NOT TM_DM(R,C)$MR(R))$DEM(R,C))=COM_PROJ(R,T,C);
-  VAR_DEM.FX(MR(R),T(TB),C)$TM_DM(R,C) = TM_DEM(R,T,C);
-  VAR_EC.UP(MR,T) = INF;
-  VAR_EC.LO(MR(R),T) = ((TM_ANNC(R,T) + TM_AMP(R,T))/TM_HDF(R,T))$(NOT TM_PP(R,T));
-  VAR_INV.FX(MR(R),T)$(NOT TM_PP(R,T)) = VAR_INV.L(R,T);
-* Treat non-MR regions gracefully
-  IF(CARD(MR),Z=SUM(TB(T-1),SMAX(MR,EQ_ESCOST.M(MR,T)/COEF_PVT(MR,T))); ELSE Z=0.5);
-  TM_UDF(R,T) = COEF_PVT(R,T)*Z;
-""",
-        )
+        g = self.tc
+        g.VAR_DEM.fx[g.r, g.t, g.c].where[
+            ((~(g.TmDm[g.r, g.c].where[g.Mr[g.r]])).where[g.Dem[g.r, g.c]])
+        ] = g.com_proj[g.r, g.t, g.c]
+        g.VAR_DEM.fx[g.Mr[g.r], g.t[g.tb], g.c].where[g.TmDm[g.r, g.c]] = g.tm_dem[
+            g.r, g.t, g.c
+        ]
+        g.VAR_EC.up[g.Mr, g.t] = SpecialValues.POSINF
+        g.VAR_EC.lo[g.Mr[g.r], g.t] = (
+            (g.tm_annc[g.r, g.t] + g.tm_amp[g.r, g.t]) / g.tm_hdf[g.r, g.t]
+        ).where[(~(g.TmPp[g.r, g.t]))]  # type: ignore[assignment]
+        g.VAR_INV.fx[g.Mr[g.r], g.t].where[(~(g.TmPp[g.r, g.t]))] = g.VAR_INV.l[
+            g.r, g.t
+        ]
+        # * Treat non-MR regions gracefully
+        if g.Mr.number_records:
+            g.z[...] = Sum(
+                g.tb[g.t - 1],
+                Smax(g.Mr, g.eq_escost.m[g.Mr, g.t] / g.coef_pvt[g.Mr, g.t]),
+            )
+        else:
+            g.z[...] = 0.5
+        g.tm_udf[g.r, g.t] = g.coef_pvt[g.r, g.t] * g.z
 
     def exec2(self: EquExtMlf) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-  TM_CIE(R,T,C)$TM_DM(R,C) = TM_DEM(R,T,C)*TM_DMC(R,T,C) / (TM_DEM(R,T,'ACT')*TM_DMC(R,T,'ACT'));
-  VAR_DEM.UP(MR(R),PP(T),C)$((NOT TM_PP(R,T))$TM_DM(R,C)) = TM_DEM(R,T,C);
-  VAR_DEM.LO(R,PP,C)$TM_DM(R,C) = TM_DEM(R,PP,C)*0.5;
-""",
+        g = self.tc
+        g.tm_cie[g.r, g.t, g.c].where[g.TmDm[g.r, g.c]] = (
+            g.tm_dem[g.r, g.t, g.c]
+            * g.tm_dmc[g.r, g.t, g.c]
+            / (g.tm_dem[g.r, g.t, "ACT"] * g.tm_dmc[g.r, g.t, "ACT"])
+        )
+        g.VAR_DEM.up[g.Mr[g.r], g.Pp[g.t], g.c].where[
+            ((~(g.TmPp[g.r, g.t])).where[g.TmDm[g.r, g.c]])
+        ] = g.tm_dem[g.r, g.t, g.c]
+        g.VAR_DEM.lo[g.r, g.Pp, g.c].where[g.TmDm[g.r, g.c]] = (
+            g.tm_dem[g.r, g.Pp, g.c] * 0.5
         )
