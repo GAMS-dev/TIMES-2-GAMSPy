@@ -153,7 +153,7 @@ class BndIreVda(GamsClass):
         VAR_IRE = g.get_variable(f"{var}_IRE")
 
         # Set bounds for T not in sync with PREMILE
-        with Loop(ie.where[Card(Fil)]):  # type: ignore[index]
+        with Loop(ie.where[Card(Fil)]):
             Trackpc[r, p, c].where[
                 (RpcAire[r, p, c] + g.PrcVint[r, p]).where[RpcIrein[r, p, c, ie, "IN"]]
             ] = True
@@ -178,7 +178,7 @@ class BndIreVda(GamsClass):
         flo_ire.setRecords(None)
 
         # Set the IRE prices
-        with Loop(t.where[Card(g.par_ipric)]):  # type: ignore[index]
+        with Loop(t.where[Card(g.par_ipric)]):
             g.obj_ipric[r, g.YEoh, p, c, ts, ie, g.cur].where[
                 g.Periodyr[t, g.YEoh].where[
                     RpcsVar[r, p, c, ts].where[RpcIrein[r, p, c, ie, "IN"]]

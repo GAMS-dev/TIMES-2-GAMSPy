@@ -708,15 +708,15 @@ class PpmainMod(GamsClass):
                 PpLvlbdMod(
                     tc=self.tc,
                     env=self.env,
-                    arg1=arg[0],  # type: ignore[arg-type]
-                    arg2=arg[1],  # type: ignore[arg-type]
-                    arg3=arg[2],  # type: ignore[arg-type]
-                    arg4=arg[3],  # type: ignore[arg-type]
-                    arg5=arg[4],  # type: ignore[arg-type]
-                    arg6=arg[5],  # type: ignore[arg-type]
-                    arg7=arg[6],  # type: ignore[arg-type]
-                    arg8=arg[7],  # type: ignore[arg-type]
-                    arg9=arg[8] if len(arg) > 8 else "",  # type: ignore[arg-type]
+                    arg1=arg[0],
+                    arg2=arg[1],
+                    arg3=arg[2],
+                    arg4=arg[3],
+                    arg5=arg[4],
+                    arg6=arg[5],
+                    arg7=arg[6],
+                    arg8=arg[7],
+                    arg9=arg[8] if len(arg) > 8 else "",
                 )
             )
 
@@ -1018,7 +1018,7 @@ class PpmainMod(GamsClass):
             with If(~(Sum(g.Top[g.r, g.p, g.c, g.io], 1))):
                 g.Top[g.r, g.p, g.c, g.io] = True
             with If(~(g.RpSts[g.r, g.p])):
-                g.PrcTsl[g.r, g.p, g.tslvl] = g.tslvl.sameAs("ANNUAL")  # type: ignore[assignment]
+                g.PrcTsl[g.r, g.p, g.tslvl] = g.tslvl.sameAs("ANNUAL")
         # * time-slice storage
         g.PrcStgtss[g.Trackpc[g.r, g.p, g.c]].where[~(g.PrcMap[g.r, "STK", g.p])] = True
         with Loop(g.PrcStgtss[g.r, g.p, g.c]):
@@ -1214,7 +1214,7 @@ class PpmainMod(GamsClass):
         # *-----------------------------------------------------------------------------
         g.putgrp[...] = 0.0
         # * Convert START to NOFF
-        with Loop(g.Lastll[g.ll].where[Card(g.ncap_start)]):  # type: ignore
+        with Loop(g.Lastll[g.ll].where[Card(g.ncap_start)]):
             g.z[...] = Card(g.ll) + botime
             g.PrcNoff[g.Rp, "BOH", g.eohyear].where[g.ncap_start[g.Rp]] = False
             g.PrcNoff[g.Rp, "BOH", g.ll + Min(-(1.0), g.ncap_start[g.Rp] - g.z)].where[
@@ -1624,7 +1624,7 @@ class PpmainMod(GamsClass):
         # * identify all TS at/above the PRC_TSL
         with Loop(Domain(g.tslvl, g.tsl).where[(Ord(g.tsl) > Ord(g.tslvl))]):
             with If(Ord(g.tsl) == 2.0):
-                g.RpsPrcts[g.PrcTs[g.Rp, g.s]] = Number(1.0)  # type:ignore
+                g.RpsPrcts[g.PrcTs[g.Rp, g.s]] = Number(1.0)
             g.RpsPrcts[g.Rp[g.r, g.p], g.s].where[
                 (g.TsGroup[g.r, g.tslvl, g.s].where[g.PrcTsl[g.Rp, g.tsl]])
             ] = True
@@ -2393,7 +2393,7 @@ class PpmainMod(GamsClass):
         g.Trackpc[g.IreDist[g.r, g.p], g.c].where[g.RpcMarket[g.r, g.p, g.c, "EXP"]] = (
             True
         )
-        with While(Card(g.Trackpc)):  # type: ignore[arg-type]
+        with While(Card(g.Trackpc)):
             g.Rxx.setRecords(None)
             with Loop(  # noqa: SIM117
                 Domain(

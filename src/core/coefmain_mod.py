@@ -62,5 +62,5 @@ class CoefmainMod(GamsClass):
     def exec(self) -> None:
         g = self.tc
         Sow, allsow, SwT, t = g.Sow, g.allsow, g.SwT, g.t
-        Sow[allsow] = diag(allsow, "1")  # type: ignore[assignment]
+        Sow[allsow] = diag(allsow, "1")
         SwT[t, allsow] = Sow[allsow]

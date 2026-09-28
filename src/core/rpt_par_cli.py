@@ -84,10 +84,7 @@ def rpt_par_cli_GP(g: TimesModelClass) -> None:
         / cm_const["CO2-PREIND"]
     )
     vallvl[...] = cm_const["GAMMA"] / log(2)
-    # Card accepts a Variable at run time; only its annotation is narrower.
-    z[...] = Smin(t, g.m[t] - g.cm_calib).where[
-        Card(VAR_CLIBOX)  # type: ignore[arg-type, index]
-    ]
+    z[...] = Smin(t, g.m[t] - g.cm_calib).where[Card(VAR_CLIBOX)]
     with Loop(ll.where[z.where[cm_led[ll]]]):
         cnt[...] = Max(1, cm_led[ll])
         attlvl[...] = (

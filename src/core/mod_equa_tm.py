@@ -37,7 +37,7 @@ def mod_equa_tm(
     """Translation unit for mod_equa.tm."""
     equations = []
     if merge.upper() == "YES":
-        return tc.container.getEquations()  # type: ignore[no-any-return]
+        return tc.container.getEquations()
 
     # Objective Function & Components
     #  Overall OBJ linear combination of the regional objs (which are built from rest)

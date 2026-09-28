@@ -479,7 +479,7 @@ class CoefExtCli(GamsClass):
                         g.yearval[g.ll]
                     ]
                 ):
-                    g.yr_vl[...] = Ord(g.ll)  # type: ignore [assignment]
+                    g.yr_vl[...] = Ord(g.ll)
                     g.Fil[g.ll] = True
             g.Fil[g.ll].where[(Ord(g.ll) > g.yr_vl)] = False
             # * Set BEMI to MAXC emissions for years beyond EXT-EOH and zero at EXT-EOH
@@ -502,7 +502,7 @@ class CoefExtCli(GamsClass):
         ] = 0.0
         # * Complete CM_LED
         with Loop(g.Fil[g.ll]):
-            g.z[...] = Ord(g.ll)  # type: ignore [assignment]
+            g.z[...] = Ord(g.ll)
             g.cm_led[g.ll] = g.z - g.f
             g.f[...] = g.z
         g.cm_led[g.t] = g.lead[g.t]
@@ -567,10 +567,10 @@ class CoefExtCli(GamsClass):
                 with If(g.cnt):
                     g.cnt[...] = 1.0
                     g.z[...] = g.cm_led[g.ll]
-                with Else():  # type: ignore
+                with Else():
                     g.cnt[...] = SpecialValues.EPS
                     g.z[...] = g.cm_calib
-                with For(g.f, 0.0, g.z - 1.0):  # type: ignore
+                with For(g.f, 0.0, g.z - 1.0):
                     g.my_f[...] = g.f / g.z * g.cnt
                     g.cm_bb[g.CmVar, g.ll, g.Sow, g.CmBox] = (
                         g.cm_bb[g.CmVar, g.ll, g.Sow, g.CmBox]
@@ -618,7 +618,7 @@ class CoefExtCli(GamsClass):
                 with If(Ord(g.t) > 1.0):
                     g.my_f[...] = g.m[g.t] - g.b[g.t] + 1.0
                     g.z[...] = g.lead[g.t]
-                with Else():  # type: ignore
+                with Else():
                     g.my_f[...] = g.cm_calib
                     g.z[...] = g.my_f
                 with For(g.f, 1.0, g.z):
@@ -630,7 +630,7 @@ class CoefExtCli(GamsClass):
                             g.cm_phi[g.CmVar, g.CmBuck, g.CmVar]
                             * g.cm_aa[g.CmVar, g.t, "1", g.CmBox, g.CmBuck],
                         )
-                    with Else():  # type: ignore
+                    with Else():
                         g.cm_cc[g.CmVar, g.t, "1", g.CmBox] = g.cm_cc[
                             g.CmVar, g.t, "1", g.CmBox
                         ] + Sum(
@@ -650,10 +650,10 @@ class CoefExtCli(GamsClass):
                 with If(g.cnt):
                     g.cnt[...] = 1.0
                     g.z[...] = g.cm_led[g.ll]
-                with Else():  # type: ignore
+                with Else():
                     g.cnt[...] = SpecialValues.EPS
                     g.z[...] = g.cm_calib
-                with For(g.f, 0.0, g.z - 1.0):  # type: ignore
+                with For(g.f, 0.0, g.z - 1.0):
                     g.my_f[...] = g.f / g.z * g.cnt
                     g.cm_bb[g.CmVar, g.ll, "1", g.CmBox] = g.cm_bb[
                         g.CmVar, g.ll, "1", g.CmBox

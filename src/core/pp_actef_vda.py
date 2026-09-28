@@ -337,7 +337,7 @@ class PpActefVda(GamsClass):
                 Sum(Top[r, p, c, io].where[ComGmap[r, cg, c]], 1) <= 1
             ]
         ):
-            with If(~RpgPace[r, p, cg] + RpPl[r, p, "FX"]):  # type: ignore[arg-type]
+            with If(~RpgPace[r, p, cg] + RpPl[r, p, "FX"]):
                 RpGrp[r, p, cg] = True
                 Rpg1ace[RpGrp[r, p, cg], c].where[
                     Top[r, p, c, io].where[ComGmap[r, cg, c]]
@@ -370,7 +370,7 @@ class PpActefVda(GamsClass):
         )
         CgGrp[RpcAce, c] = False
         if len(norts):
-            with Loop((Miyr1[t], Uncd7[j, r, p, cg, item, ts, ts])):  # type: ignore[arg-type]
+            with Loop((Miyr1[t], Uncd7[j, r, p, cg, item, ts, ts])):
                 act_eff[Rtp[r, v, p], cg, s].where[
                     norts[r, v, s] + norts[r, t, s].where[Pastmile[v]]
                 ] = 0

@@ -94,7 +94,7 @@ class CoefShpMod(GamsClass):
 
         g.RtpCapyr[g.RtpCptyr[r, v, t, p]] = sparse(g.Trackp[r, p])
 
-        with Loop(g.Agej[j, age].where[Card(g.Trackp)]):  # type: ignore[index]
+        with Loop(g.Agej[j, age].where[Card(g.Trackp)]):
             with Loop(v):
                 # Set the starting and ending years taking into account NCAP_ILED:
                 g.prc_ymin[g.Trackp[r, p]] = g.b[v] + Round(g.ncap_iled[r, v, p])
@@ -150,7 +150,7 @@ class CoefShpMod(GamsClass):
         )
 
         g.coef_cio[g.RtpCptyr[r, v, t, p], c, io].where[g.ncap_clag[r, v, p, c, io]] = (
-            sign(g.ncap_clag[r, v, p, c, io])  # type: ignore[arg-type]
+            sign(g.ncap_clag[r, v, p, c, io])
             * (
                 Max(
                     0,
@@ -199,7 +199,7 @@ class CoefShpMod(GamsClass):
         aggregate(source=g.ncap_cpx, target=g.prc_ymin)
         g.prc_ymax.setRecords(None)
 
-        with Loop(g.Agej[j, age].where[Card(g.ncap_cpx)]):  # type: ignore[index]
+        with Loop(g.Agej[j, age].where[Card(g.ncap_cpx)]):
             g.Trackp[g.Rp] = sparse(g.prc_ymin[g.Rp])
             with Loop(v):
                 # Set the starting and ending years taking into account NCAP_ILED:
@@ -250,7 +250,7 @@ class CoefShpMod(GamsClass):
             (g.flo_funcx[r, "0", p, cg, c] == 3) & g.ncap_ocom[g.Rtp, c]
         ] = True
 
-        with Loop(g.Agej[j, age].where[Card(g.RtpCgc)]):  # type: ignore[index]
+        with Loop(g.Agej[j, age].where[Card(g.RtpCgc)]):
             aggregate(source=g.RtpCgc, target=g.rvprl)
             g.pastsum[g.Rtp[r, v, p]].where[g.rvprl[g.Rtp]] = (
                 g.b[v]

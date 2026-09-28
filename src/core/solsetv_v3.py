@@ -400,7 +400,7 @@ class SolsetvV3(GamsClass):
         g.Trackp[g.PrcCap[g.Rp]].where[
             Product(
                 g.PrcUnits[g.Rp, "CAP", g.units],
-                Sum(g.PrcCapunt[g.Rp, g.cg, g.UnitsCap], 1).where[  # type: ignore[arg-type]
+                Sum(g.PrcCapunt[g.Rp, g.cg, g.UnitsCap], 1).where[
                     g.PrcUnits[g.Rp, "ACT", g.units]
                 ],
             )

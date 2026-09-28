@@ -71,8 +71,7 @@ def cal_stgn_mod_GP(g: TimesModelClass, config: CalStgnModConfig) -> Sum:
         Domain(g.Top[g.RpcStg[r, p, c], cc.arg1], g.RpcsVar[r, p, c, ts]).where[
             cc.arg5
         ],
-        # NB: gamspy's Sum() type hint omits Condition, which GAMS accepts
-        Sum(g.RtpVntbyr[r, t, p, v], stored * cc.arg6).where[  # type: ignore[arg-type]
+        Sum(g.RtpVntbyr[r, t, p, v], stored * cc.arg6).where[
             ~g.RpcStgn[r, p, c, cc.arg1]
         ]
         # * equation coarser than variable or finer than variable

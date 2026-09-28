@@ -671,7 +671,7 @@ class PreppmMod(GamsClass):
     def exec2(self) -> None:
         g = self.tc
         r_curex, r, curr, cur, g_curex = g.r_curex, g.r, g.curr, g.cur, g.g_curex
-        r_curex[r, curr, cur].where[False] = 0  # type: ignore[index]
+        r_curex[r, curr, cur].where[False] = 0
         r_curex[r, curr, cur].where[~r_curex[r, curr, cur]] = sparse(g_curex[curr, cur])
 
     def exec3(self) -> None:

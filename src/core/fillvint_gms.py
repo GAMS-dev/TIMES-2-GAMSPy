@@ -158,7 +158,7 @@ class FillvintGms(GamsClass):
         # Weighted average of vintages t and t-1
         ll, v = g.ll, g.v
 
-        with Loop((t[ll], v[ll - lead[ll]])):  # type: ignore[arg-type]
+        with Loop((t[ll], v[ll - lead[ll]])):
             arg4[arg2, *arg3, t].where[arg1[arg2, t, *arg3].where[Trackp[r, p]]] = arg1[
                 arg2, t, *arg3
             ] * pastsum[r, t, p] + arg1[arg2, v, *arg3] * (1 - pastsum[r, t, p])

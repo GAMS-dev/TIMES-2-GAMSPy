@@ -391,11 +391,11 @@ class PrepxtraMod(GamsClass):
             z[...] = Smax(UcTSum[UcDt, ll], Ord(ll))
             with If(z > 0):
                 f[...] = Smin(UcTSum[UcDt, ll], Ord(ll))
-            with Else():  # type: ignore[no-untyped-call]
+            with Else():
                 f[...] = z
             with If(z != f):
                 UcTSum[UcDt, t[ll]].where[(Ord(ll) > f) & (Ord(ll) < z)] = True
-            with Else():  # type: ignore[no-untyped-call]
+            with Else():
                 UcTSum[UcDt, t] = True
         UcDt.setRecords(None)
         UcTSucc[r, ucn, t].where[UcTSucc[r, ucn, dflbl]] = True

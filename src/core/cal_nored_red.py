@@ -66,8 +66,7 @@ def cal_nored_red_GP(
         expr: Expression | ImplicitSet,
     ) -> Expression | ImplicitSet | Sum:
         """arg8/arg9 of the string version: SUM(arg9, expr) or just expr."""
-        # NB: gamspy's Sum() type hint omits Condition, which GAMS accepts
-        return expr if cc.index_set is None else Sum(cc.index_set, expr)  # type: ignore[arg-type]
+        return expr if cc.index_set is None else Sum(cc.index_set, expr)
 
     VAR_FLO: Variable = g.get_variable(f"{cc.var}_FLO")
     flo = VAR_FLO.l if cc.is_output else VAR_FLO

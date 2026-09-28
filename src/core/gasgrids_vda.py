@@ -284,7 +284,7 @@ class GasgridsVda(GamsClass):
                 with If(g.dfunc):
                     with If(g.cnt < 9.0):
                         my_f[...] = 1.25
-                    with Else():  # type: ignore
+                    with Else():
                         my_f[...] = ((1.0 - z[...] / f[...]) / 0.001) ** (1.0 / g.cnt)
                     g.cnt[...] = (
                         ceil(log((1.0 - z[...] / f[...]) / 0.001) / log(my_f) - 0.001)
@@ -294,8 +294,8 @@ class GasgridsVda(GamsClass):
                     g.gg_pp[Reg, t, p, Com, "LO", g.Omg[j]].where[(Ord(j) <= g.cnt)] = (
                         f * (1.0 - 0.001 * power(my_f, Ord(j) - 1.0))
                     )
-                with Else():  # type: ignore
-                    g.cnt[...] = Card(g.GgO)  # type: ignore
+                with Else():
+                    g.cnt[...] = Card(g.GgO)
                     my_f[...] = 1.283
                     g.dfunc[...] = 0.233
                     g.done[...] = (

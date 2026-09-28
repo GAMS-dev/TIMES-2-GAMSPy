@@ -62,7 +62,7 @@ indent-style = "space"
 [tool.mypy]
 strict = true
 warn_unused_configs = true
-warn_unused_ignores = false
+warn_unused_ignores = true
 plugins = [
   "pydantic.mypy"
 ]

@@ -309,7 +309,7 @@ SET OBV / 'OBJDAM' /;
             CmVar, CmKind = g.CmVar, g.CmKind
             climate = Sum(
                 CmVar[c],
-                wrap_in_sum(VART_CLITOT[CmVar, t, *self.env.sws_GP], vart_set).where[  # type: ignore[union-attr]
+                wrap_in_sum(VART_CLITOT[CmVar, t, *self.env.sws_GP], vart_set).where[
                     CmKind[CmVar]
                 ]
                 + VAR_CLIBOX[CmVar, "ATM", t, *sow].where[~CmKind[CmVar]],

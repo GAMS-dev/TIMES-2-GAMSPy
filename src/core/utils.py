@@ -275,7 +275,7 @@ def wrap_in_sum[T: TargetType](target: T, domain: DomainType) -> T | Sum:
         case None:
             return target
         case (condition, imp_param) if imp_param is not None:
-            return Sum(condition, imp_param * target)  # type: ignore[arg-type]
+            return Sum(condition, imp_param * target)
         case (condition,) if isinstance(condition, SET_OR_ALIAS | Condition):
             return Sum(condition, target)
         case condition if isinstance(condition, SET_OR_ALIAS | Condition):

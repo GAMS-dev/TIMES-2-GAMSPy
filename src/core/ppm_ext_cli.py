@@ -160,11 +160,11 @@ class PpmExtCli(GamsClass):
 
         set_options({"VALIDATION": 0})
         with Loop(Uncd7[cg, ll, cmitem, lA["N"], "", "", ""]):
-            with If(CmEmis[cg]):  # type: ignore[arg-type]
+            with If(CmEmis[cg]):
                 cm_couple[cg, year, cmitem, "ATM"] = sparse(
                     cm_couple[cg, year, cmitem, lA]
                 )
-            with Else():  # type: ignore[no-untyped-call] # noqa: SIM117
+            with Else():  # noqa: SIM117
                 with Loop(
                     Domain(Rc[r, c[cg]], CmVar).where[
                         cm_ghgmap[r, c, CmVar] & CmEmis[CmVar]

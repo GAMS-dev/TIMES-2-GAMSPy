@@ -290,7 +290,7 @@ class EqflomrkMod(GamsClass):
         g.prc_mark[g.r, g.ll, g.p, g.item, g.c, g.bd].where[
             (
                 (~(g.RtpVara[g.r, g.ll, g.p])).where[
-                    (~(same_as(g.p, g.item)))  # type: ignore
+                    (~(same_as(g.p, g.item)))
                     & g.prc_mark[g.r, g.ll, g.p, g.item, g.c, g.bd]
                 ]
             )
