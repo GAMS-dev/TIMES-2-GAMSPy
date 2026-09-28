@@ -93,7 +93,7 @@ class PpLvlusMod(GamsClass):
                 out_marker = g.Uncd7[
                     ucn, *cc.arg6, side, r, *cc.arg2, *cc.arg5, "OUT", *cc.arg4
                 ]
-                with If(out_marker):  # type: ignore[arg-type] # noqa: SIM117
+                with If(out_marker):  # noqa: SIM117
                     with If(g.z[...] > g.f[...]):
                         g.f[...] = 9
                         g.Uncd7[
@@ -130,7 +130,7 @@ class PpLvlusMod(GamsClass):
         io, side, ucn, ts, all_ts, sl = g.io, g.side, g.ucn, g.ts, g.allts, g.sl
 
         with Loop(g.Uncd7[ucn, *cc.arg6, side, r, *cc.arg2, *cc.arg5, io, *cc.arg4]):
-            with If(g.ips[io]):  # type: ignore[arg-type]
+            with If(g.ips[io]):
                 g.f[...] = 0
                 # Leveling by simultaneous aggregation/inheritance; but only if target level value is not present
                 with Loop(t):

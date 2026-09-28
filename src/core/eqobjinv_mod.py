@@ -360,7 +360,7 @@ class EqobjinvMod(GamsClass):
             # * K is both investment year and cost/commissioning year
             g.ObjSumii[
                 g.ObjSpred[g.Obj1a[r, v[ll], p], life],
-                k[ll + g.my_array[ll]],  # type: ignore[index]
+                k[ll + g.my_array[ll]],
                 age + g.fil2[v],
             ] = True
 
@@ -383,7 +383,7 @@ class EqobjinvMod(GamsClass):
             with For(g.obj_c, start=1, end=g.coef_rpti[r, t, p]):
                 g.f[...] = g.b[t] + Round((g.obj_c - 1) * g.z) - g.yearval[t]
                 # * Y is investment year, T is cost basis year
-                g.ObjSumii[r, t, p, life, Y[ll + g.f], "1"] = True  # type: ignore[index]
+                g.ObjSumii[r, t, p, life, Y[ll + g.f], "1"] = True
 
     def exec4(
         self: EqobjinvMod,
@@ -402,13 +402,13 @@ class EqobjinvMod(GamsClass):
                     g.f[...] = g.b[t] - zhalf - g.yearval[t]
                     g.z[...] = Round(g.coef_rpti[r, t, p] * g.z) - 1
                     # * LL+F is both first investment year and first cost/commissioning year
-                    g.ObjSumii[r, t, p, life, k[ll + g.f], age + g.z] = True  # type: ignore[index]
-                with Else():  # type: ignore[no-untyped-call]
+                    g.ObjSumii[r, t, p, life, k[ll + g.f], age + g.z] = True
+                with Else():
                     g.cnt[...] = istep
                     g.f[...] = g.b[t] - g.yearval[t] - floor(g.cnt / 2)
                     g.cnt[...] = g.cnt - 1
                     with For(g.obj_c, start=1, end=g.coef_rpti[r, t, p]):
-                        g.ObjSumii[r, t, p, life, k[ll + g.f], age + g.cnt] = True  # type: ignore[index]
+                        g.ObjSumii[r, t, p, life, k[ll + g.f], age + g.cnt] = True
                         g.f[...] = g.f + g.z
 
     def _label_cont_2(self: EqobjinvMod) -> None:
@@ -483,7 +483,7 @@ class EqobjinvMod(GamsClass):
                 with Loop(ObjIdc[r, v, p, life, ll, jot]):
                     g.cnt[...] = Ord(jot)
                     g.my_f[...] = g.my_f + Sum(
-                        Domain(g.Opyear[jot, age], year[ll.lag(Ord(age))]),  # type: ignore[index]
+                        Domain(g.Opyear[jot, age], year[ll.lag(Ord(age))]),
                         g.obj_disc[r, year, cur],
                     )
                     g.f[...] = g.f + g.obj_disc[r, ll, cur]
@@ -492,7 +492,7 @@ class EqobjinvMod(GamsClass):
                 g.f[...] = (rpower(g.obj_c, g.cnt) - 1) / (1 - 1 / g.obj_c) / g.cnt - 1
                 g.cnt[...] = Max(0.001, g.z)
                 g.z[...] = (rpower(g.obj_c, g.cnt) - 1) / (1 - 1 / g.obj_c) / g.cnt - 1
-            with Else():  # type: ignore[no-untyped-call]
+            with Else():
                 g.f[...] = 1
             g.obj_divi[r, v, p] = 1 / (1 + g.z * g.my_f / g.f)
         # * Add spread header tuples
@@ -558,7 +558,7 @@ class EqobjinvMod(GamsClass):
                 ObjSumiii[r, v, p, k[KEoh], k, ll + g.f].where[
                     Invspred[year, life, ll, KEoh]
                 ] = True
-            with Else():  # type: ignore[no-untyped-call]
+            with Else():
                 ObjSumiii[r, v, p, ll, k, ll + g.f].where[
                     Invspred[KEoh, jot, ll, k]
                 ] = True

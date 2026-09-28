@@ -56,7 +56,7 @@ class FilshapeGms(GamsClass):
 
             with Loop(age.where[g.Agefil[age]]):  # check for nonzero (including EPS)
                 g.my_f[...] = g.shape[j, age]
-                g.z[...] = Ord(age)  # type: ignore[assignment]
+                g.z[...] = Ord(age)
                 with If(g.z > (g.my_fyear + 1)):
                     g.shape[j, life].where[
                         ((Ord(life) > g.my_fyear).where[(g.z > Ord(life))])

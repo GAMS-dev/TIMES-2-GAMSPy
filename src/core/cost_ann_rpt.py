@@ -1005,9 +1005,7 @@ class CostAnnRpt(GamsClass):
             )
         CST_SALV[*arg2, r, t, p] = sparse(Sum(Rdcur[r, cur], par_objsal[r, t, p, cur]))
         reg_obj[r] = Sum(
-            Domain(Rdcur[r, cur], item, obv).where[  # type: ignore[arg-type]
-                sum_obj[item, obv]
-            ],
+            Domain(Rdcur[r, cur], item, obv).where[sum_obj[item, obv]],
             VAR_OBJ[r, obv, cur].l * sum_obj[item, obv],
         )
 

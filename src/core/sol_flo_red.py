@@ -120,7 +120,7 @@ def sol_flo_red(
     # entirely on its own (see sol_flo_red_GP's docstring for the GLOBAL
     # case, which this simpler function refuses outright since it has no
     # CompileEnvironment and none of its current callers need it).
-    if arg4 != "GLOBAL":  # type: ignore[comparison-overlap]
+    if arg4 != "GLOBAL":
         v = "VAR"
 
     shp1 = ""

@@ -192,7 +192,7 @@ class PrepExtStc(GamsClass):
                     g.s_com_cum[g.r, g.comvar, g.allyear, g.ll, g.c, g.bd, g.j, g.ww]
                 ],
                 True,
-            )  # type: ignore
+            )
         )
         with Loop(
             Domain(g.r, g.t, g.c, g.s, g.comvar, g.cur, g.j, g.ww).where[

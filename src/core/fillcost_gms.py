@@ -134,14 +134,12 @@ class FillcostGms(GamsClass):
 
         if condition1:
             cc.arg1[cc.arg2, Datayear, *cc.arg3] = sparse(
-                cc.arg9[cc.arg2, Datayear, *cc.arg3].where[
-                    take_condition  # type: ignore[index]
-                ]
+                cc.arg9[cc.arg2, Datayear, *cc.arg3].where[take_condition]
             )
             take_condition = Number(1)
             src = cc.arg1
 
-        Uncd7[cc.arg2, ll.lag(Ord(ll), "circular"), *tmp].where[take_condition] = (  # type: ignore[index]
+        Uncd7[cc.arg2, ll.lag(Ord(ll), "circular"), *tmp].where[take_condition] = (
             sparse(src[cc.arg2, ll, *cc.arg3])
         )
 
@@ -158,11 +156,11 @@ class FillcostGms(GamsClass):
                     g.last_val[...] = (g.my_f[...] - g.last_val[...]) / (
                         g.z[...] - g.my_fyear[...]
                     )
-                    with For(g.cnt, start=g.my_fyear[...] - g.z[...] + 1, end=-1):  # type: ignore[arg-type]
+                    with For(g.cnt, start=g.my_fyear[...] - g.z[...] + 1, end=-1):
                         g.my_fil2[cc.arg5[ll.lead(g.cnt)]] = (
                             g.my_f[...] + g.last_val[...] * g.cnt[...]
                         )
-                with Else():  # type: ignore[no-untyped-call]
+                with Else():
                     g.f[...] = g.z[...]
                     g.first_val[...] = g.my_f[...]
 

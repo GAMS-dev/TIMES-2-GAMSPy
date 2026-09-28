@@ -1986,7 +1986,7 @@ $ GDXIN
     def assign_z(self) -> None:
         g = self.tc
 
-        g.z[...] = Sum(g.Lastll[g.ll], Ord(g.ll))  # type: ignore
+        g.z[...] = Sum(g.Lastll[g.ll], Ord(g.ll))
         if g.z.toValue() != g.ll.number_records:
             raise Exception("Fatal")
 

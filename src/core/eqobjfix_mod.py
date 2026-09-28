@@ -287,7 +287,7 @@ class EqobjfixMod(GamsClass):
                         g.z[...] = Round(g.coef_rpti[r, t, p] * g.z) - 1
                         # * The first commissioning year is LL+F and the spread is AGE+Z
                         ObjSumiv[ll + g.f, r, t, p, age + g.z, age + g.my_f] = True
-                    with Else():  # type: ignore[no-untyped-call]
+                    with Else():
                         g.cnt[...] = istep
                         g.obj_d[...] = g.cnt - 1
                         g.my_f[...] = g.b[t] - g.yearval[t] - floor(g.cnt / 2)
@@ -394,7 +394,7 @@ class EqobjfixMod(GamsClass):
             )
         g.obj_life[k[ll], r, jot, life, cur].where[g.obj_life[k, r, jot, life, cur]] = (
             Sum(
-                Domain(g.Opyear[life, age], g.YEoh[ll + (Ord(age) - 1)]),  # type: ignore[index]
+                Domain(g.Opyear[life, age], g.YEoh[ll + (Ord(age) - 1)]),
                 g.obj_disc[r, g.YEoh, cur],
             )
         )
@@ -516,7 +516,7 @@ class EqobjfixMod(GamsClass):
             Domain(
                 g.Invspred[KEoh, jot, ll, k],
                 g.Opyear[life, age],
-                YEoh[ll + (Ord(age) - 1)],  # type: ignore[index]
+                YEoh[ll + (Ord(age) - 1)],
             ),
             shaped_costs,
         )

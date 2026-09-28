@@ -208,7 +208,7 @@ class CurexGms(GamsClass):
         with Loop((r, curr)):
             with If(Sum(Rdcur[r, cur].where[r_curex[r, curr, cur]], 1) == 1):
                 CurMap[Rdcur[r, cur], curr].where[r_curex[r, curr, cur]] = True
-            with Else():  # type: ignore[no-untyped-call]
+            with Else():
                 CurMap[Rdcur[r, curr], curr] = True
         with Loop(CurMap[r, cur, curr].where[~same_as(cur, curr)]):
             Rdcur[r, curr] = False
@@ -240,7 +240,7 @@ class CurexGms(GamsClass):
         if cc.arg6 and mx == ():
             exponent = cc.arg6
         elif cc.arg6 is None and not isinstance(mx, tuple):
-            exponent = mx  # type: ignore
+            exponent = mx
         else:
             raise NotImplementedError(
                 f"arg6 = {cc.arg6} and mx = {mx}. Cannot generate exponent."

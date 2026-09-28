@@ -128,7 +128,7 @@ def all_exec(
 
     # Mark to be levelized if inheritance is allowed or S is not ANNUAL:
     with Loop(
-        Domain(*regy, *cc.arg2, *cc.arg10, s, *cc.arg4).where[  # type: ignore[arg-type]
+        Domain(*regy, *cc.arg2, *cc.arg10, s, *cc.arg4).where[
             ts.where[cc.arg1[*regy, *cc.arg2, *cc.arg10, s, *cc.arg4]]
         ]
     ):
@@ -148,7 +148,7 @@ def all_exec(
                 cc.arg3[r, *cc.arg2, s]
             ] = Sum(Annual[cc.arg6], ts_array[cc.arg6] * iwgt)
 
-        with Else():  # type: ignore[no-untyped-call] # noqa: SIM117
+        with Else():  # noqa: SIM117
             # Leveling by simultaneous aggregation/inheritance; but only if target level value is not present
             with Loop(cc.arg3[r, *cc.arg2, g.ts].where[~ts_array[g.ts]]):
                 sparse_expr = Sum(

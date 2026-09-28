@@ -315,7 +315,7 @@ class CoefExtVda(GamsClass):
             g.RpccFfunc,
         )
         if condition1:
-            RpStl[RpSts, tsl, bd] = 0  # type: ignore[assignment]
+            RpStl[RpSts, tsl, bd] = 0
         # -----------------------------------------------------------------------------
         # Get AF-UPs for processes having storage level constrained
         coef_afups[Rtp[r, v, p], s].where[~RpsCaflac[r, p, s, "UP"]] = sparse(
@@ -355,7 +355,7 @@ class CoefExtVda(GamsClass):
             project(source=uc_time, target=RUc)
             with Loop(RUc[r, ucnA].where[Round(uc_time[ucnA, r, "0"]) == -13]):
                 UcOn[RUc] = False
-                with If(UcRSum[RUc]):  # type: ignore[arg-type]
+                with If(UcRSum[RUc]):
                     UcOn[UcRSum[Reg, ucnA]] = False
             uc_time[ucnA, r, t].where[(~UcOn[r, ucnA]).where[RUc[r, ucnA]]] = 0
             RUc.setRecords(None)
@@ -380,9 +380,9 @@ class CoefExtVda(GamsClass):
         # Convert FLO_FUNCX factors for all reduced flows
         project(source=rtp_ffcx, target=CgGrp, direction="left")
         with Loop(RpcgPtran[Rp, c, Com, cg, cg2].where[CgGrp[Rp, cg, cg2]]):
-            with If(RpcFfunc[Rp, c]):  # type: ignore[arg-type]
+            with If(RpcFfunc[Rp, c]):
                 RpDcgg[Rp, c, cg, cg2, "UP"] = True
-            with Else():  # type: ignore[no-untyped-call]
+            with Else():
                 RpDcgg[Rp, Com, cg, cg2, "LO"] = True
         RpDcgg[Trackpc[Rp, Com], cg, c, "UP"].where[
             RpCgc[Rp, cg, Com] & RpcAct[Rp, c]
@@ -390,7 +390,7 @@ class CoefExtVda(GamsClass):
         rtp_ffcx[RtpCapyr[r, v, t, p], Actcg, c].where[RpcFfunc[r, p, c]] = sparse(
             Sum(
                 RpDcgg[r, p, c, cg, cg2, lA],
-                (power(rtp_ffcx[r, v, t, p, cg, cg2] + 1, bdsig[lA]) - 1).where[  # type: ignore[arg-type]
+                (power(rtp_ffcx[r, v, t, p, cg, cg2] + 1, bdsig[lA]) - 1).where[
                     rtp_ffcx[r, v, t, p, cg, cg2] - Min(0, bdsig[lA])
                 ],
             )

@@ -226,7 +226,7 @@ class PrepretDsc(GamsClass):
 
     def exec_prep2(self: PrepretDsc) -> None:
         g = self.tc
-        g.prc_refit[g.Rp, g.p].where[False] = False  # type: ignore[index]
+        g.prc_refit[g.Rp, g.p].where[False] = False
 
     def exec_prep3(self: PrepretDsc, tst: str, arg2: str) -> None:
         g = self.tc
@@ -240,7 +240,7 @@ class PrepretDsc(GamsClass):
         g.ncap_elife[g.r, g.v, g.p].where[(~(g.PrcCap[g.r, g.p]))] = sparse(
             g.ncap_olife[g.r, g.v, g.p]
         )
-        g.PrcCap[g.r, g.p] = 0.0  # type: ignore
+        g.PrcCap[g.r, g.p] = 0.0
 
     def exec_prep5(self: PrepretDsc) -> None:
         g = self.tc
@@ -310,12 +310,12 @@ class PrepretDsc(GamsClass):
                     g.RtpTt[g.r, g.t, g.tt, g.prc].where[
                         g.coef_cpt[g.r, g.t, g.tt, g.p]
                     ] = True
-                with Else():  # type: ignore
+                with Else():
                     g.RtpTt[g.r, g.t, g.t, g.prc].where[g.Rtp[g.r, g.t, g.p]] = True
                     g.cnt[...] = 0.0
             with If(g.cnt):
                 g.z[...] = (-1.0 + Number(2.0).where[(g.f == g.cnt)]) * Max(1.0, g.my_f)
-            with Else():  # type: ignore
+            with Else():
                 g.z[...] = -2.0
             with If(~(map_value(g.cnt))):
                 g.rp_rtf[g.r, g.prc] = g.z
@@ -326,7 +326,7 @@ class PrepretDsc(GamsClass):
                         ~(
                             Sum(
                                 g.p.where[filter],
-                                g.Rtp[g.r, g.t, g.p].where[abs(filter) > 2.0],  # type: ignore
+                                g.Rtp[g.r, g.t, g.p].where[abs(filter) > 2.0],
                             )
                         )
                     )
@@ -568,7 +568,7 @@ class PrepretDsc(GamsClass):
             Sum(
                 g.io[g.ips],
                 Sum(
-                    [g.RtpCptyr[g.r, g.v, g.tt, g.p], g.PrcTs[g.r, g.p, g.s]],  # type: ignore
+                    [g.RtpCptyr[g.r, g.v, g.tt, g.p], g.PrcTs[g.r, g.p, g.s]],
                     inner_sum_1 * g.fpd[g.tt],
                 )
                 / g.prc_capact[g.r, g.p]

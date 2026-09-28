@@ -37,7 +37,7 @@ class GamsClass(ABC):
         """
         dummy = self.tc.intdefault
         for uel in records:
-            dummy[uel].where[False] = False  # type: ignore[index]
+            dummy[uel].where[False] = False
 
     @abstractmethod
     def compile(self) -> None:

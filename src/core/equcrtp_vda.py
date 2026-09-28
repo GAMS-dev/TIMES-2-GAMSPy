@@ -76,7 +76,7 @@ class EqucrtpVda(GamsClass):
             sense = cc.arg3
             if sense not in ["E", "G", "L"]:
                 raise ValueError(f"Incompatible sense {sense}.")
-            self.label_equ_ext(sense)  # type: ignore[arg-type]
+            self.label_equ_ext(sense)
 
     def init_ext(self: EqucrtpVda) -> None:
         g = self.tc

@@ -243,10 +243,10 @@ def fillparm(
                         expr += add
 
                     expr += last_val.where[yearval[cc.arg5] > z]
-                    data.where[cc.arg6] = sparse(expr)  # type: ignore[index]
+                    data.where[cc.arg6] = sparse(expr)
 
                     if cc.arg8 is None:
-                        data.where[cc.arg6] = sparse(item)  # type: ignore[index]
+                        data.where[cc.arg6] = sparse(item)
 
         cc.arg1[*cc.arg2, dflbl, *cc.arg3].where[cc.arg1[*cc.arg2, dflbl, *cc.arg3]] = (
             Min(reset, cc.arg1[*cc.arg2, dflbl, *cc.arg3])

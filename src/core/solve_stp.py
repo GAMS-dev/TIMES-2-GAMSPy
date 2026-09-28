@@ -367,8 +367,8 @@ class SolveStp(GamsClass):
         Subt[t].where[g.m[t] >= g.z] = False
         Backward.setRecords(None)
         Forward.setRecords(None)
-        project(source=g.RhsCombal, target=g.RtcNet)  # type: ignore[arg-type]
-        project(source=g.RhsComprd, target=g.RtcPrd)  # type: ignore[arg-type]
+        project(source=g.RhsCombal, target=g.RtcNet)
+        project(source=g.RhsComprd, target=g.RtcPrd)
         Backward[t].where[g.m[t] < g.yr_v1] = True
         Forward[t] = tt[t] - Backward[t] - Subt[t]
         RtPp[r, t] = g.m[t] > reg_fixt[r]
@@ -943,7 +943,7 @@ class SolveStp(GamsClass):
                 defined_symbols=bnd_ucw_defined,
             )
             # * Redefine UC_T according to current flags
-            project(source=UcTSucc, target=g.UcRtsuc)  # type: ignore[arg-type]
+            project(source=UcTSucc, target=g.UcRtsuc)
             if g.reg_cumcst.number_records:
                 with Loop(Domain(r, t).where[no_rt[r, t]]):
                     g.reg_cumcst[r, year, ll, g.costcat, cur, "UP"].where[
@@ -1046,7 +1046,7 @@ class SolveStp(GamsClass):
 
             if rtpx == "X":
                 with Loop(r):
-                    Backward[t] = no_rt[r, t]  # type: ignore[assignment]
+                    Backward[t] = no_rt[r, t]
                     Subt[t] = RtPp[r, t]
                     fix_backward_levels()
                 Backward[t] = g.m[t] < g.yr_v1
@@ -1286,7 +1286,7 @@ OPTION SOLVEOPT=MERGE;
                 )
             elif rtpx == "X":
                 with Loop(r):
-                    Backward[t] = no_rt[r, t]  # type: ignore[assignment]
+                    Backward[t] = no_rt[r, t]
             # * Reset bounds
             # $BATINCLUDE bndmain.%1 %1 1
             bndmain_mod_GP(

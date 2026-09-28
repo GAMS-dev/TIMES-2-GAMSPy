@@ -131,7 +131,7 @@ class PpMicroMod(GamsClass):
                 g.RdAgg[r, c] = False
 
         refresh_rd_agg()
-        with While(Card(g.RdAgg)):  # type: ignore[arg-type]
+        with While(Card(g.RdAgg)):
             g.Dem[g.RdAgg] = True
             #   Get base prices and set price ratio
             g.ddf_pref[r, t, c].where[g.RdAgg[r, c]] = Sum(

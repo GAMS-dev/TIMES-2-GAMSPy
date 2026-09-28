@@ -289,7 +289,7 @@ def sensis_stc_GP(
             with Loop(g.RpcgPtran[Rp, c, Com, cg, cg2].where[g.RpFfsgg[Rp, cg, cg2]]):
                 with If(g.RpcFfunc[Rp, c]):
                     g.RpDcgg[Rp, c, cg, cg2, "UP"] = True
-                with Else():  # type: ignore[no-untyped-call]
+                with Else():
                     g.RpDcgg[Rp, Com, cg, cg2, "LO"] = True
             g.RpDcgg[g.RpcFfunc[Rp, Com], cg, c, "UP"].where[
                 g.Rpg1ace[Rp, cg, Com].where[g.RpcAct[Rp, c]]
@@ -297,7 +297,7 @@ def sensis_stc_GP(
             g.rtp_ffcs[g.Rtp[r, t, p], g.Actcg, c].where[g.RpcFfunc[r, p, c]] = sparse(
                 Sum(
                     g.RpDcgg[r, p, c, cg, cg2, lA],
-                    (power(g.rtp_ffcs[r, t, p, cg, cg2] + 1, g.bdsig[lA]) - 1).where[  # type: ignore[arg-type]
+                    (power(g.rtp_ffcs[r, t, p, cg, cg2] + 1, g.bdsig[lA]) - 1).where[
                         g.rtp_ffcs[r, t, p, cg, cg2] + 1
                     ],
                 )

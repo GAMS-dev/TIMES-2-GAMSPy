@@ -82,7 +82,7 @@ class EqcptMod(GamsClass):
         eq, swt = macro.EQ_CPT_GP(self.env.eq, cc.arg2, swt)
 
         # GG V0.6a_3+ check whether used in UserConstraint
-        eq[g.Rtp[r, t, p], *swt].where[cc.arg3] = generate_equation(  # type: ignore
+        eq[g.Rtp[r, t, p], *swt].where[cc.arg3] = generate_equation(
             # VAR_CAP(r,t,p {self.env.sow}) or CAP_BND(r,t,p,bd):
             lhs=cc.arg4,
             type=cc.sense,

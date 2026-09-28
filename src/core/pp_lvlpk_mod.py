@@ -200,7 +200,7 @@ class PpLvlpkMod(GamsClass):
             f[...] = ts_array["ANNUAL"]
             with If((~Sum(RsBelow[r, Annual, s].where[ts_array[s]], 1)).where[f]):
                 ncap_pkcnt[r, v, p, s].where[Rcs[r, c, s]] = f
-            with Else():  # type: ignore[no-untyped-call]
+            with Else():
                 # * Set leveling default = %1;
                 with If(~f):
                     ts_array[Annual] = arg1

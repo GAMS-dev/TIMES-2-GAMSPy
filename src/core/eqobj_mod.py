@@ -219,7 +219,7 @@ class EqobjMod(GamsClass):
             # * Variable O&M and direct commodity costs
             # * Damages
             Sum(
-                Domain(g.item, g.obv).where[g.sum_obj[g.item, g.obv]],  # type: ignore[arg-type]
+                Domain(g.item, g.obv).where[g.sum_obj[g.item, g.obv]],
                 VAR_OBJ[g.r, g.obv, g.cur, *sow] * g.sum_obj[g.item, g.obv],
             )
             # * Elastic Demand costs
@@ -313,7 +313,7 @@ class EqobjMod(GamsClass):
             ].where[g.Yk[g.year, g.ll]] = True
 
         # * Set up summing of OBJ component variables
-        g.sum_obj[g.obv, g.item] = diag(g.obv, g.item)  # type: ignore[arg-type]
+        g.sum_obj[g.obv, g.item] = diag(g.obv, g.item)
         g.sum_obj[g.obv["OBJSAL"], g.obv] = -1.0
         g.sum_obj[g.r, "OBJELS"] = Number(1.0).where[
             Sum(g.Rcj[g.r, g.c, g.j, g.bd], 1.0)

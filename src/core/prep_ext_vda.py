@@ -210,7 +210,7 @@ class PrepExtVda(GamsClass):
                         ] = g.my_f - (g.my_f - g.last_val) / (g.z - g.my_fyear) * (
                             g.z - g.m[t]
                         )
-                    with Else():  # type: ignore[no-untyped-call]
+                    with Else():
                         g.f[...] = g.z
                     g.my_fyear[...] = g.z
                     g.cnt[...].where[(g.last_val + g.my_f > 0.0)] = g.z
@@ -218,7 +218,7 @@ class PrepExtVda(GamsClass):
                 with If(abs(g.dfunc - 10.0) == 5.0):
                     g.dfunc[...] = g.f
                     g.f[...] = g.z
-                with Else():  # type: ignore[no-untyped-call]
+                with Else():
                     g.f[...].where[g.dfunc] = 0.0
                 with If(g.z == g.f):
                     g.cnt[...] = g.prc_resid[r, "0", p]
@@ -228,7 +228,7 @@ class PrepExtVda(GamsClass):
                         0.0, 1.0 - (g.m[t] - g.f).where[(g.m[t] >= g.dfunc)] / g.cnt
                     )
                     g.my_f[...] = 0.0
-                with Else():  # type: ignore[no-untyped-call]
+                with Else():
                     g.z[...] = g.cnt
                 if waver:
                     g.prc_ymax[r, p] = g.z + Number(1.0).where[(g.my_f > 0.0)]

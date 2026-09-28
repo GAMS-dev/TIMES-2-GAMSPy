@@ -632,11 +632,7 @@ class RptmiscRpt(GamsClass):
         if var_uc == "YES":
             VAR_UC = g.get_variable(f"{var}_UC")
             VAR_UCR = g.get_variable(f"{var}_UCR")
-            # vart_GP's declared type is broader than extract_var_domain's own
-            # signature (str | tuple[str, Any]) -- every real value it's ever set
-            # to (utils.py's apply_sw_tags/apply_sw_notags) is a 2-tuple with a
-            # str first element, matching that narrower signature.
-            vart_id, vart_domain = extract_var_domain(vart)  # type: ignore[arg-type]
+            vart_id, vart_domain = extract_var_domain(vart)
             VART_UCT = g.get_variable(f"{vart_id}_UCT")
             VART_UCRT = g.get_variable(f"{vart_id}_UCRT")
             VART_UCTS = g.get_variable(f"{vart_id}_UCTS")

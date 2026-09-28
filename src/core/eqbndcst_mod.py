@@ -511,7 +511,7 @@ class EqbndcstMod(GamsClass):
         if swtd:
             if not swsw:
                 raise ValueError(f"swtd needs the swsw domain: {swtd}")
-            swsw_prob: ImplicitParameter | None = swsw[1] if len(swsw) > 1 else None  # type: ignore[misc]
+            swsw_prob: ImplicitParameter | None = swsw[1] if len(swsw) > 1 else None
             flows = Sum(
                 swsw[0],
                 include_cal_red if swsw_prob is None else swsw_prob * include_cal_red,

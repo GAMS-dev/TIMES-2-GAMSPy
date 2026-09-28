@@ -330,9 +330,9 @@ class PpReduceRed(GamsClass):
         # If shadow group has special level, don't substitute
         g.RpcgPtran[g.RpSgs, g.c, g.Com, g.cg, g.cg2] = False
         with Loop(g.RpcgPtran[g.RpFlo[g.r, g.p], g.c, g.Com, g.cg, g.cg2]):
-            with If(g.RpcAct[g.r, g.p, g.c]):  # type: ignore[arg-type]
+            with If(g.RpcAct[g.r, g.p, g.c]):
                 g.RpcFfunc[g.r, g.p, g.Com] = True
-            with Else():  # type: ignore[no-untyped-call]
+            with Else():
                 g.RpcFfunc[g.r, g.p, g.c] = True
 
     def update_rpc_ffunc(self: PpReduceRed) -> None:
@@ -387,11 +387,11 @@ class PpReduceRed(GamsClass):
                 g.RpcsVar[g.RpStd[g.r, g.p], g.c, g.s],
             )
         ):
-            with If(g.RpcFfunc[g.r, g.p, g.c]):  # type: ignore[arg-type]
+            with If(g.RpcFfunc[g.r, g.p, g.c]):
                 g.RtpsOff[g.r, g.t, g.p, g.ts].where[
                     g.PrcTs[g.r, g.p, g.ts] * g.RsTree[g.r, g.s, g.ts]
                 ] = True
-            with ElseIf(g.RpcAct[g.r, g.p, g.c]):  # type: ignore[arg-type]
+            with ElseIf(g.RpcAct[g.r, g.p, g.c]):
                 g.RtpsOff[g.r, g.t, g.p, g.s] = True
 
     def track_commodities(self: PpReduceRed) -> None:
@@ -403,11 +403,11 @@ class PpReduceRed(GamsClass):
         g.Rxx.setRecords(None)
         # Track commodities turned off by some process, by T, timeslice and IO:
         with Loop(g.RtpsOff[g.r, g.t, g.p, g.s]):
-            with If(g.RpStd[g.r, g.p]):  # type: ignore[arg-type]
+            with If(g.RpStd[g.r, g.p]):
                 g.RtcsSing[g.r, g.t, g.c, g.s, g.io].where[
                     g.Top[g.r, g.p, g.c, g.io]
                 ] = True
-            with Else():  # type: ignore[no-untyped-call]
+            with Else():
                 g.RtcsSing[g.r, g.t, g.c, g.s, "OUT"].where[
                     g.RpcIre[g.r, g.p, g.c, "IMP"]
                 ] = True
