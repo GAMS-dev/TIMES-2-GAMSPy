@@ -1897,6 +1897,7 @@ class TimesModelClass:
     tm_f2: Parameter = None  # type: ignore[assignment] # [R,T,C] TM_F2
     tm_cstinv: Parameter = None  # type: ignore[assignment] # [r, allyear, p] TM_CSTINV Annualized investment costs
     tm_ycheck: Parameter = None  # type: ignore[assignment] # [R] TM_YCHECK
+    help_expf: Parameter = None  # type: ignore[assignment] # [R,T] HELP_EXPF
     tm_dd: Parameter = None  # type: ignore[assignment] # [R,C,T] TM_DD Demand ratio MSA estimates to TED demand levels
     tm_gdp: Parameter = None  # type: ignore[assignment] # [REG,YEAR] TM_GDP Actualized gross domestic product
 
