@@ -18,7 +18,6 @@ from gamspy import (
 from gamspy._algebra.condition import Condition
 from gamspy._internals import MODEL_ATTRIBUTE_MAP
 from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet, ImplicitVariable
-from gamspy.math import rpower
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -113,9 +112,9 @@ def resolve_ctst(exp: Any, val: Literal["", "**EPS", "**0", "1"]) -> Any:
         case "":
             return exp
         case "**EPS":
-            return rpower(exp, SpecialValues.EPS)
+            return exp**SpecialValues.EPS
         case "**0":
-            return rpower(exp, 0)
+            return exp**0
         case "1":
             raise ValueError(f"Unexpected value {val} for CTST.")
 

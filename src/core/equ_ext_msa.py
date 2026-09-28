@@ -14,7 +14,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from gamspy import Domain, Equation, Sum, sparse
-from gamspy.math import Max, log, rpower
+from gamspy.math import Max, log
 
 from core.base_class import GamsClass
 from core.eqobjann_tm import EqobjannTm, EqobjannTmConfig
@@ -216,7 +216,7 @@ class EquExtMsa(GamsClass):
             g.tm_qsfa[g.r, g.Pp]
             + Sum(
                 g.Dm,
-                g.tm_qsfb[g.r, g.Pp, g.Dm] * (rpower(g.VAR_DEM[g.r, g.Pp, g.Dm], 2)),
+                g.tm_qsfb[g.r, g.Pp, g.Dm] * (g.VAR_DEM[g.r, g.Pp, g.Dm] ** 2),
             )
             + g.tm_amp[g.r, g.Pp]
             <= g.VAR_EC[g.r, g.Pp]
