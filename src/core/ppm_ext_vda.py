@@ -15,7 +15,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Set
+from gamspy import Card, Domain, If, Loop, Number, Set, Smax, SpecialValues, Sum, sparse
+from gamspy.math import Max, aggregate, floor, log, mod, project
 
 from core.base_class import GamsClass
 from core.dynslite_vda import DynsliteVda
@@ -84,105 +85,173 @@ class PpmExtVda(GamsClass):
             self.include(DynsliteVda(self.tc, self.env, arg1="POSTLEV"))
 
     def display(self: PpmExtVda) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-DISPLAY 'PPM_EXT Invoked';
-""",
-        )
+        print("PPM_EXT Invoked")
 
     def exec1(self: PpmExtVda, pgprim: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-  OPTION RP_UPL < ACT_UPS;
-  RP_UPL(RP,L)$(NOT PRC_CAP(RP)*RP_STD(RP)) = NO;
-  RP_PL(R,P,LNX) $= SUM(V$ACT_LOSPL(R,V,P,'FX'),1);
-*-----------------------------------------------------------------------------
-* Prepare FLO_SUMs for VDA_EMCB emissions
-  FS_EMCB(RP_IRE(R,P),COM,C) = NO;
-  OPTION FSCK <= FLO_SUM;
-  FLO_SUM(RTP(R,V,P),COM,C,COM,S)$((NOT FLO_SUM(RTP,COM,C,COM,S))$RPCS_VAR(R,P,C,S)$FS_EMCB(R,P,COM,C)) = VDA_EMCB(R,V,C,COM);
-  VDA_EMCB(R,ALLYEAR,C,COM) = 0;
-*-----------------------------------------------------------------------------
-* Auxiliary flow variable can be replaced by term (source flow x coefficient)
-  CG_GRP(R,P,C,COM)$FSCK(R,P,C,COM,C) = YES;
-  CG_GRP(FS_EMCB) = YES;
-  TRACKPG(RPC(RP_FLO,C)) $= SUM(CG_GRP(RPC,COM),1);
-  TRACKPG(RPC_PG) = NO; TRACKPG(RPC_FFUNC) = NO; TRACKPG(RPC_EMIS) = NO;
-  LOOP(CG_GRP(R,P,C,COM)$RPC_EMIS(R,P,COM),TRACKPG(R,P,C)=NO);
-  FS_EMIS(CG_GRP(TRACKPG(R,P,C),COM),C) = YES;
-* Prevent reduction of source commodity if target reduced
-  OPTION FS_EMIT < FS_EMIS, TRACKPC < FS_EMIS; TRACKPG(TRACKPC) = NO;
-  OPTION CLEAR=CG_GRP, CLEAR=TRACKPC, CLEAR=FS_EMIS, CLEAR=FS_EMCB, CLEAR=FSCK;
-*-----------------------------------------------------------------------------
-* ACT_EFF preparation, inheritance and aggregation
-  TRACKPC(RPC_ACE(RPC)) = YES;
-  TRACKPC(RPC_SPG(RP,C))$RPC_ACE(RP,'{pgprim}') = YES;
-  OPTION CLEAR=RXX; RXX(RPC_ACE) = YES; RXX(TRACKPC) = NO;
-  RPG_ACE(RXX(R,P,CG),IO)$(SUM(TOP(R,P,C,IO)$COM_GMAP(R,CG,C),1)$(NOT RP_INOUT(R,P,IO))) = YES;
-  OPTION CLEAR=RXX;
-* Mark groups that have ACT_EFF for PG commodities
-  LOOP(TRACKPC(RPC_PG(R,P,C)), TRACKP(R,P) = YES);
-  LOOP(RPG_ACE(TRACKP(R,P),CG,IO)$(NOT SUM(TOP(R,P,C,IO)$(COM_GMAP(R,CG,C)*(NOT RPC_SPG(R,P,C))),1)),RPG_PACE(R,P,CG) = YES);
-  LOOP(RPG_PACE(R,P,CG), TRACKP(R,P) = NO);
-* Mark commodities in groups as handled; Next, try to use shadow group
-  LOOP(RPG_ACE(R,P,CG,IO),TRACKPC(R,P,C)$COM_GMAP(R,CG,C) = NO);
-  RXX(PRC_SPG(R,P,CG))$(TRACKP(R,P)+SUM(TRACKPC(RPC_SPG(R,P,C)),YES)) = YES;
-  RPG_PACE(RXX(TRACKP,CG)) = YES;
-  TRACKPC(RPC_SPG) = NO;
-* Convert any ACT_EFF for 'ACT' to SPG if ACT_EFF not provided for SPG
-  ACT_EFF(RTP(R,V,P),CG,S)$RXX(R,P,CG) $= ACT_EFF(RTP,'{pgprim}',S);
-  ACT_EFF(R,LL,P,'{pgprim}',S) = 0;
-* Set the commodity type as the Group for remaining commodities
-  LOOP((TOP(TRACKPC(R,P,C),IO),COM_TMAP(R,COM_TYPE,C))$(NOT RP_INOUT(R,P,IO)),RXX(R,P,COM_TYPE) = YES);
-  RPG_ACE(RXX(R,P,CG),IO--1)$RP_INOUT(R,P,IO) = YES;
-* Set default ACT_EFF for group to 1 if none specified
-  LOOP(IO,ACT_EFF(RTP(R,V,P),CG,ANNUAL)$((ACT_EFF(RTP,CG,ANNUAL)=0)$RPG_ACE(R,P,CG,IO)) = 1);
-""",
+        g = self.tc
+        project(source=g.act_ups, target=g.RpUpl)
+        g.RpUpl[g.Rp, g.lA].where[(~(g.PrcCap[g.Rp] * g.RpStd[g.Rp]))] = False
+        g.RpPl[g.r, g.p, g.Lnx] = sparse(
+            Sum(g.v.where[g.act_lospl[g.r, g.v, g.p, "FX"]], 1.0)
         )
+        # *-----------------------------------------------------------------------------
+        # * Prepare FLO_SUMs for VDA_EMCB emissions
+        g.FsEmcb[g.RpIre[g.r, g.p], g.Com, g.c] = False
+        project(source=g.flo_sum, target=g.Fsck, direction="left")
+        g.flo_sum[g.Rtp[g.r, g.v, g.p], g.Com, g.c, g.Com, g.s].where[
+            (
+                (~(g.flo_sum[g.Rtp, g.Com, g.c, g.Com, g.s])).where[
+                    g.RpcsVar[g.r, g.p, g.c, g.s] & g.FsEmcb[g.r, g.p, g.Com, g.c]
+                ]
+            )
+        ] = g.vda_emcb[g.r, g.v, g.c, g.Com]
+        g.vda_emcb[g.r, g.allyear, g.c, g.Com] = 0.0
+        # *-----------------------------------------------------------------------------
+        # * Auxiliary flow variable can be replaced by term (source flow x coefficient)
+        g.CgGrp[g.r, g.p, g.c, g.Com].where[g.Fsck[g.r, g.p, g.c, g.Com, g.c]] = True
+        g.CgGrp[g.FsEmcb] = True
+        g.Trackpg[g.Rpc[g.RpFlo, g.c]] = sparse(Sum(g.CgGrp[g.Rpc, g.Com], 1.0))
+        g.Trackpg[g.RpcPg] = False
+        g.Trackpg[g.RpcFfunc] = False
+        g.Trackpg[g.RpcEmis] = False
+        with Loop(g.CgGrp[g.r, g.p, g.c, g.Com].where[g.RpcEmis[g.r, g.p, g.Com]]):
+            g.Trackpg[g.r, g.p, g.c] = False
+        g.FsEmis[g.CgGrp[g.Trackpg[g.r, g.p, g.c], g.Com], g.c] = True
+        # * Prevent reduction of source commodity if target reduced
+        project(source=g.FsEmis, target=g.FsEmit)
+        project(source=g.FsEmis, target=g.Trackpc)
+        g.Trackpg[g.Trackpc] = False
+        g.CgGrp.setRecords(None)
+        g.Trackpc.setRecords(None)
+        g.FsEmis.setRecords(None)
+        g.FsEmcb.setRecords(None)
+        g.Fsck.setRecords(None)
+        # *-----------------------------------------------------------------------------
+        # * ACT_EFF preparation, inheritance and aggregation
+        g.Trackpc[g.RpcAce[g.Rpc]] = True
+        g.Trackpc[g.RpcSpg[g.Rp, g.c]].where[g.RpcAce[g.Rp, pgprim]] = True
+        g.Rxx.setRecords(None)
+        g.Rxx[g.RpcAce] = True
+        g.Rxx[g.Trackpc] = False
+        g.RpgAce[g.Rxx[g.r, g.p, g.cg], g.io].where[
+            (
+                Sum(
+                    g.Top[g.r, g.p, g.c, g.io].where[g.ComGmap[g.r, g.cg, g.c]], 1.0
+                ).where[(~(g.RpInout[g.r, g.p, g.io]))]
+            )
+        ] = True
+        g.Rxx.setRecords(None)
+        # * Mark groups that have ACT_EFF for PG commodities
+        with Loop(g.Trackpc[g.RpcPg[g.r, g.p, g.c]]):
+            g.Trackp[g.r, g.p] = True
+        with Loop(
+            g.RpgAce[g.Trackp[g.r, g.p], g.cg, g.io].where[
+                (
+                    ~(
+                        Sum(
+                            g.Top[g.r, g.p, g.c, g.io].where[
+                                (
+                                    g.ComGmap[g.r, g.cg, g.c]
+                                    * (~(g.RpcSpg[g.r, g.p, g.c]))
+                                )
+                            ],
+                            1.0,
+                        )
+                    )
+                )
+            ]
+        ):
+            g.RpgPace[g.r, g.p, g.cg] = True
+        with Loop(g.RpgPace[g.r, g.p, g.cg]):
+            g.Trackp[g.r, g.p] = False
+        # * Mark commodities in groups as handled; Next, try to use shadow group
+        with Loop(g.RpgAce[g.r, g.p, g.cg, g.io]):
+            g.Trackpc[g.r, g.p, g.c].where[g.ComGmap[g.r, g.cg, g.c]] = False
+        g.Rxx[g.PrcSpg[g.r, g.p, g.cg]].where[
+            (g.Trackp[g.r, g.p] + Sum(g.Trackpc[g.RpcSpg[g.r, g.p, g.c]], True))
+        ] = True
+        g.RpgPace[g.Rxx[g.Trackp, g.cg]] = True
+        g.Trackpc[g.RpcSpg] = False
+        # * Convert any ACT_EFF for 'ACT' to SPG if ACT_EFF not provided for SPG
+        g.act_eff[g.Rtp[g.r, g.v, g.p], g.cg, g.s].where[g.Rxx[g.r, g.p, g.cg]] = (
+            sparse(g.act_eff[g.Rtp, pgprim, g.s])
+        )
+        g.act_eff[g.r, g.ll, g.p, pgprim, g.s] = 0.0
+        # * Set the commodity type as the Group for remaining commodities
+        with Loop(
+            Domain(
+                g.Top[g.Trackpc[g.r, g.p, g.c], g.io], g.ComTmap[g.r, g.ComType, g.c]
+            ).where[(~(g.RpInout[g.r, g.p, g.io]))]
+        ):
+            g.Rxx[g.r, g.p, g.ComType] = True
+        g.RpgAce[g.Rxx[g.r, g.p, g.cg], g.io.lag(1, "circular")].where[
+            g.RpInout[g.r, g.p, g.io]
+        ] = True
+        # * Set default ACT_EFF for group to 1 if none specified
+        with Loop(g.io):
+            g.act_eff[g.Rtp[g.r, g.v, g.p], g.cg, g.Annual].where[
+                (
+                    (g.act_eff[g.Rtp, g.cg, g.Annual] == 0.0).where[
+                        g.RpgAce[g.r, g.p, g.cg, g.io]
+                    ]
+                )
+            ] = 1.0
 
     def catch_shape_indexes(self: PpmExtVda, pgprim: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-* Catch shape indexes for shadow group
-  IF(CARD(FLO_FUNCX),
-  FLO_FUNCX(R,V,P,CG1,ACTCG(CG))$PRC_SPG(R,P,CG1) $= FLO_FUNCX(R,V,P,CG,CG);
-  FLO_FUNCX(R,V,P,CG,COM)$(RPC_PG(R,P,COM)$RP_GRP(R,P,CG)) $= FLO_FUNCX(R,V,P,CG,'{pgprim}');
-  FLO_FUNCX(R,V,P,CG,ACTCG)$(ACTCG(CG)+RP_GRP(R,P,CG)) = 0;
-  FLO_FUNCX(R,V,P,CG,CG2)$RP_PG(R,P,CG) $= FLO_FUNCX(R,V,P,'{pgprim}',CG2));
-* Ensure that ACT_EFF modeled flows are not reduced:
-  OPTION TRACKP < RPG_ACE;
-  LOOP(RPCG_PTRAN(TRACKP(R,P),C,COM,CG,CG2)$(RPC_ACE(R,P,C)+RPC_ACE(R,P,COM)),RPCC_FFUNC(R,P,CG,CG2) = NO);
-  RPCG_PTRAN(TRACKP,C,COM,CG,CG2)$(NOT RPCC_FFUNC(TRACKP,CG,CG2)) = NO;
-  RPC_FFUNC(RPC_ACE(R,P,C)) = NO;
-  RPC_NOFLO(RPC_ACE(R,P,C)) = NO;
-  TRACKP(RP_PGFLO) = NO;
-  PRC_ACT(NO_ACT(TRACKP)) = YES;
-  NO_ACT(TRACKP) = NO;
-  OPTION CLEAR=TRACKP;
-""",
-        )
+        g = self.tc
+        # * Catch shape indexes for shadow group
+        if ((Card(g.flo_funcx)) * 1).toValue():
+            g.flo_funcx[g.r, g.v, g.p, g.cg1, g.Actcg[g.cg]].where[
+                g.PrcSpg[g.r, g.p, g.cg1]
+            ] = sparse(g.flo_funcx[g.r, g.v, g.p, g.cg, g.cg])
+            g.flo_funcx[g.r, g.v, g.p, g.cg, g.Com].where[
+                (g.RpcPg[g.r, g.p, g.Com].where[g.RpGrp[g.r, g.p, g.cg]])
+            ] = sparse(g.flo_funcx[g.r, g.v, g.p, g.cg, pgprim])
+            g.flo_funcx[g.r, g.v, g.p, g.cg, g.Actcg].where[
+                (g.Actcg[g.cg] + g.RpGrp[g.r, g.p, g.cg])
+            ] = 0.0
+            g.flo_funcx[g.r, g.v, g.p, g.cg, g.cg2].where[g.RpPg[g.r, g.p, g.cg]] = (
+                sparse(g.flo_funcx[g.r, g.v, g.p, pgprim, g.cg2])
+            )
+        # * Ensure that ACT_EFF modeled flows are not reduced:
+        project(source=g.RpgAce, target=g.Trackp)
+        with Loop(
+            g.RpcgPtran[g.Trackp[g.r, g.p], g.c, g.Com, g.cg, g.cg2].where[
+                (g.RpcAce[g.r, g.p, g.c] + g.RpcAce[g.r, g.p, g.Com])
+            ]
+        ):
+            g.RpccFfunc[g.r, g.p, g.cg, g.cg2] = False
+        g.RpcgPtran[g.Trackp, g.c, g.Com, g.cg, g.cg2].where[
+            (~(g.RpccFfunc[g.Trackp, g.cg, g.cg2]))
+        ] = False
+        g.RpcFfunc[g.RpcAce[g.r, g.p, g.c]] = False
+        g.RpcNoflo[g.RpcAce[g.r, g.p, g.c]] = False
+        g.Trackp[g.RpPgflo] = False
+        g.PrcAct[g.NoAct[g.Trackp]] = True
+        g.NoAct[g.Trackp] = False
+        g.Trackp.setRecords(None)
 
     def prepare_map(self: PpmExtVda) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Prepare map for uncertain efficiencies
-  RP_FFSGG(PRC_SPG(R,P,CG1),ACTCG(CG))$RP_FFSGG(R,P,CG,CG) = 0;
-  RP_FFSGGM(RP_GRP(PRC_SPG(R,P,CG1)),C,ACTCG(CG),CG)$RPC_PG(R,P,C) $= RP_FFSGG(R,P,CG,CG);
-  RP_FFSGGM(RP_GRP(R,P,CG),COM,CG,ACTCG)$RPC_PG(R,P,COM) $= RP_FFSGG(R,P,CG,ACTCG);
-  RP_GRP(R,P,ACTCG) $= SUM(RP_GRP(PRC_SPG(R,P,CG)),1); RP_FFSGG(RP_GRP,ACTCG) = 0;
-  RP_FFSGGM(PRC_SPG(R,P,CG1),ACTCG(CG),CG,CG)$RP_FFSGG(R,P,CG,CG)=YES;
-""",
-        )
+        g = self.tc
+        # * Prepare map for uncertain efficiencies
+        g.RpFfsgg[g.PrcSpg[g.r, g.p, g.cg1], g.Actcg[g.cg]].where[
+            g.RpFfsgg[g.r, g.p, g.cg, g.cg]
+        ] = 0.0
+        g.RpFfsggm[g.RpGrp[g.PrcSpg[g.r, g.p, g.cg1]], g.c, g.Actcg[g.cg], g.cg].where[
+            g.RpcPg[g.r, g.p, g.c]
+        ] = sparse(g.RpFfsgg[g.r, g.p, g.cg, g.cg])
+        g.RpFfsggm[g.RpGrp[g.r, g.p, g.cg], g.Com, g.cg, g.Actcg].where[
+            g.RpcPg[g.r, g.p, g.Com]
+        ] = sparse(g.RpFfsgg[g.r, g.p, g.cg, g.Actcg])
+        g.RpGrp[g.r, g.p, g.Actcg] = sparse(Sum(g.RpGrp[g.PrcSpg[g.r, g.p, g.cg]], 1.0))
+        g.RpFfsgg[g.RpGrp, g.Actcg] = 0.0
+        g.RpFfsggm[g.PrcSpg[g.r, g.p, g.cg1], g.Actcg[g.cg], g.cg, g.cg].where[
+            g.RpFfsgg[g.r, g.p, g.cg, g.cg]
+        ] = True
 
     def add_acteff_to_rpc_func(self: PpmExtVda, condition: bool) -> None:
+        # TODO still needs transaltion, since ontop of pp_qaput
+        # there are direct PUT calls in the loops
         include_pp_qaput_1 = pp_qaput(
             "PUTOUT",
             "PUTGRP",
@@ -220,70 +289,196 @@ DISPLAY 'PPM_EXT Invoked';
         )
 
     def prep_commodity_factors(self: PpmExtVda, pgprim: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-*-----------------------------------------------------------------------------
-* Prepare commodity-specific availability factors
-  OPTION RP_GRP<NCAP_AFC, RP_XRED<RP_GRP;
-  RP_GRP(RP_PG(R,P,CG))$(NOT C(CG)+COM_TYPE(CG)) = NO;
-  PRC_SC(RP_STG(RP_XRED(RP)))=SUM(PRC_TSL(RP,TSL),LOG(G_CYCLE(TSL)));
-  LOOP(TSL(STL),NCAP_AFCS(R,LL,P,CG,S)$TS_GROUP(R,TSL,S) $= NCAP_AFC(R,LL,P,CG,STL)$RP_GRP(R,P,CG));
-  NCAP_AFCS(R,LL,P,CG,S(STL))$RP_GRP(R,P,CG) $= NCAP_AFC(R,LL,P,CG,STL); OPTION CLEAR=NCAP_AFC;
-  NCAP_AFCS(R,LL,P,CG,S)$(NOT PRC_CAP(R,P))=0;
-* Handle independent AFCs
-  LOOP(RP_GRP(RP_FLO(R,P),CG),IF(SUM(RC(R,C(CG))$(NOT RPC_PG(R,P,C)),1)+1$(NOT RP_PGTYPE(R,P,CG)+C(CG)),TRACKPG(R,P,CG)=YES));
-  TRACKPG(RP_GRP(RP_STG,'{pgprim}'))=YES;
-  NCAP_AFC(R,V,P,CG,STL(S))$TRACKPG(R,P,CG) $= NCAP_AFCS(R,V,P,CG,S);
-  NCAP_AFC(R,V,P,C,STL(S))$(RC(R,C)$NCAP_AFCS(R,'0',P,'{pgprim}',S)) $= NCAP_AFCS(R,V,P,C,S);
-  NCAP_AFCS(R,V,P,CG,S)$(RP_STD(R,P)$TRACKPG(R,P,CG)) = 0;
-  NCAP_AFCS(R,V,P,CG,S)$(NCAP_AFCS(R,'0',P,'{pgprim}',S)$RP_FLO(R,P)) = 0;
-  NCAP_AFCS(R,V,P,CG,S)$((NOT RP_STG(R,P))$RP_PGTYPE(R,P,CG)) $= NCAP_AFCS(R,V,P,'{pgprim}',S);
-* Set into RTPS_BD tuples to be searched
-  OPTION RVPS < NCAP_AFCS;
-* Processes with no ACTFLO are not supported:
-  RVPS(R,V,P,S)$(RTP(R,V,P)->RP_STD(R,P)$RP_PGACT(R,P)) = NO;
-* Set into RTPS_BD availability tuples found
-  RTPS_BD(RVPS(R,V,P,S),BDUPX(BD))$(PRC_TS(R,P,S)*NCAP_AF(R,V,P,S,BD)) = YES;
-  RTPS_BD(RVPS(R,V,P,S),BDUPX(BD))$NCAP_AFS(R,V,P,S,BD) = YES;
-  RTPS_BD(RVPS(R,V,P,ANNUAL),BDUPX(BD))$NCAP_AFA(R,V,P,BD) = YES;
-* Clear tuples to be searched according to found ones
-  LOOP(BDUPX,RVPS(R,V,P,S)$RTPS_BD(R,V,P,S,BDUPX) = NO);
-* Accept remaining tuples of type UP/LO only, and set missing AFS
-  RTPS_BD(RVPS,'UP') = YES;
-  NCAP_AFS(RVPS,'UP') = 1;
-  OPTION RPS_CAFLAC < RTPS_BD;
-  NCAP_AFC(RTP,C,STL(S))$(NCAP_AFCS(RTP,C,S)=0) $= NCAP_AFCS(RTP,C,S);
-  NCAP_AFCS(R,V,P,CG,S)$((NCAP_AFCS(R,V,P,CG,S)<=0)$NCAP_AFCS(R,V,P,CG,S)) = 1+INF$(RP_STD(R,P) OR (NOT C(CG)));
-* Prepare IRE/STG with both sides
-  RPG_AFCX(RPC_IRE(RP,C,IE('EXP')))$(RPC_IRE(RP,C,'IMP')+(NOT RP_AIRE(RP,IE)))=YES;
-  RPG_AFCX(RPC_STG,IE(XPT)) $= TOP(RPC_STG,'OUT');
-* Enable flexible STS only where AF on activity
-  TRACKP(RP_STS(RP)) $= SUM(RPS_CAFLAC(RPS_STG(RP,S),BD),1); OPTION RP_GRP<NCAP_AFC;
-  RP_STL(PRC_CAP(RP_STS(RP)),TSL,'UP')$(TRACKP(RP)->RP_GRP(RP,'{pgprim}')) $= RP_STL(RP,TSL,'N');
-  OPTION CLEAR=TRACKP,CLEAR=RP_GRP,CLEAR=TRACKPG,CLEAR=RVPS,CLEAR=RTPS_BD;
-*-----------------------------------------------------------------------------
-* Automatic generation of NCAP_AFC for ECT CHP
-  RVP(RTP(R,V,P))$((NOT RPS_CAFLAC(R,P,'ANNUAL','UP'))$(NCAP_CHPR(RTP,'UP')*NCAP_AFA(RTP,'UP')>0)$CHP(R,P))=YES;
-  RVP(RTP)$(NCAP_CEH(RTP)<1.5) = NO;
-* The maximum of the technical AF for ELC, corrected with ACTFLO:
-  VDA_CEH(RVP(R,V,P)) = MAX(0,SMAX((PRC_TS(R,P,S),CHP_ELC(R,P,C)),NCAP_AF(RVP,S,'UP')*PRC_ACTFLO(RVP,C)));
-  RVP(RTP)$(VDA_CEH(RTP)<=0) = NO;
-  RPS_CAFLAC(R,P,ANNUAL,'UP') $= SUM(RVP(R,V,P)$VDA_CEH(RVP),1);
-* AFAC for heat = (heat share)/(1/AFA-(elec share)/AF):
-  NCAP_AFCS(RVP(R,V,P),C,ANNUAL)$RPC_PG(R,P,C) =
-    (1/(1+1/NCAP_CHPR(RVP,'UP'))) / NCAP_AFA(RVP,'UP') / PRC_ACTFLO(RVP,C) /
-    (1/NCAP_AFA(RVP,'UP')-(1-1/(1+1/NCAP_CHPR(RVP,'UP')))/VDA_CEH(RVP));
-  NCAP_AFCS(RVP(R,V,P),C,ANNUAL)$CHP_ELC(R,P,C) = VDA_CEH(RVP) / NCAP_AFA(RVP,'UP') / PRC_ACTFLO(RVP,C);
-  OPTION CLEAR=RVP,VDA_CEH<NCAP_CEH;
-*-----------------------------------------------------------------------------
-* Have NCAP_AFSX / NCAP_AFSM by control option
-  FIL(LL)=V(LL)+LASTLL(LL);
-  PRC_YMIN(R,P)$NCAP_AFX(R,'0',P) = FLOOR(NCAP_AFX(R,'0',P)/1000);
-  NCAP_AFSX(R,FIL(LL),P,BD)$((NCAP_AFSX(R,LL,P,BD)=0)$((MOD(PRC_YMIN(R,P),2)*2-1)*(1-2$BDUPX(BD))<0)$MOD(PRC_YMIN(R,P),7-4$V(LL))) $= NCAP_AFX(R,LL,P);
-  RP_AFB(R,P,BD)$((MOD(PRC_YMIN(R,P)$((MOD(PRC_YMIN(R,P),2)*2-1)*(1-2$BDUPX(BD))<0),5)=0)$PRC_YMIN(R,P)) = -1;
-  NCAP_AFSM(R,FIL(LL),P)$MOD(FLOOR(NCAP_AFM(R,LL,P)/1000),7-4$V(LL)) $= NCAP_AFM(R,LL,P);
-  NCAP_AFM(RTP(R,V,P))$((MOD(MAX(1,FLOOR(NCAP_AFM(R,'0',P)/1000)),5)=0)$NCAP_AFM(RTP)) = 0;
-""",
+        g = self.tc
+        # * Prepare commodity-specific availability factors
+        project(source=g.ncap_afc, target=g.RpGrp)
+        project(source=g.RpGrp, target=g.RpXred)
+        g.RpGrp[g.RpPg[g.r, g.p, g.cg]].where[(~(g.c[g.cg] + g.ComType[g.cg]))] = False
+        g.prc_sc[g.RpStg[g.RpXred[g.Rp]]] = Sum(
+            g.PrcTsl[g.Rp, g.tsl], log(g.g_cycle[g.tsl])
         )
+        with Loop(g.tsl[g.stl]):
+            g.ncap_afcs[g.r, g.ll, g.p, g.cg, g.s].where[g.TsGroup[g.r, g.tsl, g.s]] = (
+                sparse(
+                    g.ncap_afc[g.r, g.ll, g.p, g.cg, g.stl].where[
+                        g.RpGrp[g.r, g.p, g.cg]
+                    ]
+                )
+            )
+        g.ncap_afcs[g.r, g.ll, g.p, g.cg, g.s[g.stl]].where[g.RpGrp[g.r, g.p, g.cg]] = (
+            sparse(g.ncap_afc[g.r, g.ll, g.p, g.cg, g.stl])
+        )
+        g.ncap_afc.setRecords(None)
+        g.ncap_afcs[g.r, g.ll, g.p, g.cg, g.s].where[(~(g.PrcCap[g.r, g.p]))] = 0.0
+        # * Handle independent AFCs
+        with Loop(g.RpGrp[g.RpFlo[g.r, g.p], g.cg]):  # noqa: SIM117
+            with If(
+                Sum(g.Rc[g.r, g.c[g.cg]].where[(~(g.RpcPg[g.r, g.p, g.c]))], 1.0)
+                + Number(1.0).where[(~(g.RpPgtype[g.r, g.p, g.cg] + g.c[g.cg]))]
+            ):
+                g.Trackpg[g.r, g.p, g.cg] = True
+        g.Trackpg[g.RpGrp[g.RpStg, pgprim]] = True
+        g.ncap_afc[g.r, g.v, g.p, g.cg, g.stl[g.s]].where[g.Trackpg[g.r, g.p, g.cg]] = (
+            sparse(g.ncap_afcs[g.r, g.v, g.p, g.cg, g.s])
+        )
+        g.ncap_afc[g.r, g.v, g.p, g.c, g.stl[g.s]].where[
+            (g.Rc[g.r, g.c].where[g.ncap_afcs[g.r, "0", g.p, pgprim, g.s]])
+        ] = sparse(g.ncap_afcs[g.r, g.v, g.p, g.c, g.s])
+        g.ncap_afcs[g.r, g.v, g.p, g.cg, g.s].where[
+            (g.RpStd[g.r, g.p].where[g.Trackpg[g.r, g.p, g.cg]])
+        ] = 0.0
+        g.ncap_afcs[g.r, g.v, g.p, g.cg, g.s].where[
+            (g.ncap_afcs[g.r, "0", g.p, pgprim, g.s].where[g.RpFlo[g.r, g.p]])
+        ] = 0.0
+        g.ncap_afcs[g.r, g.v, g.p, g.cg, g.s].where[
+            ((~(g.RpStg[g.r, g.p])).where[g.RpPgtype[g.r, g.p, g.cg]])
+        ] = sparse(g.ncap_afcs[g.r, g.v, g.p, pgprim, g.s])
+        # * Set into RTPS_BD tuples to be searched
+        project(source=g.ncap_afcs, target=g.Rvps)
+        # * Processes with no ACTFLO are not supported:
+        g.Rvps[g.r, g.v, g.p, g.s].where[
+            ((~(g.Rtp[g.r, g.v, g.p])) | (g.RpStd[g.r, g.p].where[g.RpPgact[g.r, g.p]]))
+        ] = False
+        # * Set into RTPS_BD availability tuples found
+        g.RtpsBd[g.Rvps[g.r, g.v, g.p, g.s], g.Bdupx[g.bd]].where[
+            (g.PrcTs[g.r, g.p, g.s] * g.ncap_af[g.r, g.v, g.p, g.s, g.bd])
+        ] = True
+        g.RtpsBd[g.Rvps[g.r, g.v, g.p, g.s], g.Bdupx[g.bd]].where[
+            g.ncap_afs[g.r, g.v, g.p, g.s, g.bd]
+        ] = True
+        g.RtpsBd[g.Rvps[g.r, g.v, g.p, g.Annual], g.Bdupx[g.bd]].where[
+            g.ncap_afa[g.r, g.v, g.p, g.bd]
+        ] = True
+        # * Clear tuples to be searched according to found ones
+        with Loop(g.Bdupx):
+            g.Rvps[g.r, g.v, g.p, g.s].where[g.RtpsBd[g.r, g.v, g.p, g.s, g.Bdupx]] = (
+                False
+            )
+        # * Accept remaining tuples of type UP/LO only, and set missing AFS
+        g.RtpsBd[g.Rvps, "UP"] = True
+        g.ncap_afs[g.Rvps, "UP"] = 1.0
+        project(source=g.RtpsBd, target=g.RpsCaflac)
+        g.ncap_afc[g.Rtp, g.c, g.stl[g.s]].where[
+            (g.ncap_afcs[g.Rtp, g.c, g.s] == 0.0)
+        ] = sparse(g.ncap_afcs[g.Rtp, g.c, g.s])
+        g.ncap_afcs[g.r, g.v, g.p, g.cg, g.s].where[
+            (
+                (g.ncap_afcs[g.r, g.v, g.p, g.cg, g.s] <= 0.0).where[
+                    g.ncap_afcs[g.r, g.v, g.p, g.cg, g.s]
+                ]
+            )
+        ] = (
+            1.0
+            + Number(SpecialValues.POSINF).where[((g.RpStd[g.r, g.p]) | (~(g.c[g.cg])))]
+        )
+        # * Prepare IRE/STG with both sides
+        g.RpgAfcx[g.RpcIre[g.Rp, g.c, g.ie["EXP"]]].where[
+            (g.RpcIre[g.Rp, g.c, "IMP"] + (~(g.RpAire[g.Rp, g.ie])))
+        ] = True
+        g.RpgAfcx[g.RpcStg, g.ie[g.xpt]] = sparse(g.Top[g.RpcStg, "OUT"])
+        # * Enable flexible STS only where AF on activity
+        g.Trackp[g.RpSts[g.Rp]] = sparse(
+            Sum(g.RpsCaflac[g.RpsStg[g.Rp, g.s], g.bd], 1.0)
+        )
+        project(source=g.ncap_afc, target=g.RpGrp)
+        g.RpStl[g.PrcCap[g.RpSts[g.Rp]], g.tsl, "UP"].where[
+            ((~(g.Trackp[g.Rp])) | (g.RpGrp[g.Rp, pgprim]))
+        ] = sparse(g.RpStl[g.Rp, g.tsl, "N"])
+        g.Trackp.setRecords(None)
+        g.RpGrp.setRecords(None)
+        g.Trackpg.setRecords(None)
+        g.Rvps.setRecords(None)
+        g.RtpsBd.setRecords(None)
+        # *-----------------------------------------------------------------------------
+        # * Automatic generation of NCAP_AFC for ECT CHP
+        g.Rvp[g.Rtp[g.r, g.v, g.p]].where[
+            (
+                (~(g.RpsCaflac[g.r, g.p, "ANNUAL", "UP"])).where[
+                    (g.ncap_chpr[g.Rtp, "UP"] * g.ncap_afa[g.Rtp, "UP"] > 0.0)
+                    & g.Chp[g.r, g.p]
+                ]
+            )
+        ] = True
+        g.Rvp[g.Rtp].where[(g.ncap_ceh[g.Rtp] < 1.5)] = False
+        # * The maximum of the technical AF for ELC, corrected with ACTFLO:
+        g.vda_ceh[g.Rvp[g.r, g.v, g.p]] = Max(
+            0.0,
+            Smax(
+                [g.PrcTs[g.r, g.p, g.s], g.ChpElc[g.r, g.p, g.c]],
+                g.ncap_af[g.Rvp, g.s, "UP"] * g.prc_actflo[g.Rvp, g.c],
+            ),
+        )
+        g.Rvp[g.Rtp].where[(g.vda_ceh[g.Rtp] <= 0.0)] = False
+        g.RpsCaflac[g.r, g.p, g.Annual, "UP"] = sparse(
+            Sum(g.Rvp[g.r, g.v, g.p].where[g.vda_ceh[g.Rvp]], 1.0)
+        )
+        # * AFAC for heat = (heat share)/(1/AFA-(elec share)/AF):
+        g.ncap_afcs[g.Rvp[g.r, g.v, g.p], g.c, g.Annual].where[
+            g.RpcPg[g.r, g.p, g.c]
+        ] = (
+            (1.0 / (1.0 + 1.0 / g.ncap_chpr[g.Rvp, "UP"]))
+            / g.ncap_afa[g.Rvp, "UP"]
+            / g.prc_actflo[g.Rvp, g.c]
+            / (
+                1.0 / g.ncap_afa[g.Rvp, "UP"]
+                - (1.0 - 1.0 / (1.0 + 1.0 / g.ncap_chpr[g.Rvp, "UP"]))
+                / g.vda_ceh[g.Rvp]
+            )
+        )
+        g.ncap_afcs[g.Rvp[g.r, g.v, g.p], g.c, g.Annual].where[
+            g.ChpElc[g.r, g.p, g.c]
+        ] = g.vda_ceh[g.Rvp] / g.ncap_afa[g.Rvp, "UP"] / g.prc_actflo[g.Rvp, g.c]
+        g.Rvp.setRecords(None)
+        aggregate(source=g.ncap_ceh, target=g.vda_ceh)
+        # *-----------------------------------------------------------------------------
+        # * Have NCAP_AFSX / NCAP_AFSM by control option
+        g.Fil[g.ll] = g.v[g.ll] + g.Lastll[g.ll]
+        g.prc_ymin[g.r, g.p].where[g.ncap_afx[g.r, "0", g.p]] = floor(
+            g.ncap_afx[g.r, "0", g.p] / 1000.0
+        )
+        g.ncap_afsx[g.r, g.Fil[g.ll], g.p, g.bd].where[
+            (
+                (g.ncap_afsx[g.r, g.ll, g.p, g.bd] == 0.0).where[
+                    (
+                        (mod(g.prc_ymin[g.r, g.p], 2.0) * 2.0 - 1.0)
+                        * (1.0 - Number(2.0).where[g.Bdupx[g.bd]])
+                        < 0.0
+                    )
+                    & mod(g.prc_ymin[g.r, g.p], 7.0 - Number(4.0).where[g.v[g.ll]])
+                ]
+            )
+        ] = sparse(g.ncap_afx[g.r, g.ll, g.p])
+        g.rp_afb[g.r, g.p, g.bd].where[
+            (
+                (
+                    mod(
+                        g.prc_ymin[g.r, g.p].where[
+                            (
+                                (mod(g.prc_ymin[g.r, g.p], 2.0) * 2.0 - 1.0)
+                                * (1.0 - Number(2.0).where[g.Bdupx[g.bd]])
+                                < 0.0
+                            )
+                        ],
+                        5.0,
+                    )
+                    == 0.0
+                ).where[g.prc_ymin[g.r, g.p]]
+            )
+        ] = -1.0
+        g.ncap_afsm[g.r, g.Fil[g.ll], g.p].where[
+            mod(
+                floor(g.ncap_afm[g.r, g.ll, g.p] / 1000.0),
+                7.0 - Number(4.0).where[g.v[g.ll]],
+            )
+        ] = sparse(g.ncap_afm[g.r, g.ll, g.p])
+        g.ncap_afm[g.Rtp[g.r, g.v, g.p]].where[
+            (
+                (
+                    mod(
+                        Max(1.0, floor(g.ncap_afm[g.r, "0", g.p] / 1000.0)),
+                        5.0,
+                    )
+                    == 0.0
+                ).where[g.ncap_afm[g.Rtp]]
+            )
+        ] = 0.0
