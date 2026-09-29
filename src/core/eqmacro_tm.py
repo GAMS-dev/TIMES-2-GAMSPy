@@ -39,6 +39,7 @@ class EqmacroTm(GamsClass):
         self.add_eq_mcap()
         self.add_eq_tmc()
         self.add_eq_ivecbnd()
+        self.tc.enqueue(self.exec_tm_cstinv)
         self.add_eq_escost()
         self.add_eq_mpen()
         self.add_eq_xcapdb()
@@ -145,17 +146,25 @@ EQ_IVECBND(R,T)$(ORD(T) GT 1) ..
 """,
         )
 
+    def exec_tm_cstinv(self) -> None:
+        """Calculate annualized undiscounted investment costs."""
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=r"""
+* Calculate annualized undiscounted investment costs
+  TM_CSTINV(R,V,P)$RTP(R,V,P)
+  =
+  SUM(OBJ_ICUR(R,V,P,CUR), COEF_OBINV(R,V,P,CUR));
+""",
+        )
+
     def add_eq_escost(self) -> None:
         """Energy system costs equation."""
         self.tc.add_gams_code(
             module=self,
             phase="init",
             code=r"""
-* Calculate annualized undiscounted investment costs
-  TM_CSTINV(R,V,P)$RTP(R,V,P)
-  =
-  SUM(OBJ_ICUR(R,V,P,CUR), COEF_OBINV(R,V,P,CUR));
-
 EQ_ESCOST(R,T) ..
 
   TM_SCALE_CST * (
