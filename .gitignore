@@ -1,0 +1,17 @@
+__pycache__
+*.xml
+.coverage
+*.gsp
+*.log*
+*.LOG
+*.lst
+*.ref
+*.lxi
+*.gdx
+.env
+*.egg-info
+build
+*.opt
+end_gams
+src/data
+gams-lark/

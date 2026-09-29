@@ -1,0 +1,11 @@
+* the times-slices MUST come 1st to ensure ordering OK
+SET ALL_TS
+/
+ ANNUAL
+ S
+ W
+ SD
+ SN
+ WD
+ WN
+/

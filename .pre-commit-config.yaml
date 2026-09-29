@@ -1,0 +1,50 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: check-added-large-files
+      - id: detect-private-key
+      - id: check-ast
+      - id: check-merge-conflict
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: "detect-secrets"
+        args: [ "--baseline", ".secrets.baseline", "--exclude-files", ".*\\.ipynb$" ]
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.10
+    hooks:
+      # Run the linter
+      - id: ruff
+        args: [ --fix ]
+      # Run the formatter
+      - id: ruff-format
+  - repo: https://github.com/pypa/pip-audit
+    rev: v2.8.0
+    hooks:
+      - id: pip-audit
+        args: [ ".", "--ignore-vuln", "GHSA-5239-wwwm-4pmq" ]
+        stages: [ manual ]
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        args: [ "--profile", "black" ]
+  # mypy runs in the project's uv environment, so its version and the
+  # gamspy/pandas-stubs/pydantic it type-checks against all come from uv.lock
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: uv run --frozen mypy
+        language: system
+        types_or: [python, pyi]
+        files: "^src\\/core\\/(.*?)$"
+        args: ["--config-file=pyproject.toml"]
+        require_serial: true
