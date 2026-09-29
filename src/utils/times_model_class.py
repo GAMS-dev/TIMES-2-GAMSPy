@@ -1890,11 +1890,13 @@ class TimesModelClass:
     par_y: Parameter = None  # type: ignore[assignment] # [R,T] PAR_Y Production parameter
     par_iv: Parameter = None  # type: ignore[assignment] # [R,YEAR] PAR_IV Investment parameter
     par_grgdp: Parameter = None  # type: ignore[assignment] # [R,T] PAR_GRGDP Growth rate of GDP
+    par_gry: Parameter = None  # type: ignore[assignment] # [R,T] PAR_GRY Growth rate of production
     par_mc: Parameter = None  # type: ignore[assignment] # [R,T,C] PAR_MC Marginal costs of demands
     tm_ddf_y: Parameter = None  # type: ignore[assignment] # [R,T] TM_DDF_Y
     tm_ddf_dm: Parameter = None  # type: ignore[assignment] # [R,T,C] TM_DDF_DM
     tm_ddf_sp: Parameter = None  # type: ignore[assignment] # [R,T,C] TM_DDF_SP
     tm_f2: Parameter = None  # type: ignore[assignment] # [R,T,C] TM_F2
+    tm_err: Parameter = None  # type: ignore[assignment] # [ITEM] TM_ERR
     tm_cstinv: Parameter = None  # type: ignore[assignment] # [r, allyear, p] TM_CSTINV Annualized investment costs
     tm_ycheck: Parameter = None  # type: ignore[assignment] # [R] TM_YCHECK
     help_expf: Parameter = None  # type: ignore[assignment] # [R,T] HELP_EXPF

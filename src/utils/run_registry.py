@@ -3022,5 +3022,19 @@ REGISTRY.update(
                 "data_modules": [*REGISTRY["PowFlow"].data_modules, Path("cstbal.dd")]
             }
         ),
+        # reaches: ppmain.tm (macro="YES") on a small single-region, ANNUAL-only
+        # dataset. demos_003_macro_ddf.dd is the unmodified msaddf.dd written
+        # by a MACRO=CSA calibration run of demos_003 + demos_003_macro.dd.
+        "demos_003_tm": derive_from(
+            "demos_003", run_name="demos_003_tm", macro="YES"
+        ).model_copy(
+            update={
+                "data_modules": [
+                    *REGISTRY["demos_003"].data_modules,
+                    Path("demos_003_macro.dd"),
+                    Path("demos_003_macro_ddf.dd"),
+                ]
+            }
+        ),
     }
 )

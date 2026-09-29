@@ -18,6 +18,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Parameter
+
 from core.base_class import GamsClass
 
 # from core.rpt_chp_ire import RrpChpIre
@@ -163,6 +165,20 @@ class RptmainTm(GamsClass):
 
         self.comp_params()
 
+        # GAMS registers these literals as UELs at compile time
+        self.add_records_to_universe_item(
+            records=[
+                "GDP",
+                "TM_GDP-REF",
+                "TM_GDP-ACT",
+                "TM_PRD-Y",
+                "TM_CON-C",
+                "TM_CAP-K",
+                "TM_INV-I",
+                "TM_ESCOST",
+                "TM_GDPLOS",
+            ]
+        )
         self.tc.enqueue(self.exec_report_params)
 
     def exec_calc_shadow_price(self: RptmainTm) -> None:
@@ -222,35 +238,48 @@ OPTION CLEAR=F_INOUT, CLEAR=F_INOUTS, CLEAR=F_IOSET;
     def comp_params(
         self: RptmainTm,
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="""
-*---------------------------------------------------------------------
-* Report parameters for TIMES-MACRO
-*---------------------------------------------------------------------
-PARAMETER PAR_Y(R,T)        'Production parameter'           //;
-PARAMETER PAR_GRY(R,T)      'Growth rate of production'      //;
-PARAMETER PAR_GRGDP(R,T)    'Growth rate of GDP'             //;
-PARAMETER PAR_MC(R,LL,C)    'Marginal cost demand commodity' //;
-PARAMETER TM_GDP(R,T)       'Current GDP parameter';
-PARAMETER TM_GDPGOAL(R,LL)  'Baseline GDP';
-PARAMETER TM_DEM(R,YEAR,C);
-PARAMETER TM_DDF_Y(R,T);
-PARAMETER TM_DDF_DM(R,T,C);
-PARAMETER TM_DDF_SP(R,T,C);
-PARAMETER TM_F2(R,T,C);
-PARAMETER TM_ERR(ITEM);
-""",
+        g = self.tc
+        m = g.container
+        # *---------------------------------------------------------------------
+        # * Report parameters for TIMES-MACRO
+        # *---------------------------------------------------------------------
+        g.par_y = Parameter(
+            m, name="PAR_Y", domain=[g.r, g.t], description="Production parameter"
         )
+        g.par_gry = Parameter(
+            m,
+            name="PAR_GRY",
+            domain=[g.r, g.t],
+            description="Growth rate of production",
+        )
+        g.par_grgdp = Parameter(
+            m, name="PAR_GRGDP", domain=[g.r, g.t], description="Growth rate of GDP"
+        )
+        g.par_mc = Parameter(
+            m,
+            name="PAR_MC",
+            domain=[g.r, g.ll, g.c],
+            description="Marginal cost demand commodity",
+        )
+        g.tm_gdp = Parameter(
+            m, name="TM_GDP", domain=[g.r, g.t], description="Current GDP parameter"
+        )
+        g.tm_gdpgoal = Parameter(
+            m, name="TM_GDPGOAL", domain=[g.r, g.ll], description="Baseline GDP"
+        )
+        g.tm_dem = Parameter(m, name="TM_DEM", domain=[g.r, g.year, g.c])
+        g.tm_ddf_y = Parameter(m, name="TM_DDF_Y", domain=[g.r, g.t])
+        g.tm_ddf_dm = Parameter(m, name="TM_DDF_DM", domain=[g.r, g.t, g.c])
+        g.tm_ddf_sp = Parameter(m, name="TM_DDF_SP", domain=[g.r, g.t, g.c])
+        g.tm_f2 = Parameter(m, name="TM_F2", domain=[g.r, g.t, g.c])
+        g.tm_err = Parameter(m, name="TM_ERR", domain=[g.item])
 
-    def exec_report_params(
-        self: RptmainTm,
-    ) -> None:
+    def exec_report_params(self: RptmainTm) -> None:
+        g = self.tc
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf"""
+            code=r"""
 IF(CARD(TM_GR), DONE=1;
 ELSE DONE=0; TM_GR(R,T)$=TM_GROWV(R,T));
 MR(R)$=SUM(T$TM_GR(R,T),1);
@@ -276,16 +305,28 @@ TM_DEM(R,T,C)$((PAR_MC(R,T,C)>0)$(COM_PROJ(R,T,C)>0)$DEM(R,C)) = COM_PROJ(R,T,C)
 TM_ERR('DEM') = SMAX((R,T,C)$TM_DEM(R,T,C),ABS(TM_DEM(R,T,C)-VAR_DEM.L(R,T,C))/TM_DEM(R,T,C));
 TM_ERR('GDP') = SMAX((REG,T),ABS(TM_GDPGOAL(REG,T)-TM_GDP(REG,T))/TM_GDPGOAL(REG,T));
 
-* Reporting parameters
-  TM_RESULT('TM_GDP-REF',MR,T) = TM_GDPGOAL(MR,T)$DONE;
-  TM_RESULT('TM_GDP-ACT',MR,T) = TM_GDP(MR,T);
-  TM_RESULT('TM_PRD-Y',MR,T)   = PAR_Y(MR,T);
-  TM_RESULT('TM_CON-C',MR,T)   = VAR_C.L(MR,T);
-  TM_RESULT('TM_CAP-K',MR,T)   = VAR_K.L(MR,T);
-  TM_RESULT('TM_INV-I',MR,T)   = VAR_INV.L(MR,T);
-  TM_RESULT('TM_ESCOST',MR,T)  = VAR_EC.L(MR,T);
-  TM_RESULT('TM_GDPLOS',MR,T)$DONE = 100*(TM_GDPGOAL(MR,T)-TM_GDP(MR,T))/TM_GDPGOAL(MR,T);
 
+""",
+        )
+
+        # * Reporting parameters
+        g.tm_result["TM_GDP-REF", g.Mr, g.t] = g.tm_gdpgoal[g.Mr, g.t].where[g.done]
+        g.tm_result["TM_GDP-ACT", g.Mr, g.t] = g.tm_gdp[g.Mr, g.t]
+        g.tm_result["TM_PRD-Y", g.Mr, g.t] = g.par_y[g.Mr, g.t]
+        g.tm_result["TM_CON-C", g.Mr, g.t] = g.VAR_C.l[g.Mr, g.t]
+        g.tm_result["TM_CAP-K", g.Mr, g.t] = g.VAR_K.l[g.Mr, g.t]
+        g.tm_result["TM_INV-I", g.Mr, g.t] = g.VAR_INV.l[g.Mr, g.t]
+        g.tm_result["TM_ESCOST", g.Mr, g.t] = g.VAR_EC.l[g.Mr, g.t]
+        g.tm_result["TM_GDPLOS", g.Mr, g.t].where[g.done] = (
+            100.0
+            * (g.tm_gdpgoal[g.Mr, g.t] - g.tm_gdp[g.Mr, g.t])
+            / g.tm_gdpgoal[g.Mr, g.t]
+        )
+
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=rf"""
 {ddfupd_msa()}
 {writeddf_msa(arg1="DDFNEW", arg2="TM_GR")}
 """,
