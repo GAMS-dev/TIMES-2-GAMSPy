@@ -2949,6 +2949,14 @@ REGISTRY.update(
             gdxpath="src/data/DemoS_006/",
             gdx_irebnd="demos_006_irebnd",
         ),
+        # reaches: init_ext.vda's GDX_IPRIC branch (import/export prices of a
+        # previous run loaded into PAR_IPRIC).
+        "demos_006_ipric": derive_from(
+            "demos_006",
+            run_name="demos_006_ipric",
+            gdxpath="src/data/DemoS_006/",
+            gdx_ipric="demos_006_irebnd",
+        ),
         # reaches: bnd_flo.mod's VAR_ACT-bound-adjustment skip path and
         # eqflobnd.mod's plain (non IRE/ACT-split) VAR_IRE branch.
         "demos_012e_noreduce": derive_from(
@@ -2957,6 +2965,10 @@ REGISTRY.update(
         # reaches: coef_csv_mod.py (CoefCsvMod) and eqcapvac_mod.py
         "demos_012e_vintopt": derive_from(
             "demos_012e", run_name="demos_012e_vintopt", vintopt="2"
+        ),
+        # reaches: the VINTOPT=1 branches (fillvint.gms, preppm.mod).
+        "demos_012e_vintopt1": derive_from(
+            "demos_012e", run_name="demos_012e_vintopt1", vintopt="1"
         ),
         # reaches: bndmain.mod's VAR_UC-skip branch (bnd_ucw.mod/bnd_ucv.mod
         # never included) and dynslite_vda_bounds' var_uc_yes=False path.
@@ -3035,6 +3047,36 @@ REGISTRY.update(
                     Path("demos_003_macro_ddf.dd"),
                 ]
             }
+        ),
+        # reaches: fillwave.gms and the other WAVER=YES branches (wave-style
+        # PRC_RESID / COM_PROJ interpolation, INT_DEFAULT('PASTI')=1).
+        "demos_003_waver": derive_from(
+            "demos_003", run_name="demos_003_waver", waver="YES"
+        ),
+        # reaches: coef_alt.lin / eqobj.mod with OBJ=ALT on an OBLONG=YES
+        # dataset (the demos_012e objective variants miss these branches).
+        "demos_003_objalt": derive_from(
+            "demos_003", run_name="demos_003_objalt", obj="ALT"
+        ),
+        # reaches: spoint.mod's LPOINT branch (execute_loadpoint of an existing
+        # solution as starting point). The path is relative to the repo root,
+        # which is the working directory of both the GAMS and GAMSPy runs.
+        "demos_003_lpoint": derive_from(
+            "demos_003",
+            run_name="demos_003_lpoint",
+            lpoint="src/data/DemoS_003/times_p2_demos_003",
+        ),
+    }
+)
+
+# Variants of the derived instances above (derive_from needs the base to already
+# be registered, so these can't live in the same REGISTRY.update literal).
+REGISTRY.update(
+    {
+        # reaches: par_uc.rpt via rptmain.tm (VAR_UC unset -> shadow prices of
+        # the EQE/EQG/EQL user constraints are reported from the equations).
+        "demos_003_tm_nouc": derive_from(
+            "demos_003_tm", run_name="demos_003_tm_nouc", var_uc="%var_uc%"
         ),
     }
 )

@@ -43,6 +43,9 @@ class EnvironmentVariableSchema(BaseModel):
     etl: Literal["YES", "NO"] = Field(
         description="Option to use endogenous technology learning formulation. Alters the solve statement to Mixed-Integer Programming (MIP)."
     )
+    waver: Literal["YES", "NO"] = Field(
+        description="Option to apply wave-style (period-average) interpolation of PRC_RESID and COM_PROJ in the VDA extension."
+    )
     micro: Literal["YES", "NO"] = Field(
         description="Option to use the non-linear elastic demand formulation."
     )
@@ -742,6 +745,7 @@ class UserConfig(BaseModel):
     macro: Literal["YES", "Yes", "MLF", "MSA", "CSA", "%macro%"] = "%macro%"
     cli: Literal["YES", "%cli%"] = "%cli%"
     etl: Literal["YES", "NO", "%etl%"] = "%etl%"
+    waver: Literal["YES", "%waver%"] = "%waver%"
     fixboh: int | Literal["%fixboh%"] = "%fixboh%"
     lpoint: str = "%lpoint%"
     dsc: str = "%dsc%"
