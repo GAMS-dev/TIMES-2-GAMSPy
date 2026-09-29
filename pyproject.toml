@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=77", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "gamspytimes"
-version = "0.1.0"
+dynamic = ["version"]
 readme = "README.md"
 description = "Migration of TIMES to GAMSPy"
 requires-python = ">=3.12"
@@ -17,6 +17,16 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# Version comes from the vX.Y.Z release tags on the GitHub mirror
+# (created by the mirror job in .gitlab-ci.yml). Other tags such as
+# phase-1-done are ignored.
+[tool.setuptools_scm]
+fallback_version = "0.0.0"
+version_scheme = "release-branch-semver"
+
+[tool.setuptools_scm.scm.git]
+describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "v*"]
 
 [project.optional-dependencies]
 docs = [
