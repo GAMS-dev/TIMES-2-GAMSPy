@@ -42,7 +42,7 @@ from core.eqobjvar_rpt import EqobjvarRpt, EqobjvarRptConfig
 from core.eqobsalv_rpt import EqobsalvRpt
 from core.par_uc_rpt import ParUcRpt, ParUcRptConfig
 from core.sol_flo_red import SolFloRed, SolFloRedConfig
-from core.sol_ire_rpt import SolIreRpt
+from core.sol_ire_rpt import SolIreRpt, SolIreRptConfig
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -89,7 +89,7 @@ class RptmainRpt(GamsClass):
 
         self.tc.enqueue(self.exec_loop)
 
-        self.include(SolIreRpt(self.tc, self.env))
+        self.include(SolIreRpt(self.tc, self.env, config=SolIreRptConfig()))
 
         # * Calculation of annual cost terms
         self.include(EqobjinvRpt(self.tc, self.env))

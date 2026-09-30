@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Number, Ord, Set
+from gamspy import Number, Ord, Parameter, Set
 
 from core.base_class import GamsClass
 from core.fillsow_stc import FillsowStc, FillsowStcConfig
@@ -285,7 +285,14 @@ DISPLAY SW_START,SW_SUBS,SW_CHILD,SW_TREE,SW_MAP,SW_STAGE,SW_T,SW_TSW,SW_TPROB,S
         self.tc.enqueue(self.s_com_tax)
 
         if self.tc.defined("S_FLO_FUNC"):
-            self.tc.enqueue(self.preprocess_flo_func, swd=self.env.swd)
+            g.rtp_ffcs = Parameter(
+                m,
+                name="RTP_FFCS",
+                domain=[g.r, g.allyear, g.p, g.cg, g.cg, *self.env.swd_GP],
+            )
+            # OPTION CLEAR of a symbol also defines that symbol
+            self.tc.register_assignment(self.tc.rtp_ffcs)
+            self.tc.enqueue(self.preprocess_flo_func)
             if self.env.sensis != "YES":
                 self.tc.enqueue(self.remap_reduced_func_flows)
 
@@ -548,12 +555,12 @@ S_COM_TAX(RTC(R,T,C),S,COM_VAR,CUR,'1',W)$(NOT SW_T(T,W)) $= SUM(SW_TSW(W,T,WW),
 """,
         )
 
-    def preprocess_flo_func(self: StagesStc, swd: str) -> None:
+    def preprocess_flo_func(self: StagesStc) -> None:
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf"""
-PARAMETER RTP_FFCS(R,ALLYEAR,P,CG,CG{swd}); OPTION CLEAR=RTP_FFCS;
+            code=r"""
+OPTION CLEAR=RTP_FFCS;
   RP_FFSGG(R,P,ACTCG(CG),CG) = NO;
   RP_FFSGGM(RP_PG(RP,CG1),CG,ACTCG,CG)$RP_FFSGG(RP,ACTCG,CG) = YES;
   RP_FFSGGM(RP_FFSGG(RP,CG,CG2),CG,CG2)$(NOT ACTCG(CG)) = YES;

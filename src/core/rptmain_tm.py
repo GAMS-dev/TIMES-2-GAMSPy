@@ -30,7 +30,7 @@ from core.rpt_obj_rpt import RptObjRpt
 from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
 from core.rptmisc_rpt import RptmiscRpt, RptmiscRptConfig
 from core.sol_flo_red import SolFloRed, SolFloRedConfig
-from core.sol_ire_rpt import SolIreRpt
+from core.sol_ire_rpt import SolIreRpt, SolIreRptConfig
 from core.writeddf_msa import writeddf_msa
 
 if TYPE_CHECKING:
@@ -99,7 +99,7 @@ class RptmainTm(GamsClass):
                 config=SolFloRedConfig(arg1="PAR_FLO", arg2="M", arg3=".M"),
             )
         )
-        self.include(SolIreRpt(self.tc, self.env))
+        self.include(SolIreRpt(self.tc, self.env, config=SolIreRptConfig()))
         # * Calculation of annual cost terms
         # *-----------------------------------------------------------------------
         # * calculate discounting for the period

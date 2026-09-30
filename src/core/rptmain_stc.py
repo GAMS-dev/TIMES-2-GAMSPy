@@ -22,7 +22,7 @@ from core.rpt_obj_rpt import rpt_obj_rpt
 from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
 from core.rptmisc_rpt import rptmisc_rpt
 from core.sol_flo_red import SolFloRed, SolFloRedConfig, sol_flo_red
-from core.sol_ire_rpt import SolIreRpt, sol_ire_rpt
+from core.sol_ire_rpt import SolIreRpt, SolIreRptConfig, sol_ire_rpt
 from core.utils import apply_sw_notags
 
 if TYPE_CHECKING:
@@ -202,10 +202,12 @@ PARAMETERS SW_UNPC(LL,WW);
             SolIreRpt(
                 self.tc,
                 self.env,
-                arg1="GLOBAL",
-                arg2=",SOW",
-                arg3="SUM(SW_T(T,SOW),SW_TPROB(T,SOW)*",
-                arg4=")",
+                config=SolIreRptConfig(
+                    arg1="GLOBAL",
+                    arg2=(g.Sow,),
+                    arg3=(g.SwT[g.t, g.Sow], g.sw_tprob[g.t, g.Sow]),
+                    arg4=True,
+                ),
             )
         )
 
