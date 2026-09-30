@@ -10,6 +10,8 @@ from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
 from gamspy.math import MathOp
 from pydantic import BaseModel, ConfigDict, Field
 
+from core.utils import TpulseType
+
 
 class EnvironmentVariableSchema(BaseModel):
     """Defines strict types and documentation for TIMES compile-time environment variables."""
@@ -645,9 +647,9 @@ class EnvironmentVariableSchema(BaseModel):
     tmp: str = Field(
         description="Universal temporary string parameter utilized across structural loops."
     )
-    tmp_GP: Expression | Sum | int = Field(
+    tmp_GP: Expression | Sum | int | TpulseType = Field(
         default=1,
-        description="GAMSPy counterpart of tmp where it carries a multiplier, e.g. the levelization factor 1/OBJ_PVT of cost_ann.rpt, or a full Sum expression, e.g. the vintaged-capacity formula of equ_ext.abs.",
+        description="GAMSPy counterpart of tmp: a multiplier, e.g. the levelization factor 1/OBJ_PVT of cost_ann.rpt, a full Sum expression, e.g. the vintaged-capacity formula of equ_ext.abs, or a <(sum domain, multiplier)> pulse pair like tpulse_GP, e.g. the OBJ_LINT pulse of rpt_obj.rpt consumed by eqobjvar.rpt.",
     )
     sic: str = Field(
         default="1",

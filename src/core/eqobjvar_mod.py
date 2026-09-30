@@ -34,15 +34,9 @@ if TYPE_CHECKING:
     from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
     from gamspy.math import MathOp
 
-    from core.utils import SowGPType
+    from core.utils import SowGPType, TpulseType
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
-
-    # %TPULSE% always expands to "<sum domain>,<multiplier of the summand>"
-    PulseSum = tuple[
-        Condition | Domain | ImplicitSet,
-        Expression | ImplicitParameter | MathOp | Sum,
-    ]
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +111,7 @@ def set_tpulse(varcost: str, obj: str) -> str:
     return "PERIODYR(T,Y_EOH),OBJ_DISC(R,Y_EOH,CUR)"
 
 
-def set_tpulse_GP(g: TimesModelClass, varcost: str, obj: str) -> PulseSum:
+def set_tpulse_GP(g: TimesModelClass, varcost: str, obj: str) -> TpulseType:
     """GAMSPy counterpart of set_tpulse(): a <sum domain, multiplier> pair."""
     r, t, cur = g.r, g.t, g.cur
 

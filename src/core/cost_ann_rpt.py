@@ -134,7 +134,7 @@ class CostAnnRpt(GamsClass):
                         arg1="PAR",
                         arg2=(g.j["1"],),
                         arg3=(g.j["2"],),
-                        arg4=g.t,
+                        arg4=(g.t,),
                     ),
                 )
             )

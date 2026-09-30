@@ -18,6 +18,7 @@ from gamspy import (
 from gamspy._algebra.condition import Condition
 from gamspy._internals import MODEL_ATTRIBUTE_MAP
 from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet, ImplicitVariable
+from gamspy.math import MathOp
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -25,16 +26,24 @@ if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
+# %TPULSE% always expands to "<sum domain>,<multiplier of the summand>"
+TpulseType = tuple[
+    Condition | Domain | ImplicitSet,
+    Expression | ImplicitParameter | MathOp | Sum,
+]
+
 SET_OR_ALIAS = Set | ImplicitSet | Alias
 EquationSenseTypes = Literal["E", "N", "L", "G"]
-TargetType = Expression | Sum | Variable | ImplicitVariable | Condition
-DomainType = (
-    SET_OR_ALIAS
-    | tuple[ImplicitSet | Condition, ImplicitParameter]
+TargetType = (
+    Expression
+    | Sum
+    | Variable
+    | ImplicitVariable
+    | ImplicitParameter
+    | MathOp
     | Condition
-    | Domain
-    | None
 )
+DomainType = SET_OR_ALIAS | TpulseType | Condition | Domain | tuple[()] | None
 SowGPType = tuple[Literal["0", "1"] | Set | Alias] | tuple[()]
 
 
@@ -268,10 +277,11 @@ def generate_equation(lhs: Any, type: EquationSenseTypes, rhs: Any) -> Any:
 def wrap_in_sum[T: TargetType](target: T, domain: DomainType) -> T | Sum:
     """
     Wraps a target expression or variable in a Sum based on the provided domain/condition.
-    Returns the unmodified target if the expression is None.
+    Returns the unmodified target if the domain is None or blank ().
     """
     match domain:
-        case None:
+        # TODO: consider moving the ~44 callers passing None to the blank () and dropping None here
+        case None | ():
             return target
         case (condition, imp_param) if imp_param is not None:
             return Sum(condition, imp_param * target)

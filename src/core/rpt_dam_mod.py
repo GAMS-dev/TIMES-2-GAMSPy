@@ -71,7 +71,7 @@ def rpt_dam_mod_GP(
         var_clitot = g.get_variable(f"{vart_id}_CLITOT")
         var_clibox = g.get_variable(f"{env.var}_CLIBOX")
         clitot_term = wrap_in_sum(
-            target=var_clitot.l[g.CmVar, t, *env.sws_GP],  # type: ignore[type-var]
+            target=var_clitot.l[g.CmVar, t, *env.sws_GP],
             domain=vart_set,
         ).where[g.CmKind[g.CmVar]]
         clibox_term = var_clibox.l[g.CmVar, "ATM", t, *env.sow_GP].where[
@@ -86,11 +86,11 @@ def rpt_dam_mod_GP(
     var_comprd = g.get_variable(f"{vart_id}_COMPRD")
 
     comnet_term = wrap_in_sum(
-        target=var_comnet.l[r, t, c, s, *env.sws_GP],  # type: ignore[type-var]
+        target=var_comnet.l[r, t, c, s, *env.sws_GP],
         domain=vart_set,
     ).where[~g.dam_elast[r, c, "N"]]
     comprd_term = wrap_in_sum(
-        target=var_comprd.l[r, t, c, s, *env.sws_GP],  # type: ignore[type-var]
+        target=var_comprd.l[r, t, c, s, *env.sws_GP],
         domain=vart_set,
     ).where[g.dam_elast[r, c, "N"]]
     cst_dam[*sw1, g.Rxx[r, t, c]].where[g.Rc[r, c]] = Sum(

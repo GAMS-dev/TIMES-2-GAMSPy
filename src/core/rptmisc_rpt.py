@@ -650,23 +650,23 @@ class RptmiscRpt(GamsClass):
                 VAR_UCR.l[g.ucn, g.r, *arg3]
             )
             PAR_UCSL[*arg2, g.ucn, "NONE", g.t, "NONE"] = sparse(
-                wrap_in_sum(target=VART_UCT.l[g.ucn, g.t, *sws], domain=vart_domain)  # type: ignore[type-var]
+                wrap_in_sum(target=VART_UCT.l[g.ucn, g.t, *sws], domain=vart_domain)
             )
             PAR_UCSL[*arg2, g.ucn, g.r, g.t, "NONE"] = sparse(
                 wrap_in_sum(
                     target=VART_UCRT.l[g.ucn, g.r, g.t, *sws], domain=vart_domain
-                )  # type: ignore[type-var]
+                )
             )
             PAR_UCSL[*arg2, g.ucn, "NONE", g.t, g.s] = sparse(
                 wrap_in_sum(
                     target=VART_UCTS.l[g.ucn, g.t, g.s, *sws], domain=vart_domain
-                )  # type: ignore[type-var]
+                )
             )
             PAR_UCSL[*arg2, g.ucn, g.r, g.t, g.s] = sparse(
                 wrap_in_sum(
                     target=VART_UCRTS.l[g.ucn, g.r, g.t, g.s, *sws],
                     domain=vart_domain,
-                )  # type: ignore[type-var]
+                )
             )
             # NOTE: the raw source suffixes these %VART%-prefixed marginal references with
             # %4 (this class's own arg4), not %SWS% -- and every real GAMS caller of
