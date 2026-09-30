@@ -11,6 +11,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+import gamspy.math as gams_math
+from gamspy import Card, Ord, Sum
+
 from core.base_class import GamsClass
 
 if TYPE_CHECKING:
@@ -46,34 +49,35 @@ class EqmacroTm(GamsClass):
 
     def add_eq_util(self) -> None:
         """Utility Production Function, the Objective Function"""
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-EQ_UTIL ..
+        g = self.tc
+        r, t = g.r, g.t
 
-    SUM((R,T), TM_DFACT(R,T) * TM_PWT(T) * LOG(VAR_C(R,T)))
-
-    =E=
-
-    VAR_UTIL * MAX(1,LOG(TM_SCALE_UTIL*1000))/1000;
-""",
+        g.eq_util[...] = (
+            Sum(
+                [r, t],
+                g.tm_dfact[r, t] * g.tm_pwt[t] * gams_math.log(g.VAR_C[r, t]),
+            )
+            == g.VAR_UTIL
+            * gams_math.Max(1, gams_math.log(g.tm_scale_util * 1000))
+            / 1000
         )
 
     def add_eq_conso(self) -> None:
         """Production constraint."""
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-EQ_CONSO(R,T) ..
+        g = self.tc
+        r, t, c = g.r, g.t, g.c
 
-     VAR_C(R,T) =L=
-
-     (TM_AKL(R) * (VAR_K(R,T) ** (TM_KPVS(R)*TM_RHO(R))) * TM_L(R,T) ** ((1-TM_KPVS(R)) * TM_RHO(R)) +
-
-      SUM(DEM(R,C), TM_B(R,C) * VAR_D(R,T,C) ** TM_RHO(R))) ** (1 / TM_RHO(R)) - VAR_INV(R,T) - VAR_EC(R,T);
-""",
+        g.eq_conso[r, t] = (
+            g.VAR_C[r, t]
+            <= (
+                g.tm_akl[r]
+                * (g.VAR_K[r, t] ** (g.tm_kpvs[r] * g.tm_rho[r]))
+                * g.tm_l[r, t] ** ((1 - g.tm_kpvs[r]) * g.tm_rho[r])
+                + Sum(g.Dem[r, c], g.tm_b[r, c] * g.VAR_D[r, t, c] ** g.tm_rho[r])
+            )
+            ** (1 / g.tm_rho[r])
+            - g.VAR_INV[r, t]
+            - g.VAR_EC[r, t]
         )
 
     def add_eq_dd(self) -> None:
@@ -81,139 +85,111 @@ EQ_CONSO(R,T) ..
         A demand relation is generated for each demand sector DM and ensures that
         the end-use energy output from the demand devices which have output to DM
         is greater than or equal to the end-use demand specified by the user."""
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-EQ_DD(R,T,C)$DEM(R,C) ..
+        g = self.tc
+        r, t, c = g.r, g.t, g.c
 
-    VAR_DEM(R,T,C)
-
-    =E=
-
-    ((1/TM_SCALE_NRG) * (TM_AEEIFAC(R,T,C) * VAR_D(R,T,C) + TM_ADDER(R,T,C) + VAR_SP(R,T,C)))$(COM_PROJ(R,T,C) GT 0)
-    ;
-""",
+        g.eq_dd[r, t, c].where[g.Dem[r, c]] = (
+            g.VAR_DEM[r, t, c]
+            == (
+                (1 / g.tm_scale_nrg)
+                * (
+                    g.tm_aeeifac[r, t, c] * g.VAR_D[r, t, c]
+                    + g.tm_adder[r, t, c]
+                    + g.VAR_SP[r, t, c]
+                )
+            ).where[g.com_proj[r, t, c] > 0]
         )
 
     def add_eq_mcap(self) -> None:
         """Capital dynamics equation."""
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-EQ_MCAP(R,T+1) ..
+        g = self.tc
+        r, t = g.r, g.t
 
-    VAR_K(R,T+1)
-
-    =E=
-
-    VAR_K(R,T) * TM_TSRV(R,T) + (D(T+1)*VAR_INV(R,T+1) + TM_TSRV(R,T)*D(T)*VAR_INV(R,T))/2
-    ;
-""",
+        g.eq_mcap[r, t + 1] = (
+            g.VAR_K[r, t + 1]
+            == g.VAR_K[r, t] * g.tm_tsrv[r, t]
+            + (
+                g.d[t + 1] * g.VAR_INV[r, t + 1]
+                + g.tm_tsrv[r, t] * g.d[t] * g.VAR_INV[r, t]
+            )
+            / 2
         )
 
     def add_eq_tmc(self) -> None:
         """Terminal condition for investment in last period."""
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-EQ_TMC(R,T)$(ORD(T) = CARD(T)) ..
+        g = self.tc
+        r, t = g.r, g.t
 
-  VAR_K(R,T) * (TM_GROWV(R,T) + TM_DEPR(R))/100
-
-  =L=
-
-  VAR_INV(R,T)
-  ;
-""",
+        g.eq_tmc[r, t].where[Ord(t) == Card(t)] = (
+            g.VAR_K[r, t] * (g.tm_growv[r, t] + g.tm_depr[r]) / 100 <= g.VAR_INV[r, t]
         )
 
     def add_eq_ivecbnd(self) -> None:
         """Bound on sum of investment and energy."""
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-EQ_IVECBND(R,T)$(ORD(T) GT 1) ..
+        g = self.tc
+        r, t = g.r, g.t
 
-  VAR_INV(R,T) + VAR_EC(R,T)
-
-  =L=
-
-  TM_Y0(R) * TM_L(R,T) ** TM_IVETOL(R);
-""",
+        g.eq_ivecbnd[r, t].where[Ord(t) > 1] = (
+            g.VAR_INV[r, t] + g.VAR_EC[r, t]
+            <= g.tm_y0[r] * g.tm_l[r, t] ** g.tm_ivetol[r]
         )
 
     def exec_tm_cstinv(self) -> None:
         """Calculate annualized undiscounted investment costs."""
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Calculate annualized undiscounted investment costs
-  TM_CSTINV(R,V,P)$RTP(R,V,P)
-  =
-  SUM(OBJ_ICUR(R,V,P,CUR), COEF_OBINV(R,V,P,CUR));
-""",
+        g = self.tc
+        r, v, p, cur = g.r, g.v, g.p, g.cur
+
+        # * Calculate annualized undiscounted investment costs
+        g.tm_cstinv[r, v, p].where[g.Rtp[r, v, p]] = Sum(
+            g.ObjIcur[r, v, p, cur], g.coef_obinv[r, v, p, cur]
         )
 
     def add_eq_escost(self) -> None:
         """Energy system costs equation."""
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-EQ_ESCOST(R,T) ..
+        g = self.tc
+        r, t, p, j = g.r, g.t, g.p, g.j
 
-  TM_SCALE_CST * (
-
-  VAR_OBJCOST(R,T)
-  +
-
-* quadratic market penetration curve
-  (SUM(RTP(R,T,P)$TM_CAPTB(R,P),
-    0.5 * TM_QFAC(R) *
-    TM_CSTINV(R,T,P) * (TM_CAPTB(R,P) / TM_EXPF(R,T) * SUM(XCP(J),VAR_XCAPP(R,T,P,J)*ORD(J))))
-  )$(TM_QFAC(R) NE 0))
-
-* add initial amortization (from CSA only)
-  + TM_AMP(R,T)
-
-  =E=
-
-  VAR_EC(R,T);
-""",
+        g.eq_escost[r, t] = (
+            g.tm_scale_cst
+            * (
+                g.VAR_OBJCOST[r, t]
+                # * quadratic market penetration curve
+                + (
+                    Sum(
+                        g.Rtp[r, t, p].where[g.tm_captb[r, p]],
+                        0.5
+                        * g.tm_qfac[r]
+                        * g.tm_cstinv[r, t, p]
+                        * (
+                            g.tm_captb[r, p]
+                            / g.tm_expf[r, t]
+                            * Sum(g.Xcp[j], g.VAR_XCAPP[r, t, p, j] * Ord(j))
+                        ),
+                    )
+                ).where[g.tm_qfac[r] != 0]
+            )
+            # * add initial amortization (from CSA only)
+            + g.tm_amp[r, t]
+            == g.VAR_EC[r, t]
         )
 
     def add_eq_mpen(self) -> None:
         """Variable definition for market penetration cost penalty function"""
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-EQ_MPEN(RTP(R,TT(T+1),P))$((TM_QFAC(R) NE 0)$TM_CSTINV(R,TT,P)$TM_CAPTB(R,P)) ..
+        g = self.tc
+        r, t, tt, p = g.r, g.t, g.tt, g.p
 
-  VAR_CAP(R,TT,P)
-  =L=
-  TM_EXPF(R,T) * VAR_CAP(R,T,P) + VAR_XCAP(R,TT,P);
-""",
+        g.eq_mpen[g.Rtp[r, tt[t + 1], p]].where[
+            (g.tm_qfac[r] != 0).where[g.tm_cstinv[r, tt, p].where[g.tm_captb[r, p]]]
+        ] = (
+            g.VAR_CAP[r, tt, p]
+            <= g.tm_expf[r, t] * g.VAR_CAP[r, t, p] + g.VAR_XCAP[r, tt, p]
         )
 
     def add_eq_xcapdb(self) -> None:
         """Market Penetration Cost Penalty Function, Quadratic Approximation"""
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-EQ_XCAPDB(RTP(R,TT(T+1),P))$((TM_QFAC(R) NE 0)$TM_CSTINV(R,TT,P)$TM_CAPTB(R,P)) ..
+        g = self.tc
+        r, t, tt, p, j = g.r, g.t, g.tt, g.p, g.j
 
-  VAR_XCAP(R,TT,P)
-
-  =E=
-
-  SUM(XCP(J),VAR_XCAPP(R,TT,P,J))
-  ;
-""",
-        )
+        g.eq_xcapdb[g.Rtp[r, tt[t + 1], p]].where[
+            (g.tm_qfac[r] != 0).where[g.tm_cstinv[r, tt, p].where[g.tm_captb[r, p]]]
+        ] = g.VAR_XCAP[r, tt, p] == Sum(g.Xcp[j], g.VAR_XCAPP[r, tt, p, j])
