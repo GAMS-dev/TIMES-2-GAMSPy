@@ -22,7 +22,7 @@ from gamspy.math import Max, Min, Round, mod, power, project
 from core.base_class import GamsClass
 from core.eqashar_vda import EqasharVda, EqasharVdaConfig
 from core.eqlducs_vda import EqlducsVda
-from core.fillwave_gms import FillwaveGms
+from core.fillwave_gms import FillwaveGms, FillwaveGmsConfig
 from core.powerflo_vda import PowerfloVda
 from utils.macros import macro_config as macro
 
@@ -55,22 +55,15 @@ class CoefExtVda(GamsClass):
     def compile(self) -> None:
         self.comp1()
         if self.env.waver.upper() == "YES":
+            g = self.tc
             # fmt: off
             batincludes = [
-                ("PRC_RESID", "PRC", "0" ),
-                ("COM_PROJ", "COM", "1" ),
+                FillwaveGmsConfig(table=g.prc_resid, index_set=g.prc, extrapolate=0),
+                FillwaveGmsConfig(table=g.com_proj,  index_set=g.Com, extrapolate=1),
             ]
             # fmt: on
-            for arg in batincludes:
-                self.include(
-                    FillwaveGms(
-                        self.tc,
-                        self.env,
-                        arg1=arg[0],
-                        arg2=arg[1],
-                        arg3=arg[2],
-                    )
-                )
+            for config in batincludes:
+                self.include(FillwaveGms(self.tc, self.env, config=config))
             self.tc.enqueue(self.exec1)
 
         # RESID

@@ -994,6 +994,8 @@ class TimesModelClass:
     rtp_ffcs: Parameter = None  # type: ignore[assignment] # [R,ALLYEAR,P,CG,CG %SWD%] RTP_FFCS:
     Agej: Set = None  # type: ignore[assignment] # [j,age] AGEJ:
     vda_disc: Parameter = None  # type: ignore[assignment] # [r,allyear] VDA_DISC:
+    RegPrc: Set = None  # type: ignore[assignment] # [Reg,prc] REG_PRC:
+    RegCom: Set = None  # type: ignore[assignment] # [Reg,Com] REG_COM:
     dp_non: Parameter = None  # type: ignore[assignment] # [r,ll,p,upt,tsl,bd] DP_NON: Bounds on non-operational time between shut-down and next start-up
     obv: Set = None  # type: ignore[assignment] # [*] OBV:
     Obvann: Set = None  # type: ignore[assignment] # [obv] OBVANN: Annualized objective components
