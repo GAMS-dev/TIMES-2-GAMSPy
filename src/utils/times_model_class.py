@@ -264,7 +264,7 @@ class TimesModelClass:
     cmlpk: Set = None  # type: ignore[assignment] # [*] CM_LPK
     cmlpt: Set = None  # type: ignore[assignment] # [*] CM_LPT
     tm_xwt: Parameter = None  # type: ignore[assignment] # [R,LL] TM_XWT
-    t1: Alias = None  # type: ignore[assignment] # [*] T_1: Aliased with TB
+    t1: Alias = None  # type: ignore[assignment] # [*] T_1: Aliased with TB (MSA) or MIYR_1 (TM/MLF)
 
     Milestonyr: Set = None  # type: ignore[assignment] # [allyear] MILESTONYR: Projection years for which model to be run
     t: Alias = None  # type: ignore[assignment] # [*] T: Aliased with MILESTONYR
@@ -1763,7 +1763,6 @@ class TimesModelClass:
     Tlast: Set = None  # type: ignore[assignment] # [t] TLAST:
     Xcp: Set = None  # type: ignore[assignment] # [j] XCP: Market penetration step index used for VAR_XCAPP bounds
     tp: Alias = None  # type: ignore[assignment] # [t, tp] TP:
-    T1: Alias = None  # type: ignore[assignment] # [*] T_1: Aliased with MIYR_1
     tb: Alias = None  # type: ignore[assignment] # [*] TB: Aliased with MIYR_1
     tm_arbm: Parameter = None  # type: ignore[assignment] # TM_ARBM:
     tm_sl: Parameter = None  # type: ignore[assignment] # TM_SL: Additions to support MACRO soft-link

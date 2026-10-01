@@ -33,7 +33,7 @@ from core.rpt_ext_msa import RptExtMsa
 from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
 from core.rptmain_rpt import RptmainRpt
 from core.rptmain_stc import RptmainStc
-from core.rptmain_tm import RptmainTm
+from core.rptmain_tm import RptmainTm, RptmainTmConfig
 from core.solputta_ans import SolputtaAns
 from core.solsetv_v3 import SolsetvV3
 
@@ -114,7 +114,7 @@ class RptmainMod(GamsClass):
                         )
 
                 if self.env.macro == "YES":
-                    self.include(RptmainTm(self.tc, self.env))
+                    self.include(RptmainTm(self.tc, self.env, config=RptmainTmConfig()))
 
                 #  If running stochastics, streamline reports
                 if self.env.stages.upper() == "YES":

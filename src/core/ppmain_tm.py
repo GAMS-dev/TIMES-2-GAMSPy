@@ -89,7 +89,7 @@ class PpmainTm(GamsClass):
         )
         g.tm_c0[g.r] = g.tm_gdp0[g.r] - g.tm_iv0[g.r]
         g.tm_y0[g.r] = (
-            g.tm_gdp0[g.r] + g.tm_ec0[g.r] + Sum(g.T1[g.t], g.tm_amp[g.r, g.t])
+            g.tm_gdp0[g.r] + g.tm_ec0[g.r] + Sum(g.t1[g.t], g.tm_amp[g.r, g.t])
         )
 
         # *============================================================================*

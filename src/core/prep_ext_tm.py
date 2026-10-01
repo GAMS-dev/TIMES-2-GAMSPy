@@ -76,7 +76,7 @@ $IF NOT DEFINED TM_EC0 OPTION CLEAR=TM_EC0;
         g.Dm = Set(m, name="DM", domain=[g.c])
         g.Xcp = Set(m, name="XCP", domain=[g.j], records=["1", "6", "12"])
 
-        g.T1 = Alias(m, "T_1", alias_with=g.Miyr1)
+        g.t1 = Alias(m, "T_1", alias_with=g.Miyr1)
         g.nyper = Parameter(m, name="NYPER", domain=[g.allyear])
 
         self.tc.enqueue(self.prep_ext_tm_exec)

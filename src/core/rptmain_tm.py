@@ -16,31 +16,43 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from gamspy import Parameter
+import gamspy.math as gams_math
+from gamspy import Domain, Loop, Number, Parameter, Smax, SpecialValues, Sum, sparse
 
 from core.base_class import GamsClass
 
 # from core.rpt_chp_ire import RrpChpIre
 from core.cost_ann_rpt import CostAnnRpt, CostAnnRptConfig
-from core.ddfupd_msa import ddfupd_msa
+from core.ddfupd_msa import ddfupd_msa_GP
 from core.par_uc_rpt import ParUcRpt, ParUcRptConfig
 from core.rpt_obj_rpt import RptObjRpt
 from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
 from core.rptmisc_rpt import RptmiscRpt, RptmiscRptConfig
 from core.sol_flo_red import SolFloRed, SolFloRedConfig
 from core.sol_ire_rpt import SolIreRpt, SolIreRptConfig
-from core.utils import str_repr_for_gms
+from core.utils import expand_set, str_repr_for_gms
 from core.writeddf_msa import writeddf_msa
 
 if TYPE_CHECKING:
-    from gamspy import Alias, Set
-
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class RptmainTmConfig:
+    """Strongly typed data contract for rptmain.tm."""
+
+    # %1 - Prefix for parameter names (optional)
+    arg1: str = ""
+    # %2 - NO_EMTY (not read by rptmain.tm)
+    arg2: str = ""
+    # %3 - SOW, (optional): never passed by any caller of rptmain.tm
+    arg3: tuple[()] = ()
 
 
 class RptmainTm(GamsClass):
@@ -51,22 +63,18 @@ class RptmainTm(GamsClass):
     gams_source: str = "rptmain.tm"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: tuple[Set | Alias | str, ...] | tuple[()] = (),
+        self, tc: TimesModelClass, env: CompileEnvironment, config: RptmainTmConfig
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
+        self.config = config
         self.compile()
 
     def compile(self) -> None:
+        g = self.tc
+        m = g.container
+        cc = self.config
         # * Common reporting parameter declarations
         self.env.set_scoped("solveda", "1")
         self.include(
@@ -76,14 +84,8 @@ class RptmainTm(GamsClass):
                 config=RptliteRptConfig(),
             )
         )
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="""
-* Scenario index not supported in current version, use SOW 1
-  SET SOW / 1 /;
-""",
-        )
+        # * Scenario index not supported in current version, use SOW 1
+        expand_set(g.Sow, ["1"])
 
         # * Calculation of solution values for (due to reduction) substituted flows
         self.include(
@@ -104,20 +106,15 @@ class RptmainTm(GamsClass):
         # * Calculation of annual cost terms
         # *-----------------------------------------------------------------------
         # * calculate discounting for the period
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code="""
-  PARAMETER VDA_DISC(R,ALLYEAR) //;
-""",
-        )
+        if not g.declared(g.vda_disc):
+            g.vda_disc = Parameter(m, name="VDA_DISC", domain=[g.r, g.allyear])
         self.tc.enqueue(self.exec_calc_shadow_price)
         self.include(
             RptObjRpt(
                 self.tc,
                 self.env,
-                arg1=self.arg1,
-                arg2=str_repr_for_gms(self.arg3),
+                arg1=cc.arg1,
+                arg2=str_repr_for_gms(cc.arg3),
                 arg3="",
                 arg4="",
                 arg5="0",
@@ -128,7 +125,7 @@ class RptmainTm(GamsClass):
             CostAnnRpt(
                 self.tc,
                 self.env,
-                config=CostAnnRptConfig(arg1=self.arg1, arg2=self.arg3),
+                config=CostAnnRptConfig(arg1=cc.arg1, arg2=cc.arg3),
             )
         )
 
@@ -138,7 +135,7 @@ class RptmainTm(GamsClass):
             RptmiscRpt(
                 self.tc,
                 self.env,
-                config=RptmiscRptConfig(arg1=self.arg1, arg2=self.arg3),
+                config=RptmiscRptConfig(arg1=cc.arg1, arg2=cc.arg3),
             )
         )
         self.tc.enqueue(self.exec_miscellaneous_reportings)
@@ -183,58 +180,68 @@ class RptmainTm(GamsClass):
         self.tc.enqueue(self.exec_report_params)
 
     def exec_calc_shadow_price(self: RptmainTm) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""
-* [UR]: Calculation of shadow prices in MACRO
-  VDA_DISC(R,T) = -EQ_ESCOST.M(R,T) * TM_SCALE_CST;
-  LOOP(MIYR_1(TT(T-1)),VDA_DISC(R,TT)$(VDA_DISC(R,TT) LE 0) = COEF_PVT(R,TT)/COEF_PVT(R,T)*VDA_DISC(R,T));
-  COEF_PVT(R,T) = VDA_DISC(R,T);
-  OPTION CLEAR=VAR_OBJ;
-""",
-        )
+        g = self.tc
+
+        # * [UR]: Calculation of shadow prices in MACRO
+        g.vda_disc[g.r, g.t] = -g.eq_escost.m[g.r, g.t] * g.tm_scale_cst
+        with Loop(g.Miyr1[g.tt[g.t - 1]]):
+            g.vda_disc[g.r, g.tt].where[g.vda_disc[g.r, g.tt] <= 0] = (
+                g.coef_pvt[g.r, g.tt] / g.coef_pvt[g.r, g.t] * g.vda_disc[g.r, g.t]
+            )
+        g.coef_pvt[g.r, g.t] = g.vda_disc[g.r, g.t]
+        g.VAR_OBJ.setRecords(None)
 
     def exec_miscellaneous_reportings(self: RptmainTm) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""
-  VAR_UTIL.UP = INF;
-  OBJz.L = VAR_UTIL.L;
-*-----------------------------------------------------------------------
+        g = self.tc
 
-*-----------------------------------------------------------------------
-* Include explicit EPS values for zero flows
-*-----------------------------------------------------------------------
-  PAR_FLO(RTP_VINTYR(R,V,T,P),C,S)$(RTPCS_VARF(R,T,P,C,S)*RP_FLO(R,P)) $= EPS$(NOT PAR_FLO(R,V,T,P,C,S));
-  PAR_IRE(RTP_VINTYR(R,V,T,P),C,TS,IE)$(RTPCS_VARF(R,T,P,C,TS)$RPC_IRE(R,P,C,IE)) $= EPS$(NOT PAR_IRE(R,V,T,P,C,TS,IE));
+        g.VAR_UTIL.up[...] = SpecialValues.POSINF
+        g.OBJZ.l[...] = g.VAR_UTIL.l
+        # *-----------------------------------------------------------------------
 
-*-----------------------------------------------------------------------
-* Discounted objective values by cost type(INV, FIX, VAR etc.)
-*-----------------------------------------------------------------------
-* Discounted objective value by region
-  REG_OBJ(R) = SUM((OBVANN,T,RDCUR(R,CUR)), OBJ_PVT(R,T,CUR) * VAR_ANNCST.L(OBVANN,R,T,CUR));
-  REG_WOBJ(R,'INV',CUR) = SUM(T, OBJ_PVT(R,T,CUR) * VAR_ANNCST.L('OBJINV',R,T,CUR));
-  REG_WOBJ(R,'FIX',CUR) = SUM(T, OBJ_PVT(R,T,CUR) * VAR_ANNCST.L('OBJFIX',R,T,CUR));
-  REG_WOBJ(R,'VAR',CUR) = SUM(T, OBJ_PVT(R,T,CUR) * VAR_ANNCST.L('OBJVAR',R,T,CUR));
-
-* [UR]: undiscounting of dual variable of VAR_NCAP
-* [AL]: COEF_OBJINV includes the full effect of one unit of NCAP_ICOST on the objective:
-* PAR_NCAPM(R,T,P)$(VAR_NCAP.M(R,T,P)*SUM(RDCUR(R,CUR),COEF_OBJINV(R,T,P,CUR)))
-*    = VAR_NCAP.M(R,T,P)/SUM(RDCUR(R,CUR),COEF_OBJINV(R,T,P,CUR));
-
-""",
+        # *-----------------------------------------------------------------------
+        # * Include explicit EPS values for zero flows
+        # *-----------------------------------------------------------------------
+        g.par_flo[g.RtpVintyr[g.r, g.v, g.t, g.p], g.c, g.s].where[
+            g.RtpcsVarf[g.r, g.t, g.p, g.c, g.s] * g.RpFlo[g.r, g.p]
+        ] = sparse(
+            Number(SpecialValues.EPS).where[~g.par_flo[g.r, g.v, g.t, g.p, g.c, g.s]]
         )
+        g.par_ire[g.RtpVintyr[g.r, g.v, g.t, g.p], g.c, g.ts, g.ie].where[
+            g.RtpcsVarf[g.r, g.t, g.p, g.c, g.ts].where[g.RpcIre[g.r, g.p, g.c, g.ie]]
+        ] = sparse(
+            Number(SpecialValues.EPS).where[
+                ~g.par_ire[g.r, g.v, g.t, g.p, g.c, g.ts, g.ie]
+            ]
+        )
+
+        # *-----------------------------------------------------------------------
+        # * Discounted objective values by cost type(INV, FIX, VAR etc.)
+        # *-----------------------------------------------------------------------
+        # * Discounted objective value by region
+        g.reg_obj[g.r] = Sum(
+            [g.Obvann, g.t, g.Rdcur[g.r, g.cur]],
+            g.obj_pvt[g.r, g.t, g.cur] * g.VAR_ANNCST.l[g.Obvann, g.r, g.t, g.cur],
+        )
+        g.reg_wobj[g.r, "INV", g.cur] = Sum(
+            g.t, g.obj_pvt[g.r, g.t, g.cur] * g.VAR_ANNCST.l["OBJINV", g.r, g.t, g.cur]
+        )
+        g.reg_wobj[g.r, "FIX", g.cur] = Sum(
+            g.t, g.obj_pvt[g.r, g.t, g.cur] * g.VAR_ANNCST.l["OBJFIX", g.r, g.t, g.cur]
+        )
+        g.reg_wobj[g.r, "VAR", g.cur] = Sum(
+            g.t, g.obj_pvt[g.r, g.t, g.cur] * g.VAR_ANNCST.l["OBJVAR", g.r, g.t, g.cur]
+        )
+
+        # * [UR]: undiscounting of dual variable of VAR_NCAP
+        # * [AL]: COEF_OBJINV includes the full effect of one unit of NCAP_ICOST on the objective:
+        # * PAR_NCAPM(R,T,P)$(VAR_NCAP.M(R,T,P)*SUM(RDCUR(R,CUR),COEF_OBJINV(R,T,P,CUR)))
+        # *    = VAR_NCAP.M(R,T,P)/SUM(RDCUR(R,CUR),COEF_OBJINV(R,T,P,CUR));
 
     def exec_option(self: RptmainTm) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""
-OPTION CLEAR=F_INOUT, CLEAR=F_INOUTS, CLEAR=F_IOSET;
-""",
-        )
+        g = self.tc
+        g.f_inout.setRecords(None)
+        g.f_inouts.setRecords(None)
+        g.FIoset.setRecords(None)
 
     def comp_params(
         self: RptmainTm,
@@ -277,37 +284,65 @@ OPTION CLEAR=F_INOUT, CLEAR=F_INOUTS, CLEAR=F_IOSET;
 
     def exec_report_params(self: RptmainTm) -> None:
         g = self.tc
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-IF(CARD(TM_GR), DONE=1;
-ELSE DONE=0; TM_GR(R,T)$=TM_GROWV(R,T));
-MR(R)$=SUM(T$TM_GR(R,T),1);
-PAR_GRGDP(R,T) = TM_GR(R,T);
-PAR_GRY(R,T)   = TM_GR(R,T);
-TM_GDPGOAL(R,T_1) = TM_GDP0(R);
 
-LOOP(TT(T+1),TM_GDPGOAL(R,TT) = TM_GDPGOAL(R,T)*(1+TM_GR(R,T)/100)**NYPER(T));
-PAR_Y(R,T(T_1))  = TM_Y0(R);   PAR_Y(R,T(TT+1)) = VAR_C.L(R,T) + VAR_INV.L(R,T) + VAR_EC.L(R,T);
-TM_GDP(R,T(T_1)) = TM_GDP0(R); TM_GDP(R,T(TT+1)) = PAR_Y(R,T) - VAR_EC.L(R,T);
+        if g.tm_gr.number_records:
+            g.done[...] = 1
+        else:
+            g.done[...] = 0
+            g.tm_gr[g.r, g.t] = sparse(g.tm_growv[g.r, g.t])
+        g.Mr[g.r] = sparse(Sum(g.t.where[g.tm_gr[g.r, g.t]], 1))
+        g.par_grgdp[g.r, g.t] = g.tm_gr[g.r, g.t]
+        g.par_gry[g.r, g.t] = g.tm_gr[g.r, g.t]
+        g.tm_gdpgoal[g.r, g.t1] = g.tm_gdp0[g.r]
 
-PAR_GRY(R,TT(T-1))   = 100*((PAR_Y(R,T)/PAR_Y(R,TT))**(1/NYPER(TT))-1);
-PAR_GRGDP(R,TT(T-1)) = 100*((TM_GDP(R,T)/TM_GDP(R,TT))**(1/NYPER(TT))-1);
+        with Loop(g.tt[g.t + 1]):
+            g.tm_gdpgoal[g.r, g.tt] = g.tm_gdpgoal[g.r, g.t] * (
+                (1 + g.tm_gr[g.r, g.t] / 100) ** g.nyper[g.t]
+            )
+        g.par_y[g.r, g.t[g.t1]] = g.tm_y0[g.r]
+        g.par_y[g.r, g.t[g.tt + 1]] = (
+            g.VAR_C.l[g.r, g.t] + g.VAR_INV.l[g.r, g.t] + g.VAR_EC.l[g.r, g.t]
+        )
+        g.tm_gdp[g.r, g.t[g.t1]] = g.tm_gdp0[g.r]
+        g.tm_gdp[g.r, g.t[g.tt + 1]] = g.par_y[g.r, g.t] - g.VAR_EC.l[g.r, g.t]
 
-TM_EC0(R) = SUM(T_1, VAR_OBJCOST.L(R,T_1)*TM_SCALE_CST);
-PAR_MC(R,T_1,C) $= TM_DDATPREF(R,C);
-PAR_MC(R,T(TT+1),C)$DEM(R,C) = - VAR_SP.M(R,T,C) / EQ_ESCOST.M(R,T) * (TM_SCALE_NRG/TM_SCALE_CST);
+        g.par_gry[g.r, g.tt[g.t - 1]] = 100 * (
+            (g.par_y[g.r, g.t] / g.par_y[g.r, g.tt]) ** (1 / g.nyper[g.tt]) - 1
+        )
+        g.par_grgdp[g.r, g.tt[g.t - 1]] = 100 * (
+            (g.tm_gdp[g.r, g.t] / g.tm_gdp[g.r, g.tt]) ** (1 / g.nyper[g.tt]) - 1
+        )
 
-* Eliminate zero or non-smooth marginals in first period
-LOOP(T_1(T(TT-1)),PAR_MC(R,T,C)$((PAR_MC(R,T,C)<PAR_MC(R,TT,C)*.7)$DEM(R,C)) = PAR_MC(R,TT,C)*.7);
-TM_DEM(R,T,C)$((PAR_MC(R,T,C)>0)$(COM_PROJ(R,T,C)>0)$DEM(R,C)) = COM_PROJ(R,T,C);
+        g.tm_ec0[g.r] = Sum(g.t1, g.VAR_OBJCOST.l[g.r, g.t1] * g.tm_scale_cst)
+        g.par_mc[g.r, g.t1, g.c] = sparse(g.tm_ddatpref[g.r, g.c])
+        g.par_mc[g.r, g.t[g.tt + 1], g.c].where[g.Dem[g.r, g.c]] = (
+            -g.VAR_SP.m[g.r, g.t, g.c]
+            / g.eq_escost.m[g.r, g.t]
+            * (g.tm_scale_nrg / g.tm_scale_cst)
+        )
 
-TM_ERR('DEM') = SMAX((R,T,C)$TM_DEM(R,T,C),ABS(TM_DEM(R,T,C)-VAR_DEM.L(R,T,C))/TM_DEM(R,T,C));
-TM_ERR('GDP') = SMAX((REG,T),ABS(TM_GDPGOAL(REG,T)-TM_GDP(REG,T))/TM_GDPGOAL(REG,T));
+        # * Eliminate zero or non-smooth marginals in first period
+        with Loop(g.t1[g.t[g.tt - 1]]):
+            g.par_mc[g.r, g.t, g.c].where[
+                (g.par_mc[g.r, g.t, g.c] < g.par_mc[g.r, g.tt, g.c] * 0.7).where[
+                    g.Dem[g.r, g.c]
+                ]
+            ] = g.par_mc[g.r, g.tt, g.c] * 0.7
+        g.tm_dem[g.r, g.t, g.c].where[
+            (g.par_mc[g.r, g.t, g.c] > 0).where[
+                (g.com_proj[g.r, g.t, g.c] > 0).where[g.Dem[g.r, g.c]]
+            ]
+        ] = g.com_proj[g.r, g.t, g.c]
 
-
-""",
+        g.tm_err["DEM"] = Smax(
+            Domain(g.r, g.t, g.c).where[g.tm_dem[g.r, g.t, g.c]],
+            gams_math.abs(g.tm_dem[g.r, g.t, g.c] - g.VAR_DEM.l[g.r, g.t, g.c])
+            / g.tm_dem[g.r, g.t, g.c],
+        )
+        g.tm_err["GDP"] = Smax(
+            [g.Reg, g.t],
+            gams_math.abs(g.tm_gdpgoal[g.Reg, g.t] - g.tm_gdp[g.Reg, g.t])
+            / g.tm_gdpgoal[g.Reg, g.t],
         )
 
         # * Reporting parameters
@@ -324,11 +359,9 @@ TM_ERR('GDP') = SMAX((REG,T),ABS(TM_GDPGOAL(REG,T)-TM_GDP(REG,T))/TM_GDPGOAL(REG
             / g.tm_gdpgoal[g.Mr, g.t]
         )
 
+        ddfupd_msa_GP(g)
         self.tc.add_gams_code(
             module=self,
             phase="run",
-            code=rf"""
-{ddfupd_msa()}
-{writeddf_msa(arg1="DDFNEW", arg2="TM_GR")}
-""",
+            code=writeddf_msa(arg1="DDFNEW", arg2="TM_GR"),
         )

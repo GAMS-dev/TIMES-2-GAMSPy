@@ -70,7 +70,7 @@ from core.readbprice_mod import ReadbpriceMod
 from core.rptmain_mod import RptmainMod
 from core.rptmain_rpt import RptmainRpt
 from core.rptmain_stc import RptmainStc
-from core.rptmain_tm import RptmainTm
+from core.rptmain_tm import RptmainTm, RptmainTmConfig
 from core.setglobs_gms import SetglobsGms
 from core.solve_mod import SolveMod
 from core.solve_msa import SolveMsa
@@ -530,8 +530,7 @@ MODEL {model_name} / {", ".join([equation.name for equation in equations])} /;
                 RptmainTm(
                     tc=self.tc,
                     env=self.env,
-                    arg1=self.arg1,
-                    arg2="NO_EMTY",
+                    config=RptmainTmConfig(arg1=self.arg1, arg2="NO_EMTY"),
                 )
             )
         else:
