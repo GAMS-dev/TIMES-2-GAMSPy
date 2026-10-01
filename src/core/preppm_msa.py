@@ -29,7 +29,7 @@ from gamspy.math import Max, Min, Round, abs, aggregate, diag, power
 
 from core.base_class import GamsClass
 from core.filparam_gms import FilparamGms, FilparamGmsConfig
-from core.forcupd_cli import forcupd_cli
+from core.forcupd_cli import forcupd_cli, forcupd_cli_GP
 
 # from core.MSADDF_dd import MSADDF
 from core.rpt_dam_mod import rpt_dam_mod, rpt_dam_mod_GP
@@ -243,8 +243,7 @@ def preppm_msa_label_tonlp_GP(
     if env.cli.upper() != "YES":
         return
 
-    # TODO this needs to be translated before it can be included from inside a loop!
-    g.add_gams_code(module=module, phase="run", code=forcupd_cli())
+    forcupd_cli_GP(g=g)
 
     if not is_tm_catt_defined:
         return

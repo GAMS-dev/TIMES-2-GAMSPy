@@ -8,9 +8,69 @@ from __future__ import annotations
 
 import logging
 
-from core.coef_ext_cli import coef_ext_cli_slope
+from gamspy import Loop, Sum
+from gamspy.math import Max, log, sqrt
+
+from core.coef_ext_cli import coef_ext_cli_slope, coef_ext_cli_slope_GP
+from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+def forcupd_cli_GP(g: TimesModelClass) -> None:
+    ch4_pre = 700
+    n2o_pre = 270
+    fofo = (
+        0.47
+        * log(
+            1.0
+            + 2.01e-05 * ((g.f * g.z) ** 0.75)
+            + 5.31e-15 * g.f * ((g.f * g.z) ** 1.52)
+        )
+        - g.my_sum
+    )
+
+    with Loop(g.CmAtmap[g.CmEmis, g.CmHists]):
+        g.cm_result[g.CmHists, g.ll].where[g.cm_led[g.ll]] = (
+            Sum(
+                g.CmBoxmap[g.CmEmis, g.CmVar, g.CmBox].where[
+                    g.cm_phi[g.CmEmis, g.CmBox, g.CmEmis]
+                ],
+                g.VAR_CLIBOX.l[g.CmVar, g.CmBox, g.ll],
+            )
+            / g.cm_ppm[g.CmEmis]
+        )
+    g.f[...] = ch4_pre
+    g.z[...] = n2o_pre
+    g.my_sum[...] = 0.0
+    g.my_sum[...] = fofo
+    with Loop(g.ll.where[g.cm_led[g.ll]]):
+        # *...methane
+        g.f[...] = Max(1.0, g.cm_result["CH4-PPB", g.ll] - 0.5)
+        g.z[...] = n2o_pre
+        g.first_val[...] = 0.036 * (sqrt(g.f) - sqrt(ch4_pre)) - fofo
+        g.f[...] = g.f + 1.0
+        g.last_val[...] = 0.036 * (sqrt(g.f) - sqrt(ch4_pre)) - fofo
+        g.z[...] = g.last_val - g.first_val
+        g.last_val[...] = (g.first_val + g.last_val) / 2.0
+        g.cm_linfor[g.ll, "CH4-PPB", "N"] = g.z
+        g.cm_linfor[g.ll, "CH4-PPB", "FX"] = g.last_val - g.z * (g.f - 0.5)
+        # *...nitrous
+        g.f[...] = ch4_pre
+        g.z[...] = Max(1.0, g.cm_result["N2O-PPB", g.ll] - 0.5)
+        g.first_val[...] = 0.12 * (sqrt(g.z) - sqrt(n2o_pre)) - fofo
+        g.z[...] = g.z + 1.0
+        g.last_val[...] = 0.12 * (sqrt(g.z) - sqrt(n2o_pre)) - fofo
+        g.f[...] = g.last_val - g.first_val
+        g.last_val[...] = (g.first_val + g.last_val) / 2.0
+        g.cm_linfor[g.ll, "N2O-PPB", "N"] = g.f
+        g.cm_linfor[g.ll, "N2O-PPB", "FX"] = g.last_val - g.f * (g.z - 0.5)
+    # * carbon
+    g.cm_linfor[g.ll, "CO2-PPM", g.Bdneq].where[g.cm_led[g.ll]] = g.cm_result[
+        "CO2-PPM", g.ll
+    ]
+
+    coef_ext_cli_slope_GP(g=g)
 
 
 def forcupd_cli() -> str:
