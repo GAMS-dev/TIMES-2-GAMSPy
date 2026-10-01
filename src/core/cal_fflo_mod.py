@@ -70,7 +70,7 @@ def cal_fflo_mod_GP(
         if cc.is_rtp_ffcs_defined:
             shp1_inner = 1 + g.rtp_ffcs[r, v, *shg, *cc.sow]
 
-        shp1_val = 1 + g.rtp_ffcx[r, v, t, *shg].where[g.PrcVint[r, p]] * shp1_inner
+        shp1_val = (1 + g.rtp_ffcx[r, v, t, *shg].where[g.PrcVint[r, p]]) * shp1_inner
 
         VAR_FLO: Variable = g.get_variable(f"{cc.var}_FLO")
 

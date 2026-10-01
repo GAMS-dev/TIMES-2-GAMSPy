@@ -16,12 +16,17 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from gamspy import Domain, Number, Sum
+
 from core.base_class import GamsClass
-from core.cal_nored_red import cal_nored_red
-from core.cal_red_red import cal_red_red
+from core.cal_red_red import CalRedRedConfig
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
+    from gamspy._algebra.condition import Condition
+    from gamspy._algebra.expression import Expression
+    from gamspy._symbols.implicits import ImplicitSet
+
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -35,104 +40,110 @@ class EqptransMod(GamsClass):
     module_name: str = "eqptrans_mod"
     gams_source: str = "eqptrans.mod"
 
-    def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-    ):
+    def __init__(self, tc: TimesModelClass, env: CompileEnvironment):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
         self.compile()
 
     def compile(self) -> None:
-        self.env.set_scoped("shg", ",P,COM_GRP,CG")
-        base_shp1 = f"(1+RTP_FFCX(R,V,T{self.env.shg})$PRC_VINT(R,P))"
-        if self.tc.defined("RTP_FFCS"):
+        g = self.tc
+        r, v, t, p, c, s, ts = g.r, g.v, g.t, g.p, g.c, g.s, g.ts
+        Com, comgrp, cg = g.Com, g.comgrp, g.cg
+        RsTree, RtpcsVarf, coef_ptran, rs_fr = (
+            g.RsTree,
+            g.RtpcsVarf,
+            g.coef_ptran,
+            g.rs_fr,
+        )
+
+        cal_red = self.env.cal_red
+        r_v_t = self.env.r_v_t_GP
+        swt = self.env.swt_GP
+        sow = self.env.sow_GP
+        def_rtp_ffcs = self.tc.defined("RTP_FFCS")
+
+        self.env.set_scoped("shg", (p, comgrp, cg))
+        base_shp1 = 1 + g.rtp_ffcx[r, v, t, *self.env.shg].where[g.PrcVint[r, p]]
+
+        if def_rtp_ffcs:
             self.env.set_scoped(
                 "shp1",
-                f"{base_shp1}*(1+RTP_FFCS(R,V{self.env.shg}{self.env.sow}))",
+                base_shp1 * (1 + g.rtp_ffcs[r, v, *self.env.shg, *sow]),
             )
         else:
             self.env.set_scoped("shp1", base_shp1)
 
-        self.comp1(
-            cal_red=self.env.cal_red,
-            eq=self.env.eq,
-            r_v_t=self.env.r_v_t,
-            swt=self.env.swt,
-            shp1=self.env.shp1,
-            var=self.env.var,
-            sow=self.env.sow,
-            pgprim=self.env.pgprim,
-            def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
-        )
+        shp1 = self.env.shp1
 
-    def comp1(
-        self: EqptransMod,
-        cal_red: str,
-        eq: str,
-        r_v_t: str,
-        swt: str,
-        shp1: str,
-        var: str,
-        sow: str,
-        pgprim: str,
-        def_rtp_ffcs: bool,
-    ) -> None:
-        include_cal_red = ""
         # only set in pp_reduce.red
         if cal_red == "cal_red.red":
-            include_cal_red = cal_red_red(
-                arg1="C",
-                arg2="COM",
-                arg3="TS",
-                arg4="P",
-                arg5="T",
-                var=var,
-                sow=sow,
-                pgprim=pgprim,
-                def_rtp_ffcs=def_rtp_ffcs,
-            )
+            from core.cal_red_red import cal_red_red_GP as cal_red_func_GP
         elif cal_red == "cal_nored.red":
-            include_cal_red = cal_nored_red(
-                arg1="C",
-                arg2="COM",
-                arg3="TS",
-                arg4="P",
-                arg5="T",
-                var=var,
-                sow=sow,
-                pgprim=pgprim,
-                def_rtp_ffcs=def_rtp_ffcs,
-            )
+            from core.cal_nored_red import cal_nored_red_GP as cal_red_func_GP
         else:
             raise ValueError(f"Unexpected value for cal_red: {cal_red}")
-        rts = macro.rts(s="S", g=self.tc, env=self.env)
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-    {eq}_PTRANS(RTP_VINTYR({r_v_t},P),COM_GRP,CG,{rts}{swt})$((RPS_S1(R,P,S) * RP_STD(R,P) *
-* All valid tuples are in RPCC_FFUNC (REDUCE taken into account); all STG excluded
-                SUM((RPC(R,P,C),RS_TREE(R,S,TS))$COEF_PTRAN(R,V,P,COM_GRP,C,CG,TS),1))$RPCC_FFUNC(R,P,COM_GRP,CG))..
 
-* dependent commodities - consider that the commodity may have a COM_TS shape
-       SUM((COM_GMAP(R,CG,C),RS_TREE(R,S,TS))$RTPCS_VARF(R,T,P,C,TS),
-           RS_FR(R,S,TS)*(1+{macro.rtcs_fr.rtcs_fr("R", "T", "C", "S", "TS")}) *
-* [UR] model reduction REDUCE is set in *.run
-{include_cal_red}
-          )
+        # $BATINCLUDE %cal_red% C COM TS P T
+        include_cal_red: Condition | Expression | ImplicitSet | Sum = cal_red_func_GP(
+            g=g,
+            config=CalRedRedConfig(
+                arg1=c,
+                arg2=Com,
+                arg3=ts,
+                arg4=p,
+                arg5=t,
+                arg10=Number(1),
+                pgprim=self.env.pgprim,
+                def_rtp_ffcs=def_rtp_ffcs,
+                sow=sow,
+                var=self.env.var,
+            ),
+        )
+        rts = macro.rts_GP(s=s, g=self.tc, env=self.env)
+        eq_ptrans = g.get_equation(f"{self.env.eq}_PTRANS")
 
-    =E=
-
-* control commodities
-       SUM((RTPCS_VARF(R,T,P,C,TS),RS_TREE(R,S,TS))$COEF_PTRAN(R,V,P,COM_GRP,C,CG,TS),
-           COEF_PTRAN(R,V,P,COM_GRP,C,CG,TS) *
-           RS_FR(R,S,TS)*(1+{macro.rtcs_fr.rtcs_fr("R", "T", "C", "S", "TS")}) *
-* [UR] model reduction REDUCE is set in *.run
-{include_cal_red}
-          ) * {shp1} * (1+(ACT_FLO(R,V,P,CG,S)-1$ACT_FLO(R,V,P,CG,S))$PRC_CG(R,P,COM_GRP))
-    ;
-""",
+        eq_ptrans[g.RtpVintyr[*r_v_t, p], comgrp, cg, rts, *swt].where[
+            (
+                g.RpsS1[r, p, s]
+                * g.RpStd[r, p]
+                # * All valid tuples are in RPCC_FFUNC (REDUCE taken into account); all STG excluded
+                * Sum(
+                    Domain(g.Rpc[r, p, c], RsTree[r, s, ts]).where[
+                        coef_ptran[r, v, p, comgrp, c, cg, ts]
+                    ],
+                    1,
+                )
+            ).where[g.RpccFfunc[r, p, comgrp, cg]]
+        ] = (
+            # * dependent commodities - consider that the commodity may have a COM_TS shape
+            Sum(
+                Domain(g.ComGmap[r, cg, c], RsTree[r, s, ts]).where[
+                    RtpcsVarf[r, t, p, c, ts]
+                ],
+                rs_fr[r, s, ts]
+                * (1 + macro.rtcs_fr.rtcs_fr_GP(r, t, c, s, ts, sow))
+                # * [UR] model reduction %REDUCE% is set in *.run
+                * include_cal_red,
+            )
+            ==
+            # * control commodities
+            Sum(
+                Domain(RtpcsVarf[r, t, p, c, ts], RsTree[r, s, ts]).where[
+                    coef_ptran[r, v, p, comgrp, c, cg, ts]
+                ],
+                coef_ptran[r, v, p, comgrp, c, cg, ts]
+                * rs_fr[r, s, ts]
+                * (1 + macro.rtcs_fr.rtcs_fr_GP(r, t, c, s, ts, sow))
+                # * [UR] model reduction %REDUCE% is set in *.run
+                * include_cal_red,
+            )
+            * shp1
+            * (
+                1
+                + (
+                    g.act_flo[r, v, p, cg, s]
+                    - Number(1).where[g.act_flo[r, v, p, cg, s]]
+                ).where[g.PrcCg[r, p, comgrp]]
+            )
         )
