@@ -22,7 +22,7 @@ from core.base_class import GamsClass
 from core.equcrtp_vda import EqucrtpVda, EqucrtpVdaConfig
 from core.fillparm_gms import FillparmGms, FillparmGmsConfig
 from core.fillvint_gms import FillvintGms, FillvintGmsConfig
-from core.powerflo_vda import PowerfloVda
+from core.powerflo_vda import PowerfloVda, PowerfloVdaConfig
 from core.resloadc_vda import ResloadcVda
 
 if TYPE_CHECKING:
@@ -84,7 +84,9 @@ class PrepExtVda(GamsClass):
             self.include(FillparmGms(self.tc, self.env, config))
 
         if self.env.powerflo.upper() == "YES":
-            self.include(PowerfloVda(self.tc, self.env, arg1="PREP"))
+            self.include(
+                PowerfloVda(self.tc, self.env, config=PowerfloVdaConfig(arg1="PREP"))
+            )
         if self.tc.defined("GR_VARGEN"):
             self.include(ResloadcVda(self.tc, self.env))
 

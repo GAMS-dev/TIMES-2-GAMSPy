@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 from core.base_class import GamsClass
 from core.dynslite_vda import DynsliteVda
-from core.powerflo_vda import PowerfloVda
+from core.powerflo_vda import PowerfloVda, PowerfloVdaConfig
 from core.pp_lvlfc_mod import PpLvlfcMod, PpLvlfcModConfig
 from core.pp_qaput_mod import pp_qaput
 
@@ -93,7 +93,7 @@ class PpPrelvVda(GamsClass):
 
         self.tc.enqueue(self.preprocessing_for_veda_interface_after_include)
         if self.env.powerflo.upper() == "YES":
-            self.include(PowerfloVda(self.tc, self.env))
+            self.include(PowerfloVda(self.tc, self.env, config=PowerfloVdaConfig()))
         self.tc.enqueue(self.set_com_var_def_bounds)
         if self.env.rts() != "S":
             self.include(DynsliteVda(self.tc, self.env, arg1="PRELEV"))

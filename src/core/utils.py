@@ -325,3 +325,9 @@ def extract_var_domain(var: str | tuple[str, Any]) -> tuple[str, ImplicitSet | N
         var_id = var
         var_set = None
     return var_id, var_set
+
+
+def str_repr_for_gms(arg2: tuple[Set | Alias | str, ...] | tuple[()]) -> str:
+    """GAMS text of the %2 index prefix, e.g. ('1',) -> "'1'," and (SOW,) -> "SOW,".
+    NOTE: Use of this should be removed eventually."""
+    return "".join(f"'{a}'," if isinstance(a, str) else f"{a.name}," for a in arg2)

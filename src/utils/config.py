@@ -352,9 +352,6 @@ class EnvironmentVariableSchema(BaseModel):
     sow_GP: tuple[Literal["0", "1"] | Set | Alias] | tuple[()] = Field(
         description="Stochastic World (Scenario State) active indexing identifier token."
     )
-    sowpre: Literal["", ",SOW", ",WW", ",WW)", ",0", ",'0'", "1", "SOW.TL"] = Field(
-        description="Copy of SOW taken before SOW is reset for EQ_OBJBAL (powerflo.vda)."
-    )
     sowtmp: str = Field(
         description="Temporary scenario tracking storage token utilized in nested loop blocks."
     )

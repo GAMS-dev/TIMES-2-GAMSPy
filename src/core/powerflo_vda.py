@@ -10,28 +10,79 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
-from gamspy import Equation, Number, Parameter, Set, Sum, Variable
+from gamspy import (
+    Card,
+    Domain,
+    ElseIf,
+    Equation,
+    If,
+    Loop,
+    Number,
+    Ord,
+    Parameter,
+    Product,
+    Set,
+    Smax,
+    SpecialValues,
+    Sum,
+    Variable,
+    sparse,
+)
+from gamspy.math import Max, Min, Round, abs, aggregate, power, project, same_as, sign
 
 from core.base_class import GamsClass
-from core.cal_red_red import cal_red_red
+from core.cal_red_red import CalRedRedConfig
 from core.fillparm_gms import FillparmGms, FillparmGmsConfig
 from core.filparam_gms import FilparamGms, FilparamGmsConfig
 from core.gasgrids_vda import GasgridsVda
 from core.pp_lvlfc_mod import PpLvlfcMod, PpLvlfcModConfig
-from core.utils import expand_set
+from core.utils import SowGPType, expand_set, extract_var_domain, wrap_in_sum
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from gamspy import Alias
+    from gamspy._algebra.condition import Condition
     from gamspy._algebra.expression import Expression
-    from gamspy._symbols.implicits import ImplicitSet
+    from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
 
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PowerfloVdaConfig:
+    """Strongly typed data contract for powerflo.vda."""
+
+    # %1 - GOTO label selecting which section of powerflo.vda to emit;
+    #      "" runs the top-level declarations + init flow
+    arg1: Literal[
+        "",
+        "PREP",
+        "DECL",
+        "POWFLO",
+        "OBJBAL",
+        "RPTB",
+        "CSTBAL",
+        "IREAUXIN-",
+        "IREAUXOUT",
+    ] = ""
+    # %2 - second token of the GOTO label (always blank at every call site)
+    arg2: str = ""
+    # %3 - third token of the GOTO label; also becomes MX when %1 is blank
+    arg3: str = ""
+    # %4 - RPTB only: prefix for REG_WOBJ/CST_COMC parameter names
+    arg4: str = ""
+    # %5 - RPTB only: index prefix ahead of R/RTC, e.g. cost_ann.rpt's cc.arg2
+    arg5: tuple[Set | Alias | str, ...] | tuple[()] = ()
+    # %6 - RPTB only: SOW suffix
+    arg6: SowGPType = ()
 
 
 class PowerfloVda(GamsClass):
@@ -45,39 +96,32 @@ class PowerfloVda(GamsClass):
         self,
         tc: TimesModelClass,
         env: CompileEnvironment,
-        arg1: str = "",
-        arg2: str = "",
-        arg3: str = "",
-        arg4: str = "",
-        arg5: str = "",
-        arg6: str = "",
+        config: PowerfloVdaConfig,
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.arg1 = arg1
-        self.arg2 = arg2
-        self.arg3 = arg3
-        self.arg4 = arg4
-        self.arg5 = arg5
-        self.arg6 = arg6
+        self.config = config
         self.compile()
 
     def compile(self) -> None:
         g = self.tc
 
-        self.env.set_scoped("mx", f"{self.arg3}")
-        if self.arg3 == "":
+        self.env.set_scoped("mx", f"{self.config.arg3}")
+        if self.config.arg3 == "":
             self.env.set_scoped("mx_GP", ())
         else:
             raise ValueError("Double check MX variable. Not implemented")
-        self.env.set_scoped("pdtol", "1E-5")
-        self.env.set_scoped("bigm", "10")
+        pdtol = 1e-5
+        bigm = 10
 
-        if self.arg1 == "":
+        if self.config.arg1 == "":
             # this ends with a $EXIT so we flip the if to keep the layout
             self.declaration1()
             self.tc.enqueue(self.exec1)
+            # RC_GRID is only assigned inside exec1; GAMS' $IF NOT DEFINED RC_GRID
+            # (CSTBAL) sees the assignment at parse time
+            self.tc.register_assignment(g.RcGrid)
             # * levelization
             self.include(
                 PpLvlfcMod(
@@ -96,49 +140,39 @@ class PowerfloVda(GamsClass):
                 )
             )
             self.tc.enqueue(self.exec2)
-            self.env.set_scoped("tmp", "0")
+            tmp: (
+                Number
+                | ImplicitParameter
+                | ImplicitSet
+                | tuple[Number, Callable[[], None]]
+            ) = Number(0)
             if f"{self.env.dsc}{self.env.solmip}".upper() == "YESYES":
-                self.env.set_scoped("tmp", "NCAP_DISC(r,v,p,u)")
-            self.tc.add_gams_code(
-                module=self,
-                phase="init",
-                code=rf"""
-$ MACRO GR_DUNIT(r,v,p,u) {self.env.tmp}
-""",
-            )
-            if self.env.tmp != "0":
-                self.env.set_scoped("tmp", "PRC_DSCNCAP(r,p)")
+                tmp = g.ncap_disc[g.r, g.v, g.p, g.u]
+            macro.gr_dunit_active = True
+            if not (isinstance(tmp, Number) and tmp._value == 0):
+                tmp = g.PrcDscncap[g.r, g.p]
+            macro.gr_dncap_active = True
+            if not (isinstance(tmp, Number) and tmp._value == 0):
+                # $SET TMP 1;%TMP%$PRC_YMAX(R,P) = NO;
+                def clear_prc_dscncap() -> None:
+                    g.PrcDscncap[g.r, g.p].where[g.prc_ymax[g.r, g.p]] = False
 
-            self.tc.add_gams_code(
-                module=self,
-                phase="init",
-                code=rf"""
-$ MACRO GR_DNCAP(r,p) {self.env.tmp}
-""",
-            )
-
-            if self.env.tmp != "0":
-                self.env.set_scoped("tmp", "1")
-                self.tc.enqueue(self.exec3, tmp=self.env.tmp)
+                tmp = (Number(1), clear_prc_dscncap)
 
             self.tc.enqueue(
                 self.complete_ptfd_processing,
-                pdtol=self.env.pdtol,
-                tmp=self.env.tmp,
+                pdtol=pdtol,
+                tmp=tmp,
             )
 
             self.include(GasgridsVda(self.tc, self.env))
 
         else:  # $GOTO %1%2%3
-            label = f"{self.arg1}{self.arg2}{self.arg3}"
+            label = f"{self.config.arg1}{self.config.arg2}{self.config.arg3}"
             if label == "PREP":
                 # ends with $EXIT
                 if not self.tc.defined("PRC_REACT"):
-                    self.tc.add_gams_code(
-                        module=self,
-                        phase="init",
-                        code=r"""$CLEAR PRC_REACT""",
-                    )
+                    g.prc_react.setRecords(None)
                 # fmt: off
                 batincludes: list[FillparmGmsConfig] = [
                     FillparmGmsConfig(g.prc_react, (g.r, ), (g.p,),                   ("0",) * 5, g.t, Number(1), Number(0)),
@@ -185,35 +219,32 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
                 # ends with $EXIT
                 self.declaration2(
                     var=self.env.var,
-                    swd=self.env.swd,
+                    swd=self.env.swd_GP,
                     eq=self.env.eq,
-                    swtd=self.env.swtd,
+                    swtd=self.env.swtd_GP,
                 )
                 self.env.set_global("ireauxbal", "$BATINCLUDE powerflo.vda IREAUX")
                 self.tc.enqueue(
                     self.exec4,
                     var=self.env.var,
-                    sow=self.env.sow,
+                    sow_GP=self.env.sow_GP,
                 )
                 if self.tc.defined("VAR_GRVIRT"):
+                    # TODO: Technically, VAR_GRVIRT can never be in the container. This is a redundant check
                     return
 
-                self.env.set_scoped("tmp", "0")
-                if f"{self.env.dsc}{self.env.solmip}".upper() == "YESYES":
-                    self.env.set_scoped(
-                        "tmp",
-                        f"SUM((VNT(TT(V),T),UNIT)$((NCAP_DISC(r,v,p,unit)>0)$RTP(r,v,p)),{self.env.varv}_DNCAP(r,v,p{self.env.sws},unit)*(1-MAX((1-COEF_CPT(r,v,t,p))/{self.env.bigm},(1-COEF_CPT(r,v,t,p))**4)))",
-                    )
-                self.comp1(
-                    tmp=self.env.tmp,
-                    var=self.env.var,
-                    sow=self.env.sow,
-                    pgprim=self.env.pgprim,
+                macro.var_ptdncap.activate(
+                    dsc_mip=f"{self.env.dsc}{self.env.solmip}".upper() == "YESYES",
+                    varv_GP=self.env.varv_GP,
+                    sws_GP=self.env.sws_GP,
+                    bigm=bigm,
                 )
+                macro.var_grvirt_active = True
+
                 self.tc.enqueue(
                     self.exec5,
                     var=self.env.var,
-                    sow=self.env.sow,
+                    sow_GP=self.env.sow_GP,
                 )
 
                 self.include(GasgridsVda(self.tc, self.env, "DECL"))
@@ -222,15 +253,16 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
                 # ends with $EXIT
                 self.dc_power_flow_eqs(
                     eq=self.env.eq,
-                    r_t=self.env.r_t,
-                    swt=self.env.swt,
+                    r_t=self.env.r_t_GP,
+                    swt=self.env.swt_GP,
                     var=self.env.var,
-                    sow=self.env.sow,
-                    bigm=self.env.bigm,
-                    varv=self.env.varv,
-                    sws=self.env.sws,
+                    sow=self.env.sow_GP,
+                    bigm=bigm,
+                    varv=self.env.varv_GP,
+                    sws=self.env.sws_GP,
                     pgprim=self.env.pgprim,
                     def_rtp_ffcs=self.tc.defined("RTP_FFCS"),
+                    cal_red=self.env.cal_red,
                 )
                 self.include(GasgridsVda(self.tc, self.env, arg1="MODEL"))
 
@@ -240,7 +272,7 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
             elif label == "CSTBAL":
                 # ends with $EXIT
                 self.comp2()
-                if self.tc.defined("RC_GRID"):
+                if not self.tc.defined("RC_GRID"):
                     self.tc.enqueue(self.exec6)
                 # * levelization
                 self.include(
@@ -261,26 +293,32 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
                     )
                 )
 
+                # OBJ_COMBAL is only assigned inside exec7; GAMS' $IF DEFINED OBJ_COMBAL
+                # (cost_ann.rpt RPTB) sees the assignment at parse time
                 self.tc.register_assignment(g.obj_combal)
                 self.tc.enqueue(self.exec7)
 
             elif label == "OBJBAL":
                 # ends with $EXIT
                 self.env.set_scoped(
-                    "tpulse", "TT$OBJ_LINT(R,T,TT,CUR),OBJ_LINT(R,T,TT,CUR)"
+                    "tpulse_GP",
+                    (
+                        g.tt.where[g.obj_lint[g.r, g.t, g.tt, g.cur]],
+                        g.obj_lint[g.r, g.t, g.tt, g.cur],
+                    ),
                 )
-                self.env.set_scoped("sowpre", self.env.sow)
+                # $set SOWPRE %SOW%: needed because SOW is reset before the equation definition
+                sowpre = self.env.sow_GP
                 if self.env.stages == "YES":
-                    self.env.set_scoped("sow", ",WW")
                     self.env.set_scoped("sow_GP", (g.ww,))
                 self.eq_objbal(
-                    sowpre=self.env.sowpre,
+                    sowpre=sowpre,
                     var=self.env.var,
-                    swd=self.env.swd,
-                    swx=self.env.swx,
-                    swsw=self.env.swsw,
-                    sow=self.env.sow,
-                    tpulse=self.env.tpulse,
+                    swd=self.env.swd_GP,
+                    swx=self.env.swx_GP,
+                    swsw=self.env.swsw_GP,
+                    sow=self.env.sow_GP,
+                    tpulse=self.env.tpulse_GP,
                     condition=self.env.stages == "YES",
                     cal_red=self.env.cal_red,
                     pgprim=self.env.pgprim,
@@ -291,16 +329,13 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
                 # ends with $EXIT
                 self.tc.enqueue(
                     self.exec_powerflo_vda_rptb,
-                    arg4=self.arg4,
-                    arg5=self.arg5,
-                    arg6=self.arg6,
+                    arg4=self.config.arg4,
+                    arg5=self.config.arg5,
+                    arg6=self.config.arg6,
                     var=self.env.var,
-                    vart=self.env.vart,
-                    sws=self.env.sws,
+                    vart=self.env.vart_GP,
+                    sws=self.env.sws_GP,
                 )
-
-            elif label == "IREAUXIN-" or label == "IREAUXOUT":
-                pass  # end of file
 
     def declaration1(self: PowerfloVda) -> None:
         g = self.tc
@@ -331,170 +366,371 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
         g.gr_capup = Parameter(m, name="GR_CAPUP", domain=[g.r, g.year, g.p])
 
     def exec1(self: PowerfloVda) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Define grid and default line directions
-  NRGELC(RC(R,C))$COM_TMAP(R,'NRG',C) $= NRG_TMAP(R,'ELC',C);
-  TRACKP(R,P) $= SUM(RPC_IRE(R,P,C,IE)$NRGELC(R,C),1);
-  PRC_REACT(R,LL,P)$(NOT TRACKP(R,P)) = 0;
-  OPTION TRACKC <= GR_DEMFR, GR_GID <= GR_ENDFR;
-  GR_GID(TRACKC)=1; OPTION TRACKC < GG_PRBD; GR_GID(TRACKC)=1;
-  LOOP((R,LL,C,ITEM)$GR_GENFR(R,LL,C,ITEM),GR_GID(R,C)=1);
-  OPTION CLEAR=TRACKC, TRACKP < PRC_REACT, RP_PRC < GR_PTDF;
-  DFUNC=CARD(RP_PRC); TRACKP(RP_PRC)=YES;
-  TRACKC(R,C) $= SUM(NRG_GMAP(R,NRG_GRID,C),1);
-* Add any IRE between add-on nodes
-  LOOP(RPC_IRE(R,P,C,IE)$GR_GID(R,C),TRACKP(R,P)=YES);
-  GR_TOP(TOP_IRE(R,C,TRACKC(REG,COM),P))$(TRACKC(R,C)$TRACKP(R,P)) = YES;
-  GR_TOP(TOP_IRE(TRACKC(REG,COM),R,C,P))$(TRACKC(R,C)$TRACKP(R,P)) = YES;
-  LOOP(GR_TOP(R,C,REG,COM,P),GR_FLOW(R,P,C)=GR_FLOW(R,P,C)*2+1; GR_FLOW(REG,P,COM)=GR_FLOW(REG,P,COM)*2-1);
-  OPTION CLEAR=TRACKP, CLEAR=RP_PRC, RP_GRID < GR_FLOW;
-  GR_TOP(R,C,REG,COM,P)$(GR_FLOW(R,P,C) < 0) = NO;
-  GR_TOP(R,C,R,C,P) = NO;
-  LOOP(GR_TOP(R,C,R,COM,P)$SUM(RPC_IRE(RPC_PG(R,P,C),IE),RPC_PG(R,P,COM)),PRC_MAP(R,'DISTR',P)=YES);
-* Synchronize and check for zero line reactances
-  LOOP(GR_TOP(R,C,REG,COM,P),F=1;
-    IF(NOT SAMEAS(R,REG),RP_PRC(REG,P)=YES; F=0;
-      RTP_VARA(RTP(R,T,P))$(NOT RTP_VARA(REG,T,P)) = NO;
-      PRC_REACT(R,T,P) = MAX(PRC_REACT(R,T,P),PRC_REACT(REG,T,P)));
-    IF(NOT SAMEAS(C,COM)$F,
-      GR_PTDF(R,T,P,C,ALL_R,COM2)$GR_PTDF(REG,T,P,COM,ALL_R,COM2) =
-        MAX(ABS(GR_PTDF(R,T,P,C,ALL_R,COM2)),ABS(GR_PTDF(REG,T,P,COM,ALL_R,COM2)))*SIGN(2*SIGN(GR_PTDF(R,T,P,C,ALL_R,COM2)-SIGN(GR_PTDF(REG,T,P,COM,ALL_R,COM2))));
-      GR_PTDF(REG,T,P,COM,ALL_R,COM2) = -GR_PTDF(R,T,P,C,ALL_R,COM2)));
-  PRC_REACT(R,T,P)$((PRC_REACT(R,T,P) LE 0)$PRC_REACT(R,T,P)) = 0;
-  LOOP(GR_TOP(R,C,REG,COM,P), GR_ARC(R,C,REG,COM) = YES);
-  OPTION TRACKC < GR_FLOW;
+        g = self.tc
 
-* Internodal admittance
-  OPTION GR_GID <= GR_PTDF; LOOP(RPC_IRE(R,P,C,IE)$GR_GID(R,C),PRC_REACT(R,T,P) = 0);
-  GR_ADMIT(R,T,C,REG,COM)$GR_ARC(R,C,REG,COM) = SUM(GR_TOP(R,C,REG,COM,P)$(PRC_REACT(R,T,P)$RTP_VARA(R,T,P)),1/PRC_REACT(R,T,P));
-  OPTION RREG <= GR_ARC;
-
-* Construct all disjoint grids
-  CNT = EPS; OPTION CLEAR=GR_GID;
-  LOOP(GR_ARC(R,C,REG,COM), F = GR_GID(R,C); Z = GR_GID(REG,COM);
-   IF(NOT F+Z, GR_GID(R,C)=CNT; GR_GID(REG,COM)=CNT; CNT=CNT+1;
-   ELSEIF NOT F, GR_GID(R,C)=Z;
-   ELSEIF NOT Z, GR_GID(REG,COM)=F;
-   ELSEIF F NE Z, MY_F=MIN(F,Z); DONE=MAX(F,Z); IF(CNT=DONE+1,CNT=DONE);
-     GR_GID(TRACKC)$(GR_GID(TRACKC)=DONE) = MY_F));
-* Assign each node with unique grid ID
-  LOOP(SAMEAS('1',J),GR_GRID(J+GR_GID(R,C),TRACKC(R,C)) = YES);
-* GR_GID holds the reactance grid nodes only
-  OPTION GR_GID <= GR_PTDF; GR_GID(TRACKC) = NOT GR_GID(TRACKC);
-
-* QA checks - for reactance nodes only
-  TRACKPC(RP_GRID(R,P),C)$GR_FLOW(R,P,C) $= GR_GID(R,C);
-  LOOP((R,TSL('DAYNITE')), Z=0;
-   IF(SUM(TRACKPC(R,P,C)$(NOT PRC_TSL(R,P,TSL)$COM_TSL(R,C,TSL)),1),Z=1);
-   LOOP(RREG(R,REG),
-     IF(SUM(S$(TS_GROUP(R,TSL,S) XOR TS_GROUP(REG,TSL,S)),1),
-        TRACKC(NRGELC(REG,C))$GR_GID(REG,C)=NO; Z = 1));
-   IF(Z,TRACKC(NRGELC(R,C))$GR_GID(R,C)=NO));
-  RC_GRID(RTC(R,T,C))$TRACKC(R,C) = YES;
-* Collect RP_GRID for PTDF grids
-  OPTION TRACKPC <= GR_PTDF; TRACKPC(R,P,C)$GR_GID(R,C) = NO;
-  OPTION RP_GRID < TRACKPC, CLEAR=TRACKPC, CLEAR=TRACKP;
-
-* Admittance / susceptance matrix
-  option gr_sus < gr_admit;
-  gr_sus(rc_grid,rc) $= gr_admit(rc_grid,rc)*(-1);
-  gr_sus(rc_grid(r,t,c),r,c) = -sum(trackc(rc),gr_sus(rc_grid,rc));
-  """,
+        # * Define grid and default line directions
+        g.Nrgelc[g.Rc[g.r, g.c]].where[g.ComTmap[g.r, "NRG", g.c]] = sparse(
+            g.NrgTmap[g.r, "ELC", g.c]
+        )
+        g.Trackp[g.r, g.p] = sparse(
+            Sum(g.RpcIre[g.r, g.p, g.c, g.ie].where[g.Nrgelc[g.r, g.c]], 1.0)
+        )
+        g.prc_react[g.r, g.ll, g.p].where[(~(g.Trackp[g.r, g.p]))] = 0.0
+        project(source=g.gr_demfr, target=g.Trackc, direction="left")
+        aggregate(source=g.gr_endfr, target=g.gr_gid, direction="left")
+        g.gr_gid[g.Trackc] = 1.0
+        project(source=g.gg_prbd, target=g.Trackc)
+        g.gr_gid[g.Trackc] = 1.0
+        with Loop(
+            Domain(g.r, g.ll, g.c, g.item).where[g.gr_genfr[g.r, g.ll, g.c, g.item]]
+        ):
+            g.gr_gid[g.r, g.c] = 1.0
+        g.Trackc.setRecords(None)
+        project(source=g.prc_react, target=g.Trackp)
+        project(source=g.gr_ptdf, target=g.RpPrc)
+        g.dfunc[...] = Card(g.RpPrc)
+        g.Trackp[g.RpPrc] = True
+        g.Trackc[g.r, g.c] = sparse(Sum(g.NrgGmap[g.r, g.nrggrid, g.c], 1.0))
+        # * Add any IRE between add-on nodes
+        with Loop(g.RpcIre[g.r, g.p, g.c, g.ie].where[g.gr_gid[g.r, g.c]]):
+            g.Trackp[g.r, g.p] = True
+        g.GrTop[g.TopIre[g.r, g.c, g.Trackc[g.Reg, g.Com], g.p]].where[
+            (g.Trackc[g.r, g.c].where[g.Trackp[g.r, g.p]])
+        ] = True
+        g.GrTop[g.TopIre[g.Trackc[g.Reg, g.Com], g.r, g.c, g.p]].where[
+            (g.Trackc[g.r, g.c].where[g.Trackp[g.r, g.p]])
+        ] = True
+        with Loop(g.GrTop[g.r, g.c, g.Reg, g.Com, g.p]):
+            g.gr_flow[g.r, g.p, g.c] = g.gr_flow[g.r, g.p, g.c] * 2.0 + 1.0
+            g.gr_flow[g.Reg, g.p, g.Com] = g.gr_flow[g.Reg, g.p, g.Com] * 2.0 - 1.0
+        g.Trackp.setRecords(None)
+        g.RpPrc.setRecords(None)
+        project(source=g.gr_flow, target=g.RpGrid)
+        g.GrTop[g.r, g.c, g.Reg, g.Com, g.p].where[(g.gr_flow[g.r, g.p, g.c] < 0.0)] = (
+            False
+        )
+        g.GrTop[g.r, g.c, g.r, g.c, g.p] = False
+        with Loop(
+            g.GrTop[g.r, g.c, g.r, g.Com, g.p].where[
+                Sum(g.RpcIre[g.RpcPg[g.r, g.p, g.c], g.ie], g.RpcPg[g.r, g.p, g.Com])
+            ]
+        ):
+            g.PrcMap[g.r, "DISTR", g.p] = True
+        # * Synchronize and check for zero line reactances
+        with Loop(g.GrTop[g.r, g.c, g.Reg, g.Com, g.p]):
+            g.f[...] = 1.0
+            with If(~(same_as(g.r, g.Reg))):
+                g.RpPrc[g.Reg, g.p] = True
+                g.f[...] = 0.0
+                g.RtpVara[g.Rtp[g.r, g.t, g.p]].where[
+                    (~(g.RtpVara[g.Reg, g.t, g.p]))
+                ] = False
+                g.prc_react[g.r, g.t, g.p] = Max(
+                    g.prc_react[g.r, g.t, g.p], g.prc_react[g.Reg, g.t, g.p]
+                )
+            with If(~(same_as(g.c, g.Com).where[g.f])):
+                g.gr_ptdf[g.r, g.t, g.p, g.c, g.allr, g.com2].where[
+                    g.gr_ptdf[g.Reg, g.t, g.p, g.Com, g.allr, g.com2]
+                ] = Max(
+                    abs(g.gr_ptdf[g.r, g.t, g.p, g.c, g.allr, g.com2]),
+                    abs(g.gr_ptdf[g.Reg, g.t, g.p, g.Com, g.allr, g.com2]),
+                ) * sign(
+                    2.0
+                    * sign(
+                        g.gr_ptdf[g.r, g.t, g.p, g.c, g.allr, g.com2]
+                        - sign(g.gr_ptdf[g.Reg, g.t, g.p, g.Com, g.allr, g.com2])
+                    )
+                )
+                g.gr_ptdf[g.Reg, g.t, g.p, g.Com, g.allr, g.com2] = -g.gr_ptdf[
+                    g.r, g.t, g.p, g.c, g.allr, g.com2
+                ]
+        g.prc_react[g.r, g.t, g.p].where[
+            ((g.prc_react[g.r, g.t, g.p] <= 0.0).where[g.prc_react[g.r, g.t, g.p]])
+        ] = 0.0
+        with Loop(g.GrTop[g.r, g.c, g.Reg, g.Com, g.p]):
+            g.GrArc[g.r, g.c, g.Reg, g.Com] = True
+        project(source=g.gr_flow, target=g.Trackc)
+        # * Internodal admittance
+        aggregate(source=g.gr_ptdf, target=g.gr_gid, direction="left")
+        with Loop(g.RpcIre[g.r, g.p, g.c, g.ie].where[g.gr_gid[g.r, g.c]]):
+            g.prc_react[g.r, g.t, g.p] = 0.0
+        g.gr_admit[g.r, g.t, g.c, g.Reg, g.Com].where[
+            g.GrArc[g.r, g.c, g.Reg, g.Com]
+        ] = Sum(
+            g.GrTop[g.r, g.c, g.Reg, g.Com, g.p].where[
+                (g.prc_react[g.r, g.t, g.p].where[g.RtpVara[g.r, g.t, g.p]])
+            ],
+            1.0 / g.prc_react[g.r, g.t, g.p],
+        )
+        project(source=g.GrArc, target=g.Rreg, direction="left")
+        # * Construct all disjoint grids
+        g.cnt[...] = SpecialValues.EPS
+        g.gr_gid.setRecords(None)
+        with Loop(g.GrArc[g.r, g.c, g.Reg, g.Com]):
+            g.f[...] = g.gr_gid[g.r, g.c]
+            g.z[...] = g.gr_gid[g.Reg, g.Com]
+            with If(~(g.f + g.z)):
+                g.gr_gid[g.r, g.c] = g.cnt
+                g.gr_gid[g.Reg, g.Com] = g.cnt
+                g.cnt[...] = g.cnt + 1.0
+            with ElseIf(~(g.f)):
+                g.gr_gid[g.r, g.c] = g.z
+            with ElseIf(~(g.z)):
+                g.gr_gid[g.Reg, g.Com] = g.f
+            with ElseIf(g.f != g.z):
+                g.my_f[...] = Min(g.f, g.z)
+                g.done[...] = Max(g.f, g.z)
+                with If(g.cnt == g.done + 1.0):
+                    g.cnt[...] = g.done
+                g.gr_gid[g.Trackc].where[(g.gr_gid[g.Trackc] == g.done)] = g.my_f
+        # * Assign each node with unique grid ID
+        with Loop(g.j.where[same_as("1", g.j)]):
+            g.GrGrid[g.j + g.gr_gid[g.r, g.c], g.Trackc[g.r, g.c]] = True
+        # * GR_GID holds the reactance grid nodes only
+        aggregate(source=g.gr_ptdf, target=g.gr_gid, direction="left")
+        g.gr_gid[g.Trackc] = ~(g.gr_gid[g.Trackc])
+        # * QA checks - for reactance nodes only
+        g.Trackpc[g.RpGrid[g.r, g.p], g.c].where[g.gr_flow[g.r, g.p, g.c]] = sparse(
+            g.gr_gid[g.r, g.c]
+        )
+        with Loop(Domain(g.r, g.tsl["DAYNITE"])):
+            g.z[...] = 0.0
+            with If(
+                Sum(
+                    g.Trackpc[g.r, g.p, g.c].where[
+                        (~(g.PrcTsl[g.r, g.p, g.tsl].where[g.ComTsl[g.r, g.c, g.tsl]]))
+                    ],
+                    1.0,
+                )
+            ):
+                g.z[...] = 1.0
+            with Loop(g.Rreg[g.r, g.Reg]):  # noqa: SIM117
+                with If(
+                    Sum(
+                        g.s.where[
+                            (
+                                (g.TsGroup[g.r, g.tsl, g.s])
+                                ^ (g.TsGroup[g.Reg, g.tsl, g.s])
+                            )
+                        ],
+                        1.0,
+                    )
+                ):
+                    g.Trackc[g.Nrgelc[g.Reg, g.c]].where[g.gr_gid[g.Reg, g.c]] = False
+                    g.z[...] = 1.0
+            with If(g.z):
+                g.Trackc[g.Nrgelc[g.r, g.c]].where[g.gr_gid[g.r, g.c]] = False
+        g.RcGrid[g.Rtc[g.r, g.t, g.c]].where[g.Trackc[g.r, g.c]] = True
+        # * Collect RP_GRID for PTDF grids
+        project(source=g.gr_ptdf, target=g.Trackpc, direction="left")
+        g.Trackpc[g.r, g.p, g.c].where[g.gr_gid[g.r, g.c]] = False
+        project(source=g.Trackpc, target=g.RpGrid)
+        g.Trackpc.setRecords(None)
+        g.Trackp.setRecords(None)
+        # * Admittance / susceptance matrix
+        aggregate(source=g.gr_admit, target=g.gr_sus)
+        g.gr_sus[g.RcGrid, g.Rc] = sparse(g.gr_admit[g.RcGrid, g.Rc] * (-1.0))
+        g.gr_sus[g.RcGrid[g.r, g.t, g.c], g.r, g.c] = -Sum(
+            g.Trackc[g.Rc], g.gr_sus[g.RcGrid, g.Rc]
         )
 
     def exec2(self: PowerfloVda) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-* Preliminaries
-  GR_ENDFR(R,T,COM,C)$TRACKC(R,C) = 0;
-  OPTION CLEAR=RXX, GR_GENP < GR_GENMAP, GR_ENDC < GR_ENDFR;
-  GR_GENLEV(TRACKC) = 0;
-  GR_GENLEV(R,C)$GR_GENLEV(R,C) = ROUND(GR_GENLEV(R,C));
-  TRACKPC(RPC(GR_GENP(R,P),C))$GR_GENLEV(R,C)=YES;
-  GR_PRCMAP(TRACKPC(R,P,C),ITEM)$(TOP(R,P,C,'OUT')$GR_GENMAP(R,P,ITEM))=YES;
-  GR_PRCMAP(TRACKPC(RP_IRE(R,P),C),ITEM)$GR_GENMAP(R,P,ITEM)=YES;
-  GR_GENFR(R,LL--ORD(LL),C,ITEM)$GR_GENFR(R,LL,C,ITEM)=1;
-  LOOP((GR_GRID(J,R,C),ITEM)$GR_GENFR(R,'0',C,ITEM),LOOP(GR_PRCMAP(R,P,COM,ITEM),RXX(R,J,COM)=YES));
-  LOOP(RXX(R,J,COM), GR_ALLMAP(TRACKC(R,C),COM)$GR_GRID(J,R,C)=YES);
-  LOOP(NRG_GRID,GR_ALLMAP(R,C,COM)$((NOT NRG_GMAP(R,NRG_GRID,C))$NRG_GMAP(R,NRG_GRID,COM)) = NO);
-* Grid allocations
-  GR_ALGMAP(R,'NRG',C)$((GR_GENLEV(R,C)=1)$GR_GENLEV(R,C))=YES;
-  GR_ALGMAP(R,C,C)$((GR_GENLEV(R,C)=2)$GR_GENLEV(R,C))=YES;
-  GR_ALGMAP(R,COM_TYPE(CG),CG)$(SUM(TRACKC(R,C),1)>1) $= SUM(GR_ALGMAP(R,CG,C),1);
-  GR_DEMMAP(GR_ALLMAP(R,C,COM))$(GR_GENLEV(R,COM) < 3) = YES;
-  IF(CARD(GR_DEMFR),GR_DEMFR(RTCS_VARC(RC_GRID(R,T,C),S)) = GR_DEMFR(R,T,C,S)+EPS);
-  GR_ENDC(R,'DEM')$SUM(GR_ENDC(R,C),1) = YES;
-* Process regions with sectoral demand fractions
-  LOOP(R$GR_ENDC(R,'DEM'),
-    GR_DEMFR(RTCS_VARC(RC_GRID(R,T,C),S)) = SUM(GR_ENDC(R,COM),MIN(0.33,GR_ENDFR(R,T,C,COM)));
-    GR_UNITS(RTC(R,T,COM))$GR_ENDC(R,COM) = SUM(RC_GRID(R,T,C),GR_ENDFR(R,T,C,COM))+1-1;
-    GR_ENDFR(RC_GRID(R,T,C),COM)$GR_UNITS(R,T,COM) = GR_ENDFR(R,T,C,COM)/GR_UNITS(R,T,COM);
-    OPTION CLEAR=GR_UNITS;
-  );
-  GR_ENDC(R,C)$((GR_GENLEV(R,C)>2)$GR_GENLEV(R,C)) = YES;
-  GR_ENDC(R,'NRG')$(NOT GR_ENDC(R,'DEM')) = YES;
-* Genmap normalization
-  PRC_YMAX(GR_GENP(R,P)) = SUM(ITEM$GR_GENMAP(R,P,ITEM),GR_GENMAP(R,P,ITEM))+1-1;
-  GR_GENMAP(GR_GENP(R,P),ITEM)$(PRC_YMAX(R,P)$GR_GENMAP(R,P,ITEM)) = GR_GENMAP(R,P,ITEM)/PRC_YMAX(R,P);
-* GENFR normalization
-  LOOP(RC_GRID(R,T,C),GR_UNITS(R,T,ITEM)$GR_GENFR(R,T,C,ITEM)=1);
-  GR_UNITS(R,T,ITEM)$GR_UNITS(R,T,ITEM) = SUM(TRACKC(R,C),GR_GENFR(R,T,C,ITEM))+1-1;
-  GR_GENFR(RC_GRID(R,T,C),ITEM)$GR_UNITS(R,T,ITEM) = GR_GENFR(R,T,C,ITEM)/GR_UNITS(R,T,ITEM);
-  OPTION CLEAR=PRC_YMAX,CLEAR=GR_UNITS;
-* DEMFR normalization
-  LOOP(RC_GRID(R,T,C),GR_UNITS(R,T,S)$GR_DEMFR(R,T,C,S)=1);
-  GR_UNITS(R,T,S)$GR_UNITS(R,T,S) = SUM(TRACKC(R,C),GR_DEMFR(R,T,C,S))+1-1;
-  GR_DEMFR(RC_GRID(R,T,C),S)$GR_UNITS(R,T,S) = GR_DEMFR(R,T,C,S)/GR_UNITS(R,T,S)+EPS;
-  OPTION CLEAR=GR_UNITS,CLEAR=RXX;
-* Find and remove node with max demand fraction from GR_DEMFR
-  LOOP(J$SUM(GR_GRID(J,R,C),1),
-    GR_UNITS(RC_GRID(R,T,C))$GR_GRID(J,R,C) = SUM(COM_TS(R,C,S),GR_DEMFR(R,T,C,S));
-    LOOP((R,T), Z=MAX(EPS,SMAX(GR_GRID(J,R,C),GR_UNITS(R,T,C)));
-      LOOP(GR_GRID(J,R,C)$Z,IF(GR_UNITS(R,T,C)=Z,RXX(R,T,C)=YES;Z=0)));
-    GR_DEMFR(RXX(R,T,C),S)=0;
-    IF(SUM(GR_ALLMAP(R,C,COM)$GR_GRID(J,R,C),1),GR_GNALL(RC_GRID(R,T,C))$GR_GRID(J,R,C) = YES));
-  """,
-        )
+        g = self.tc
 
-    def exec3(self: PowerfloVda, tmp: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-{tmp}$PRC_YMAX(R,P) = NO;
-""",
+        # * Preliminaries
+        g.gr_endfr[g.r, g.t, g.Com, g.c].where[g.Trackc[g.r, g.c]] = 0.0
+        g.Rxx.setRecords(None)
+        project(source=g.gr_genmap, target=g.GrGenp)
+        project(source=g.gr_endfr, target=g.GrEndc)
+        g.gr_genlev[g.Trackc] = 0.0
+        g.gr_genlev[g.r, g.c].where[g.gr_genlev[g.r, g.c]] = Round(
+            g.gr_genlev[g.r, g.c]
         )
-
-    def complete_ptfd_processing(self: PowerfloVda, pdtol: str, tmp: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-* Complete PTDF processing
-  IF(DFUNC, OPTION GR_ARC <= GR_TOP, CLEAR=GR_CANDID;
-    GR_PTDF(R,T,P,C,ALL_R,COM)$RP_PRC(R,P)=0;
-    GR_PTDF(R,T,P,C,ALL_R,COM)$((ABS(GR_PTDF(R,T,P,C,ALL_R,COM))<{pdtol})$GR_PTDF(R,T,P,C,ALL_R,COM)) = 0;
-    GR_PTDF(R,T,P,C,ALL_R,COM)$((NOT GR_ALGMAP(R,'NRG','NRG'))$GR_PTDF(R,T,P,C,ALL_R,COM)) = ROUND(GR_PTDF(R,T,P,C,ALL_R,COM)/POWER(2,-32))*POWER(2,-32);
-    OPTION TRACKP < GR_PTDF, PRC_YMAX < NCAP_PASTI, TRACKC < GR_PTDF;
-*...First set all lines with non-zero PTDF as candidates
-    GR_CANDID(R,T,P)$(RP_GRID(R,P)$TRACKP(R,P)) = YES;
-*...No new capacity allowed for existing lines
-    NCAP_BND(GR_CANDID(R,T,P),'UP')$PRC_YMAX(R,P) = MAX(EPS,NCAP_BND(R,T,P,'UP'));
-    DFUNC = {tmp}; OPTION CLEAR=PRC_YMAX, CLEAR=TRACKP;
-  ELSE OPTION CLEAR=RP_GRID);
-* Check nodal commodity balances
-*  COM_BNDNET(RTCS_VARC(RC_GRID,S),'LO') = EPS;
-  COM_LIM(TRACKC(RC),'FX')$((NOT SUM(COM_LIM(RC,L),1))$GR_GID(RC)) = YES;
-  OPTION CLEAR=TRACKC,CLEAR=RP_PRC,CLEAR=TRACKPC;
-""",
+        g.Trackpc[g.Rpc[g.GrGenp[g.r, g.p], g.c]].where[g.gr_genlev[g.r, g.c]] = True
+        g.GrPrcmap[g.Trackpc[g.r, g.p, g.c], g.item].where[
+            (g.Top[g.r, g.p, g.c, "OUT"].where[g.gr_genmap[g.r, g.p, g.item]])
+        ] = True
+        g.GrPrcmap[g.Trackpc[g.RpIre[g.r, g.p], g.c], g.item].where[
+            g.gr_genmap[g.r, g.p, g.item]
+        ] = True
+        g.gr_genfr[g.r, g.ll.lag(Ord(g.ll), "circular"), g.c, g.item].where[
+            g.gr_genfr[g.r, g.ll, g.c, g.item]
+        ] = 1.0
+        with Loop(  # noqa: SIM117
+            Domain(g.GrGrid[g.j, g.r, g.c], g.item).where[
+                g.gr_genfr[g.r, "0", g.c, g.item]
+            ]
+        ):
+            with Loop(g.GrPrcmap[g.r, g.p, g.Com, g.item]):
+                g.Rxx[g.r, g.j, g.Com] = True
+        with Loop(g.Rxx[g.r, g.j, g.Com]):
+            g.GrAllmap[g.Trackc[g.r, g.c], g.Com].where[g.GrGrid[g.j, g.r, g.c]] = True
+        with Loop(g.nrggrid):
+            g.GrAllmap[g.r, g.c, g.Com].where[
+                (
+                    (~(g.NrgGmap[g.r, g.nrggrid, g.c])).where[
+                        g.NrgGmap[g.r, g.nrggrid, g.Com]
+                    ]
+                )
+            ] = False
+        # * Grid allocations
+        g.GrAlgmap[g.r, "NRG", g.c].where[
+            ((g.gr_genlev[g.r, g.c] == 1.0).where[g.gr_genlev[g.r, g.c]])
+        ] = True
+        g.GrAlgmap[g.r, g.c, g.c].where[
+            ((g.gr_genlev[g.r, g.c] == 2.0).where[g.gr_genlev[g.r, g.c]])
+        ] = True
+        g.GrAlgmap[g.r, g.ComType[g.cg], g.cg].where[
+            (Sum(g.Trackc[g.r, g.c], 1.0) > 1.0)
+        ] = sparse(Sum(g.GrAlgmap[g.r, g.cg, g.c], 1.0))
+        g.GrDemmap[g.GrAllmap[g.r, g.c, g.Com]].where[
+            (g.gr_genlev[g.r, g.Com] < 3.0)
+        ] = True
+        if ((Card(g.gr_demfr)) * 1).toValue():
+            g.gr_demfr[g.RtcsVarc[g.RcGrid[g.r, g.t, g.c], g.s]] = (
+                g.gr_demfr[g.r, g.t, g.c, g.s] + SpecialValues.EPS
+            )
+        g.GrEndc[g.r, "DEM"].where[Sum(g.GrEndc[g.r, g.c], 1.0)] = True
+        # * Process regions with sectoral demand fractions
+        with Loop(g.r.where[g.GrEndc[g.r, "DEM"]]):
+            g.gr_demfr[g.RtcsVarc[g.RcGrid[g.r, g.t, g.c], g.s]] = Sum(
+                g.GrEndc[g.r, g.Com], Min(0.33, g.gr_endfr[g.r, g.t, g.c, g.Com])
+            )
+            g.gr_units[g.Rtc[g.r, g.t, g.Com]].where[g.GrEndc[g.r, g.Com]] = (
+                Sum(g.RcGrid[g.r, g.t, g.c], g.gr_endfr[g.r, g.t, g.c, g.Com])
+                + 1.0
+                - 1.0
+            )
+            g.gr_endfr[g.RcGrid[g.r, g.t, g.c], g.Com].where[
+                g.gr_units[g.r, g.t, g.Com]
+            ] = g.gr_endfr[g.r, g.t, g.c, g.Com] / g.gr_units[g.r, g.t, g.Com]
+            g.gr_units.setRecords(None)
+        g.GrEndc[g.r, g.c].where[
+            ((g.gr_genlev[g.r, g.c] > 2.0).where[g.gr_genlev[g.r, g.c]])
+        ] = True
+        g.GrEndc[g.r, "NRG"].where[(~(g.GrEndc[g.r, "DEM"]))] = True
+        # * Genmap normalization
+        g.prc_ymax[g.GrGenp[g.r, g.p]] = (
+            Sum(
+                Domain(g.item).where[g.gr_genmap[g.r, g.p, g.item]],
+                g.gr_genmap[g.r, g.p, g.item],
+            )
+            + 1.0
+            - 1.0
         )
+        g.gr_genmap[g.GrGenp[g.r, g.p], g.item].where[
+            (g.prc_ymax[g.r, g.p].where[g.gr_genmap[g.r, g.p, g.item]])
+        ] = g.gr_genmap[g.r, g.p, g.item] / g.prc_ymax[g.r, g.p]
+        # * GENFR normalization
+        with Loop(g.RcGrid[g.r, g.t, g.c]):
+            g.gr_units[g.r, g.t, g.item].where[g.gr_genfr[g.r, g.t, g.c, g.item]] = 1.0
+        g.gr_units[g.r, g.t, g.item].where[g.gr_units[g.r, g.t, g.item]] = (
+            Sum(g.Trackc[g.r, g.c], g.gr_genfr[g.r, g.t, g.c, g.item]) + 1.0 - 1.0
+        )
+        g.gr_genfr[g.RcGrid[g.r, g.t, g.c], g.item].where[
+            g.gr_units[g.r, g.t, g.item]
+        ] = g.gr_genfr[g.r, g.t, g.c, g.item] / g.gr_units[g.r, g.t, g.item]
+        g.prc_ymax.setRecords(None)
+        g.gr_units.setRecords(None)
+        # * DEMFR normalization
+        with Loop(g.RcGrid[g.r, g.t, g.c]):
+            g.gr_units[g.r, g.t, g.s].where[g.gr_demfr[g.r, g.t, g.c, g.s]] = 1.0
+        g.gr_units[g.r, g.t, g.s].where[g.gr_units[g.r, g.t, g.s]] = (
+            Sum(g.Trackc[g.r, g.c], g.gr_demfr[g.r, g.t, g.c, g.s]) + 1.0 - 1.0
+        )
+        g.gr_demfr[g.RcGrid[g.r, g.t, g.c], g.s].where[g.gr_units[g.r, g.t, g.s]] = (
+            g.gr_demfr[g.r, g.t, g.c, g.s] / g.gr_units[g.r, g.t, g.s]
+            + SpecialValues.EPS
+        )
+        g.gr_units.setRecords(None)
+        g.Rxx.setRecords(None)
+        # * Find and remove node with max demand fraction from GR_DEMFR
+        with Loop(g.j.where[Sum(g.GrGrid[g.j, g.r, g.c], 1.0)]):
+            g.gr_units[g.RcGrid[g.r, g.t, g.c]].where[g.GrGrid[g.j, g.r, g.c]] = Sum(
+                g.ComTs[g.r, g.c, g.s], g.gr_demfr[g.r, g.t, g.c, g.s]
+            )
+            with Loop(Domain(g.r, g.t)):
+                g.z[...] = Max(
+                    SpecialValues.EPS,
+                    Smax(g.GrGrid[g.j, g.r, g.c], g.gr_units[g.r, g.t, g.c]),
+                )
+                with Loop(g.GrGrid[g.j, g.r, g.c].where[g.z]):  # noqa: SIM117
+                    with If(g.gr_units[g.r, g.t, g.c] == g.z):
+                        g.Rxx[g.r, g.t, g.c] = True
+                        g.z[...] = 0.0
+            g.gr_demfr[g.Rxx[g.r, g.t, g.c], g.s] = 0.0
+            with If(
+                Sum(g.GrAllmap[g.r, g.c, g.Com].where[g.GrGrid[g.j, g.r, g.c]], 1.0)
+            ):
+                g.GrGnall[g.RcGrid[g.r, g.t, g.c]].where[g.GrGrid[g.j, g.r, g.c]] = True
 
-    def declaration2(self: PowerfloVda, var: str, swd: str, eq: str, swtd: str) -> None:
+    def complete_ptfd_processing(
+        self: PowerfloVda,
+        pdtol: float,
+        tmp: Number
+        | ImplicitParameter
+        | ImplicitSet
+        | tuple[Number, Callable[[], None]],
+    ) -> None:
+        g = self.tc
+        # * Complete PTDF processing
+        if ((g.dfunc) * 1).toValue():
+            project(source=g.GrTop, target=g.GrArc, direction="left")
+            g.GrCandid.setRecords(None)
+            g.gr_ptdf[g.r, g.t, g.p, g.c, g.allr, g.Com].where[g.RpPrc[g.r, g.p]] = 0.0
+            g.gr_ptdf[g.r, g.t, g.p, g.c, g.allr, g.Com].where[
+                (
+                    (abs(g.gr_ptdf[g.r, g.t, g.p, g.c, g.allr, g.Com]) < pdtol).where[
+                        g.gr_ptdf[g.r, g.t, g.p, g.c, g.allr, g.Com]
+                    ]
+                )
+            ] = 0.0
+            g.gr_ptdf[g.r, g.t, g.p, g.c, g.allr, g.Com].where[
+                (
+                    (~(g.GrAlgmap[g.r, "NRG", "NRG"])).where[
+                        g.gr_ptdf[g.r, g.t, g.p, g.c, g.allr, g.Com]
+                    ]
+                )
+            ] = Round(
+                g.gr_ptdf[g.r, g.t, g.p, g.c, g.allr, g.Com] / power(2.0, -32.0)
+            ) * power(2.0, -32.0)
+            project(source=g.gr_ptdf, target=g.Trackp)
+            aggregate(source=g.ncap_pasti, target=g.prc_ymax)
+            project(source=g.gr_ptdf, target=g.Trackc)
+            # *...First set all lines with non-zero PTDF as candidates
+            g.GrCandid[g.r, g.t, g.p].where[
+                (g.RpGrid[g.r, g.p].where[g.Trackp[g.r, g.p]])
+            ] = True
+            # *...No new capacity allowed for existing lines
+            g.ncap_bnd[g.GrCandid[g.r, g.t, g.p], "UP"].where[g.prc_ymax[g.r, g.p]] = (
+                Max(SpecialValues.EPS, g.ncap_bnd[g.r, g.t, g.p, "UP"])
+            )
+            if isinstance(tmp, tuple):
+                value, clear_prc_dscncap = tmp
+                g.dfunc[...] = value
+                clear_prc_dscncap()
+            else:
+                g.dfunc[...] = tmp
+            g.prc_ymax.setRecords(None)
+            g.Trackp.setRecords(None)
+        else:
+            g.RpGrid.setRecords(None)
+        # * Check nodal commodity balances
+        # *  COM_BNDNET(RTCS_VARC(RC_GRID,S),'LO') = EPS;
+        g.ComLim[g.Trackc[g.Rc], "FX"].where[
+            ((~(Sum(g.ComLim[g.Rc, g.lA], 1.0))).where[g.gr_gid[g.Rc]])
+        ] = True
+        g.Trackc.setRecords(None)
+        g.RpPrc.setRecords(None)
+        g.Trackpc.setRecords(None)
+
+    def declaration2(
+        self: PowerfloVda,
+        var: str,
+        swd: tuple[Set | Alias] | tuple[()],
+        eq: str,
+        swtd: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
+    ) -> None:
         g = self.tc
         m = g.container
         r, c, t, p, j, io, cg, ie, bd, s, year, item = (
@@ -595,188 +831,484 @@ $ MACRO GR_DNCAP(r,p) {self.env.tmp}
             ),
         )
 
-    def exec4(self: PowerfloVda, var: str, sow: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-* For each disjoint grid, set phase angle to zero for the node with most connected lines
-  LOOP(J$SUM(GR_GRID(J,R,C)$GR_GID(R,C),1), Z = SMAX(GR_GRID(J,R,C),SUM(P$GR_FLOW(R,P,C),1));
-    LOOP(GR_GRID(J,R,C)$Z,IF(SUM(P$GR_FLOW(R,P,C),1)=Z, Z=0; {var}_COMAUX.FX(R,T,C,S{sow})=EPS)));
-  GR_GRID(J,R,'ACT') $= SUM(GR_GRID(J,NRGELC(R,C)),1);
-""",
-        )
+    def exec4(self: PowerfloVda, var: str, sow_GP: SowGPType) -> None:
+        g = self.tc
+        VAR_COMAUX = g.get_variable(f"{var}_COMAUX")
+        # * For each disjoint grid, set phase angle to zero for the node with most connected lines
+        with Loop(
+            g.j.where[Sum(g.GrGrid[g.j, g.r, g.c].where[g.gr_gid[g.r, g.c]], 1.0)]
+        ):
+            g.z[...] = Smax(
+                g.GrGrid[g.j, g.r, g.c], Sum(g.p.where[g.gr_flow[g.r, g.p, g.c]], 1.0)
+            )
+            with Loop(g.GrGrid[g.j, g.r, g.c].where[g.z]):  # noqa: SIM117
+                with If(Sum(g.p.where[g.gr_flow[g.r, g.p, g.c]], 1.0) == g.z):
+                    g.z[...] = 0.0
+                    VAR_COMAUX.fx[g.r, g.t, g.c, g.s, *sow_GP] = SpecialValues.EPS
+        g.GrGrid[g.j, g.r, "ACT"] = sparse(Sum(g.GrGrid[g.j, g.Nrgelc[g.r, g.c]], 1.0))
 
-    def comp1(self: PowerfloVda, tmp: str, var: str, pgprim: str, sow: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-$ MACRO VAR_PTDNCAP(r,t,p) {tmp}
-$ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,'{pgprim}',s,ie{sow}))
-""",
-        )
-
-    def exec5(self: PowerfloVda, var: str, sow: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-  IF(CARD(GR_CANDID),
-*...Remove existing lines from candidate lines for their full lifespan
-    GR_CAPUP(GR_CANDID(R,T,P)) = SUM(PYR(V)$COEF_CPT(R,V,T,P),NCAP_PASTI(R,V,P)*ROUND(COEF_CPT(R,V,T,P)));
-    GR_CANDID(R,T,P)$SUM(RP_GRID(REG,P)$GR_CAPUP(REG,T,P),1) = NO;
-    RVP(GR_CANDID) = YES;
-*...Complete virtual CAP bounds for candidate/removed lines
-    GR_CAPUP(RVP(R,T,P))$GR_DNCAP(R,P) = MAX(0,SMAX((VNT(V,T),UNIT)$COEF_CPT(R,V,T,P),GR_DUNIT(R,V,P,UNIT)*(COEF_CPT(R,V,T,P)>0)));
-    LOOP(T,GR_CAPUP(RVP(R,TT(MIYR_1),P))$(NOT GR_CAPUP(RVP)) = MAX(CAP_BND(R,T,P,'UP'),GR_CAPUP(R,T,P))+1-1);
-    LOOP(TT(T+1),GR_CAPUP(RVP(R,TT,P))$(NOT GR_CAPUP(RVP)) = GR_CAPUP(R,T,P)+(CAP_BND(RVP,'UP')-GR_CAPUP(R,T,P))$(CAP_BND(RVP,'UP')>0));
-*...Copy CAP bounds from import side if needed
-    LOOP(GR_TOP(R,C,REG,COM,P),GR_CAPUP(R,T,P)$GR_CAPUP(REG,T,P)=MIN(GR_CAPUP(REG,T,P),GR_CAPUP(R,T,P)+INF$(NOT GR_CAPUP(R,T,P)));
-         IF(NOT SAMEAS(R,REG),GR_CAPUP(REG,T,P) = 0));
-    GR_CANDID(RVP)$(NOT GR_CAPUP(RVP)) = NO;
-    CAP_BND(GR_CANDID(R,T,P),'UP')$((NOT CAP_BND(R,T,P,'UP'))$(NOT GR_DNCAP(R,P))) = GR_CAPUP(R,T,P);
-    RTP_VARP(GR_CANDID(R,T,P))$(NOT GR_DNCAP(R,P)) = YES;
-    {var}_IRE.LO(R,T,T,P,C(ACTCG),S,'EXP'{sow})$(PRC_TS(R,P,S)$RVP(R,T,P)) = -INF;
-    OPTION CLEAR=RVP);
-""",
-        )
+    def exec5(self: PowerfloVda, var: str, sow_GP: SowGPType) -> None:
+        g = self.tc
+        VAR_IRE = g.get_variable(f"{var}_IRE")
+        if ((Card(g.GrCandid)) * 1).toValue():
+            # *...Remove existing lines from candidate lines for their full lifespan
+            g.gr_capup[g.GrCandid[g.r, g.t, g.p]] = Sum(
+                g.pyr[g.v].where[g.coef_cpt[g.r, g.v, g.t, g.p]],
+                g.ncap_pasti[g.r, g.v, g.p] * Round(g.coef_cpt[g.r, g.v, g.t, g.p]),
+            )
+            g.GrCandid[g.r, g.t, g.p].where[
+                Sum(g.RpGrid[g.Reg, g.p].where[g.gr_capup[g.Reg, g.t, g.p]], 1.0)
+            ] = False
+            g.Rvp[g.GrCandid] = True
+            # *...Complete virtual CAP bounds for candidate/removed lines
+            g.gr_capup[g.Rvp[g.r, g.t, g.p]].where[
+                macro.gr_dncap_GP(g.r, g.p, self.env)
+            ] = Max(
+                0.0,
+                Smax(
+                    Domain(g.Vnt[g.v, g.t], g.unit).where[
+                        g.coef_cpt[g.r, g.v, g.t, g.p]
+                    ],
+                    macro.gr_dunit_GP(g.r, g.v, g.p, g.unit, self.env)
+                    * (g.coef_cpt[g.r, g.v, g.t, g.p] > 0.0),
+                ),
+            )
+            with Loop(g.t):
+                g.gr_capup[g.Rvp[g.r, g.tt[g.Miyr1], g.p]].where[
+                    (~(g.gr_capup[g.Rvp]))
+                ] = (
+                    Max(g.cap_bnd[g.r, g.t, g.p, "UP"], g.gr_capup[g.r, g.t, g.p])
+                    + 1.0
+                    - 1.0
+                )
+            with Loop(g.tt[g.t + 1]):
+                g.gr_capup[g.Rvp[g.r, g.tt, g.p]].where[(~(g.gr_capup[g.Rvp]))] = (
+                    g.gr_capup[g.r, g.t, g.p]
+                    + (g.cap_bnd[g.Rvp, "UP"] - g.gr_capup[g.r, g.t, g.p]).where[
+                        (g.cap_bnd[g.Rvp, "UP"] > 0.0)
+                    ]
+                )
+            # *...Copy CAP bounds from import side if needed
+            with Loop(g.GrTop[g.r, g.c, g.Reg, g.Com, g.p]):
+                g.gr_capup[g.r, g.t, g.p].where[g.gr_capup[g.Reg, g.t, g.p]] = Min(
+                    g.gr_capup[g.Reg, g.t, g.p],
+                    g.gr_capup[g.r, g.t, g.p]
+                    + Number(SpecialValues.POSINF).where[
+                        (~(g.gr_capup[g.r, g.t, g.p]))
+                    ],
+                )
+                with If(~(same_as(g.r, g.Reg))):
+                    g.gr_capup[g.Reg, g.t, g.p] = 0.0
+            g.GrCandid[g.Rvp].where[(~(g.gr_capup[g.Rvp]))] = False
+            g.cap_bnd[g.GrCandid[g.r, g.t, g.p], "UP"].where[
+                (
+                    (~(g.cap_bnd[g.r, g.t, g.p, "UP"])).where[
+                        (~(macro.gr_dncap_GP(g.r, g.p, self.env)))
+                    ]
+                )
+            ] = g.gr_capup[g.r, g.t, g.p]
+            g.RtpVarp[g.GrCandid[g.r, g.t, g.p]].where[
+                (~(macro.gr_dncap_GP(g.r, g.p, self.env)))
+            ] = True
+            VAR_IRE.lo[g.r, g.t, g.t, g.p, g.c[g.Actcg], g.s, "EXP", *sow_GP].where[
+                (g.PrcTs[g.r, g.p, g.s].where[g.Rvp[g.r, g.t, g.p]])
+            ] = SpecialValues.NEGINF
+            g.Rvp.setRecords(None)
 
     def dc_power_flow_eqs(
         self: PowerfloVda,
         eq: str,
-        r_t: str,
-        swt: str,
+        r_t: tuple[Set | Alias | ImplicitSet, Set | Alias | ImplicitSet],
+        swt: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
         var: str,
-        sow: str,
-        bigm: str,
-        varv: str,
-        sws: str,
+        sow: SowGPType,
+        bigm: int,
+        varv: tuple[str, ImplicitSet | None],
+        sws: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
         pgprim: str,
         def_rtp_ffcs: bool,
+        cal_red: str,
     ) -> None:
-        # both includes are the same
-        include_cal_red = cal_red_red(
-            arg1="COM",
-            arg2="COM1",
-            arg3="TS",
-            arg4="P",
-            arg5="T",
-            var=var,
-            sow=sow,
-            pgprim=pgprim,
-            def_rtp_ffcs=def_rtp_ffcs,
+        if cal_red == "cal_red.red":
+            from core.cal_red_red import cal_red_red_GP as cal_red_func_GP
+        elif cal_red == "cal_nored.red":
+            from core.cal_nored_red import cal_nored_red_GP as cal_red_func_GP
+        else:
+            raise ValueError(f"Unexpected value for cal_red: {cal_red}")
+
+        g = self.tc
+        include_cal_red = cal_red_func_GP(
+            g=g,
+            config=CalRedRedConfig(
+                arg1=g.Com,
+                arg2=g.com1,
+                arg3=g.ts,
+                arg4=g.p,
+                arg5=g.t,
+                var=var,
+                sow=sow,
+                pgprim=pgprim,
+                def_rtp_ffcs=def_rtp_ffcs,
+                arg10=Number(1),
+            ),
         )
-        rts = macro.rts(s="S", g=self.tc, env=self.env)
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-* Standard DC power flow equations - Omega
-  {eq}_GR_POWFLO(RTCS_VARC(RC_GRID({r_t},C),{rts}),REG,COM{swt})$GR_ADMIT(R,T,C,REG,COM)..
+        rts = macro.rts_GP(s=g.s, g=g, env=self.env)
 
-  SUM((GR_TOP(R,C,REG,COM,P),RTP_VINTYR(REG,V,T,P))$RTPCS_VARF(REG,T,P,COM,S),
-    SUM(RPC_IRE(REG,P,COM,IE)$PRC_REACT(R,T,P),{var}_IRE(REG,V,T,P,COM,S,IE{sow})*(1-2*XPT(IE))))
+        eq_gr_powflo = g.get_equation(f"{eq}_GR_POWFLO")
+        eq_gr_ptdflo = g.get_equation(f"{eq}_GR_PTDFLO")
+        eq_gr_virtcap = g.get_equation(f"{eq}_GR_VIRTCAP")
+        eq_gr_virtbnd = g.get_equation(f"{eq}_GR_VIRTBND")
+        eq_gr_genall = g.get_equation(f"{eq}_GR_GENALL")
+        eq_gr_demall = g.get_equation(f"{eq}_GR_DEMALL")
+        eq_gr_xbnd = g.get_equation(f"{eq}_GR_XBND")
+        VAR_IRE = g.get_variable(f"{var}_IRE")
+        VAR_COMAUX = g.get_variable(f"{var}_COMAUX")
+        VAR_ACT = g.get_variable(f"{var}_ACT")
+        VAR_GRIDIO = g.get_variable(f"{var}_GRIDIO")
+        VAR_SOUT = g.get_variable(f"{var}_SOUT")
+        VAR_SIN = g.get_variable(f"{var}_SIN")
 
-  =E=  ({var}_COMAUX(R,T,C,S{sow})-{var}_COMAUX(REG,T,COM,S{sow})) * GR_ADMIT(R,T,C,REG,COM);
+        # * Standard DC power flow equations - Omega
+        eq_gr_powflo[g.RtcsVarc[g.RcGrid[*r_t, g.c], rts], g.Reg, g.Com, *swt].where[
+            g.gr_admit[g.r, g.t, g.c, g.Reg, g.Com]
+        ] = (
+            Sum(
+                Domain(
+                    g.GrTop[g.r, g.c, g.Reg, g.Com, g.p],
+                    g.RtpVintyr[g.Reg, g.v, g.t, g.p],
+                ).where[g.RtpcsVarf[g.Reg, g.t, g.p, g.Com, g.s]],
+                Sum(
+                    g.RpcIre[g.Reg, g.p, g.Com, g.ie].where[g.prc_react[g.r, g.t, g.p]],
+                    VAR_IRE[g.Reg, g.v, g.t, g.p, g.Com, g.s, g.ie, *sow]
+                    * (1.0 - 2.0 * g.xpt[g.ie]),
+                ),
+            )
+            == (
+                VAR_COMAUX[g.r, g.t, g.c, g.s, *sow]
+                - VAR_COMAUX[g.Reg, g.t, g.Com, g.s, *sow]
+            )
+            * g.gr_admit[g.r, g.t, g.c, g.Reg, g.Com]
+        )
+        # *------------------------------------------------------------------------
 
-*------------------------------------------------------------------------
-
-* Standard DC power flow equations - PTDF
-  {eq}_GR_PTDFLO({r_t},P,C,{rts}{swt})$(RPS_S1(R,P,S)$(GR_FLOW(R,P,C)>0)$RP_GRID(R,P))..
-*...Real flow over the line
-    SUM((RTP_VINTYR(R,V,T,P),RTPCS_VARF(R,T,P,C,TS))$RS_FR(R,S,TS),RS_FR(R,S,TS)*SUM(RPC_IRE(R,P,C,IE),{var}_IRE(R,V,T,P,C,S,IE{sow})*(2*XPT(IE)-1))) +
-*...Virtual powerflow over the line (if candidate)
-    SUM(RC_GRID(R,T,C),VAR_GRVIRT(R,T,P,C,S))$GR_CANDID(R,T,P)
-  =E=
-*...PTDF for net injections: Normal grid nodes
-    SUM(RC_GRID(REG,T,COM)$(COM_TS(REG,COM,S)$GR_PTDF(R,T,P,C,REG,COM)), GR_PTDF(R,T,P,C,REG,COM) * {var}_COMAUX(REG,T,COM,S{sow}))
-*...PTDF for virtual injections (redundant in this formulation)
-*   +SUM(GR_TOP(REG,COM1,RC,PRC)$GR_CANDID(REG,T,PRC),
-*     (GR_PTDF(R,T,P,C,REG,COM1)-GR_PTDF(R,T,P,C,RC)) * SUM(RPS_S1(REG,PRC,TS)$RS_FR(REG,S,TS),RS_FR(REG,S,TS)*VAR_GRVIRT(REG,T,PRC,COM1,TS)));
-  ;
-*------------------------------------------------------------------------
-* Implied capacity of virtual powerflow
-  {eq}_GR_VIRTCAP(GR_CANDID({r_t},P),C,{rts},BDNEQ(BD){swt})$((GR_FLOW(R,P,C)>0)$RPS_S1(R,P,S))..
-    SUM(GR_TOP(R,C,RC,P),VAR_GRVIRT(R,T,P,C,S))*BDSIG(BD)  =L=  {macro.VAR_XCAP(var, "R", "T", "P", sow)}*PRC_CAPACT(R,P)*G_YRFR(R,S)
-  ;
-*------------------------------------------------------------------------
-* Bounds on virtual capacity
-  {eq}_GR_VIRTBND(GR_CANDID({r_t},P){swt})..
-*...Upper bound on virtual flow capacity: Zero if line is installed, less than BIGM*F if line not installed
-    {macro.VAR_XCAP(var, "R", "T", "P", sow)} =E=  {bigm}*GR_CAPUP(R,T,P) *
-*...Virtual capacity indicator
-    (1 - (VAR_PTDNCAP(r,t,p)$GR_DNCAP(R,P) + (1-(1-SUM(RTP(R,T,P),{macro.VAR_CAP(var, "R", "T", "P", sow)})/GR_CAPUP(R,T,P))/{bigm})$(NOT GR_DNCAP(R,P))))
-  ;
-*------------------------------------------------------------------------
-* Generation fractions for all grid nodes C
-  {eq}_GR_GENALL(RTCS_VARC(GR_GNALL({r_t},C),{rts}),CG {swt})$GR_ALGMAP(R,CG,CG)..
-
-* Normal processes
-  SUM((GR_PRCMAP(RP_STD(R,P),COM,ITEM),GR_ALGMAP(R,CG,COM)), GR_GENMAP(R,P,ITEM)*GR_GENFR(R,T,C,ITEM) *
-    SUM((RTP_VINTYR(R,V,T,P),RTPCS_VARF(R,T,P,COM,TS))$RS_FR(R,S,TS),
-{include_cal_red}
-         * RS_FR(R,S,TS)*(1+{macro.rtcs_fr.rtcs_fr("R", "T", "COM", "S", "TS")}))$GR_ALLMAP(R,C,COM)) +
-* Imports
-  SUM((GR_PRCMAP(RP_IRE(R,P),COM,ITEM),RPC_IRE(R,P,COM,IE('IMP')))$GR_ALGMAP(R,CG,COM), GR_GENMAP(R,P,ITEM)*GR_GENFR(R,T,C,ITEM) *
-    SUM((RTP_VINTYR(R,V,T,P),RTPCS_VARF(R,T,P,COM,TS))$RS_FR(R,S,TS),
-       (1+IRE_FLOSUM(R,T,P,COM,TS,IE,COM,'OUT')) *
-       ({var}_IRE(R,V,T,P,COM,TS,IE{sow})$(NOT RPC_AIRE(R,P,COM))+
-        ({var}_ACT(R,V,T,P,TS{sow})*PRC_ACTFLO(R,V,P,COM))$RPC_AIRE(R,P,COM))*RS_FR(R,S,TS))) +
-* Net storage output
-  SUM((GR_PRCMAP(RPC_STG(R,P,COM),ITEM),GR_ALGMAP(R,CG,COM)), GR_GENMAP(R,P,ITEM)*GR_GENFR(R,T,C,ITEM) *
-    SUM((RTP_VINTYR(R,V,T,P),RPCS_VAR(R,P,COM,TS)),({var}_SOUT(R,V,T,P,COM,TS {sow})-{var}_SIN(R,V,T,P,COM,TS {sow})$TOP(R,P,COM,'IN'))*RS_FR(R,S,TS)))
-
-* Net balance
-  +SUM(GR_ALLMAP(R,CG,C),{var}_GRIDIO(R,T,C,C,S,'OUT'{sow}) - {var}_GRIDIO(R,T,C,C,S,'IN'{sow}) -
-    SUM(GR_DEMMAP(R,C,COM),{var}_GRIDIO(R,T,COM,C,S,'OUT'{sow}) - {var}_GRIDIO(R,T,COM,C,S,'IN'{sow})$GR_ALGMAP(R,'NRG',COM)))
-
-  =E=
-  SUM((GR_ALGMAP(R,CG,COM),GR_ALLMAP(R,C,COM))$RTC(R,T,COM),{var}_GRIDIO(R,T,COM,C,S,'OUT'{sow}) + {var}_GRIDIO(R,T,COM,C,S,'IN'{sow})$GR_ALGMAP(R,COM,COM));
-*------------------------------------------------------------------------
-* Demand fractions for all but the largest fraction
-  {eq}_GR_DEMALL(RTCS_VARC(RC_GRID({r_t},C),{rts}) {swt})$GR_DEMFR(R,T,C,S)..
-
-* Net injection
-  SUM(GR_ENDC(R,COM),
-    SUM(TOP(RP_STD(R,P),COM,'OUT')$(NOT GR_GENP(R,P)*GR_DEMMAP(R,C,COM)),
-      SUM((RTP_VINTYR(R,V,T,P),RTPCS_VARF(R,T,P,COM,TS))$RS_FR(R,S,TS),
-{include_cal_red}
-         * RS_FR(R,S,TS)*(1+{macro.rtcs_fr.rtcs_fr("R", "T", "COM", "S", "TS")})) *
-      (SUM(GR_PRCMAP(R,P,COM,ITEM),GR_GENMAP(R,P,ITEM)*GR_GENFR(R,T,C,ITEM))-GR_ENDFR(R,T,C,COM)*(1+GR_ENDFR(R,T,COM,COM))-GR_DEMFR(R,T,C,S)$GR_GENP(R,P)$GR_ENDC(R,'NRG')))) +
-* Exports
-  SUM((GR_PRCMAP(RP_IRE(R,P),COM,ITEM),RPC_IRE(R,P,COM,IE('EXP')))$GR_ALGMAP(R,'NRG',COM), GR_GENMAP(R,P,ITEM) *
-    (GR_ENDFR(R,T,C,COM) + GR_DEMFR(R,T,C,S)$GR_ENDC(R,'NRG') - GR_GENFR(R,T,C,ITEM)) *
-    SUM((RTP_VINTYR(R,V,T,P),RTPCS_VARF(R,T,P,COM,TS))$RS_FR(R,S,TS),
-       (1+IRE_FLOSUM(R,T,P,COM,TS,IE,COM,'IN')) *
-       ({var}_IRE(R,V,T,P,COM,TS,IE{sow})$(NOT RPC_AIRE(R,P,COM))+
-        ({var}_ACT(R,V,T,P,TS{sow})*PRC_ACTFLO(R,V,P,COM))$RPC_AIRE(R,P,COM))*RS_FR(R,S,TS))$GR_ALLMAP(R,C,COM)) +
-* Net demand shares
-  SUM(GR_DEMMAP(R,C,COM)$RTC(R,T,COM), {var}_GRIDIO(R,T,COM,C,S,'IN'{sow}) -
-    (GR_ENDFR(R,T,C,COM)+GR_DEMFR(R,T,C,S)$GR_ENDC(R,'NRG')) *
-    SUM(RTC(R,T,COM2)$GR_DEMMAP(R,COM2,COM),{var}_GRIDIO(R,T,COM,COM2,S,'IN'{sow})))
-
-  =E= 0;
-*------------------------------------------------------------------------
-* Bound on net imports/exports from grid J
-  {eq}_GR_XBND({r_t},J,IE,{rts}{swt})$(FINEST(R,S)$GR_GRID(J,R,'ACT')$GR_XBND(R,T))..
-
-  SUM((GR_GRID(J,R,C),GR_DEMMAP(R,C,COM))$(RTC(R,T,COM)$RC_GRID(R,T,C)), PROD(XPT(IE),-1) *
-    ({var}_GRIDIO(R,T,COM,C,S,'IN'{sow})$GR_ALGMAP(R,'NRG',COM) - {var}_GRIDIO(R,T,COM,C,S,'OUT'{sow})))
-
-  =L=
-  SUM((GR_GRID(J,R,C),TOP_IRE(R,C,ALL_R,COM,P))$((NOT SAMEAS(R,ALL_R))$RC_GRID(R,T,C)),
-    SUM(V$COEF_VNT(R,T,P,V), COEF_VNT(R,T,P,V) * PRC_CAPACT(R,P) * GR_XBND(R,T) * G_YRFR(R,S) *
-      ({macro.VAR_NCAP(varv, "R", "V", "P", sws)}$TT(V)+NCAP_PASTI(R,V,P)$PASTYEAR(V)))$PRC_CAP(R,P) +
-    SUM((REG(ALL_R),V)$COEF_VNT(REG,T,P,V), COEF_VNT(REG,T,P,V) * PRC_CAPACT(REG,P) * GR_XBND(R,T) * G_YRFR(R,S) *
-      ({macro.VAR_NCAP(varv, "REG", "V", "P", sws)}$TT(V)+NCAP_PASTI(REG,V,P)$PASTYEAR(V))$PRC_CAP(REG,P))$(NOT PRC_CAP(R,P)))$XPT(IE) +
-  SUM((TOP_IRE(ALL_R,COM,R,C,P),GR_GRID(J,R,C))$((NOT SAMEAS(R,ALL_R))$RC_GRID(R,T,C)),
-    SUM(V$COEF_VNT(R,T,P,V), COEF_VNT(R,T,P,V) * PRC_CAPACT(R,P) * GR_XBND(R,T) * G_YRFR(R,S) *
-      ({macro.VAR_NCAP(varv, "R", "V", "P", sws)}$TT(V)+NCAP_PASTI(R,V,P)$PASTYEAR(V)))$PRC_CAP(R,P) +
-    SUM((REG(ALL_R),V)$COEF_VNT(REG,T,P,V), COEF_VNT(REG,T,P,V) * PRC_CAPACT(REG,P) * GR_XBND(R,T) * G_YRFR(R,S) *
-      ({macro.VAR_NCAP(varv, "REG", "V", "P", sws)}$TT(V)+NCAP_PASTI(REG,V,P)$PASTYEAR(V))$PRC_CAP(REG,P))$(NOT PRC_CAP(R,P)))$IMP(IE)
-;
-""",
+        # * Standard DC power flow equations - PTDF
+        eq_gr_ptdflo[*r_t, g.p, g.c, rts, *swt].where[
+            (
+                g.RpsS1[g.r, g.p, g.s].where[
+                    (g.gr_flow[g.r, g.p, g.c] > 0.0) & g.RpGrid[g.r, g.p]
+                ]
+            )
+            # *...Real flow over the line
+        ] = Sum(
+            Domain(
+                g.RtpVintyr[g.r, g.v, g.t, g.p], g.RtpcsVarf[g.r, g.t, g.p, g.c, g.ts]
+            ).where[g.rs_fr[g.r, g.s, g.ts]],
+            g.rs_fr[g.r, g.s, g.ts]
+            # *...Virtual powerflow over the line (if candidate)
+            * Sum(
+                g.RpcIre[g.r, g.p, g.c, g.ie],
+                VAR_IRE[g.r, g.v, g.t, g.p, g.c, g.s, g.ie, *sow]
+                * (2.0 * g.xpt[g.ie] - 1.0),
+            ),
+        ) + Sum(
+            g.RcGrid[g.r, g.t, g.c],
+            macro.var_grvirt_GP(g.r, g.t, g.p, g.s, var, pgprim, sow),
+        ).where[g.GrCandid[g.r, g.t, g.p]] == Sum(
+            # *...PTDF for net injections: Normal grid nodes
+            g.RcGrid[g.Reg, g.t, g.Com].where[
+                (
+                    g.ComTs[g.Reg, g.Com, g.s].where[
+                        g.gr_ptdf[g.r, g.t, g.p, g.c, g.Reg, g.Com]
+                    ]
+                )
+            ],
+            g.gr_ptdf[g.r, g.t, g.p, g.c, g.Reg, g.Com]
+            * VAR_COMAUX[g.Reg, g.t, g.Com, g.s, *sow],
+        )
+        # *...PTDF for virtual injections (redundant in this formulation)
+        # *   +SUM(GR_TOP(REG,COM1,RC,PRC)$GR_CANDID(REG,T,PRC),
+        # *     (GR_PTDF(R,T,P,C,REG,COM1)-GR_PTDF(R,T,P,C,RC)) * SUM(RPS_S1(REG,PRC,TS)$RS_FR(REG,S,TS),RS_FR(REG,S,TS)*VAR_GRVIRT(REG,T,PRC,COM1,TS)));
+        # *------------------------------------------------------------------------
+        # * Implied capacity of virtual powerflow
+        eq_gr_virtcap[g.GrCandid[*r_t, g.p], g.c, rts, g.Bdneq[g.bd], *swt].where[
+            ((g.gr_flow[g.r, g.p, g.c] > 0.0).where[g.RpsS1[g.r, g.p, g.s]])
+        ] = (
+            Sum(
+                g.GrTop[g.r, g.c, g.Rc, g.p],
+                macro.var_grvirt_GP(g.r, g.t, g.p, g.s, var, pgprim, sow),
+            )
+            * g.bdsig[g.bd]
+            <= macro.VAR_XCAP_GP(var, g.r, g.t, g.p, sow)
+            * g.prc_capact[g.r, g.p]
+            * g.g_yrfr[g.r, g.s]
+        )
+        # *------------------------------------------------------------------------
+        # * Bounds on virtual capacity
+        eq_gr_virtbnd[g.GrCandid[*r_t, g.p], *swt] = macro.VAR_XCAP_GP(
+            var, g.r, g.t, g.p, sow
+        ) == bigm * g.gr_capup[
+            # *...Upper bound on virtual flow capacity: Zero if line is installed, less than BIGM*F if line not installed
+            g.r, g.t, g.p
+        ] * (
+            1.0
+            - (
+                macro.var_ptdncap_GP(g.r, g.t, g.p).where[
+                    macro.gr_dncap_GP(g.r, g.p, self.env)
+                ]
+                # *...Virtual capacity indicator
+                + (
+                    1.0
+                    - (
+                        1.0
+                        - Sum(
+                            g.Rtp[g.r, g.t, g.p],
+                            macro.VAR_CAP_GP(var, g.r, g.t, g.p, sow),
+                        )
+                        / g.gr_capup[g.r, g.t, g.p]
+                    )
+                    / bigm
+                ).where[(~(macro.gr_dncap_GP(g.r, g.p, self.env)))]
+            )
+        )
+        # *------------------------------------------------------------------------
+        # * Generation fractions for all grid nodes C
+        eq_gr_genall[g.RtcsVarc[g.GrGnall[*r_t, g.c], rts], g.cg, *swt].where[
+            g.GrAlgmap[g.r, g.cg, g.cg]
+            # * Normal processes
+        ] = Sum(
+            [
+                g.GrPrcmap[g.RpStd[g.r, g.p], g.Com, g.item],
+                g.GrAlgmap[g.r, g.cg, g.Com],
+            ],
+            g.gr_genmap[g.r, g.p, g.item]
+            * g.gr_genfr[g.r, g.t, g.c, g.item]
+            * Sum(
+                Domain(
+                    g.RtpVintyr[g.r, g.v, g.t, g.p],
+                    g.RtpcsVarf[g.r, g.t, g.p, g.Com, g.ts],
+                ).where[g.rs_fr[g.r, g.s, g.ts]],
+                include_cal_red
+                * g.rs_fr[g.r, g.s, g.ts]
+                * (1.0 + macro.rtcs_fr.rtcs_fr_GP(g.r, g.t, g.Com, g.s, g.ts, sow)),
+            ).where[g.GrAllmap[g.r, g.c, g.Com]],
+            # * Imports
+        ) + Sum(
+            Domain(
+                g.GrPrcmap[g.RpIre[g.r, g.p], g.Com, g.item],
+                g.RpcIre[g.r, g.p, g.Com, g.ie["IMP"]],
+            ).where[g.GrAlgmap[g.r, g.cg, g.Com]],
+            g.gr_genmap[g.r, g.p, g.item]
+            * g.gr_genfr[g.r, g.t, g.c, g.item]
+            * Sum(
+                Domain(
+                    g.RtpVintyr[g.r, g.v, g.t, g.p],
+                    g.RtpcsVarf[g.r, g.t, g.p, g.Com, g.ts],
+                ).where[g.rs_fr[g.r, g.s, g.ts]],
+                (1.0 + g.ire_flosum[g.r, g.t, g.p, g.Com, g.ts, g.ie, g.Com, "OUT"])
+                * (
+                    VAR_IRE[g.r, g.v, g.t, g.p, g.Com, g.ts, g.ie, *sow].where[
+                        (~(g.RpcAire[g.r, g.p, g.Com]))
+                    ]
+                    + (
+                        VAR_ACT[g.r, g.v, g.t, g.p, g.ts, *sow]
+                        * g.prc_actflo[g.r, g.v, g.p, g.Com]
+                    ).where[g.RpcAire[g.r, g.p, g.Com]]
+                )
+                * g.rs_fr[g.r, g.s, g.ts],
+            ),
+            # * Net storage output
+        ) + Sum(
+            [
+                g.GrPrcmap[g.RpcStg[g.r, g.p, g.Com], g.item],
+                g.GrAlgmap[g.r, g.cg, g.Com],
+            ],
+            g.gr_genmap[g.r, g.p, g.item]
+            * g.gr_genfr[g.r, g.t, g.c, g.item]
+            * Sum(
+                [g.RtpVintyr[g.r, g.v, g.t, g.p], g.RpcsVar[g.r, g.p, g.Com, g.ts]],
+                (
+                    VAR_SOUT[g.r, g.v, g.t, g.p, g.Com, g.ts, *sow]
+                    - VAR_SIN[g.r, g.v, g.t, g.p, g.Com, g.ts, *sow].where[
+                        g.Top[g.r, g.p, g.Com, "IN"]
+                    ]
+                )
+                * g.rs_fr[g.r, g.s, g.ts],
+            ),
+            # * Net balance
+        ) + Sum(
+            g.GrAllmap[g.r, g.cg, g.c],
+            VAR_GRIDIO[g.r, g.t, g.c, g.c, g.s, "OUT", *sow]
+            - VAR_GRIDIO[g.r, g.t, g.c, g.c, g.s, "IN", *sow]
+            - Sum(
+                g.GrDemmap[g.r, g.c, g.Com],
+                VAR_GRIDIO[g.r, g.t, g.Com, g.c, g.s, "OUT", *sow]
+                - VAR_GRIDIO[g.r, g.t, g.Com, g.c, g.s, "IN", *sow].where[
+                    g.GrAlgmap[g.r, "NRG", g.Com]
+                ],
+            ),
+        ) == Sum(
+            Domain(g.GrAlgmap[g.r, g.cg, g.Com], g.GrAllmap[g.r, g.c, g.Com]).where[
+                g.Rtc[g.r, g.t, g.Com]
+            ],
+            VAR_GRIDIO[g.r, g.t, g.Com, g.c, g.s, "OUT", *sow]
+            + VAR_GRIDIO[g.r, g.t, g.Com, g.c, g.s, "IN", *sow].where[
+                g.GrAlgmap[g.r, g.Com, g.Com]
+            ],
+        )
+        # *------------------------------------------------------------------------
+        # * Demand fractions for all but the largest fraction
+        eq_gr_demall[g.RtcsVarc[g.RcGrid[*r_t, g.c], rts], *swt].where[
+            g.gr_demfr[g.r, g.t, g.c, g.s]
+        ] = (
+            # * Net injection
+            Sum(
+                g.GrEndc[g.r, g.Com],
+                Sum(
+                    g.Top[g.RpStd[g.r, g.p], g.Com, "OUT"].where[
+                        (~(g.GrGenp[g.r, g.p] * g.GrDemmap[g.r, g.c, g.Com]))
+                    ],
+                    Sum(
+                        Domain(
+                            g.RtpVintyr[g.r, g.v, g.t, g.p],
+                            g.RtpcsVarf[g.r, g.t, g.p, g.Com, g.ts],
+                        ).where[g.rs_fr[g.r, g.s, g.ts]],
+                        include_cal_red
+                        * g.rs_fr[g.r, g.s, g.ts]
+                        * (
+                            1.0
+                            + macro.rtcs_fr.rtcs_fr_GP(g.r, g.t, g.Com, g.s, g.ts, sow)
+                        ),
+                    )
+                    * (
+                        Sum(
+                            g.GrPrcmap[g.r, g.p, g.Com, g.item],
+                            g.gr_genmap[g.r, g.p, g.item]
+                            * g.gr_genfr[g.r, g.t, g.c, g.item],
+                        )
+                        - g.gr_endfr[g.r, g.t, g.c, g.Com]
+                        * (1.0 + g.gr_endfr[g.r, g.t, g.Com, g.Com])
+                        - g.gr_demfr[g.r, g.t, g.c, g.s].where[
+                            g.GrGenp[g.r, g.p] & g.GrEndc[g.r, "NRG"]
+                        ]
+                    ),
+                ),
+            )
+            # * Exports
+            + Sum(
+                Domain(
+                    g.GrPrcmap[g.RpIre[g.r, g.p], g.Com, g.item],
+                    g.RpcIre[g.r, g.p, g.Com, g.ie["EXP"]],
+                ).where[g.GrAlgmap[g.r, "NRG", g.Com]],
+                g.gr_genmap[g.r, g.p, g.item]
+                * (
+                    g.gr_endfr[g.r, g.t, g.c, g.Com]
+                    + g.gr_demfr[g.r, g.t, g.c, g.s].where[g.GrEndc[g.r, "NRG"]]
+                    - g.gr_genfr[g.r, g.t, g.c, g.item]
+                )
+                * Sum(
+                    Domain(
+                        g.RtpVintyr[g.r, g.v, g.t, g.p],
+                        g.RtpcsVarf[g.r, g.t, g.p, g.Com, g.ts],
+                    ).where[g.rs_fr[g.r, g.s, g.ts]],
+                    (1.0 + g.ire_flosum[g.r, g.t, g.p, g.Com, g.ts, g.ie, g.Com, "IN"])
+                    * (
+                        VAR_IRE[g.r, g.v, g.t, g.p, g.Com, g.ts, g.ie, *sow].where[
+                            (~(g.RpcAire[g.r, g.p, g.Com]))
+                        ]
+                        + (
+                            VAR_ACT[g.r, g.v, g.t, g.p, g.ts, *sow]
+                            * g.prc_actflo[g.r, g.v, g.p, g.Com]
+                        ).where[g.RpcAire[g.r, g.p, g.Com]]
+                    )
+                    * g.rs_fr[g.r, g.s, g.ts],
+                ).where[g.GrAllmap[g.r, g.c, g.Com]],
+            )
+            # * Net demand shares
+            + Sum(
+                g.GrDemmap[g.r, g.c, g.Com].where[g.Rtc[g.r, g.t, g.Com]],
+                VAR_GRIDIO[g.r, g.t, g.Com, g.c, g.s, "IN", *sow]
+                - (
+                    g.gr_endfr[g.r, g.t, g.c, g.Com]
+                    + g.gr_demfr[g.r, g.t, g.c, g.s].where[g.GrEndc[g.r, "NRG"]]
+                )
+                * Sum(
+                    g.Rtc[g.r, g.t, g.com2].where[g.GrDemmap[g.r, g.com2, g.Com]],
+                    VAR_GRIDIO[g.r, g.t, g.Com, g.com2, g.s, "IN", *sow],
+                ),
+            )
+            == 0.0
+        )
+        # *------------------------------------------------------------------------
+        # * Bound on net imports/exports from grid J
+        eq_gr_xbnd[*r_t, g.j, g.ie, rts, *swt].where[
+            (g.Finest[g.r, g.s].where[g.GrGrid[g.j, g.r, "ACT"] & g.gr_xbnd[g.r, g.t]])
+        ] = (
+            Sum(
+                Domain(g.GrGrid[g.j, g.r, g.c], g.GrDemmap[g.r, g.c, g.Com]).where[
+                    (g.Rtc[g.r, g.t, g.Com].where[g.RcGrid[g.r, g.t, g.c]])
+                ],
+                Product(g.xpt[g.ie], -1.0)
+                * (
+                    VAR_GRIDIO[g.r, g.t, g.Com, g.c, g.s, "IN", *sow].where[
+                        g.GrAlgmap[g.r, "NRG", g.Com]
+                    ]
+                    - VAR_GRIDIO[g.r, g.t, g.Com, g.c, g.s, "OUT", *sow]
+                ),
+            )
+            <= Sum(
+                Domain(
+                    g.GrGrid[g.j, g.r, g.c], g.TopIre[g.r, g.c, g.allr, g.Com, g.p]
+                ).where[((~(same_as(g.r, g.allr))).where[g.RcGrid[g.r, g.t, g.c]])],
+                Sum(
+                    g.v.where[g.coef_vnt[g.r, g.t, g.p, g.v]],
+                    g.coef_vnt[g.r, g.t, g.p, g.v]
+                    * g.prc_capact[g.r, g.p]
+                    * g.gr_xbnd[g.r, g.t]
+                    * g.g_yrfr[g.r, g.s]
+                    * (
+                        macro.VAR_NCAP_GP(varv, g.r, g.v, g.p, sws).where[g.tt[g.v]]
+                        + g.ncap_pasti[g.r, g.v, g.p].where[g.Pastyear[g.v]]
+                    ),
+                ).where[g.PrcCap[g.r, g.p]]
+                + Sum(
+                    Domain(g.Reg[g.allr], g.v).where[g.coef_vnt[g.Reg, g.t, g.p, g.v]],
+                    g.coef_vnt[g.Reg, g.t, g.p, g.v]
+                    * g.prc_capact[g.Reg, g.p]
+                    * g.gr_xbnd[g.r, g.t]
+                    * g.g_yrfr[g.r, g.s]
+                    * (
+                        macro.VAR_NCAP_GP(varv, g.Reg, g.v, g.p, sws).where[g.tt[g.v]]
+                        + g.ncap_pasti[g.Reg, g.v, g.p].where[g.Pastyear[g.v]]
+                    ).where[g.PrcCap[g.Reg, g.p]],
+                ).where[(~(g.PrcCap[g.r, g.p]))],
+            ).where[g.xpt[g.ie]]
+            + Sum(
+                Domain(
+                    g.TopIre[g.allr, g.Com, g.r, g.c, g.p], g.GrGrid[g.j, g.r, g.c]
+                ).where[((~(same_as(g.r, g.allr))).where[g.RcGrid[g.r, g.t, g.c]])],
+                Sum(
+                    g.v.where[g.coef_vnt[g.r, g.t, g.p, g.v]],
+                    g.coef_vnt[g.r, g.t, g.p, g.v]
+                    * g.prc_capact[g.r, g.p]
+                    * g.gr_xbnd[g.r, g.t]
+                    * g.g_yrfr[g.r, g.s]
+                    * (
+                        macro.VAR_NCAP_GP(varv, g.r, g.v, g.p, sws).where[g.tt[g.v]]
+                        + g.ncap_pasti[g.r, g.v, g.p].where[g.Pastyear[g.v]]
+                    ),
+                ).where[g.PrcCap[g.r, g.p]]
+                + Sum(
+                    Domain(g.Reg[g.allr], g.v).where[g.coef_vnt[g.Reg, g.t, g.p, g.v]],
+                    g.coef_vnt[g.Reg, g.t, g.p, g.v]
+                    * g.prc_capact[g.Reg, g.p]
+                    * g.gr_xbnd[g.r, g.t]
+                    * g.g_yrfr[g.r, g.s]
+                    * (
+                        macro.VAR_NCAP_GP(varv, g.Reg, g.v, g.p, sws).where[g.tt[g.v]]
+                        + g.ncap_pasti[g.Reg, g.v, g.p].where[g.Pastyear[g.v]]
+                    ).where[g.PrcCap[g.Reg, g.p]],
+                ).where[(~(g.PrcCap[g.r, g.p]))],
+            ).where[g.imp[g.ie]]
         )
 
     def comp2(self: PowerfloVda) -> None:
@@ -789,7 +1321,7 @@ $ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,'{pgprim}',s,ie{sow}
             expand_set(g.obv, ["OBJBAL"])
         self.add_records_to_universe_item(records=["CON", "NTX", "NPG"])
 
-        g.Rcgrid = Set(m, name="RC_GRID", domain=[g.r, g.t, g.c])
+        g.RcGrid = Set(m, name="RC_GRID", domain=[g.r, g.t, g.c])
         g.GrAllmap = Set(m, name="GR_ALLMAP", domain=[g.r, g.cg, g.Com])
         g.GrPrcmap = Set(m, name="GR_PRCMAP", domain=[g.r, g.p, g.c, g.item])
         g.GrDemmap = Set(m, name="GR_DEMMAP", domain=[g.r, g.c, g.Com])
@@ -800,71 +1332,127 @@ $ MACRO VAR_GRVIRT(r,t,p,n,s) SUM(IE(XPT),{var}_IRE(r,t,t,p,'{pgprim}',s,ie{sow}
         )
 
     def exec6(self: PowerfloVda) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-OPTION CLEAR=RC_GRID,CLEAR=GR_ALLMAP,CLEAR=GR_ALGMAP,CLEAR=GR_DEMMAP,CLEAR=GR_PRCMAP,CLEAR=GR_ENDC;
-""",
-        )
+        g = self.tc
+        g.RcGrid.setRecords(None)
+        g.GrAllmap.setRecords(None)
+        g.GrAlgmap.setRecords(None)
+        g.GrDemmap.setRecords(None)
+        g.GrPrcmap.setRecords(None)
+        g.GrEndc.setRecords(None)
 
     def exec7(self: PowerfloVda) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-  OPTION TRACKC < COM_CSTBAL;
-  TRACKC(R,C)$SUM(GR_ALLMAP(R,C,COM),1)=NO;
-  OBJ_COMBAL(RTCS_VARC(RTC(R,T,C),TS),'PRD',CUR)$TRACKC(R,C) = SUM(TS_ANN(TS,S),COM_CSTBAL(RTC,S,'PRD',CUR)+COM_CSTBAL(RTC,S,'CON',CUR)+COM_CSTBAL(RTC,S,'OUT',CUR));
-  OBJ_COMBAL(RTCS_VARC(RTC(R,T,C),TS),'IMP',CUR)$TRACKC(R,C) = SUM(TS_ANN(TS,S),COM_CSTBAL(RTC,S,'IMP',CUR)+COM_CSTBAL(RTC,S,'NTX',CUR)-COM_CSTBAL(RTC,S,'PRD',CUR));
-  OBJ_COMBAL(RTCS_VARC(RTC(R,T,C),TS),'EXP',CUR)$TRACKC(R,C) = SUM(TS_ANN(TS,S),COM_CSTBAL(RTC,S,'EXP',CUR)-COM_CSTBAL(RTC,S,'NTX',CUR)-COM_CSTBAL(RTC,S,'CON',CUR));
-  LOOP(RDCUR(R,CUR),RHS_COMPRD(RTCS_VARC(R,T,C,S))$OBJ_COMBAL(R,T,C,S,'PRD',CUR)=YES); RCS_COMPRD(RHS_COMPRD(R,T,C,S),'FX')$TRACKC(R,C) = YES;
-  OBJ_COMBAL(RTCS_VARC(RTC(RC_GRID),TS),'GEN',CUR) = SUM(TS_ANN(TS,S),COM_CSTBAL(RTC,S,'PRD',CUR)+COM_CSTBAL(RTC,S,'CON',CUR));
-  OBJ_COMBAL(RTCS_VARC(RTC(RC_GRID),TS),'NTX',CUR) = SUM(TS_ANN(TS,S),COM_CSTBAL(RTC,S,'NTX',CUR)+COM_CSTBAL(RTC,S,'CON',CUR));
-  OBJ_COMBAL(RTCS_VARC(RTC(RC_GRID),TS),IE,CUR)    = SUM(TS_ANN(TS,S),COM_CSTBAL(RTC,S,IE,CUR));
-* Add balancer variables if penalty costs on excess
-  OPTION CLEAR=UNCD7; UNCD7(R,T--ORD(T),C,S--ORD(S),CUR,'','')$RC_GRID(R,T,C) $= COM_CSTBAL(R,T,C,S,'NPG',CUR);
-  LOOP(UNCD7(R,TT,C,SL,CUR,'',''), GR_ALLMAP(R,'FIN',C) = YES; GR_ALGMAP(R,CG('FIN'),CG) = YES;
-    OBJ_COMBAL(RC_GRID(R,T,C),TS,'NPG',CUR) $= SUM(TS_ANN(TS,S),COM_CSTBAL(R,T,C,S,'NPG',CUR)));
-  OPTION CLEAR=TRACKC;
-""",
+        g = self.tc
+        project(source=g.com_cstbal, target=g.Trackc)
+        g.Trackc[g.r, g.c].where[Sum(g.GrAllmap[g.r, g.c, g.Com], 1.0)] = False
+        g.obj_combal[g.RtcsVarc[g.Rtc[g.r, g.t, g.c], g.ts], "PRD", g.cur].where[
+            g.Trackc[g.r, g.c]
+        ] = Sum(
+            g.TsAnn[g.ts, g.s],
+            g.com_cstbal[g.Rtc, g.s, "PRD", g.cur]
+            + g.com_cstbal[g.Rtc, g.s, "CON", g.cur]
+            + g.com_cstbal[g.Rtc, g.s, "OUT", g.cur],
         )
+        g.obj_combal[g.RtcsVarc[g.Rtc[g.r, g.t, g.c], g.ts], "IMP", g.cur].where[
+            g.Trackc[g.r, g.c]
+        ] = Sum(
+            g.TsAnn[g.ts, g.s],
+            g.com_cstbal[g.Rtc, g.s, "IMP", g.cur]
+            + g.com_cstbal[g.Rtc, g.s, "NTX", g.cur]
+            - g.com_cstbal[g.Rtc, g.s, "PRD", g.cur],
+        )
+        g.obj_combal[g.RtcsVarc[g.Rtc[g.r, g.t, g.c], g.ts], "EXP", g.cur].where[
+            g.Trackc[g.r, g.c]
+        ] = Sum(
+            g.TsAnn[g.ts, g.s],
+            g.com_cstbal[g.Rtc, g.s, "EXP", g.cur]
+            - g.com_cstbal[g.Rtc, g.s, "NTX", g.cur]
+            - g.com_cstbal[g.Rtc, g.s, "CON", g.cur],
+        )
+        with Loop(g.Rdcur[g.r, g.cur]):
+            g.RhsComprd[g.RtcsVarc[g.r, g.t, g.c, g.s]].where[
+                g.obj_combal[g.r, g.t, g.c, g.s, "PRD", g.cur]
+            ] = True
+        g.RcsComprd[g.RhsComprd[g.r, g.t, g.c, g.s], "FX"].where[g.Trackc[g.r, g.c]] = (
+            True
+        )
+        g.obj_combal[g.RtcsVarc[g.Rtc[g.RcGrid], g.ts], "GEN", g.cur] = Sum(
+            g.TsAnn[g.ts, g.s],
+            g.com_cstbal[g.Rtc, g.s, "PRD", g.cur]
+            + g.com_cstbal[g.Rtc, g.s, "CON", g.cur],
+        )
+        g.obj_combal[g.RtcsVarc[g.Rtc[g.RcGrid], g.ts], "NTX", g.cur] = Sum(
+            g.TsAnn[g.ts, g.s],
+            g.com_cstbal[g.Rtc, g.s, "NTX", g.cur]
+            + g.com_cstbal[g.Rtc, g.s, "CON", g.cur],
+        )
+        g.obj_combal[g.RtcsVarc[g.Rtc[g.RcGrid], g.ts], g.ie, g.cur] = Sum(
+            g.TsAnn[g.ts, g.s], g.com_cstbal[g.Rtc, g.s, g.ie, g.cur]
+        )
+        # * Add balancer variables if penalty costs on excess
+
+        g.Uncd7.setRecords(None)
+        g.Uncd7[
+            g.r,
+            g.t.lag(Ord(g.t), "circular"),
+            g.c,
+            g.s.lag(Ord(g.s), "circular"),
+            g.cur,
+            "",
+            "",
+        ].where[g.RcGrid[g.r, g.t, g.c]] = sparse(
+            g.com_cstbal[g.r, g.t, g.c, g.s, "NPG", g.cur]
+        )
+        with Loop(g.Uncd7[g.r, g.tt, g.c, g.sl, g.cur, "", ""]):
+            g.GrAllmap[g.r, "FIN", g.c] = True
+            g.GrAlgmap[g.r, g.cg["FIN"], g.cg] = True
+            g.obj_combal[g.RcGrid[g.r, g.t, g.c], g.ts, "NPG", g.cur] = sparse(
+                Sum(g.TsAnn[g.ts, g.s], g.com_cstbal[g.r, g.t, g.c, g.s, "NPG", g.cur])
+            )
+        g.Trackc.setRecords(None)
 
     def eq_objbal(
         self: PowerfloVda,
         cal_red: str,
-        sowpre: str,
+        sowpre: SowGPType,
         var: str,
-        swd: str,
-        swx: str,
-        swsw: str,
-        sow: str,
-        tpulse: str,
+        swd: tuple[Set | Alias] | tuple[()],
+        swx: tuple[Literal["1"] | Set | Alias] | tuple[()],
+        swsw: tuple[Set | Alias | ImplicitSet, ...]
+        | tuple[ImplicitSet, ImplicitParameter]
+        | tuple[()],
+        sow: SowGPType,
+        tpulse: tuple[Condition | Domain, Expression | ImplicitParameter | Number],
         pgprim: str,
         def_rtp_ffcs: bool,
         condition: bool,
     ) -> None:
         if cal_red == "cal_red.red":
-            from core.cal_red_red import cal_red_red as cal_red_func
+            from core.cal_red_red import cal_red_red_GP as cal_red_func_GP
         elif cal_red == "cal_nored.red":
-            from core.cal_nored_red import cal_nored_red as cal_red_func
+            from core.cal_nored_red import cal_nored_red_GP as cal_red_func_GP
         else:
             raise ValueError(f"Unexpected value for cal_red: {cal_red}")
 
-        include_cal_red = cal_red_func(
-            arg1="COM",
-            arg2="COM1",
-            arg3="TS",
-            arg4="P",
-            arg5="T",
-            var=var,
-            sow=sow,
-            pgprim=pgprim,
-            def_rtp_ffcs=def_rtp_ffcs,
-        )
         g = self.tc
         m = g.container
         r, c, io, cur, s, year, allsow = g.r, g.c, g.io, g.cur, g.s, g.year, g.allsow
+        t, Com, p, v, ts, ie, tt = g.t, g.Com, g.p, g.v, g.ts, g.ie, g.tt
+
+        include_cal_red = cal_red_func_GP(
+            g=g,
+            config=CalRedRedConfig(
+                arg1=Com,
+                arg2=g.com1,
+                arg3=ts,
+                arg4=p,
+                arg5=t,
+                var=var,
+                sow=sow,
+                pgprim=pgprim,
+                def_rtp_ffcs=def_rtp_ffcs,
+                arg10=Number(1),
+            ),
+        )
         g.set_variable(
             f"{var}_GRIDIO",
             Variable(
@@ -875,91 +1463,108 @@ OPTION CLEAR=RC_GRID,CLEAR=GR_ALLMAP,CLEAR=GR_ALGMAP,CLEAR=GR_DEMMAP,CLEAR=GR_PR
             ),
         )
         g.eq_objbal = Equation(m, name="EQ_OBJBAL", domain=[r, cur, allsow])
+        VAR_GRIDIO = g.get_variable(f"{var}_GRIDIO")
+        VAR_OBJ = g.get_variable(f"{var}_OBJ")
+        VAR_COMPRD = g.get_variable(f"{var}_COMPRD")
+        VAR_IRE = g.get_variable(f"{var}_IRE")
+        VAR_ACT = g.get_variable(f"{var}_ACT")
+        obj_combal = g.obj_combal
 
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=rf"""
-  EQ_OBJBAL(RDCUR(R,CUR){swx})..
-
-   {var}_OBJ(R,'OBJBAL',CUR {sowpre}) =E=
-
-{f"SUM({swsw}" if condition else ""}
-* Costs on commodity production
-   SUM(RHS_COMPRD(R,T,C,S),{var}_COMPRD(R,T,C,S {sow}) * SUM({tpulse} * OBJ_COMBAL(R,TT,C,S,'PRD',CUR))) +
-   SUM(RTCS_VARC(RC_GRID(R,T,C),S)$OBJ_COMBAL(R,T,C,S,'GEN',CUR),
-     (SUM(GR_ALGMAP(R,CG,COM)$GR_ALLMAP(R,C,COM),{var}_GRIDIO(R,T,COM,C,S,'OUT' {sow}) + {var}_GRIDIO(R,T,COM,C,S,'IN'{sow})$GR_ALGMAP(R,COM,COM))+
-      SUM((GR_PRCMAP(RP_STD(R,P),COM,ITEM),GR_ENDC(R,COM)), GR_GENMAP(R,P,ITEM)*GR_GENFR(R,T,C,ITEM) *
-        SUM((RTP_VINTYR(R,V,T,P),RTPCS_VARF(R,T,P,COM,TS))$RS_FR(R,S,TS),
-{include_cal_red}
-         * RS_FR(R,S,TS)))) * SUM({tpulse} * OBJ_COMBAL(R,TT,C,S,'GEN',CUR))) +
-
-* Costs on net imports to grid node
-   SUM(RTCS_VARC(RC_GRID(R,T,C),S)$OBJ_COMBAL(R,T,C,S,'NTX',CUR),
-     SUM(GR_DEMMAP(R,C,COM),{var}_GRIDIO(R,T,COM,C,S,'IN'{sow})$GR_ALGMAP(R,'NRG',COM) - {var}_GRIDIO(R,T,COM,C,S,'OUT'{sow})) *
-     SUM({tpulse} * OBJ_COMBAL(R,TT,C,S,'NTX',CUR))) +
-
-* Costs on Net Positive Generation (NPG)
-   SUM(RTCS_VARC(RC_GRID(R,T,C),S)$OBJ_COMBAL(R,T,C,S,'NPG',CUR),
-     {var}_GRIDIO(R,T,C,C,S,'OUT' {sow}) * SUM({tpulse} * MAX(0,OBJ_COMBAL(R,TT,C,S,'NPG',CUR)))) +
-
-* Costs on commodity imports / exports
-   SUM((RTPCS_VARF(R,T,P,C,S),RPC_IRE(R,P,C,IE))$OBJ_COMBAL(R,T,C,S,IE,CUR),
-     SUM(RTP_VINTYR(R,V,T,P),
-       ({var}_IRE(R,V,T,P,C,S,IE {sow})$(NOT RPC_AIRE(R,P,C))+({var}_ACT(R,V,T,P,S {sow})*PRC_ACTFLO(R,V,P,C))$RPC_AIRE(R,P,C))) *
-     SUM({tpulse} * OBJ_COMBAL(R,TT,C,S,IE,CUR)))
-
-{" )" if condition else ""}
-   ;
-""",
+        # * Costs on commodity production
+        rhs: Expression | Sum = (
+            Sum(
+                g.RhsComprd[r, t, c, s],
+                VAR_COMPRD[r, t, c, s, *sow]
+                * wrap_in_sum(obj_combal[r, tt, c, s, "PRD", cur], tpulse),  # type: ignore[arg-type]
+            )
+            + Sum(
+                g.RtcsVarc[g.RcGrid[r, t, c], s].where[
+                    obj_combal[r, t, c, s, "GEN", cur]
+                ],
+                (
+                    Sum(
+                        g.GrAlgmap[r, g.cg, Com].where[g.GrAllmap[r, c, Com]],
+                        VAR_GRIDIO[r, t, Com, c, s, "OUT", *sow]
+                        + VAR_GRIDIO[r, t, Com, c, s, "IN", *sow].where[
+                            g.GrAlgmap[r, Com, Com]
+                        ],
+                    )
+                    + Sum(
+                        Domain(
+                            g.GrPrcmap[g.RpStd[r, p], Com, g.item], g.GrEndc[r, Com]
+                        ),
+                        g.gr_genmap[r, p, g.item]
+                        * g.gr_genfr[r, t, c, g.item]
+                        * Sum(
+                            Domain(
+                                g.RtpVintyr[r, v, t, p], g.RtpcsVarf[r, t, p, Com, ts]
+                            ).where[g.rs_fr[r, s, ts]],
+                            include_cal_red * g.rs_fr[r, s, ts],
+                        ),
+                    )
+                )
+                * wrap_in_sum(obj_combal[r, tt, c, s, "GEN", cur], tpulse),  # type: ignore[arg-type]
+            )
+            # * Costs on net imports to grid node
+            + Sum(
+                g.RtcsVarc[g.RcGrid[r, t, c], s].where[
+                    obj_combal[r, t, c, s, "NTX", cur]
+                ],
+                Sum(
+                    g.GrDemmap[r, c, Com],
+                    VAR_GRIDIO[r, t, Com, c, s, "IN", *sow].where[
+                        g.GrAlgmap[r, "NRG", Com]
+                    ]
+                    - VAR_GRIDIO[r, t, Com, c, s, "OUT", *sow],
+                )
+                * wrap_in_sum(obj_combal[r, tt, c, s, "NTX", cur], tpulse),  # type: ignore[arg-type]
+            )
+            # * Costs on Net Positive Generation (NPG)
+            + Sum(
+                g.RtcsVarc[g.RcGrid[r, t, c], s].where[
+                    obj_combal[r, t, c, s, "NPG", cur]
+                ],
+                VAR_GRIDIO[r, t, c, c, s, "OUT", *sow]
+                * wrap_in_sum(Max(0.0, obj_combal[r, tt, c, s, "NPG", cur]), tpulse),  # type: ignore[arg-type]
+            )
+            # * Costs on commodity imports / exports
+            + Sum(
+                Domain(g.RtpcsVarf[r, t, p, c, s], g.RpcIre[r, p, c, ie]).where[
+                    obj_combal[r, t, c, s, ie, cur]
+                ],
+                Sum(
+                    g.RtpVintyr[r, v, t, p],
+                    VAR_IRE[r, v, t, p, c, s, ie, *sow].where[~g.RpcAire[r, p, c]]
+                    + (VAR_ACT[r, v, t, p, s, *sow] * g.prc_actflo[r, v, p, c]).where[
+                        g.RpcAire[r, p, c]
+                    ],
+                )
+                * wrap_in_sum(obj_combal[r, tt, c, s, ie, cur], tpulse),  # type: ignore[arg-type]
+            )
         )
+        if condition:
+            rhs = wrap_in_sum(rhs, swsw)  # type: ignore[arg-type]
+
+        g.eq_objbal[g.Rdcur[r, cur], *swx] = VAR_OBJ[r, "OBJBAL", cur, *sowpre] == rhs
 
     def exec_powerflo_vda_rptb(
         self: PowerfloVda,
         arg4: str,
-        arg5: str,
-        arg6: str,
+        arg5: tuple[Set | Alias | str, ...] | tuple[()],
+        arg6: SowGPType,
         var: str,
-        vart: str,
-        sws: str,
+        vart: tuple[str, ImplicitSet | tuple[ImplicitSet, ImplicitParameter] | None],
+        sws: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
     ) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=powerflo_vda_rptb(
-                arg4=arg4,
-                arg5=arg5,
-                arg6=arg6,
-                var=var,
-                vart=vart,
-                sws=sws,
-            ),
+        powerflo_vda_rptb_GP(
+            g=self.tc,
+            arg4=arg4,
+            arg5=arg5,
+            arg6=arg6,
+            var=var,
+            vart=vart,
+            sws=sws,
         )
-
-
-def powerflo_vda_ireaux(
-    # TODO: if powerflow_vda() is called with arg2=="IN", this is done in powerflo.vda first: $SET MX COM_IE(R,T,C,S)*
-    arg1: str = "",
-    arg2: str = "",
-    arg3: str = "",
-    var: str = "",
-    sow: str = "",
-) -> str:
-    target_label = f"{arg1}{arg2}{arg3}".strip().upper()
-
-    if target_label not in ["IREAUXIN", "IREAUXOUT-"]:
-        return ""
-
-    mx = arg3
-    if target_label == "IREAUXIN":
-        mx = "COM_IE(R,T,C,S)*"
-
-    return rf"""
-* For balance of C (and grid nodes COM)
-    SUM(GR_DEMMAP(R,COM,C), {mx}({var}_GRIDIO(R,T,C,COM,S,'OUT'{sow}) - {var}_GRIDIO(R,T,C,COM,S,'IN'{sow})$GR_ALGMAP(R,'NRG',C))) +
-* For balance of grid node C
-    SUM(GR_DEMMAP(R,C,COM), {mx}({var}_GRIDIO(R,T,COM,C,S,'IN'{sow})$GR_ALGMAP(R,'NRG',COM) - {var}_GRIDIO(R,T,COM,C,S,'OUT'{sow}))) +
-"""
 
 
 def powerflo_vda_ireaux_GP(
@@ -1036,3 +1641,98 @@ def powerflo_vda_rptb(
 
  OPTION CLEAR=TRACKC;
 """
+
+
+def powerflo_vda_rptb_GP(
+    g: TimesModelClass,
+    arg4: str,
+    arg5: tuple[Set | Alias | str, ...] | tuple[()],
+    arg6: SowGPType,
+    var: str,
+    vart: tuple[str, ImplicitSet | tuple[ImplicitSet, ImplicitParameter] | None],
+    sws: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
+) -> None:
+    """GAMSPy counterpart of powerflo_vda_rptb()."""
+    r, t, c, s, cur, p, v, ie, ts, Com = (
+        g.r, g.t, g.c, g.s, g.cur, g.p, g.v, g.ie, g.ts, g.Com
+    )  # fmt: skip
+    Rtc, obj_combal = g.Rtc, g.obj_combal
+    reg_wobj = g.get_parameter(f"{arg4}REG_WOBJ")
+    cst_comc = g.get_parameter(f"{arg4}CST_COMC")
+    VAR_OBJ = g.get_variable(f"{var}_OBJ")
+    vart_id, vart_set = extract_var_domain(vart)
+    VART_GRIDIO = g.get_variable(f"{vart_id}_GRIDIO")
+
+    reg_wobj[*arg5, r, "VAR", cur] = (
+        reg_wobj[*arg5, r, "VAR", cur] + VAR_OBJ.l[r, "OBJBAL", cur, *arg6]
+    )
+    project(source=g.com_cstbal, target=g.Trackc)
+    cst_comc[*arg5, Rtc[r, t, c]].where[g.Trackc[r, c]] = (
+        cst_comc[*arg5, Rtc]
+        + Sum(
+            Domain(g.RtcsVarc[Rtc, s], g.Rdcur[r, cur]).where[
+                obj_combal[Rtc, s, "PRD", cur]
+            ],
+            obj_combal[Rtc, s, "PRD", cur] * g.VAR_COMPRD.l[Rtc, s],
+        )
+        + Sum(
+            Domain(g.RpcsVar[r, p, c, s], g.RpcIre[r, p, c, ie], g.Rdcur[r, cur]).where[
+                obj_combal[Rtc, s, ie, cur]
+            ],
+            Sum(
+                g.RtpVintyr[r, v, t, p],
+                obj_combal[Rtc, s, ie, cur] * g.par_ire[r, v, t, p, c, s, ie],
+            ),
+        )
+        # * Cost on generation to grid
+        + Sum(
+            Domain(g.RtcsVarc[g.RcGrid[Rtc], s], g.Rdcur[r, cur]).where[
+                obj_combal[Rtc, s, "GEN", cur]
+            ],
+            obj_combal[Rtc, s, "GEN", cur]
+            * (
+                Sum(
+                    g.GrAlgmap[r, g.cg, Com],
+                    wrap_in_sum(VART_GRIDIO.l[r, t, Com, c, s, "OUT", *sws], vart_set)
+                    + wrap_in_sum(
+                        VART_GRIDIO.l[r, t, Com, c, s, "IN", *sws], vart_set
+                    ).where[g.GrAlgmap[r, Com, Com]],
+                )
+                + Sum(
+                    Domain(g.GrPrcmap[g.RpStd[r, p], Com, g.item], g.GrEndc[r, Com]),
+                    g.gr_genmap[r, p, g.item]
+                    * g.gr_genfr[Rtc, g.item]
+                    * Sum(
+                        Domain(g.RtpVintyr[r, v, t, p], g.RpcsVar[r, p, c, ts]).where[
+                            g.rs_fr[r, s, ts]
+                        ],
+                        g.par_flo[r, v, t, p, c, ts] * g.rs_fr[r, s, ts],
+                    ),
+                )
+            ),
+        )
+        # * Costs on net imports to grid node
+        + Sum(
+            Domain(g.RtcsVarc[g.RcGrid[Rtc], s], g.Rdcur[r, cur]).where[
+                obj_combal[Rtc, s, "NTX", cur]
+            ],
+            Sum(
+                g.GrDemmap[r, c, Com],
+                wrap_in_sum(VART_GRIDIO.l[r, t, Com, c, s, "IN", *sws], vart_set).where[
+                    g.GrAlgmap[r, "NRG", Com]
+                ]
+                - wrap_in_sum(VART_GRIDIO.l[r, t, Com, c, s, "OUT", *sws], vart_set),
+            )
+            * obj_combal[Rtc, s, "NTX", cur],
+        )
+        # * Costs on Net Positive Generation (NPG)
+        + Sum(
+            Domain(g.RtcsVarc[g.RcGrid[Rtc], s], g.Rdcur[r, cur]).where[
+                obj_combal[Rtc, s, "NPG", cur]
+            ],
+            wrap_in_sum(VART_GRIDIO.l[Rtc, c, s, "OUT", *sws], vart_set)
+            * obj_combal[Rtc, s, "NPG", cur],
+        )
+    )
+
+    g.Trackc.setRecords(None)

@@ -35,7 +35,7 @@ class VarSiftContext:
         g: TimesModelClass,
         var: str,
         sow: str,
-        sow_GP: tuple[Literal["0", "1"] | SET_OR_ALIAS] | tuple[()],
+        sow_GP: SowGPType,
     ) -> None:
         self.g = g
         self.active = True
@@ -79,7 +79,7 @@ class VarStsContext:
         g: TimesModelClass,
         var: str,
         sow: str,
-        sow_GP: tuple[Literal["0", "1"] | SET_OR_ALIAS] | tuple[()],
+        sow_GP: SowGPType,
     ) -> None:
         self.g = g
         self.active = True
@@ -128,7 +128,7 @@ class UpscapsContext:
         g: TimesModelClass,
         var: str,
         sow: str,
-        sow_GP: tuple[Literal["0", "1"] | SET_OR_ALIAS] | tuple[()],
+        sow_GP: SowGPType,
     ) -> None:
         self.g = g
         self.active = True
@@ -809,6 +809,35 @@ class EqUcContext:
         return g.get_equation(f"{eq}{arg1}_UC{suffix}"), sow
 
 
+@dataclass
+class VarPtdncapContext:
+    """$MACRO VAR_PTDNCAP(r,t,p) of powerflo.vda DECL. GAMS picks the body from
+    %DSC%%SOLMIP% and substitutes %VARV%, %SWS% and %BIGM% when the macro is
+    defined, so those are captured here instead of read where it is used."""
+
+    active: bool = False
+    dsc_mip: bool = False
+    varv_GP: tuple[str, ImplicitSet | None] = ("", None)
+    sws_GP: tuple[SET_OR_ALIAS, ...] | tuple[()] = ()
+    bigm: int = 0
+
+    def activate(
+        self,
+        dsc_mip: bool,
+        varv_GP: tuple[str, ImplicitSet | None],
+        sws_GP: tuple[SET_OR_ALIAS, ...] | tuple[()],
+        bigm: int,
+    ) -> None:
+        self.active = True
+        self.dsc_mip = dsc_mip
+        self.varv_GP = varv_GP
+        self.sws_GP = sws_GP
+        self.bigm = bigm
+
+    def deactivate(self) -> None:
+        self.active = False
+
+
 class Macros:
     def __init__(self) -> None:
         self._g: TimesModelClass
@@ -844,6 +873,7 @@ class Macros:
         self.coef_af_mx = CoefAfMxContext()
         self.prc_dynuc_mx = PrcDynucMxContext()
         self.eq_uc = EqUcContext()
+        self.var_ptdncap = VarPtdncapContext()
 
     # ICOST
     @property
@@ -1381,6 +1411,18 @@ class Macros:
             return f"VAS_XCAP({r},{t},{p},'1')"
         return f"{var}_XCAP({r},{t},{p}{sow})"
 
+    def VAR_XCAP_GP(
+        self,
+        var: str,
+        r: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        sow: SowGPType,
+    ) -> ImplicitVariable:
+        if self.z_xcap_active:
+            return self._g.VAS_XCAP[r, t, p, "1"]
+        return self._g.get_variable(f"{var}_XCAP")[r, t, p, *sow]
+
     # EQ_OBJINV / ES_OBJINV / Q_OBJINV
     @property
     def q_objinv_active(self) -> bool:
@@ -1914,6 +1956,106 @@ class Macros:
         raise NotImplementedError(
             "var_gg_pdmax is only implemented as a macro and wasn't activeted."
         )
+
+    # From powerflo_vda
+
+    # GR_DUNIT
+    @property
+    def gr_dunit_active(self) -> bool:
+        return self._active.get("GR_DUNIT", False)
+
+    @gr_dunit_active.setter
+    def gr_dunit_active(self, value: bool) -> None:
+        self._active["GR_DUNIT"] = value
+
+    def gr_dunit_GP(
+        self,
+        r: SET_OR_ALIAS,
+        v: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        u: SET_OR_ALIAS,
+        env: CompileEnvironment,
+    ) -> Number | ImplicitParameter:
+        if not self.gr_dunit_active:
+            raise NotImplementedError(
+                "gr_dunit is only implemented as a macro and wasn't activeted."
+            )
+        if f"{env.dsc}{env.solmip}".upper() == "YESYES":
+            return self._g.ncap_disc[r, v, p, u]
+        return Number(0)
+
+    # GR_DNCAP
+    @property
+    def gr_dncap_active(self) -> bool:
+        return self._active.get("GR_DNCAP", False)
+
+    @gr_dncap_active.setter
+    def gr_dncap_active(self, value: bool) -> None:
+        self._active["GR_DNCAP"] = value
+
+    def gr_dncap_GP(
+        self, r: SET_OR_ALIAS, p: SET_OR_ALIAS, env: CompileEnvironment
+    ) -> Number | ImplicitSet:
+        if not self.gr_dncap_active:
+            raise NotImplementedError(
+                "gr_dncap is only implemented as a macro and wasn't activeted."
+            )
+        if f"{env.dsc}{env.solmip}".upper() == "YESYES":
+            return self._g.PrcDscncap[r, p]
+        return Number(0)
+
+    # VAR_PTDNCAP
+    def var_ptdncap_GP(
+        self, r: SET_OR_ALIAS, t: SET_OR_ALIAS, p: SET_OR_ALIAS
+    ) -> Number | Sum:
+        ctx = self.var_ptdncap
+        if not ctx.active:
+            raise NotImplementedError(
+                "var_ptdncap is only implemented as a macro and wasn't activeted."
+            )
+        if not ctx.dsc_mip:
+            return Number(0)
+        g = self._g
+        return Sum(
+            Domain(g.Vnt[g.tt[g.v], t], g.unit).where[
+                (g.ncap_disc[r, g.v, p, g.unit] > 0.0).where[g.Rtp[r, g.v, p]]
+            ],
+            self.VAR_DNCAP_GP(ctx.varv_GP, r, g.v, p, ctx.sws_GP, g.unit)
+            * (
+                1
+                - Max(
+                    (1 - g.coef_cpt[r, g.v, t, p]) / ctx.bigm,
+                    (1 - g.coef_cpt[r, g.v, t, p]) ** 4,
+                )
+            ),
+        )
+
+    # VAR_GRVIRT
+    @property
+    def var_grvirt_active(self) -> bool:
+        return self._active.get("VAR_GRVIRT", False)
+
+    @var_grvirt_active.setter
+    def var_grvirt_active(self, value: bool) -> None:
+        self._active["VAR_GRVIRT"] = value
+
+    def var_grvirt_GP(
+        self,
+        r: SET_OR_ALIAS,
+        t: SET_OR_ALIAS,
+        p: SET_OR_ALIAS,
+        s: SET_OR_ALIAS,
+        var: str,
+        pgprim: str,
+        sow_GP: SowGPType,
+    ) -> Sum:
+        if not self.var_grvirt_active:
+            raise NotImplementedError(
+                "var_grvirt is only implemented as a macro and wasn't activeted."
+            )
+        g = self._g
+        VAR_IRE = g.get_variable(f"{var}_IRE")
+        return Sum(g.ie[g.xpt], VAR_IRE[r, t, t, p, pgprim, s, g.ie, *sow_GP])
 
 
 macro_config = Macros()

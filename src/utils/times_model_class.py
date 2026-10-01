@@ -2107,7 +2107,6 @@ class TimesModelClass:
     rtp_safs: Parameter = None  # type: ignore[assignment] # RTP_SAFS
     rtcs_sfr: Parameter = None  # type: ignore[assignment] # RTCS_SFR
     rcs_ssfr: Parameter = None  # type: ignore[assignment] # RCS_SSFR
-    Rcgrid: Set = None  # type: ignore[assignment] # [r, t, c] RC_GRID:
     obj_combal: Parameter = None  # type: ignore[assignment] # [r, t, c, s, item, cur] OBJ_COMBAL:
     par_bptl: Parameter = None  # type: ignore[assignment] # [r, t, p] PAR_BPTL:
     par_bptm: Parameter = None  # type: ignore[assignment] # [r, t, p] PAR_BPTM:

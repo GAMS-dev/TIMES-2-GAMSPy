@@ -23,7 +23,7 @@ from core.base_class import GamsClass
 from core.eqashar_vda import EqasharVda, EqasharVdaConfig
 from core.eqlducs_vda import EqlducsVda
 from core.fillwave_gms import FillwaveGms, FillwaveGmsConfig
-from core.powerflo_vda import PowerfloVda
+from core.powerflo_vda import PowerfloVda, PowerfloVdaConfig
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
@@ -88,7 +88,9 @@ class CoefExtVda(GamsClass):
         self.include(EqasharVda(self.tc, self.env, config=EqasharVdaConfig()))
 
         if self.tc.defined("COM_CSTBAL"):
-            self.include(PowerfloVda(self.tc, self.env, arg1="CSTBAL"))
+            self.include(
+                PowerfloVda(self.tc, self.env, config=PowerfloVdaConfig(arg1="CSTBAL"))
+            )
 
         self.tc.enqueue(self.exec3)
 

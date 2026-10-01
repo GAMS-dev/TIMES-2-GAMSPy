@@ -24,7 +24,7 @@ from core.eqashar_vda import EqasharVda, EqasharVdaConfig
 from core.eqcaflac_vda import EqcaflacVda
 from core.eqlducs_vda import EqlducsVda
 from core.equcrtp_vda import EqucrtpVda, EqucrtpVdaConfig
-from core.powerflo_vda import PowerfloVda
+from core.powerflo_vda import PowerfloVda, PowerfloVdaConfig
 from core.pp_actef_vda import PpActefVda
 from core.resloadc_vda import ResloadcVda
 from core.ucbet_vda import UcbetVda
@@ -141,9 +141,13 @@ class EquExtVda(GamsClass):
         if self.tc.defined("UC_FLOBET"):
             self.include(UcbetVda(self.tc, self.env))
         if self.tc.defined("COM_CSTBAL"):
-            self.include(PowerfloVda(self.tc, self.env, arg1="OBJBAL"))
+            self.include(
+                PowerfloVda(self.tc, self.env, config=PowerfloVdaConfig(arg1="OBJBAL"))
+            )
         if self.env.powerflo.upper() == "YES":
-            self.include(PowerfloVda(self.tc, self.env, arg1="POWFLO"))
+            self.include(
+                PowerfloVda(self.tc, self.env, config=PowerfloVdaConfig(arg1="POWFLO"))
+            )
         if self.tc.defined("GR_VARGEN"):
             self.include(ResloadcVda(self.tc, self.env, arg1="EQUA"))
 

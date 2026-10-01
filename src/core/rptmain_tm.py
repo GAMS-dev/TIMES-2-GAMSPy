@@ -23,7 +23,7 @@ from gamspy import Parameter
 from core.base_class import GamsClass
 
 # from core.rpt_chp_ire import RrpChpIre
-from core.cost_ann_rpt import CostAnnRpt, CostAnnRptConfig, arg2_repr
+from core.cost_ann_rpt import CostAnnRpt, CostAnnRptConfig
 from core.ddfupd_msa import ddfupd_msa
 from core.par_uc_rpt import ParUcRpt, ParUcRptConfig
 from core.rpt_obj_rpt import RptObjRpt
@@ -31,6 +31,7 @@ from core.rptlite_rpt import RptliteRpt, RptliteRptConfig
 from core.rptmisc_rpt import RptmiscRpt, RptmiscRptConfig
 from core.sol_flo_red import SolFloRed, SolFloRedConfig
 from core.sol_ire_rpt import SolIreRpt, SolIreRptConfig
+from core.utils import str_repr_for_gms
 from core.writeddf_msa import writeddf_msa
 
 if TYPE_CHECKING:
@@ -116,7 +117,7 @@ class RptmainTm(GamsClass):
                 self.tc,
                 self.env,
                 arg1=self.arg1,
-                arg2=arg2_repr(self.arg3),
+                arg2=str_repr_for_gms(self.arg3),
                 arg3="",
                 arg4="",
                 arg5="0",

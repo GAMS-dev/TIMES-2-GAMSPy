@@ -26,7 +26,7 @@ from gamspy.math import Max, Round, abs, aggregate, project
 from core.base_class import GamsClass
 from core.eqobjels_rpt import EqobjelsRpt, EqobjelsRptConfig, eqobjels_rpt
 from core.eqobjvar_rpt import EqobjvarRpt, EqobjvarRptConfig, eqobjvar_rpt
-from core.powerflo_vda import PowerfloVda, powerflo_vda_rptb
+from core.powerflo_vda import PowerfloVda, PowerfloVdaConfig, powerflo_vda_rptb
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
@@ -46,11 +46,6 @@ class CostAnnRptConfig:
     arg1: str = ""
     # %2 - SOW, (optional): the leading index of the %1 prefixed parameters
     arg2: tuple[Set | Alias | str, ...] | tuple[()] = ()
-
-
-def arg2_repr(arg2: tuple[Set | Alias | str, ...] | tuple[()]) -> str:
-    """GAMS text of the %2 index prefix, e.g. ('1',) -> "'1'," and (SOW,) -> "SOW,"."""
-    return "".join(f"'{a}'," if isinstance(a, str) else f"{a.name}," for a in arg2)
 
 
 class CostAnnRpt(GamsClass):
@@ -152,12 +147,14 @@ class CostAnnRpt(GamsClass):
                 PowerfloVda(
                     self.tc,
                     self.env,
-                    arg1="RPTB",
-                    arg2="",
-                    arg3="",
-                    arg4=cc.arg1,
-                    arg5=arg2_repr(cc.arg2),
-                    arg6=self.env.sow,
+                    config=PowerfloVdaConfig(
+                        arg1="RPTB",
+                        arg2="",
+                        arg3="",
+                        arg4=cc.arg1,
+                        arg5=cc.arg2,
+                        arg6=self.env.sow_GP,
+                    ),
                 )
             )
 

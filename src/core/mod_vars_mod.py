@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 from gamspy import Parameter, Set, Variable
 
 from core.base_class import GamsClass
-from core.powerflo_vda import PowerfloVda
+from core.powerflo_vda import PowerfloVda, PowerfloVdaConfig
 from core.prepret_dsc import PrepretDsc, PrepretDscConfig
 from core.utils import expand_set
 from utils.macros import macro_config as macro
@@ -425,7 +425,9 @@ class ModVarsMod(GamsClass):
                 PrepretDsc(self.tc, self.env, config=PrepretDscConfig(arg1="DECL"))
             )
         if self.tc.defined("PRC_REACT"):
-            self.include(PowerfloVda(self.tc, self.env, arg1="DECL"))
+            self.include(
+                PowerfloVda(self.tc, self.env, config=PowerfloVdaConfig(arg1="DECL"))
+            )
 
         if not macro.var_sts.active:
             g.var_sts = Parameter(
