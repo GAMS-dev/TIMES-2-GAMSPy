@@ -69,7 +69,7 @@ class PpActefVda(GamsClass):
             if self.tc.defined("RTP_FFCS"):
                 self.env.set_scoped(
                     "shp1",
-                    base_shp1 * (1 + rtp_ffcs[r, v, *self.env.shg, *self.env.sow]),
+                    base_shp1 * (1 + rtp_ffcs[r, v, *self.env.shg, *self.env.sow_GP]),
                 )
             else:
                 self.env.set_scoped("shp1", base_shp1)

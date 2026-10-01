@@ -3066,6 +3066,19 @@ REGISTRY.update(
             run_name="demos_003_lpoint",
             lpoint="src/data/DemoS_003/times_p2_demos_003",
         ),
+        # reaches: stages.stc's FLO_FUNC preprocessing (S_FLO_FUNC defined), so
+        # RTP_FFCS is defined and the %SHFF%S branches of cal_red.red,
+        # cal_fflo.mod, eqptrans.mod, eqobjvar.mod, ... are compiled in.
+        "StochDemosStoc_flofunc": derive_from(
+            "StochDemosStoc", run_name="demos7-stoc-flofunc"
+        ).model_copy(
+            update={
+                "data_modules": [
+                    *REGISTRY["StochDemosStoc"].data_modules,
+                    Path("z_stoch_flofunc.dd"),
+                ]
+            }
+        ),
     }
 )
 
