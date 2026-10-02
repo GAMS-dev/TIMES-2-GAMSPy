@@ -10,6 +10,8 @@
 # *GaG Questions/Comments:
 # *-----------------------------------------------------------------------------
 
+# TODO: clean up this file once the translation is done
+
 from __future__ import annotations
 
 import logging
@@ -28,6 +30,7 @@ from gamspy import (
     Parameter,
     set_options,
 )
+from gamspy.utils import getDefaultSolvers
 
 from core.base_class import GamsClass
 from core.err_stat_mod import ErrStatMod
@@ -96,7 +99,17 @@ def set_model_param(module: GamsClass, model_name: str) -> None:
     )
 
 
-def write_run_solver_options(g: TimesModelClass, solver: str) -> None:
+def solver_for_method(g: TimesModelClass, method: str) -> str:
+    """The solver a TIMES solve with ``method`` runs: the configured
+    lp_solver/nlp_solver, or GAMS' default solver for that model type if it's None.
+    """
+    solver = g.config.nlp_solver if "NL" in method else g.config.lp_solver
+    if solver is None:
+        solver = getDefaultSolvers(g.container.system_directory)[method]
+    return solver.lower()
+
+
+def write_run_solver_options(g: TimesModelClass, solver: str) -> Path | None:
     """Make the run's solver option file visible to raw GAMS ``SOLVE`` statements.
 
     The emitted code sets ``<model>.optfile = 1``, so GAMS looks for ``<solver>.opt``
@@ -104,27 +117,36 @@ def write_run_solver_options(g: TimesModelClass, solver: str) -> None:
     directory, not the run's data directory the reference GAMS run receives via
     ``OptDir=``. Without this the solver silently falls back to its defaults, and on a
     degenerate LP that alone is enough to settle on a different (equally optimal)
-    vertex. The solves GAMSPy owns get the same file through
-    :func:`solve_times_as_lp_mip`.
+    vertex.
+
+    Without a ``<solver>.opt`` an empty one is written instead: the solver then runs
+    with its defaults, exactly as for a missing file, but doesn't print a
+    ``*** Error Cannot open parameter file`` that reads like a failed run.
+
+    Returns the run's option file, or ``None`` if it has none.
     """
     option_file = Path(g.config.data_dir, f"{solver}.opt")
+    target = Path(g.container.working_directory, option_file.name)
     if not option_file.is_file():
         logger.warning(
-            "No %s option file at %s; the emitted SOLVE will use solver defaults.",
-            solver,
+            "No solver option file %s found, so %s runs with its default settings. "
+            "This is fine; create that file only to pass options to the solver.",
             option_file,
+            solver.upper(),
         )
-        return
+        target.write_text(f"* no {option_file} -- solver defaults\n")
+        return None
 
     # Copied rather than routed through Container.writeSolverOptions(), which
     # validates entries and rejects files GAMS itself merely warns about (e.g.
     # cplex' "iis yes"). GAMS resolves optfile against its option directory, which
     # defaults to the working directory GAMSPy runs every generated job in.
-    shutil.copyfile(option_file, Path(g.container.working_directory, option_file.name))
+    shutil.copyfile(option_file, target)
+    return option_file
 
 
 def convert_dump_gams_code(
-    *, model_name: str, method: str, convert_gdx: Path, lp_solver: str
+    *, model_name: str, method: str, convert_gdx: Path, lp_solver: str | None
 ) -> str:
     """GAMS code that dumps the generated LP/MIP through the CONVERT solver.
 
@@ -140,9 +162,8 @@ def convert_dump_gams_code(
     The GDX path is made absolute because the emitted code runs in GAMS' own
     working directory, which is not the process' working directory.
     """
-    # GAMS hardcodes `option lp=cplex, mip=cplex` here; restore what the run
-    # actually configured instead.
-    solver = lp_solver.lower()
+    # solve.mod's `option lp=%LPSOLVER%, mip=%LPSOLVER%;`
+    solver = lp_solver.lower() if lp_solver else "default"
     return rf"""
 $onEcho > %gams.optDir%%system.dirSep%convert.opt
 DumpGDX {Path(convert_gdx).resolve().as_posix()}
@@ -179,16 +200,12 @@ def solve_times(
         output=sys.stdout,
     )
 
-    # solve.mod hardcodes `option lp=cplex, nlp=conopt;` for this branch (unlike
-    # the LP/MIP branch's `option lp=cplex, mip=cplex;`, which mirrors the
-    # *configured* lp_solver) -- mirror that literally rather than assuming
-    # config.lp_solver applies to an NLP method. Use write_run_solver_options
-    # (copies the file into GAMS' own optDir) rather than model.solve's
-    # solver_options=, which routes through GAMSPy's own stricter option-file
+    # solve.mod's `option lp=%LPSOLVER%, nlp=%NLPSOLVER%;` for this branch. Use
+    # write_run_solver_options (copies the file into GAMS' own optDir) rather than
+    # model.solve's solver_options=, which routes through GAMSPy's own stricter option-file
     # validation and hard-errors on entries GAMS itself merely warns about
     # (e.g. cplex' "iis yes").
-    solver = "conopt" if "NL" in method else module.tc.config.lp_solver.lower()
-    write_run_solver_options(module.tc, solver)
+    write_run_solver_options(module.tc, solver_for_method(module.tc, method))
     model.solve(output=sys.stdout, options=module.tc.solve_options)
 
 
@@ -222,11 +239,12 @@ def solve_times_as_lp_mip(
 
     # regular solve
     if module.tc.solve:
-        solver = module.tc.config.lp_solver.lower()
         model.solve(
             output=sys.stdout,
             options=module.tc.solve_options,
-            solver_options=Path(module.tc.config.data_dir, f"{solver}.opt"),
+            solver_options=write_run_solver_options(
+                module.tc, solver_for_method(module.tc, method)
+            ),
         )
     else:
         run_name = module.tc.config.run_name.lower()
@@ -360,13 +378,12 @@ def solve_mod(
         )
 
     else:
-        solver = g.config.lp_solver.lower()
-        write_run_solver_options(g, solver)
+        write_run_solver_options(g, solver_for_method(g, method))
         convert_dump = convert_dump_gams_code(
             model_name=model_name,
             method=method,
             convert_gdx=g.output_convert,
-            lp_solver=solver,
+            lp_solver=g.config.lp_solver,
         )
         if g.solve:
             solve_stmt = f"""

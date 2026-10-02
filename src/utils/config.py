@@ -766,4 +766,6 @@ class RunConfig(BaseModel):
     data_modules: list[Path]
 
     time_slices: Path
-    lp_solver: str = Field(default="CPLEX")
+    # None: the default solver of the GAMS/GAMSPy installation for the model type
+    lp_solver: str | None = Field(default=None)
+    nlp_solver: str | None = Field(default=None)

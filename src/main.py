@@ -60,6 +60,8 @@ def run_times(
         variable_listing_limit=0,
         report_solution=0,
         lp=config.lp_solver,
+        mip=config.lp_solver,
+        nlp=config.nlp_solver,
         basis_detection_threshold=1,
         log_file=f"{config.run_name}.log",
         listing_file=f"{config.run_name}.lst",
@@ -151,9 +153,27 @@ if __name__ == "__main__":
         action="store_false",
         help="Skip solve and use savepoint file.",
     )
+    parser.add_argument(
+        "--lp-solver",
+        type=str,
+        default=None,
+        help="LP/MIP solver to use instead of the instance's lp_solver "
+        "('default' for the system default).",
+    )
+    parser.add_argument(
+        "--nlp-solver",
+        type=str,
+        default=None,
+        help="NLP solver to use instead of the instance's nlp_solver "
+        "('default' for the system default).",
+    )
     args = parser.parse_args()
 
     run_config: RunConfig = REGISTRY[args.run]
+    for field in ("lp_solver", "nlp_solver"):
+        if solver := getattr(args, field):
+            solver = None if solver.lower() == "default" else solver
+            run_config = run_config.model_copy(update={field: solver})
 
     start = time.time()
     result = run_times(config=run_config, solve=args.skip_solve)

@@ -58,11 +58,10 @@ git clone https://github.com/GAMS-dev/TIMES-2-GAMSPy.git
 cd TIMES-2-GAMSPy
 uv sync --no-dev                     # creates .venv with the tested versions from uv.lock
 source .venv/bin/activate            # Windows: .venv\Scripts\activate
-gamspy install solver cbc --use-uv   # open-source LP solver used by the demo model
-gamspy install license <your-license>
+gamspy install license <your-license> --use-uv   # also installs the solvers it includes, e.g. HiGHS
 ```
 
-Without uv, create and activate a virtual environment, run `pip install -e .`, and drop `--use-uv` from the solver install. This installs the latest compatible dependency versions instead of the tested ones from `uv.lock`.
+Without uv, create and activate a virtual environment, run `pip install -e .`, and drop `--use-uv` from the license install. This installs the latest compatible dependency versions instead of the tested ones from `uv.lock`.
 
 To work with a specific release, check out its tag, e.g. `git checkout v0.2.0`. The package version is derived from these tags, so install from a git clone rather than from a downloaded ZIP archive; without git data the version shows up as `0.0.0`.
 
@@ -77,20 +76,33 @@ The TIMES Demo model data ships with the repository in [`TIMES_source/model`](TI
 | `demo12Base_ucbet` | `TIMES_source/model-ge` | Demo12 base with extra user constraints (`ucbet.vda`)  |
 
 ```bash
-python src/main.py --run demo12
+python src/main.py --run demo12 --lp-solver HIGHS
 ```
 
-This builds and solves the model and writes `demo12.lst` / `demo12.log` together with GDX files of the compile, execution and solution state to the working directory.
+This builds and solves the model with the open-source solver HiGHS, which works with any license, including the free personal one. It writes `demo12.lst` / `demo12.log` together with GDX files of the compile, execution and solution state to the working directory. Without `--lp-solver`, the default solver CPLEX is used, which needs a license that includes it (see [Choosing the solver](#choosing-the-solver)).
 
 All instances are defined in [`src/utils/run_registry.py`](src/utils/run_registry.py) as `RunConfig` objects. A `RunConfig` is the Python equivalent of a TIMES `.run` file: milestone years, data files and the `%SWITCH%` settings. The remaining registry instances (the `DemoS_*` series and others) use data sets that are not yet part of this repository.
 
+#### Choosing the solver
+
+Select the solver with `--lp-solver` (LP and MIP models) and `--nlp-solver` (NLP models); without them the installation's default solver is used:
+
+```bash
+python src/main.py --run demo12Base --lp-solver CPLEX
+python src/main.py --run demo12 --lp-solver default --nlp-solver CONOPT4
+```
+
+Any solver installed for GAMSPy can be used: `gamspy list solvers` shows the installed ones, `gamspy install solver <name>` adds one. Commercial solvers such as CPLEX also need a license that includes them. Pass `default` to use the installation's default solver again.
+
 ### Compare with the original GAMS TIMES
 
-The unmodified GAMS source of TIMES 4.9.2 is in [`TIMES_source/source`](TIMES_source/source). To run the same demo with GAMS:
+The GAMS source of TIMES 4.9.2 is in [`TIMES_source/source`](TIMES_source/source), with small additions for the test pipeline such as the solver switches below. To run the same demo with GAMS:
 
 ```bash
 gams TIMES_source/model/demo12.run idir1=TIMES_source/source idir2=TIMES_source/model filecase=4
 ```
+
+`--LPSOLVER` and `--NLPSOLVER` select the solvers (default: the installation's default solver); an `OPTION LP=...` in the `.run` file has no effect on the TIMES solve.
 
 ---
 
@@ -180,6 +192,7 @@ Development happens in an internal repository at GAMS. Its `main` branch is publ
 ## Known Limitations
 
 - About a third of the execution-time code still runs as embedded GAMS code through `add_gams_code()`, which requires a GAMSPy++ license.
+- Text output written with GAMS `PUT` statements (e.g. `QA_CHECK.LOG`, the VEDA report files and solution dumps) is not yet fully ported; much of it still runs as embedded GAMS code.
 - Universe aliases (`ALIAS(*,ITEM)` patterns) need workarounds in GAMSPy.
 - Individual modules cannot be tested in isolation; testing is done by comparing complete model runs against GAMS.
 - Only the data sets listed in [Run the demo model](#run-the-demo-model) are publicly available so far.
