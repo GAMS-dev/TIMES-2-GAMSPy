@@ -25,7 +25,7 @@ from core.rptmisc_rpt import rptmisc_rpt
 from core.sol_flo_red import sol_flo_red
 from core.sol_ire_rpt import sol_ire_rpt
 from core.solsetv_v3 import SolsetvV3
-from core.solsysd_v3 import SolsysdV3
+from core.solsysd_v3 import SolsysdSysucConfig, SolsysdV3
 from core.utils import add_records, apply_v_scope, resolve_ctst
 from utils.macros import macro_config as macro
 
@@ -83,55 +83,59 @@ class RptliteRpt(GamsClass):
             self._label_report(cc=cc)
             return
 
+        # $BATINCLUDE solsysd.v3 SYSUC ! '%SYSPREFIX%' ...
+        sysuc_mapped_labels = (
+            "VAR",
+            "VARX",
+            "INV",
+            "INVX",
+            "INV+",
+            "INVX+",
+            "FIX",
+            "FIXX",
+            "IRE",
+            "COM",
+            "ACT",
+            "FLO",
+            "ELS",
+            "DAM",
+            "DAS",
+            "DAM-EXT+",
+        )
+        # $BATINCLUDE solsysd.v3 SYSUC ,% '%SYSPREFIX%' ...
+        sysuc_unmapped_labels = (
+            "INSTCAP",
+            "LUMPINV",
+            "LUMPIX",
+            "COST",
+            "CGAP",
+            "GGAP",
+            "RNGLO",
+            "RNGUP",
+            "RATIO",
+            "GRATIO",
+            "LEVCOST",
+        )
         self.include(
             SolsysdV3(
                 self.tc,
                 self.env,
-                mode="SYSUC",
-                set_name="SYSUC",
-                map=True,
-                set_prefix=self.env.sysprefix,
-                labels=[
-                    "VAR",
-                    "VARX",
-                    "INV",
-                    "INVX",
-                    "INV+",
-                    "INVX+",
-                    "FIX",
-                    "FIXX",
-                    "IRE",
-                    "COM",
-                    "ACT",
-                    "FLO",
-                    "ELS",
-                    "DAM",
-                    "DAS",
-                    "DAM-EXT+",
-                ],
+                SolsysdSysucConfig(
+                    map=True,
+                    set_prefix=self.env.sysprefix,
+                    labels=sysuc_mapped_labels,
+                ),
             )
         )
         self.include(
             SolsysdV3(
                 self.tc,
                 self.env,
-                mode="SYSUC",
-                map=False,
-                set_name="SYSUC",
-                set_prefix=self.env.sysprefix,
-                labels=[
-                    "INSTCAP",
-                    "LUMPINV",
-                    "LUMPIX",
-                    "COST",
-                    "CGAP",
-                    "GGAP",
-                    "RNGLO",
-                    "RNGUP",
-                    "RATIO",
-                    "GRATIO",
-                    "LEVCOST",
-                ],
+                SolsysdSysucConfig(
+                    map=False,
+                    set_prefix=self.env.sysprefix,
+                    labels=sysuc_unmapped_labels,
+                ),
             )
         )
 
@@ -474,13 +478,16 @@ class RptliteRpt(GamsClass):
                 m, name=f"{arg1}PAR_UCRTP", domain=[*cc.arg2, ucn, r, t, p, ucgrptype]
             ),
         )
+        # `//` data statements make these DEFINED for solsysd.v3's $IF DEFINED
         g.reg_wobj = Parameter(m, name="REG_WOBJ", domain=[reg, item, cur])
+        g.register_assignment(g.reg_wobj)
         g.set_parameter(
             name=f"{arg1}REG_WOBJ",
             parameter=Parameter(
                 m, name=f"{arg1}REG_WOBJ", domain=[*cc.arg2, reg, item, cur]
             ),
         )
+        g.register_assignment(g.get_parameter(f"{arg1}REG_WOBJ"))
         g.set_parameter(
             name=f"{arg1}REG_IREC",
             parameter=Parameter(m, name=f"{arg1}REG_IREC", domain=[*cc.arg2, reg]),
@@ -491,6 +498,7 @@ class RptliteRpt(GamsClass):
                 m, name=f"{arg1}REG_ACOST", domain=[*cc.arg2, r, allyear, item]
             ),
         )
+        g.register_assignment(g.get_parameter(f"{arg1}REG_ACOST"))
         g.set_parameter(
             name=f"{arg1}CST_INVC",
             parameter=Parameter(

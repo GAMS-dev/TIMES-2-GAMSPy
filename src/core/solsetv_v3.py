@@ -17,7 +17,7 @@ from gamspy import Loop, Ord, Parameter, Product, Set, SpecialValues, Sum, spars
 from gamspy.math import abs, project
 
 from core.base_class import GamsClass
-from core.solsysd_v3 import SolsysdV3
+from core.solsysd_v3 import SolsysdSymbolConfig, SolsysdV3
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -280,29 +280,27 @@ class SolsetvV3(GamsClass):
     def _label_finishup(self) -> None:
         self.tc.enqueue(self.exec7)
         self.include(
+            # $ BATINCLUDE solsysd.v3 REG_ACOST ! ,T, '' SOW,R S R
             SolsysdV3(
                 self.tc,
                 self.env,
-                mode="SYMBOL",
-                base_name="REG_ACOST",
-                index_block="SOW,R",
-                extra_index=",T,",
-                suffix="",
-                symbol_prefixes=["S", "R"],
-                map=False,
+                SolsysdSymbolConfig(
+                    base_name="REG_ACOST",
+                    mid_index=(self.tc.t,),
+                    targets=(((self.tc.Sow, self.tc.r), "S"), ((self.tc.r,), "")),
+                ),
             )
         )
         self.include(
+            # $ BATINCLUDE solsysd.v3 REG_WOBJ ! , ,CUR SOW,R S R
             SolsysdV3(
                 self.tc,
                 self.env,
-                mode="SYMBOL",
-                base_name="REG_WOBJ",
-                index_block="SOW,R",
-                extra_index=",",
-                suffix=",CUR",
-                symbol_prefixes=["S", "R"],
-                map=False,
+                SolsysdSymbolConfig(
+                    base_name="REG_WOBJ",
+                    suffix_index=(self.tc.cur,),
+                    targets=(((self.tc.Sow, self.tc.r), "S"), ((self.tc.r,), "")),
+                ),
             )
         )
         self.tc.enqueue(self.exec8)

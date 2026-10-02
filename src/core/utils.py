@@ -69,12 +69,15 @@ class BaseUcModConfig:
     arg7: SET_OR_ALIAS | tuple[()] = ()
 
 
-def expand_set(symbol: Set | Alias, elements: Sequence[str | tuple[str, str]]) -> None:
+def expand_set(symbol: Set | Alias, elements: Sequence[str | tuple[str, ...]]) -> None:
     """
-    Expands a 1D GAMSPy Set with additional elements,
+    Expands a GAMSPy Set with additional elements,
     preserving existing records (and their text) and avoiding duplicates.
-    Accepts elements as a Sequence of strings or (element, text) tuples.
+    Accepts elements as a Sequence of strings (1D only) or tuples of the
+    element's labels, optionally followed by its text: (element, text) for 1D,
+    (label1, label2) or (label1, label2, text) for 2D, and so on.
     """
+    dim = symbol.dimension
     updated_records = []
     existing_keys = set()
 
@@ -83,23 +86,22 @@ def expand_set(symbol: Set | Alias, elements: Sequence[str | tuple[str, str]]) -
         data = symbol.records.astype(object).fillna("")
 
         for row in data.values.tolist():  # noqa: PD011
-            uni = row[0]
-            text = row[1] if len(row) > 1 else ""
+            key = tuple(row[:dim])
+            text = row[dim] if len(row) > dim else ""
 
-            updated_records.append((uni, text))
-            existing_keys.add(uni)
+            updated_records.append((*key, text))
+            existing_keys.add(key)
 
     # 2. Append the new elements (Handles strings or tuples dynamically)
     for item in elements:
-        if isinstance(item, tuple):
-            new_el, new_text = item
-        else:
-            new_el, new_text = item, ""
+        labels = item if isinstance(item, tuple) else (item,)
+        key = tuple(labels[:dim])
+        new_text = labels[dim] if len(labels) > dim else ""
 
         # Avoid duplicates
-        if new_el not in existing_keys:
-            updated_records.append((new_el, new_text))
-            existing_keys.add(new_el)
+        if key not in existing_keys:
+            updated_records.append((*key, new_text))
+            existing_keys.add(key)
 
     # 3. Update the GAMSPy symbol with the combined list of tuples
     symbol.setRecords(updated_records)
