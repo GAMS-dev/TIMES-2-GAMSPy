@@ -1,7 +1,7 @@
 # TIMES for GAMSPy (work in progress)
 
 [![Release](https://img.shields.io/github/v/release/GAMS-dev/TIMES-2-GAMSPy?include_prereleases&sort=semver)](https://github.com/GAMS-dev/TIMES-2-GAMSPy/releases)
-[![Native GAMSPy 67%](https://img.shields.io/badge/native%20GAMSPy-67%25-yellowgreen)](#status)
+[![Native GAMSPy 71%](https://img.shields.io/badge/native%20GAMSPy-71%25-yellowgreen)](#status)
 [![Coverage 88%](https://img.shields.io/badge/coverage-88%25-green)](#test-coverage)
 [![License: GPLv3](https://img.shields.io/badge/license-GPLv3-blue)](TIMES_source/source/NOTICE-GPLv3.txt)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org)
@@ -25,7 +25,7 @@ The translation happens in two phases:
 1. **Phase 1 (done): Structure.** Every upstream GAMS file has a Python counterpart. GAMS compile-time logic (`$IF`, `$SET`, `$BATINCLUDE`, `%MACRO%` substitution, …) is implemented in Python. Execution-time GAMS code was first carried over verbatim inside `add_gams_code(...)` blocks. The result already reproduces the GAMS results for all instances in our test suite.
 2. **Phase 2 (ongoing): Native GAMSPy.** The embedded GAMS code is being replaced step by step with native GAMSPy (`Set`, `Parameter`, `Equation`, `Sum`, `.where[...]`, …) while keeping the numerical results identical.
 
-As of October 2026, about **67%** of the originally embedded GAMS code has been replaced by native GAMSPy, and 189 of the 250 files in `src/core/` contain no embedded GAMS code at all.
+As of October 2026, about **71%** of the originally embedded GAMS code has been replaced by native GAMSPy, and 192 of the 250 files in `src/core/` contain no embedded GAMS code at all.
 
 ### Versions and releases
 
@@ -191,7 +191,7 @@ Development happens in an internal repository at GAMS. Its `main` branch is publ
 
 ## Known Limitations
 
-- About a third of the execution-time code still runs as embedded GAMS code through `add_gams_code()`, which requires a GAMSPy++ license.
+- Less than a third of the execution-time code still runs as embedded GAMS code through `add_gams_code()`, which requires a GAMSPy++ license.
 - Text output written with GAMS `PUT` statements (e.g. `QA_CHECK.LOG`, the VEDA report files and solution dumps) is not yet fully ported; much of it still runs as embedded GAMS code.
 - Universe aliases (`ALIAS(*,ITEM)` patterns) need workarounds in GAMSPy.
 - Individual modules cannot be tested in isolation; testing is done by comparing complete model runs against GAMS.
@@ -200,7 +200,7 @@ Development happens in an internal repository at GAMS. Its `main` branch is publ
 
 ## Test coverage
 
-The integration tests run about 80 TIMES instances (demo models and variants that switch on extensions such as ECB, MLF, ETL, CLI, ABS, stochastics and the reduction algorithm) and compare GAMS and GAMSPy results. Their statement and branch coverage of `src/` is currently **88%**: 24,309 statements and 3,120 branches across 258 files. 102 files are fully covered, and 14 translated TIMES files are below 50%:
+The integration tests run about 80 TIMES instances (demo models and variants that switch on extensions such as ECB, MLF, ETL, CLI, ABS, stochastics and the reduction algorithm) and compare GAMS and GAMSPy results. Their statement and branch coverage of `src/` is currently **88%**: 24,717 statements and 3,140 branches across 258 files. 102 files are fully covered, and 14 translated TIMES files are below 50%:
 
 | File | Coverage |
 |---|---|
@@ -208,6 +208,7 @@ The integration tests run about 80 TIMES instances (demo models and variants tha
 | `src/core/gdxfilter_gms.py` | 0% |
 | `src/core/rptmain_rpt.py` | 12% |
 | `src/core/dynslite_vda.py` | 16% |
+| `src/core/forcupd_cli.py` | 20% |
 | `src/core/eqobjinv_rpt.py` | 23% |
 | `src/core/sensis_stc.py` | 24% |
 | `src/core/resloadc_vda.py` | 35% |
@@ -215,7 +216,6 @@ The integration tests run about 80 TIMES instances (demo models and variants tha
 | `src/core/eqobsalv_rpt.py` | 40% |
 | `src/core/ppm_ext_ecb.py` | 41% |
 | `src/core/equ_ext_ecb.py` | 43% |
-| `src/core/forcupd_cli.py` | 45% |
 | `src/core/uc_cli_mod.py` | 46% |
 | `src/core/preppm_msa.py` | 48% |
 
