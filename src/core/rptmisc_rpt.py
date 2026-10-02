@@ -23,7 +23,6 @@ from gamspy import (
     If,
     Loop,
     Ord,
-    Parameter,
     Product,
     Set,
     Smin,
@@ -34,7 +33,7 @@ from gamspy import (
 from gamspy.math import Max, Min, Round, abs, project, sign
 
 from core.base_class import GamsClass
-from core.utils import extract_var_domain, wrap_in_sum
+from core.utils import extract_var_domain, once_counter, wrap_in_sum
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
@@ -45,30 +44,6 @@ if TYPE_CHECKING:
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
-
-_ONCE_COUNTER_NAME = "RPTMISC_ONCE"
-
-
-def _once_counter(tc: TimesModelClass) -> Parameter:
-    """A dedicated scalar counter used only to give a one-pass ``For()`` loop
-    something to iterate over -- not a TIMES model parameter, not referenced
-    anywhere else. A numeric ``Parameter`` never adds an element to the
-    shared GAMS universe (``*``) the way a driver ``Set`` with a literal
-    record would -- that leaked into every other universal-alias symbol
-    (``ITEM``, ``U2``, ``U3``, ``U4``, ...), since they're all aliases of the
-    same universe. Created lazily so repeated ``RptmiscRpt`` instantiations
-    (once each from rpt_ext_mlf.py and rptmain_tm.py) share the same symbol
-    instead of colliding on the name.
-    """
-    if tc.declared(_ONCE_COUNTER_NAME):
-        once: Parameter = tc.container[_ONCE_COUNTER_NAME]  # type: ignore
-    else:
-        once = Parameter(
-            tc.container,
-            name=_ONCE_COUNTER_NAME,
-            description="Singleton driver counter; forces exactly one For pass.",
-        )
-    return once
 
 
 @dataclass
@@ -165,7 +140,7 @@ class RptmiscRpt(GamsClass):
         if_defined_eqe_ucrtp: bool,
         if_not_defined_eq_g_ucmax: bool,
     ) -> None:
-        with For(_once_counter(self.tc), 1, 1):
+        with For(once_counter(self.tc), 1, 1):
             self.rptmisc_rpt_GP(
                 arg1=arg1,
                 arg2=arg2,

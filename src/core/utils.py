@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -8,6 +9,8 @@ from gamspy import (
     Alias,
     Domain,
     Expression,
+    For,
+    If,
     Model,
     Parameter,
     Set,
@@ -21,7 +24,9 @@ from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet, ImplicitVa
 from gamspy.math import MathOp
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Generator, Sequence
+
+    from gamspy._types import ConditionType
 
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
@@ -318,6 +323,60 @@ def model_status_symbol(model: Model) -> Parameter:
     """
     attr_symbols = dict(zip(MODEL_ATTRIBUTE_MAP, model._attr_symbol_names, strict=True))
     return Parameter(model.container, name=attr_symbols["modelStat"])
+
+
+# The name predates this shared helper (it was rptmisc_rpt.py's own counter);
+# kept so the gdxdiff SkipID in tests/test_symbols.py still matches.
+_ONCE_COUNTER_NAME = "RPTMISC_ONCE"
+
+
+def once_counter(tc: TimesModelClass) -> Parameter:
+    """A dedicated scalar counter used only to give a one-pass ``For()`` loop
+    something to iterate over -- not a TIMES model parameter, not referenced
+    anywhere else. Used by :func:`gams_if` to host a ``gp.If`` at top level.
+
+    A numeric ``Parameter`` never adds an element to the shared GAMS universe
+    (``*``) the way a driver ``Set`` with a literal record would -- that
+    leaked into every other universal-alias symbol (``ITEM``, ``U2``, ``U3``,
+    ``U4``, ...), since they're all aliases of the same universe. Created
+    lazily so repeated callers share the same symbol instead of colliding on
+    the name. Must be called outside any Loop, since it emits a declaration.
+    """
+    if tc.declared(_ONCE_COUNTER_NAME):
+        once = tc.container.getParameter(_ONCE_COUNTER_NAME)
+    else:
+        once = Parameter(
+            tc.container,
+            name=_ONCE_COUNTER_NAME,
+            description="Singleton driver counter; forces exactly one For pass.",
+        )
+    return once
+
+
+@contextmanager
+def gams_if(tc: TimesModelClass, condition: ConditionType) -> Generator[None]:
+    """Translate a GAMS runtime ``IF(condition, ...)``.
+
+    ``gp.If`` is only allowed inside a ``gp.Loop``/``gp.For``, and
+    ``x.toValue()`` is not allowed inside one. A ``*_GP`` function that may be
+    called both at top level and from within a GAMS loop (e.g. cost_ann.rpt
+    inside the Negishi/SOW loops) therefore uses ``with gams_if(tc, cond):``:
+    inside a loop it is a plain ``gp.If``; at top level the ``gp.If`` is
+    wrapped in a one-pass ``For`` over :func:`once_counter`.
+
+    A following ``gp.Else``/``gp.ElseIf`` only works when already inside a
+    loop (e.g. nested in another ``gams_if``); at top level the one-pass
+    ``For`` is closed before it.
+
+    Stopgap: relies on GAMSPy internals (``Container._in_loop``). Replace with
+    ``gp.If`` once GAMSPy allows it at top level.
+    """
+    if tc.container._in_loop:
+        with If(condition):
+            yield
+    else:
+        with For(once_counter(tc), 1, 1), If(condition):
+            yield
 
 
 def extract_var_domain(var: str | tuple[str, Any]) -> tuple[str, ImplicitSet | None]:
