@@ -67,29 +67,93 @@ To work with a specific release, check out its tag, e.g. `git checkout v0.2.0`. 
 
 ### Run the demo model
 
-The TIMES Demo model data ships with the repository in [`TIMES_source/model`](TIMES_source/model) and [`TIMES_source/model-ge`](TIMES_source/model-ge), so the following instances run without any extra downloads:
+The TIMES Demo model data ships with the repository in [`TIMES_source/model`](TIMES_source/model) and [`TIMES_source/model-ge`](TIMES_source/model-ge), so the following run files in [`examples`](examples) run without any extra downloads:
 
-| Instance           | Data directory          | Description                                            |
-|:-------------------|:------------------------|:-------------------------------------------------------|
-| `demo12`           | `TIMES_source/model`    | TIMES Demo12 model                                     |
-| `demo12Base`       | `TIMES_source/model-ge` | Demo12 base scenario (model-ge variant)                |
-| `demo12Base_ucbet` | `TIMES_source/model-ge` | Demo12 base with extra user constraints (`ucbet.vda`)  |
+| Run file                                                  | Data directory          | Description                                           |
+|:----------------------------------------------------------|:------------------------|:------------------------------------------------------|
+| [`demo12.toml`](examples/demo12.toml)                     | `TIMES_source/model`    | TIMES Demo12 model                                    |
+| [`demo12Base.toml`](examples/demo12Base.toml)             | `TIMES_source/model-ge` | Demo12 base scenario (model-ge variant)               |
+| [`demo12Base_ucbet.toml`](examples/demo12Base_ucbet.toml) | `TIMES_source/model-ge` | Demo12 base with extra user constraints (`ucbet.vda`) |
 
 ```bash
-python src/main.py --run demo12 --lp-solver HIGHS
+python src/main.py --run examples/demo12.toml --lp-solver HIGHS
 ```
 
 This builds and solves the model with the open-source solver HiGHS, which works with any license, including the free personal one. It writes `demo12.lst` / `demo12.log` together with GDX files of the compile, execution and solution state to the working directory. Without `--lp-solver`, the default solver CPLEX is used, which needs a license that includes it (see [Choosing the solver](#choosing-the-solver)).
 
-All instances are defined in [`src/utils/run_registry.py`](src/utils/run_registry.py) as `RunConfig` objects. A `RunConfig` is the Python equivalent of a TIMES `.run` file: milestone years, data files and the `%SWITCH%` settings. The remaining registry instances (the `DemoS_*` series and others) use data sets that are not yet part of this repository.
+A run file is the counterpart of a TIMES `.run` file: milestone years, data files and the `%SWITCH%` settings (see [Running your own model](#running-your-own-model)). The test suite runs the same models from [`src/utils/run_registry.py`](src/utils/run_registry.py), where every instance is a `RunConfig` object; `--run` also accepts their names, e.g. `--run demo12`. The other registry instances (the `DemoS_*` series and others) use data sets that are not yet part of this repository.
+
+#### Running your own model
+
+To run your own model, write a TOML run file, the counterpart of a TIMES `.run` file, and pass its path to `--run`:
+
+```bash
+python src/main.py --run path/to/mymodel.toml --lp-solver HIGHS
+```
+
+[`examples/demo12.toml`](examples/demo12.toml) is [`demo12.run`](TIMES_source/model/demo12.run) translated line by line. [`examples/template.toml`](examples/template.toml) lists every key a run file accepts, with its allowed values and default; copy it and uncomment what you need. In short:
+
+```toml
+# mymodel.toml, next to the .dd files
+run_name = "mymodel"              # default: the file name
+time_slices = "mymodel_ts.dd"
+data_modules = ["base.dd", "newtechs.dd", "syssettings.dd"]
+milestone_years = [2005, 2010, 2015, 2020]
+lp_solver = "CPLEX"               # optional, as is nlp_solver
+
+[env_vars]                        # the $SET switches
+reduce = "YES"
+vda = "YES"
+obj = "MOD"
+botime = 1960
+rpt_opt = [["NCAP", "1", 1]]      # $SET RPT_OPT NCAP.1 1
+
+[options]                         # OPTION statements, by their GAMS names
+reslim = 1000
+
+[solver_options.cplex]            # instead of cplex.opt next to the .dd files
+lpmethod = 4
+```
+
+`data_dir`, the folder with the `.dd` files, is relative to the run file and defaults to the run file's folder. A run file placed next to its `.dd` files therefore needs no `data_dir`. Unknown keys and invalid switch values are reported when the file is loaded, unknown `[options]` names when the run starts. `--lp-solver` and `--nlp-solver` specify solvers.
+
+#### From a GAMS `.run` file to a TOML run file
+
+A GAMS `.run` file sets compile-time switches, includes the data files and calls the TIMES driver. The driver calls are the same for every model and are made by [`src/main.py`](src/main.py), so a GAMSPy run file (`.toml`) keeps only the parts that differ between models:
+
+| GAMS `.run` file | TOML run file |
+|:--|:--|
+| `$SET RUN_NAME demo12` | `run_name = "demo12"` (default: the file name) |
+| `$SET <SWITCH> <value>`, e.g. `$SET REDUCE YES` | `reduce = "YES"` under `[env_vars]`: the switch name in lower case, the value as in the `.run` file |
+| `$SET RPT_OPT NCAP.1 1` | `rpt_opt = [["NCAP", "1", 1]]` under `[env_vars]`, one `[item, j, value]` row per entry |
+| `$BATINCLUDE initmty.mod IER` | `ier = "YES"` under `[env_vars]` |
+| `$BATINCLUDE demo12_ts.dd` (the time slices, before `initsys.mod`) | `time_slices = "demo12_ts.dd"` |
+| `$BATINCLUDE <file>.dd` (after `initmty.mod`) | `data_modules = ["base.dd", ...]`, in the same order |
+| `SET MILESTONYR /2005,2010,2015/;` | `milestone_years = [2005, 2010, 2015]` |
+| `OPTION LP=CPLEX;` | `lp_solver = "CPLEX"` (`nlp_solver` for NLP models) |
+| `OPTION RESLIM=50000, ITERLIM=999999;` | `reslim = 50000` and `iterlim = 999999` under `[options]`: the option name in lower case. Without them, the `OPTION` settings of the demo `.run` files are used (see `DEFAULT_OPTIONS` in [`src/utils/config.py`](src/utils/config.py)) |
+| `<solver>.opt` solver option file | the same file next to the `.dd` files, or its lines as `key = value` under `[solver_options.<solver>]`, e.g. `[solver_options.cplex]` |
+| `idir` folder with the `.dd` files | `data_dir = "..."`, relative to the run file (default: its folder) |
+| `$ONMULTI`, `$BATINCLUDE initsys.mod`, `initmty.mod`, `maindrv.mod mod` | nothing: [`src/main.py`](src/main.py) does this for every run |
+
+Step by step:
+
+1. Copy [`examples/demo12.toml`](examples/demo12.toml) next to your `.run` file and rename it, e.g. `mymodel.run` → `mymodel.toml`. Delete its `data_dir` line.
+2. Replace the keys under `[env_vars]` with your `$SET` switches. Leave out any switch your `.run` file does not set; it keeps its TIMES default. [`examples/template.toml`](examples/template.toml) describes every supported switch and its allowed values.
+3. Set `time_slices` to the time-slice file included before `initsys.mod`. List the remaining `$BATINCLUDE`d `.dd` files in `data_modules`, in the order of the `.run` file.
+4. Copy the years of `SET MILESTONYR` to `milestone_years`, then set `run_name` and the solvers. These top-level keys must come before the first table such as `[env_vars]`, because TOML puts every key after a table header into that table.
+5. Put `OPTION` statements that differ from the defaults under `[options]`. Leave a `<solver>.opt` file next to the `.dd` files, or move its lines to `[solver_options.<solver>]`.
+6. Run `python src/main.py --run path/to/mymodel.toml` and compare the result with the GAMS run (see [Compare with the original GAMS TIMES](#compare-with-the-original-gams-times)).
+
+Other GAMS statements in a `.run` file, such as extra data assignments, have no counterpart in a run file yet.
 
 #### Choosing the solver
 
 Select the solver with `--lp-solver` (LP and MIP models) and `--nlp-solver` (NLP models); without them the installation's default solver is used:
 
 ```bash
-python src/main.py --run demo12Base --lp-solver CPLEX
-python src/main.py --run demo12 --lp-solver default --nlp-solver CONOPT4
+python src/main.py --run examples/demo12Base.toml --lp-solver CPLEX
+python src/main.py --run examples/demo12.toml --lp-solver default --nlp-solver CONOPT4
 ```
 
 Any solver installed for GAMSPy can be used: `gamspy list solvers` shows the installed ones, `gamspy install solver <name>` adds one. Commercial solvers such as CPLEX also need a license that includes them. Pass `default` to use the installation's default solver again.
@@ -116,7 +180,7 @@ The translation is done **file by file**, with a clear 1:1 mapping between the u
 
 ```text
 src/
-  main.py                    entry point: python src/main.py --run <instance>
+  main.py                    entry point: python src/main.py --run <instance or run file>
   core/                      one module per upstream TIMES file (e.g. eqactflo_mod.py, ppmain_mod.py)
   utils/
     times_model_class.py     the model context ("tc"): the GAMSPy Container, symbols and helpers

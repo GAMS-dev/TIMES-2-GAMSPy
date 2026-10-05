@@ -39,6 +39,7 @@ from core.utils import model_status_symbol
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
+    from utils.config import OptionValue
     from utils.times_model_class import TimesModelClass
 
 logger = logging.getLogger(__name__)
@@ -109,7 +110,9 @@ def solver_for_method(g: TimesModelClass, method: str) -> str:
     return solver.lower()
 
 
-def write_run_solver_options(g: TimesModelClass, solver: str) -> Path | None:
+def write_run_solver_options(
+    g: TimesModelClass, solver: str
+) -> dict[str, OptionValue] | Path | None:
     """Make the run's solver option file visible to raw GAMS ``SOLVE`` statements.
 
     The emitted code sets ``<model>.optfile = 1``, so GAMS looks for ``<solver>.opt``
@@ -123,14 +126,23 @@ def write_run_solver_options(g: TimesModelClass, solver: str) -> Path | None:
     with its defaults, exactly as for a missing file, but doesn't print a
     ``*** Error Cannot open parameter file`` that reads like a failed run.
 
-    Returns the run's option file, or ``None`` if it has none.
+    Options given in the run file (``RunConfig.solver_options``) are used instead
+    of ``<solver>.opt``.
+
+    Returns the run's solver options, or ``None`` if it has none.
     """
+    run_file_options = {s.lower(): o for s, o in g.config.solver_options.items()}
+    if (solver_options := run_file_options.get(solver)) is not None:
+        g.container.writeSolverOptions(solver, solver_options)
+        return solver_options
+
     option_file = Path(g.config.data_dir, f"{solver}.opt")
     target = Path(g.container.working_directory, option_file.name)
     if not option_file.is_file():
         logger.warning(
             "No solver option file %s found, so %s runs with its default settings. "
-            "This is fine; create that file only to pass options to the solver.",
+            "This is fine; create that file or set solver_options in the run file "
+            "only to pass options to the solver.",
             option_file,
             solver.upper(),
         )

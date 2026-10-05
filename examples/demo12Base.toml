@@ -1,0 +1,65 @@
+# demo12Base.toml -- TOML run file for TIMES_source/model-ge/demo12Base.run
+#
+#   python src/main.py --run examples/demo12Base.toml
+
+# $SET RUN_NAME demo12Base  (default: the file name)
+run_name = "demo12Base"
+# folder with the .dd files, relative to this file (default: this folder)
+data_dir = "../TIMES_source/model-ge"
+# *option LP=CPLEX;  (left out: the installation's default solver)
+# lp_solver = "CPLEX"
+
+# $BATINCLUDE demo12_ts.dd  (before initsys.mod)
+time_slices = "demo12_ts.dd"
+# $BATINCLUDE <file>.dd  (after initmty.mod, in this order)
+data_modules = [
+    "base.dd",
+    "newtechs.dd",
+    "trade_param.dd",
+    "dem_ref.dd",
+    "syssettings.dd",
+    "peak_rsv.dd",
+    "refinery.dd",
+    "demproj_dtcar.dd",
+    "uc_nuc_maxcap.dd",
+    "bounds-uc_wsets.dd",
+    "offdummy.dd",
+]
+# SET MILESTONYR /2005,2010,2015,2020,2030,2040,2050/;
+milestone_years = [2005, 2010, 2015, 2020, 2030, 2040, 2050]
+
+# OPTION RESLIM=50000, PROFILE=1, SOLVEOPT=REPLACE;
+# OPTION ITERLIM=999999, LIMROW=0, LIMCOL=0, SOLPRINT=OFF;
+# OPTION BRATIO=1;
+# (the defaults, so commented out; list only the options that differ)
+[options]
+# reslim = 50000
+# profile = 1
+# solveopt = "replace"
+# iterlim = 999999
+# limrow = 0
+# limcol = 0
+# solprint = "off"
+# bratio = 1
+
+# <solver>.opt next to the .dd files, or one table per solver:
+# [solver_options.cplex]
+# lpmethod = 4
+
+# $SET <SWITCH> <value>
+[env_vars]
+reduce = "YES"
+dscauto = "YES"
+vda = "YES"
+debug = "NO"
+dumpsol = "NO"
+solve_now = "YES"
+xtqa = "YES"
+var_uc = "YES"
+obj = "MOD"
+solveda = "YES"
+timesed = "NO"
+datagdx = "YES"
+anncost = "LEV"
+botime = 1960
+vedavdd = "YES"

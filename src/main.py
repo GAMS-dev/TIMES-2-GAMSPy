@@ -6,9 +6,11 @@ import logging
 import os
 import sys
 import time
+import tomllib
 from pathlib import Path
 
 from gamspy import Options, Set, set_options
+from pydantic import ValidationError
 
 from core.initmty_mod import InitmtyMod
 from core.initsys_mod import InitsysMod
@@ -17,9 +19,9 @@ from core.pp_qaput_mod import QALogger
 from core.read_dd import read_dd_file
 from core.utils import EscapeStack
 from utils.compile_environment import CompileEnvironment
-from utils.config import RunConfig, UserConfig
+from utils.config import DEFAULT_OPTIONS, RunConfig, UserConfig
 from utils.macros import macro_config as macro
-from utils.run_registry import REGISTRY
+from utils.run_registry import REGISTRY, load_run_file
 from utils.times_model_class import TimesModelClass
 
 # GAMSPy options
@@ -50,21 +52,18 @@ def run_times(
 ) -> TimesModelClass:
     logging.info(f"Starting TIMES Run: {config.run_name}")
 
-    # Set Options
-    solve_options = Options(
-        time_limit=50000,
-        profile=1,
-        merge_strategy="replace",
-        iteration_limit=999999,
-        equation_listing_limit=0,
-        variable_listing_limit=0,
-        report_solution=0,
-        lp=config.lp_solver,
-        mip=config.lp_solver,
-        nlp=config.nlp_solver,
-        basis_detection_threshold=1,
-        log_file=f"{config.run_name}.log",
-        listing_file=f"{config.run_name}.lst",
+    # Set Options, by their GAMS names: the run file's OPTION statements on top
+    # of the defaults, then the solvers (None: the default) and the output files
+    solve_options = Options.fromGams(
+        {
+            **DEFAULT_OPTIONS,
+            **config.options,
+            "lp": config.lp_solver,
+            "mip": config.lp_solver,
+            "nlp": config.nlp_solver,
+            "logfile": f"{config.run_name}.log",
+            "output": f"{config.run_name}.lst",
+        }
     )
 
     # Initialize Core
@@ -145,8 +144,8 @@ if __name__ == "__main__":
         "--run",
         type=str,
         required=True,
-        choices=REGISTRY.keys(),
-        help="Name of the run instance to execute",
+        help="Instance to execute: a name from the built-in registry or the path "
+        "to a TOML run file (*.toml).",
     )
     parser.add_argument(
         "--skip-solve",
@@ -169,7 +168,15 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    run_config: RunConfig = REGISTRY[args.run]
+    if args.run.endswith(".toml"):
+        try:
+            run_config = load_run_file(Path(args.run))
+        except (OSError, tomllib.TOMLDecodeError, ValidationError) as e:
+            parser.error(f"cannot load run file {args.run}:\n{e}")
+    elif args.run in REGISTRY:
+        run_config = REGISTRY[args.run]
+    else:
+        parser.error(f"'{args.run}' is neither a registry instance nor a .toml file")
     for field in ("lp_solver", "nlp_solver"):
         if solver := getattr(args, field):
             solver = None if solver.lower() == "default" else solver
