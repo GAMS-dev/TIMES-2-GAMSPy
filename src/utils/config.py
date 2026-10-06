@@ -680,9 +680,18 @@ class EnvironmentVariableSchema(BaseModel):
     supzero: str = "%supzero%"  # solputta_ans.py -- zero-supply handling
 
     swo: str
+    swo_GP: tuple[Literal["1"] | Set | Alias] = Field(
+        description="equ_ext.cli state index of the CM_AA/CM_BB/CM_CC coefficients: '1' outside, SOW inside a stochastic run."
+    )
     send: str
     swts: str
+    swts_GP: tuple[ImplicitSet] | tuple[()] = Field(
+        description="equ_ext.cli extra SW_TSW(SOW,T,W) summation domain of the non-emission EQ_CLIBEOH term."
+    )
     cpar: str
+    cpar_GP: ImplicitParameter = Field(
+        description="equ_ext.cli climate target parameter: CM_MAXC(LL,CG), or S_CM_MAXC(LL,CG,'1'%SOW%) in a stochastic run."
+    )
     powerflo: str
     pdtol: str
     bigm: str
