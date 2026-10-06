@@ -30,7 +30,6 @@ from gamspy import (
     Parameter,
     set_options,
 )
-from gamspy.utils import getDefaultSolvers
 
 from core.base_class import GamsClass
 from core.err_stat_mod import ErrStatMod
@@ -106,7 +105,9 @@ def solver_for_method(g: TimesModelClass, method: str) -> str:
     """
     solver = g.config.nlp_solver if "NL" in method else g.config.lp_solver
     if solver is None:
-        solver = getDefaultSolvers(g.container.system_directory)[method]
+        # what model.solve() falls back to; unlike getDefaultSolvers(system_directory)
+        # it honours the license (a free personal license defaults to HiGHS, SCIP, ...)
+        solver = g.container._default_solvers[method]
     return solver.lower()
 
 
