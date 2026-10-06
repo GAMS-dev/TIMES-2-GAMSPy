@@ -12,12 +12,15 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING
 
-from gamspy import Alias, Parameter, Set
+from gamspy import Alias, Card, Loop, Ord, Parameter, Set
+from gamspy.math import Round
 
 from core.base_class import GamsClass
 from core.filparam_gms import FilparamGms, FilparamGmsConfig
+from core.read_dd import read_dd_file
 
 if TYPE_CHECKING:
     from utils.compile_environment import CompileEnvironment
@@ -43,19 +46,15 @@ class PrepExtTm(GamsClass):
     def compile(self) -> None:
         g = self.tc
         m = g.container
-        # TODO:
-        # hard to translate there is no msaddf.dd
-        # GAMS "exist" looks in idir
-        # the last statement makes no sense in GAMSPy because a symbols is always defined. So if not defined we define it by clearing
-        self.tc.add_gams_code(
-            module=self,
-            phase="init",
-            code=r"""
-$IF NOT DEFINED TM_EC0
-$IF EXIST msaddf.dd $INCLUDE msaddf.dd
-$IF NOT DEFINED TM_EC0 OPTION CLEAR=TM_EC0;
-""",
-        )
+        if not g.defined(g.tm_ec0):
+            # NOTE inlcude not yet covered by instances
+            # $IF EXIST msaddf.dd $INCLUDE msaddf.dd
+            msaddf = Path(g.config.data_dir, "msaddf.dd")
+            if msaddf.exists():
+                read_dd_file(tc=g, dd_path=msaddf)
+            # $IF NOT DEFINED TM_EC0 OPTION CLEAR=TM_EC0;
+            if not g.defined(g.tm_ec0):
+                g.register_assignment(g.tm_ec0)
         # Interpolate MACRO-specific parameters
         # fmt: off
         batincludes: list[FilparamGmsConfig] = [
@@ -82,15 +81,14 @@ $IF NOT DEFINED TM_EC0 OPTION CLEAR=TM_EC0;
         self.tc.enqueue(self.prep_ext_tm_exec)
 
     def prep_ext_tm_exec(self: PrepExtTm) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=r"""
-  PP(T+1) = YES;
-  TLAST(T)$(ORD(T) EQ CARD(T)) = YES;
-  TM_SL = (ROUND(TM_ARBM,1) EQ 1);
-  IF(TM_SL,NYPER(T) = LAGT(T); ELSE NYPER(TT(T-1)) = (D(T)+D(TT))/2);
-  NYPER(TLAST(T+1)) = LAGT(T);
-  LOOP(R,DM(C)$DEM(R,C)=YES);
-""",
-        )
+        g = self.tc
+        g.Pp[g.t + 1] = True
+        g.Tlast[g.t].where[(Ord(g.t) == Card(g.t))] = True
+        g.tm_sl[...] = Round(g.tm_arbm, 1) == 1.0
+        if ((g.tm_sl) * 1).toValue():
+            g.nyper[g.t] = g.lagt[g.t]
+        else:
+            g.nyper[g.tt[g.t - 1]] = (g.d[g.t] + g.d[g.tt]) / 2.0
+        g.nyper[g.Tlast[g.t + 1]] = g.lagt[g.t]
+        with Loop(g.r):
+            g.Dm[g.c].where[g.Dem[g.r, g.c]] = True
