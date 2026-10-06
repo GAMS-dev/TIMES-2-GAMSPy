@@ -20,18 +20,33 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from gamspy import Domain, Loop, Number, Ord, Smax, SpecialValues, Sum, sparse
+from gamspy import (
+    Card,
+    Domain,
+    Else,
+    If,
+    Loop,
+    Number,
+    Ord,
+    Smax,
+    SpecialValues,
+    Sum,
+    sparse,
+)
 from gamspy.math import Max, Round, abs, aggregate, project
 
 from core.base_class import GamsClass
-from core.eqobjels_rpt import EqobjelsRpt, EqobjelsRptConfig, eqobjels_rpt
-from core.eqobjvar_rpt import EqobjvarRpt, EqobjvarRptConfig, eqobjvar_rpt
-from core.powerflo_vda import PowerfloVda, powerflo_vda_rptb
+from core.eqobjels_rpt import EqobjelsRptConfig, eqobjels_rpt, eqobjels_rpt_GP
+from core.eqobjvar_rpt import EqobjvarRptConfig, eqobjvar_rpt, eqobjvar_rpt_GP
+from core.powerflo_vda import powerflo_vda_rptb, powerflo_vda_rptb_GP
+from core.utils import gams_if
 from utils.macros import macro_config as macro
 
 if TYPE_CHECKING:
     from gamspy import Alias, Expression, Set
+    from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
 
+    from core.utils import SET_OR_ALIAS, SowGPType, TpulseType
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
@@ -48,11 +63,6 @@ class CostAnnRptConfig:
     arg2: tuple[Set | Alias | str, ...] | tuple[()] = ()
 
 
-def arg2_repr(arg2: tuple[Set | Alias | str, ...] | tuple[()]) -> str:
-    """GAMS text of the %2 index prefix, e.g. ('1',) -> "'1'," and (SOW,) -> "SOW,"."""
-    return "".join(f"'{a}'," if isinstance(a, str) else f"{a.name}," for a in arg2)
-
-
 class CostAnnRpt(GamsClass):
     """Translation unit for cost_ann.rpt."""
 
@@ -61,952 +71,791 @@ class CostAnnRpt(GamsClass):
     gams_source: str = "cost_ann.rpt"
 
     def __init__(
-        self,
-        tc: TimesModelClass,
-        env: CompileEnvironment,
-        config: CostAnnRptConfig | None = None,
+        self, tc: TimesModelClass, env: CompileEnvironment, config: CostAnnRptConfig
     ):
         self.env = env.fork()
         self._sub_modules = {}
         self.tc = tc
-        self.config = config if config is not None else CostAnnRptConfig()
+        self.config = config
         self.compile()
 
     def compile(self) -> None:
-        g = self.tc
-        cc = self.config
-
-        self.tc.enqueue(self.exec_levelized_costs, arg1=cc.arg1, arg2=cc.arg2)
-
-        # *----------------------------------------------------------------------
-        # * Cases I - Investment Cost and II - Taxes/Subsidies
-        # *----------------------------------------------------------------------
-        # $SET TMP '' SET X1 '' SETLOCAL SIC 1
-        self.env.set_scoped("tmp", "")
-        self.env.set_scoped("tmp_GP", 1)
-        self.env.set_scoped("x1", "")
-        self.env.set_local("sic", "1")
-        self.env.set_local("sic_GP", 1)
-
-        if self.env.stages.upper() == "YES":
-            self.tc.enqueue(self.exec_pastsum)
-            self.env.set_local("sic", "1+PASTSUM(R,V,P)")
-            self.env.set_local("sic_GP", 1 + g.pastsum[g.r, g.v, g.p])
-
         self.tc.enqueue(
-            self.exec_investment_costs,
-            arg1=cc.arg1,
-            arg2=cc.arg2,
-            sic_GP=self.env.sic_GP,
+            self.exec1,
+            config=self.config,
+            stages=self.env.stages,
             etl=self.env.etl,
-        )
-        self.tc.enqueue(
-            self.exec_decommissioning,
-            arg1=cc.arg1,
-            arg2=cc.arg2,
             invlif=self.env.invlif,
-        )
-        self.tc.enqueue(self.exec_fixed_costs, arg1=cc.arg1, arg2=cc.arg2)
-        self.tc.enqueue(self.exec_trade_marginals, arg1=cc.arg1, arg2=cc.arg2)
-
-        # *----------------------------------------------------------------------
-        # * EQOBJVAR the objective function variable cost reporting
-        # *----------------------------------------------------------------------
-        if self.env.anncost.upper() == "LEV":
-            self.env.set_scoped("x1", "LEV")
-            self.env.set_scoped("tmp", "*(1/OBJ_PVT(R,T,CUR))")
-            self.env.set_scoped("tmp_GP", 1 / g.obj_pvt[g.r, g.t, g.cur])
-
-        self.tc.enqueue(
-            self.exec_cst_time,
-            arg1=cc.arg1,
-            arg2=cc.arg2,
+            anncost=self.env.anncost,
             sysprefix=self.env.sysprefix,
-            x1=self.env.x1,
-        )
-
-        if self.env.anncost.upper() != "LEV":
-            self.include(
-                EqobjvarRpt(
-                    self.tc,
-                    self.env,
-                    config=EqobjvarRptConfig(
-                        arg1="PAR",
-                        arg2=(g.j["1"],),
-                        arg3=(g.j["2"],),
-                        arg4=g.t,
-                    ),
-                )
-            )
-
-        self.tc.enqueue(
-            self.exec_variable_costs,
-            arg1=cc.arg1,
-            arg2=cc.arg2,
-            tmp_GP=self.env.tmp_GP,
             pgprim=self.env.pgprim,
+            tpulse_GP=self.env.tpulse_GP,
+            is_vnret_defined=self.tc.defined("VNRET"),
+            varv=self.env.varv_GP,
+            sws=self.env.sws_GP,
+            varm=self.env.varm_GP,
+            is_obj_combal_defined=self.tc.defined("OBJ_COMBAL"),
+            sow=self.env.sow_GP,
+            var=self.env.var,
+            vart=self.env.vart_GP,
+            micro=self.env.micro,
+            is_mi_agc_defined=self.tc.defined("MI_AGC"),
         )
 
-        if self.tc.defined("OBJ_COMBAL"):
-            self.include(
-                PowerfloVda(
-                    self.tc,
-                    self.env,
-                    arg1="RPTB",
-                    arg2="",
-                    arg3="",
-                    arg4=cc.arg1,
-                    arg5=arg2_repr(cc.arg2),
-                    arg6=self.env.sow,
-                )
-            )
-
-        # *----------------------------------------------------------------------
-        # * EQOBJELS the objective function flexible demand cost reporting
-        # *----------------------------------------------------------------------
-        self.include(
-            EqobjelsRpt(
-                self.tc,
-                self.env,
-                config=EqobjelsRptConfig(
-                    arg1=g.get_parameter(f"{cc.arg1}CST_COME")[
-                        *cc.arg2, g.r, g.tt, g.c
-                    ],
-                    arg2=g.tt,
-                ),
-            )
-        )
-
-        self.tc.enqueue(
-            self.exec_regional_costs,
-            arg1=cc.arg1,
-            arg2=cc.arg2,
-            sysprefix=self.env.sysprefix,
-        )
-
-        # $IF %1==S $EXIT
-        if cc.arg1 != "S":
-            self.tc.enqueue(
-                self.exec_salvage_costs,
-                arg1=cc.arg1,
-                arg2=cc.arg2,
-                etl=self.env.etl,
-            )
-
-    def exec_levelized_costs(
+    def exec1(
         self: CostAnnRpt,
-        arg1: str,
-        arg2: tuple[Set | Alias | str, ...] | tuple[()],
+        config: CostAnnRptConfig,
+        stages: str,
+        etl: str,
+        invlif: str,
+        anncost: str,
+        sysprefix: str,
+        pgprim: str,
+        tpulse_GP: TpulseType,
+        is_vnret_defined: bool,
+        varv: tuple[str, ImplicitSet | None],
+        sws: tuple[SET_OR_ALIAS, ...] | tuple[()],
+        varm: tuple[str, ImplicitSet | None],
+        is_obj_combal_defined: bool,
+        sow: SowGPType,
+        var: str,
+        vart: tuple[str, ImplicitSet | tuple[ImplicitSet, ImplicitParameter] | None],
+        micro: str,
+        is_mi_agc_defined: bool,
     ) -> None:
-        g = self.tc
-        r, v, t, p, j, cur = g.r, g.v, g.t, g.p, g.j, g.cur
-        ObjYes, NcapYes, RtpCptyr, ObjIcur, ObjFcur, PrcRcap, Sysinv, Rdcur = (
-            g.ObjYes,
-            g.NcapYes,
-            g.RtpCptyr,
-            g.ObjIcur,
-            g.ObjFcur,
-            g.PrcRcap,
-            g.Sysinv,
-            g.Rdcur,
+        cost_ann_rpt_GP(
+            g=self.tc,
+            cc=config,
+            stages=stages,
+            etl=etl,
+            invlif=invlif,
+            anncost=anncost,
+            sysprefix=sysprefix,
+            pgprim=pgprim,
+            tpulse_GP=tpulse_GP,
+            is_vnret_defined=is_vnret_defined,
+            varv=varv,
+            sws=sws,
+            varm=varm,
+            is_obj_combal_defined=is_obj_combal_defined,
+            sow=sow,
+            var=var,
+            vart=vart,
+            micro=micro,
+            is_mi_agc_defined=is_mi_agc_defined,
         )
-        acl, cnt, coef_cap, coef_cpt, coef_crf, par_objcap, rpt_opt = (
-            g.acl,
-            g.cnt,
-            g.coef_cap,
-            g.coef_cpt,
-            g.coef_crf,
-            g.par_objcap,
-            g.rpt_opt,
-        )
-        obj_pvt, rtp_capvl, rtp_npv, rtp_obj, sysone, VAR_SCAP = (
-            g.obj_pvt,
-            g.rtp_capvl,
-            g.rtp_npv,
-            g.rtp_obj,
-            g.sysone,
-            g.VAR_SCAP,
-        )
-        CST_FIXC = g.get_parameter(f"{arg1}CST_FIXC")
-        CST_FIXX = g.get_parameter(f"{arg1}CST_FIXX")
-        CST_INVC = g.get_parameter(f"{arg1}CST_INVC")
-        CST_INVX = g.get_parameter(f"{arg1}CST_INVX")
 
-        ObjYes[NcapYes[r, v, p]] = True
-        coef_cap.setRecords(None)
-        cnt[...] = Number(1).where[Round(rpt_opt["OBJ", "2"])]
-        coef_cap[RtpCptyr[r, v, t, p]].where[NcapYes[r, v, p] & PrcRcap[r, p]] = (
-            VAR_SCAP[r, v, t, p].l / rtp_capvl[r, v, p]
+
+def cost_ann_rpt_GP(
+    g: TimesModelClass,
+    cc: CostAnnRptConfig,
+    stages: str,
+    etl: str,
+    invlif: str,
+    anncost: str,
+    sysprefix: str,
+    pgprim: str,
+    tpulse_GP: TpulseType,
+    is_vnret_defined: bool,
+    varv: tuple[str, ImplicitSet | None],
+    sws: tuple[SET_OR_ALIAS, ...] | tuple[()],
+    varm: tuple[str, ImplicitSet | None],
+    is_obj_combal_defined: bool,
+    sow: SowGPType,
+    var: str,
+    vart: tuple[str, ImplicitSet | tuple[ImplicitSet, ImplicitParameter] | None],
+    micro: str,
+    is_mi_agc_defined: bool,
+) -> None:
+    cst_fixc = g.get_parameter(f"{cc.arg1}CST_FIXC")
+    cst_fixx = g.get_parameter(f"{cc.arg1}CST_FIXX")
+    cst_invc = g.get_parameter(f"{cc.arg1}CST_INVC")
+    cst_invx = g.get_parameter(f"{cc.arg1}CST_INVX")
+    ncap_invlif = g.get_parameter(f"NCAP_{invlif}")
+    cst_decc = g.get_parameter(f"{cc.arg1}CST_DECC")
+    cst_irec = g.get_parameter(f"{cc.arg1}CST_IREC")
+    reg_irec = g.get_parameter(f"{cc.arg1}REG_IREC")
+    reg_acost = g.get_parameter(f"{cc.arg1}REG_ACOST")
+    cst_time = g.get_parameter(f"{cc.arg1}CST_TIME")
+    cst_actc = g.get_parameter(f"{cc.arg1}CST_ACTC")
+    cst_floc = g.get_parameter(f"{cc.arg1}CST_FLOC")
+    cst_flox = g.get_parameter(f"{cc.arg1}CST_FLOX")
+    cst_comc = g.get_parameter(f"{cc.arg1}CST_COMC")
+    cst_come = g.get_parameter(f"{cc.arg1}CST_COME")
+    cst_comx = g.get_parameter(f"{cc.arg1}CST_COMX")
+    cst_salv = g.get_parameter(f"{cc.arg1}CST_SALV")
+    cst_pvp = g.get_parameter(f"{cc.arg1}CST_PVP")
+    cst_pvc = g.get_parameter(f"{cc.arg1}CST_PVC")
+
+    g.ObjYes[g.NcapYes] = True
+    g.coef_cap.setRecords(None)
+    g.cnt[...] = Number(1.0).where[Round(g.rpt_opt["OBJ", "2"])]
+    g.coef_cap[g.RtpCptyr[g.r, g.v, g.t, g.p]].where[
+        (g.NcapYes[g.r, g.v, g.p].where[g.PrcRcap[g.r, g.p]])
+    ] = g.VAR_SCAP.l[g.r, g.v, g.t, g.p] / g.rtp_capvl[g.r, g.v, g.p]
+
+    # Levelized annual investment and fixed costs
+    with gams_if(g, g.cnt):
+        g.par_objcap.setRecords(None)
+        g.par_objcap[g.ObjIcur[g.NcapYes[g.r, g.v, g.p], g.cur]] = Sum(
+            g.RtpCptyr[g.r, g.v, g.t, g.p],
+            g.coef_cpt[g.r, g.v, g.t, g.p] * g.obj_pvt[g.r, g.t, g.cur],
         )
-        # * Levelized annual investment and fixed costs
-        if cnt.toValue():
-            par_objcap.setRecords(None)
-            par_objcap[ObjIcur[NcapYes[r, v, p], cur]] = Sum(
-                RtpCptyr[r, v, t, p], coef_cpt[r, v, t, p] * obj_pvt[r, t, cur]
-            )
-            rtp_obj[j, r, v, p, cur].where[rtp_obj[j, r, v, p, cur]] = (
-                rtp_obj[j, r, v, p, cur] / par_objcap[r, v, p, cur]
-            ).where[par_objcap[r, v, p, cur]]
-            CST_INVC[*arg2, RtpCptyr[r, v, t, p], Sysinv].where[NcapYes[r, v, p]] = Sum(
-                Rdcur[r, cur],
-                rtp_obj["1", r, v, p, cur]
-                * coef_cpt[r, v, t, p]
-                * abs(sysone[Sysinv] - coef_crf[r, v, p, cur]),
-            )
-            CST_INVX[*arg2, RtpCptyr[r, v, t, p], Sysinv].where[NcapYes[r, v, p]] = Sum(
-                Rdcur[r, cur],
-                rtp_obj["2", r, v, p, cur]
-                * coef_cpt[r, v, t, p]
-                * abs(sysone[Sysinv] - coef_crf[r, v, p, cur]),
-            )
-            if acl.toValue():
-                par_objcap[ObjFcur[NcapYes[r, v, p], cur]] = Sum(
-                    RtpCptyr[r, v, t, p],
-                    coef_cpt[r, v, t, p]
-                    * (1 - coef_cap[r, v, t, p])
-                    * obj_pvt[r, t, cur],
-                )
-                rtp_npv[j, r, v, p, cur].where[rtp_npv[j, r, v, p, cur]] = (
-                    rtp_npv[j, r, v, p, cur] / par_objcap[r, v, p, cur]
-                ).where[par_objcap[r, v, p, cur]]
-                CST_FIXC[*arg2, RtpCptyr[r, v, t, p]].where[NcapYes[r, v, p]] = Sum(
-                    Rdcur[r, cur],
-                    rtp_npv["1", r, v, p, cur]
-                    * coef_cpt[r, v, t, p]
-                    * (1 - coef_cap[r, v, t, p]),
-                )
-                CST_FIXX[*arg2, RtpCptyr[r, v, t, p]].where[NcapYes[r, v, p]] = Sum(
-                    Rdcur[r, cur],
-                    rtp_npv["2", r, v, p, cur]
-                    * coef_cpt[r, v, t, p]
-                    * (1 - coef_cap[r, v, t, p]),
-                )
-                coef_cap.setRecords(None)
-            NcapYes.setRecords(None)
+        g.rtp_obj[g.j, g.r, g.v, g.p, g.cur].where[
+            g.rtp_obj[g.j, g.r, g.v, g.p, g.cur]
+        ] = (
+            g.rtp_obj[g.j, g.r, g.v, g.p, g.cur] / g.par_objcap[g.r, g.v, g.p, g.cur]
+        ).where[g.par_objcap[g.r, g.v, g.p, g.cur]]
 
-    def exec_pastsum(self: CostAnnRpt) -> None:
-        g = self.tc
+        cst_invc[*cc.arg2, g.RtpCptyr[g.r, g.v, g.t, g.p], g.Sysinv].where[
+            g.NcapYes[g.r, g.v, g.p]
+        ] = Sum(
+            g.Rdcur[g.r, g.cur],
+            g.rtp_obj["1", g.r, g.v, g.p, g.cur]
+            * g.coef_cpt[g.r, g.v, g.t, g.p]
+            * abs(g.sysone[g.Sysinv] - g.coef_crf[g.r, g.v, g.p, g.cur]),
+        )
+        cst_invx[*cc.arg2, g.RtpCptyr[g.r, g.v, g.t, g.p], g.Sysinv].where[
+            g.NcapYes[g.r, g.v, g.p]
+        ] = Sum(
+            g.Rdcur[g.r, g.cur],
+            g.rtp_obj["2", g.r, g.v, g.p, g.cur]
+            * g.coef_cpt[g.r, g.v, g.t, g.p]
+            * abs(g.sysone[g.Sysinv] - g.coef_crf[g.r, g.v, g.p, g.cur]),
+        )
 
+        with gams_if(g, g.acl):
+            g.par_objcap[g.ObjFcur[g.NcapYes[g.r, g.v, g.p], g.cur]] = Sum(
+                g.RtpCptyr[g.r, g.v, g.t, g.p],
+                g.coef_cpt[g.r, g.v, g.t, g.p]
+                * (1.0 - g.coef_cap[g.r, g.v, g.t, g.p])
+                * g.obj_pvt[g.r, g.t, g.cur],
+            )
+            g.rtp_npv[g.j, g.r, g.v, g.p, g.cur].where[
+                g.rtp_npv[g.j, g.r, g.v, g.p, g.cur]
+            ] = (
+                g.rtp_npv[g.j, g.r, g.v, g.p, g.cur]
+                / g.par_objcap[g.r, g.v, g.p, g.cur]
+            ).where[g.par_objcap[g.r, g.v, g.p, g.cur]]
+            cst_fixc[*cc.arg2, g.RtpCptyr[g.r, g.v, g.t, g.p]].where[
+                g.NcapYes[g.r, g.v, g.p]
+            ] = Sum(
+                g.Rdcur[g.r, g.cur],
+                g.rtp_npv["1", g.r, g.v, g.p, g.cur]
+                * g.coef_cpt[g.r, g.v, g.t, g.p]
+                * (1.0 - g.coef_cap[g.r, g.v, g.t, g.p]),
+            )
+            cst_fixx[*cc.arg2, g.RtpCptyr[g.r, g.v, g.t, g.p]].where[
+                g.NcapYes[g.r, g.v, g.p]
+            ] = Sum(
+                g.Rdcur[g.r, g.cur],
+                g.rtp_npv["2", g.r, g.v, g.p, g.cur]
+                * g.coef_cpt[g.r, g.v, g.t, g.p]
+                * (1.0 - g.coef_cap[g.r, g.v, g.t, g.p]),
+            )
+            g.coef_cap.setRecords(None)
+
+        g.NcapYes.setRecords(None)
+
+    # *------------------------------------------------------------------------------
+    # * Cases I - Investment Cost and II - Taxes/Subsidies
+    # *------------------------------------------------------------------------------
+    # * Calculate Annual undiscounted investment costs CST_INVC
+
+    tmp: Number | Expression = Number(1)
+    x1 = ""
+    sic: Expression | int = 1
+
+    if stages.upper() == "YES":
         g.pastsum[g.NcapYes[g.r, g.t, g.p]] = Sum(
             g.SwTsw[g.Sow, g.t, g.ww], g.obj_sic[g.r, g.t, g.p, g.ww]
         )
+        sic = 1 + g.pastsum[g.r, g.v, g.p]
 
-    def exec_investment_costs(
-        self: CostAnnRpt,
-        arg1: str,
-        arg2: tuple[Set | Alias | str, ...] | tuple[()],
-        sic_GP: Expression | int,
-        etl: str,
-    ) -> None:
-        g = self.tc
+    g.Fil.setRecords(None)
+    aggregate(source=g.coef_cpt, target=g.coef_rvpt, direction="left")
 
-        r, v, t, tt, p, k, ll, year, cur = (
-            g.r,
-            g.v,
-            g.t,
-            g.tt,
-            g.p,
-            g.k,
-            g.ll,
-            g.year,
-            g.cur,
-        )
-        Fil, Invspred, NcapYes, ObjIcur, ObjSumii, PyrS, RtpCptyr = (
-            g.Fil,
-            g.Invspred,
-            g.NcapYes,
-            g.ObjIcur,
-            g.ObjSumii,
-            g.PyrS,
-            g.RtpCptyr,
-        )
-        Sysinv, Teg, Vnt, Yk, Ykk = g.Sysinv, g.Teg, g.Vnt, g.Yk, g.Ykk
-        jot, KEoh, life = g.jot, g.KEoh, g.life
-        cnt, coef_crf, coef_cpt, coef_rvpt, cstvnt, cstvpj, f, fil2, m, my_f = (
-            g.cnt,
-            g.coef_crf,
-            g.coef_cpt,
-            g.coef_rvpt,
-            g.cstvnt,
-            g.cstvpj,
-            g.f,
-            g.fil2,
-            g.m,
-            g.my_f,
-        )
-        ncap_pasti, obj_crf, obj_divi, prc_resid, rtforc, rtp_capvl = (
-            g.ncap_pasti,
-            g.obj_crf,
-            g.obj_divi,
-            g.prc_resid,
-            g.rtforc,
-            g.rtp_capvl,
-        )
-        sysone, sysplit, yearval, z, VAR_IC = (
-            g.sysone,
-            g.sysplit,
-            g.yearval,
-            g.z,
-            g.VAR_IC,
-        )
-        CST_INVC = g.get_parameter(f"{arg1}CST_INVC")
-        CST_INVX = g.get_parameter(f"{arg1}CST_INVX")
+    with gams_if(g, ~g.cnt):
+        g.NcapYes[g.r, g.PyrS, g.p].where[g.prc_resid[g.r, "0", g.p]] = False
 
-        # * Calculate Annual undiscounted investment costs CST_INVC
-        levelized = bool(cnt.toValue())
-        Fil.setRecords(None)
-        aggregate(source=coef_cpt, target=coef_rvpt, direction="left")
-        if not levelized:
-            NcapYes[r, PyrS, p].where[prc_resid[r, "0", p]] = False
+    with Loop(g.ObjIcur[g.NcapYes[g.r, g.v, g.p], g.cur]):
+        g.Ykk.setRecords(None)
+        g.my_f[...] = sic
+        g.sysplit[g.Sysinv] = abs(g.sysone[g.Sysinv] - g.coef_crf[g.r, g.v, g.p, g.cur])
+        g.f[...] = (
+            g.rtp_capvl[g.r, g.v, g.p]
+            * g.obj_crf[g.r, g.v, g.p, g.cur]
+            / g.obj_divi[g.r, g.v, g.p]
+        )
 
-        with Loop(ObjIcur[NcapYes[r, v, p], cur]):
-            Ykk.setRecords(None)
-            my_f[...] = sic_GP
-            sysplit[Sysinv] = abs(sysone[Sysinv] - coef_crf[r, v, p, cur])
-            f[...] = rtp_capvl[r, v, p] * obj_crf[r, v, p, cur] / obj_divi[r, v, p]
-            with Loop(ObjSumii[r, v, p, life, KEoh, jot]):
-                z[...] = Ord(life)
-                Fil[t] = Vnt[v, t].where[m[t] < yearval[KEoh] + Ord(jot) + z]
-                Ykk[Yk[Fil[year], ll], k].where[
-                    (Ord(year) < Ord(ll) + z) & Invspred[KEoh, jot, ll, k]
-                ] = True
-            cstvpj[r, v, p, "1", Sysinv, t[Fil]] = (
-                Sum(Ykk[t, ll, k], f * my_f * macro.obj_icost_GP(r, k, p, cur))
-                * sysplit[Sysinv]
+        with Loop(g.ObjSumii[g.r, g.v, g.p, g.life, g.KEoh, g.jot]):
+            g.z[...] = Ord(g.life)
+            g.Fil[g.t] = g.Vnt[g.v, g.t].where[
+                (g.m[g.t] < g.yearval[g.KEoh] + Ord(g.jot) + g.z)
+            ]
+            g.Ykk[g.Yk[g.Fil[g.year], g.ll], g.k].where[
+                (
+                    (Ord(g.year) < Ord(g.ll) + g.z).where[
+                        g.Invspred[g.KEoh, g.jot, g.ll, g.k]
+                    ]
+                )
+            ] = True
+            g.cstvpj[g.r, g.v, g.p, "1", g.Sysinv, g.t[g.Fil]] = (
+                Sum(
+                    g.Ykk[g.t, g.ll, g.k],
+                    g.f * g.my_f * macro.obj_icost_GP(g.r, g.k, g.p, g.cur),
+                )
+                * g.sysplit[g.Sysinv]
             )
-            cstvpj[r, v, p, "2", Sysinv, t[Fil]].where[
-                macro.obj_itax_GP(r, v, p, cur) + macro.obj_isub_GP(r, v, p, cur)
+            g.cstvpj[g.r, g.v, g.p, "2", g.Sysinv, g.t[g.Fil]].where[
+                macro.obj_itax_GP(g.r, g.v, g.p, g.cur)
+                + macro.obj_isub_GP(g.r, g.v, g.p, g.cur)
             ] = (
                 Sum(
-                    Ykk[t, ll, k],
-                    f
+                    g.Ykk[g.t, g.ll, g.k],
+                    g.f
                     * (
-                        macro.obj_itax_GP(r, k, p, cur)
-                        - macro.obj_isub_GP(r, k, p, cur)
+                        macro.obj_itax_GP(g.r, g.k, g.p, g.cur)
+                        - macro.obj_isub_GP(g.r, g.k, g.p, g.cur)
                     ),
                 )
-                * sysplit[Sysinv]
+                * g.sysplit[g.Sysinv]
             )
 
-        if not levelized:
-            Fil[v] = PyrS[v]
-            project(source=cstvpj, target=cstvnt)  # type: ignore[arg-type]
-            cstvpj.setRecords(None)
-        CST_INVC[*arg2, r, v, t, p, Sysinv] = sparse(cstvnt["1", r, v, t, p, Sysinv])
-        CST_INVX[*arg2, r, v, t, p, Sysinv] = sparse(cstvnt["2", r, v, t, p, Sysinv])
+    with gams_if(g, ~g.cnt):
+        g.Fil[g.v] = g.PyrS[g.v]
+        aggregate(source=g.cstvpj, target=g.cstvnt)
+        g.cstvpj.setRecords(None)
 
-        # * Report approximate costs for RESID according to available capacity
-        with Loop(ObjIcur[r, Fil[v], p, cur].where[prc_resid[r, "0", p]]):
-            fil2[t] = (
-                ncap_pasti[r, v, p] * coef_rvpt[r, v, p, t] - rtforc[r, v, t, p]
-            ) * obj_crf[r, v, p, cur]
-            CST_INVC[*arg2, RtpCptyr[r, v, t, p], Sysinv] = (
-                abs(sysone[Sysinv] - coef_crf[r, v, p, cur])
-                * fil2[t]
-                * macro.obj_icost_GP(r, v, p, cur)
-            )
-            CST_INVX[*arg2, RtpCptyr[r, v, t, p], Sysinv] = (
-                abs(sysone[Sysinv] - coef_crf[r, v, p, cur])
-                * fil2[t]
-                * (macro.obj_itax_GP(r, v, p, cur) - macro.obj_isub_GP(r, v, p, cur))
-            )
+    cst_invc[*cc.arg2, g.r, g.v, g.t, g.p, g.Sysinv] = sparse(
+        g.cstvnt["1", g.r, g.v, g.t, g.p, g.Sysinv]
+    )
+    cst_invx[*cc.arg2, g.r, g.v, g.t, g.p, g.Sysinv] = sparse(
+        g.cstvnt["2", g.r, g.v, g.t, g.p, g.Sysinv]
+    )
 
-        # * Handle ETL
-        if etl == "YES":
-            with Loop(ObjIcur[r, t, Teg[p], cur].where[VAR_IC[r, t, p].l]):
-                Ykk.setRecords(None)
-                f[...] = VAR_IC[r, t, p].l * obj_crf[r, t, p, cur] / obj_divi[r, t, p]
-                with Loop(
-                    Domain(
-                        ObjSumii[r, t, p, life, KEoh, jot], Invspred[KEoh, jot, ll, k]
-                    )
-                ):
-                    z[...] = Ord(life)
-                    Ykk[Yk[tt, ll], k].where[yearval[tt] < yearval[ll] + z] = True
-                CST_INVC[*arg2, r, Vnt[t, tt], p, Sysinv].where[sysone[Sysinv]] = (
-                    CST_INVC[*arg2, r, t, tt, p, Sysinv] + Sum(Ykk[tt, ll, k], f)
-                )
-
-    def exec_decommissioning(
-        self: CostAnnRpt,
-        arg1: str,
-        arg2: tuple[Set | Alias | str, ...] | tuple[()],
-        invlif: str,
-    ) -> None:
-        g = self.tc
-
-        r, v, t, p, k, ll, cur, Y = g.r, g.v, g.t, g.p, g.k, g.ll, g.cur, g.Y
-        NcapYes, ObjIcur, ObjSumsi, ObjSumiii, ObjSumivs, Vnt, Yk = (
-            g.NcapYes,
-            g.ObjIcur,
-            g.ObjSumsi,
-            g.ObjSumiii,
-            g.ObjSumivs,
-            g.Vnt,
-            g.Yk,
+    # Report approximate costs for RESID according to available capacity
+    with Loop(g.ObjIcur[g.r, g.Fil[g.v], g.p, g.cur].where[g.prc_resid[g.r, "0", g.p]]):
+        g.fil2[g.t] = (
+            g.ncap_pasti[g.r, g.v, g.p] * g.coef_rvpt[g.r, g.v, g.p, g.t]
+            - g.rtforc[g.r, g.v, g.t, g.p]
+        ) * g.obj_crf[g.r, g.v, g.p, g.cur]
+        cst_invc[*cc.arg2, g.RtpCptyr[g.r, g.v, g.t, g.p], g.Sysinv] = (
+            abs(g.sysone[g.Sysinv] - g.coef_crf[g.r, g.v, g.p, g.cur])
+            * g.fil2[g.t]
+            * macro.obj_icost_GP(g.r, g.v, g.p, g.cur)
         )
-        cor_salvd, f, obj_crf, obj_disc, obj_diviii, rtp_capvl, yearval, z = (
-            g.cor_salvd,
-            g.f,
-            g.obj_crf,
-            g.obj_disc,
-            g.obj_diviii,
-            g.rtp_capvl,
-            g.yearval,
-            g.z,
+        cst_invx[*cc.arg2, g.RtpCptyr[g.r, g.v, g.t, g.p], g.Sysinv] = (
+            abs(g.sysone[g.Sysinv] - g.coef_crf[g.r, g.v, g.p, g.cur])
+            * g.fil2[g.t]
+            * (
+                macro.obj_itax_GP(g.r, g.v, g.p, g.cur)
+                - macro.obj_isub_GP(g.r, g.v, g.p, g.cur)
+            )
         )
-        NCAP_INVLIF = g.get_parameter(f"NCAP_{invlif}")
-        CST_DECC = g.get_parameter(f"{arg1}CST_DECC")
-
-        project(source=ObjSumiii, target=ObjSumsi, direction="left")
-        # * Calculate decommissioning costs, annualized to operating years:
+    # Handle ETL
+    if etl == "YES":
         with Loop(
-            ObjIcur[NcapYes[r, v, p], cur].where[macro.obj_dcost_GP(r, v, p, cur)]
+            g.ObjIcur[g.r, g.t, g.Teg[g.p], g.cur].where[g.VAR_IC.l[g.r, g.t, g.p]]
         ):
-            f[...] = rtp_capvl[r, v, p]
-            f[...] = f * obj_crf[r, v, p, cur] / obj_diviii[r, v, p]
-            z[...] = Round(NCAP_INVLIF[r, v, p])
-            CST_DECC[*arg2, r, Vnt[v, t], p] = Sum(
-                ObjSumsi[r, v, p, ll].where[(yearval[t] < yearval[ll] + z) & Yk[t, ll]],
-                (
-                    Sum(
-                        ObjSumiii[r, v, p, ll, k, Y],
-                        obj_disc[r, Y, cur] * macro.obj_dcost_GP(r, k, p, cur),
-                    )
-                    * cor_salvd[r, v, p, cur]
-                    + Sum(ObjSumivs[r, v, p, k[ll], Y], obj_disc[r, Y, cur])
-                    * macro.obj_dlagc_GP(r, ll, p, cur)
-                )
-                * f
-                / obj_disc[r, ll, cur],
+            g.Ykk.setRecords(None)
+            g.f[...] = (
+                g.VAR_IC.l[g.r, g.t, g.p]
+                * g.obj_crf[g.r, g.t, g.p, g.cur]
+                / g.obj_divi[g.r, g.t, g.p]
             )
-
-    def exec_fixed_costs(
-        self: CostAnnRpt,
-        arg1: str,
-        arg2: tuple[Set | Alias | str, ...] | tuple[()],
-    ) -> None:
-        g = self.tc
-
-        r, v, t, p, j, jj, k, ll, year, cur, age = (
-            g.r,
-            g.v,
-            g.t,
-            g.p,
-            g.j,
-            g.jj,
-            g.k,
-            g.ll,
-            g.year,
-            g.cur,
-            g.age,
-        )
-        Fil, Invstep, NcapYes, ObjFcur, ObjSumiv, ObjYes, Opyear, PrcRcap = (
-            g.Fil,
-            g.Invstep,
-            g.NcapYes,
-            g.ObjFcur,
-            g.ObjSumiv,
-            g.ObjYes,
-            g.Opyear,
-            g.PrcRcap,
-        )
-        PyrS, Rtp, RtpCptyr, RtpShape, Ykage, KEoh, jot, life = (
-            g.PyrS,
-            g.Rtp,
-            g.RtpCptyr,
-            g.RtpShape,
-            g.Ykage,
-            g.KEoh,
-            g.jot,
-            g.life,
-        )
-        acl, b, cnt, coef_cap, coef_rvpt, cstvnt, cstvpj, f, fil2, m, my_f = (
-            g.acl,
-            g.b,
-            g.cnt,
-            g.coef_cap,
-            g.coef_rvpt,
-            g.cstvnt,
-            g.cstvpj,
-            g.f,
-            g.fil2,
-            g.m,
-            g.my_f,
-        )
-        multi, my_fil2, ncap_cpx, ncap_iled, ncap_pasti = (
-            g.multi,
-            g.my_fil2,
-            g.ncap_cpx,
-            g.ncap_iled,
-            g.ncap_pasti,
-        )
-        obj_diviv, prc_resid, rtp_capvl, rtp_cpx, shape, z = (
-            g.obj_diviv,
-            g.prc_resid,
-            g.rtp_capvl,
-            g.rtp_cpx,
-            g.shape,
-            g.z,
-        )
-        CST_FIXC = g.get_parameter(f"{arg1}CST_FIXC")
-        CST_FIXX = g.get_parameter(f"{arg1}CST_FIXX")
-
-        if not acl.toValue():
-            fil2.setRecords(None)
-            my_fil2.setRecords(None)
-            if cnt.toValue():
-                NcapYes[ObjYes[r, v, p]] = True
-                NcapYes[r, PyrS, p].where[prc_resid[r, "0", p]] = False
-                Fil[PyrS] = True
-            else:
-                coef_rvpt[NcapYes[Rtp], t].where[coef_rvpt[Rtp, t]] = (
-                    1 + rtp_cpx[Rtp, t].where[ncap_cpx[Rtp]]
-                ) / Max(1, obj_diviv[Rtp])
-
-        with Loop(ObjFcur[NcapYes[r, v, p], cur]):
-            f[...] = rtp_capvl[r, v, p]
-            Ykage.setRecords(None)
-            my_fil2[t] = coef_rvpt[r, v, p, t]
-            my_f[...] = b[v] + ncap_iled[r, v, p]
-            with Loop(ObjSumiv[KEoh, r, v, p, jot, life]):
-                z[...] = Ord(life) - 1
-                fil2[t[year]] = (
-                    Ord(year)
-                    + (Max(0, my_f - m[year]) - Max(0, m[year] - my_f - z)).where[cnt]
-                )
-                Ykage[t, ll, age[life + (fil2[t] - Ord(ll) - z)]].where[
-                    Invstep[KEoh, jot, ll, jot] & Opyear[life, age] & my_fil2[t]
-                ] = True
-            fil2[t] = f * my_fil2[t] / Max(1, Sum(Ykage[t, ll, age], 1).where[cnt])
-            cstvpj[r, v, p, "1", "FIX", t] = fil2[t] * Sum(
-                Ykage[t, k, age],
-                macro.obj_fom_GP(r, k, p, cur)
-                * (
-                    1
-                    + Sum(
-                        RtpShape[r, v, p, "1", j, jj],
-                        shape[j, age] * multi[jj, t] - 1,
-                    )
-                ),
-            )
-            cstvpj[r, v, p, "2", "FIX", t].where[
-                macro.obj_ftx_GP(r, v, p, cur) + macro.obj_fsb_GP(r, v, p, cur)
-            ] = fil2[t] * Sum(
-                Ykage[t, k, age],
-                macro.obj_ftx_GP(r, k, p, cur)
-                * (
-                    1
-                    + Sum(
-                        RtpShape[r, v, p, "2", j, jj],
-                        shape[j, age] * multi[jj, t] - 1,
-                    )
-                )
-                - macro.obj_fsb_GP(r, k, p, cur)
-                * (
-                    1
-                    + Sum(
-                        RtpShape[r, v, p, "3", j, jj],
-                        shape[j, age] * multi[jj, t] - 1,
-                    )
-                ),
-            )
-
-        project(source=cstvpj, target=cstvnt)  # type: ignore[arg-type]
-        cstvpj.setRecords(None)
-        CST_FIXC[*arg2, r, v, t, p] = sparse(cstvnt["1", r, v, t, p, "FIX"])
-        CST_FIXX[*arg2, r, v, t, p] = sparse(cstvnt["2", r, v, t, p, "FIX"])
-
-        # * Report approximate costs for RESID according to available capacity
-        with Loop(ObjFcur[r, Fil[v], p, cur].where[prc_resid[r, "0", p]]):
-            CST_FIXC[*arg2, RtpCptyr[r, v, t, p]] = (
-                ncap_pasti[r, v, p]
-                * coef_rvpt[r, v, p, t]
-                * macro.obj_fom_GP(r, v, p, cur)
-                * (1 + Sum(RtpShape[r, v, p, "1", j, jj], multi[jj, t] - 1))
-            )
-            CST_FIXX[*arg2, RtpCptyr[r, v, t, p]] = (
-                ncap_pasti[r, v, p]
-                * coef_rvpt[r, v, p, t]
-                * (
-                    macro.obj_ftx_GP(r, v, p, cur)
-                    * (1 + Sum(RtpShape[r, v, p, "2", j, jj], multi[jj, t] - 1))
-                    - macro.obj_fsb_GP(r, v, p, cur)
-                    * (1 + Sum(RtpShape[r, v, p, "3", j, jj], multi[jj, t] - 1))
-                )
-            )
-
-        if PrcRcap.number_records:
-            coef_cap[RtpCptyr[r, v, t, p]].where[coef_cap[r, v, t, p]] = (
-                1 - coef_cap[r, v, t, p] + SpecialValues.EPS
-            )
-            CST_FIXC[*arg2, RtpCptyr[r, v, t, p]] = sparse(
-                coef_cap[r, v, t, p] * CST_FIXC[*arg2, r, v, t, p]
-            )
-            CST_FIXX[*arg2, RtpCptyr[r, v, t, p]] = sparse(
-                coef_cap[r, v, t, p] * CST_FIXX[*arg2, r, v, t, p]
-            )
-        NcapYes[ObjYes[r, v, p]] = True
-
-    def exec_trade_marginals(
-        self: CostAnnRpt,
-        arg1: str,
-        arg2: tuple[Set | Alias | str, ...] | tuple[()],
-    ) -> None:
-        g = self.tc
-
-        r, v, t, p, c, s, ts, allts, ie, Reg, Com, com1 = (
-            g.r,
-            g.v,
-            g.t,
-            g.p,
-            g.c,
-            g.s,
-            g.ts,
-            g.allts,
-            g.ie,
-            g.Reg,
-            g.Com,
-            g.com1,
-        )
-        CgGrp, ObjYes, RpIre, RpcEqire, RpcIreio, RpcMarket, Rpc = (
-            g.CgGrp,
-            g.ObjYes,
-            g.RpIre,
-            g.RpcEqire,
-            g.RpcIreio,
-            g.RpcMarket,
-            g.Rpc,
-        )
-        RpcsVar, Rtp, RtpVintyr, RtpcsVarf, RsTree, TopIre = (
-            g.RpcsVar,
-            g.Rtp,
-            g.RtpVintyr,
-            g.RtpcsVarf,
-            g.RsTree,
-            g.TopIre,
-        )
-        coef_crf, coef_pvt, coef_rvpt, cstvnt, eq_ire, ire_ccvt, ire_flo = (
-            g.coef_crf,
-            g.coef_pvt,
-            g.coef_rvpt,
-            g.cstvnt,
-            g.eq_ire,
-            g.ire_ccvt,
-            g.ire_flo,
-        )
-        ire_tscvt, par_ipric, par_ire, par_objcap, par_xpri = (
-            g.ire_tscvt,
-            g.par_ipric,
-            g.par_ire,
-            g.par_objcap,
-            g.par_xpri,
-        )
-        prc_ymax, rs_fr, rtp_npv, rtp_obj = (
-            g.prc_ymax,
-            g.rs_fr,
-            g.rtp_npv,
-            g.rtp_obj,
-        )
-        CST_IREC = g.get_parameter(f"{arg1}CST_IREC")
-        REG_IREC = g.get_parameter(f"{arg1}REG_IREC")
-
-        ObjYes.setRecords(None)
-        cstvnt.setRecords(None)
-        par_ipric.setRecords(None)
-        par_ipric[Rtp[r, t, p], c, ts, "IMP"] = sparse(
-            (-1) * eq_ire[r, t, p, c, "IMP", ts].m
-        )
-        CgGrp[r, p, c, Com].where[TopIre[r, c, r, Com, p]] = True
-        with Loop(CgGrp[Reg, p, com1, Com].where[RpcMarket[Reg, p, Com, "IMP"]]):
-            par_ipric[RtpcsVarf[r, t, p, c, ts], "IMP"].where[
-                TopIre[Reg, com1, r, c, p]
-            ] = -Sum(
-                Domain(RsTree[r, allts, ts], s).where[
-                    ire_tscvt[r, allts, Reg, s] & eq_ire[Reg, t, p, Com, "IMP", s].m
-                ],
-                eq_ire[Reg, t, p, Com, "IMP", s].m
-                * ire_ccvt[Reg, com1, Reg, Com]
-                * ire_ccvt[r, c, Reg, com1]
-                * rs_fr[r, allts, ts]
-                * ire_tscvt[r, allts, Reg, s],
-            )
-
-        par_xpri[RtpcsVarf[r, t, p, c, ts], Reg, Com].where[
-            TopIre[r, c, Reg, Com, p] & RpcIreio[r, p, c, "EXP", "IN"]
-        ] = Sum(
-            Domain(RsTree[r, ts, allts], s).where[
-                ire_tscvt[r, allts, Reg, s] & eq_ire[Reg, t, p, Com, "IMP", s].m
-            ],
-            eq_ire[Reg, t, p, Com, "IMP", s].m
-            * ire_flo[r, t, p, c, Reg, Com, s]
-            * ire_ccvt[r, c, Reg, Com]
-            * rs_fr[r, allts, ts]
-            * ire_tscvt[r, allts, Reg, s],
-        )
-        par_ipric[RtpcsVarf[r, t, p, c, ts], "EXP"].where[
-            RpcIreio[r, p, c, "EXP", "IN"]
-        ] = sparse(Smax(TopIre[r, c, Reg, Com, p], par_xpri[r, t, p, c, ts, Reg, Com]))
-
-        par_ipric[Rtp[r, t, p], c, ts, "EXP"] = sparse(eq_ire[r, t, p, c, "EXP", ts].m)
-        with Loop(RpcEqire[Reg, p, Com, "EXP"]):
-            par_ipric[RtpcsVarf[r, t, p, c, ts], "IMP"].where[
-                TopIre[Reg, Com, r, c, p]
-            ] = -Sum(
-                Domain(RsTree[r, allts, ts], s).where[ire_tscvt[r, allts, Reg, s]],
-                eq_ire[Reg, t, p, Com, "EXP", s].m
-                / ire_flo[Reg, t, p, Com, r, c, ts]
-                * ire_ccvt[r, c, Reg, Com]
-                * rs_fr[r, allts, ts]
-                * ire_tscvt[r, allts, Reg, s],
-            )
-
-        prc_ymax[RpIre[r, p]] = sparse(
-            Sum(
+            with Loop(
                 Domain(
-                    RpcIreio[r, p, c, ie, "IN"],
-                    RtpVintyr[r, v, t, p],
-                    RpcsVar[r, p, c, s],
-                ),
-                par_ipric[r, t, p, c, s, ie] * par_ire[r, v, t, p, c, s, ie],
+                    g.ObjSumii[g.r, g.t, g.p, g.life, g.KEoh, g.jot],
+                    g.Invspred[g.KEoh, g.jot, g.ll, g.k],
+                )
+            ):
+                g.z[...] = Ord(g.life)
+                g.Ykk[g.Yk[g.tt, g.ll], g.k].where[
+                    (g.yearval[g.tt] < g.yearval[g.ll] + g.z)
+                ] = True
+            cst_invc[*cc.arg2, g.r, g.Vnt[g.t, g.tt], g.p, g.Sysinv].where[
+                g.sysone[g.Sysinv]
+            ] = cst_invc[*cc.arg2, g.r, g.t, g.tt, g.p, g.Sysinv] + Sum(
+                g.Ykk[g.tt, g.ll, g.k], g.f
             )
-        )
-        REG_IREC[*arg2, r] = sparse(Sum(p, prc_ymax[r, p]))
-        par_ipric[r, t, p, c, ts, ie].where[par_ipric[r, t, p, c, ts, ie]] = par_ipric[
-            r, t, p, c, ts, ie
-        ] * (1 / coef_pvt[r, t])
-        if arg1 == "S":
-            PAR_IPRIC = g.get_parameter(f"{arg1}PAR_IPRIC")
-            PAR_IPRIC[*arg2, r, t, p, c, ts, ie] = sparse(par_ipric[r, t, p, c, ts, ie])
-        CgGrp.setRecords(None)
-        par_objcap.setRecords(None)
-        par_xpri.setRecords(None)
-        rtp_obj.setRecords(None)
-        rtp_npv.setRecords(None)
-        coef_crf.setRecords(None)
-        coef_rvpt.setRecords(None)
 
-        # *----------------------------------------------------------------------
-        # * Marginal costs associated with endogenous imports/exports
-        # * - note that price only applied when actually an internal region
-        # *----------------------------------------------------------------------
-        CST_IREC[*arg2, RtpVintyr[r, v, t, p], c].where[Rpc[r, p, c] & RpIre[r, p]] = (
-            sparse(
+    # *------------------------------------------------------------------------------
+    # * Cases III - Decommissioning
+    # *------------------------------------------------------------------------------
+
+    project(source=g.ObjSumiii, target=g.ObjSumsi, direction="left")
+    # * Calculate decommissioning costs, annualized to operating years:
+    with Loop(
+        g.ObjIcur[g.NcapYes[g.r, g.v, g.p], g.cur].where[
+            macro.obj_dcost_GP(g.r, g.v, g.p, g.cur)
+        ]
+    ):
+        g.f[...] = g.rtp_capvl[g.r, g.v, g.p]
+        g.f[...] = g.f * g.obj_crf[g.r, g.v, g.p, g.cur] / g.obj_diviii[g.r, g.v, g.p]
+        g.z[...] = Round(ncap_invlif[g.r, g.v, g.p])
+        cst_decc[*cc.arg2, g.r, g.Vnt[g.v, g.t], g.p] = Sum(
+            g.ObjSumsi[g.r, g.v, g.p, g.ll].where[
+                ((g.yearval[g.t] < g.yearval[g.ll] + g.z).where[g.Yk[g.t, g.ll]])
+            ],
+            (
                 Sum(
-                    Domain(RtpcsVarf[r, t, p, c, s], RpcIreio[r, p, c, ie, "IN"]),
-                    par_ipric[r, t, p, c, s, ie] * par_ire[r, v, t, p, c, s, ie],
+                    g.ObjSumiii[g.r, g.v, g.p, g.ll, g.k, g.Y],
+                    g.obj_disc[g.r, g.Y, g.cur]
+                    * macro.obj_dcost_GP(g.r, g.k, g.p, g.cur),
+                )
+                * g.cor_salvd[g.r, g.v, g.p, g.cur]
+                + Sum(
+                    g.ObjSumivs[g.r, g.v, g.p, g.k[g.ll], g.Y],
+                    g.obj_disc[g.r, g.Y, g.cur],
+                )
+                * macro.obj_dlagc_GP(g.r, g.ll, g.p, g.cur)
+            )
+            * g.f
+            / g.obj_disc[g.r, g.ll, g.cur],
+        )
+
+    # *------------------------------------------------------------------------------
+    # * Cases IV - Fixed costs
+    # *------------------------------------------------------------------------------
+
+    with gams_if(g, ~g.acl):
+        g.fil2.setRecords(None)
+        g.my_fil2.setRecords(None)
+        with If(g.cnt):
+            g.NcapYes[g.ObjYes] = True
+            g.NcapYes[g.r, g.PyrS, g.p].where[g.prc_resid[g.r, "0", g.p]] = False
+            g.Fil[g.PyrS] = 1.0
+        with Else():
+            g.coef_rvpt[g.NcapYes[g.Rtp], g.t].where[g.coef_rvpt[g.Rtp, g.t]] = (
+                1.0 + g.rtp_cpx[g.Rtp, g.t].where[g.ncap_cpx[g.Rtp]]
+            ) / Max(1.0, g.obj_diviv[g.Rtp])
+
+    with Loop(g.ObjFcur[g.NcapYes[g.r, g.v, g.p], g.cur]):
+        g.f[...] = g.rtp_capvl[g.r, g.v, g.p]
+        g.Ykage.setRecords(None)
+        g.my_fil2[g.t] = g.coef_rvpt[g.r, g.v, g.p, g.t]
+        g.my_f[...] = g.b[g.v] + g.ncap_iled[g.r, g.v, g.p]
+        with Loop(g.ObjSumiv[g.KEoh, g.r, g.v, g.p, g.jot, g.life]):
+            g.z[...] = Ord(g.life) - 1.0
+            g.fil2[g.t[g.year]] = (
+                Ord(g.year)
+                + (
+                    Max(0.0, g.my_f - g.m[g.t]) - Max(0.0, g.m[g.t] - g.my_f - g.z)
+                ).where[g.cnt]
+            )
+            g.Ykage[g.t, g.ll, g.age[g.life + (g.fil2[g.t] - Ord(g.ll) - g.z)]].where[
+                g.Invstep[g.KEoh, g.jot, g.ll, g.jot].where[
+                    g.Opyear[g.life, g.age].where[g.my_fil2[g.t]]
+                ]
+            ] = True
+        g.fil2[g.t] = (
+            g.f
+            * g.my_fil2[g.t]
+            / Max(1.0, Sum(g.Ykage[g.t, g.ll, g.age], 1.0).where[g.cnt])
+        )
+        g.cstvpj[g.r, g.v, g.p, "1", "FIX", g.t] = g.fil2[g.t] * Sum(
+            g.Ykage[g.t, g.k, g.age],
+            macro.obj_fom_GP(g.r, g.k, g.p, g.cur)
+            * (
+                1.0
+                + Sum(
+                    g.RtpShape[g.r, g.v, g.p, "1", g.j, g.jj],
+                    g.shape[g.j, g.age] * g.multi[g.jj, g.t] - 1.0,
+                )
+            ),
+        )
+        g.cstvpj[g.r, g.v, g.p, "2", "FIX", g.t].where[
+            (
+                macro.obj_ftx_GP(g.r, g.v, g.p, g.cur)
+                + macro.obj_fsb_GP(g.r, g.v, g.p, g.cur)
+            )
+        ] = g.fil2[g.t] * Sum(
+            g.Ykage[g.t, g.k, g.age],
+            (
+                macro.obj_ftx_GP(g.r, g.k, g.p, g.cur)
+                * (
+                    1.0
+                    + Sum(
+                        g.RtpShape[g.r, g.v, g.p, "2", g.j, g.jj],
+                        g.shape[g.j, g.age] * g.multi[g.jj, g.t] - 1.0,
+                    )
+                )
+                - macro.obj_fsb_GP(g.r, g.k, g.p, g.cur)
+                * (
+                    1.0
+                    + Sum(
+                        g.RtpShape[g.r, g.v, g.p, "3", g.j, g.jj],
+                        g.shape[g.j, g.age] * g.multi[g.jj, g.t] - 1.0,
+                    )
+                )
+            ),
+        )
+
+    aggregate(source=g.cstvpj, target=g.cstvnt)
+    g.cstvpj.setRecords(None)
+    cst_fixc[*cc.arg2, g.r, g.v, g.t, g.p] = sparse(
+        g.cstvnt["1", g.r, g.v, g.t, g.p, "FIX"]
+    )
+    cst_fixx[*cc.arg2, g.r, g.v, g.t, g.p] = sparse(
+        g.cstvnt["2", g.r, g.v, g.t, g.p, "FIX"]
+    )
+
+    # * Report approximate costs for RESID according to available capacity
+    with Loop(g.ObjFcur[g.r, g.Fil[g.v], g.p, g.cur].where[g.prc_resid[g.r, "0", g.p]]):
+        cst_fixc[*cc.arg2, g.RtpCptyr[g.r, g.v, g.t, g.p]] = (
+            g.ncap_pasti[g.r, g.v, g.p]
+            * g.coef_rvpt[g.r, g.v, g.p, g.t]
+            * macro.obj_fom_GP(g.r, g.v, g.p, g.cur)
+            * (
+                1.0
+                + Sum(
+                    g.RtpShape[g.r, g.v, g.p, "1", g.j, g.jj], g.multi[g.jj, g.t] - 1.0
                 )
             )
         )
-
-    def exec_cst_time(
-        self: CostAnnRpt,
-        arg1: str,
-        arg2: tuple[Set | Alias | str, ...] | tuple[()],
-        sysprefix: str,
-        x1: str,
-    ) -> None:
-        g = self.tc
-
-        CST_TIME = g.get_parameter(f"{arg1}CST_TIME")
-        CST_TIME[*arg2, g.r, g.t, g.Annual, f"{sysprefix}{x1}COST"] = g.coef_pvt[
-            g.r, g.t
-        ]
-
-    def exec_variable_costs(
-        self: CostAnnRpt,
-        arg1: str,
-        arg2: tuple[Set | Alias | str, ...] | tuple[()],
-        tmp_GP: Expression | int,
-        pgprim: str,
-    ) -> None:
-        g = self.tc
-
-        r, v, t, p, c, cur = g.r, g.v, g.t, g.p, g.c, g.cur
-        par_actc, par_comc, par_floc = g.par_actc, g.par_comc, g.par_floc
-        CST_ACTC = g.get_parameter(f"{arg1}CST_ACTC")
-        CST_COMC = g.get_parameter(f"{arg1}CST_COMC")
-        CST_COMX = g.get_parameter(f"{arg1}CST_COMX")
-        CST_FLOC = g.get_parameter(f"{arg1}CST_FLOC")
-        CST_FLOX = g.get_parameter(f"{arg1}CST_FLOX")
-
-        CST_ACTC[*arg2, r, v, t, p, "-"] = sparse(
-            Sum(
-                cur.where[par_actc["1", r, v, t, p, pgprim, cur]],
-                par_actc["1", r, v, t, p, pgprim, cur] * tmp_GP,
+        cst_fixx[*cc.arg2, g.RtpCptyr[g.r, g.v, g.t, g.p]] = (
+            g.ncap_pasti[g.r, g.v, g.p]
+            * g.coef_rvpt[g.r, g.v, g.p, g.t]
+            * (
+                macro.obj_ftx_GP(g.r, g.v, g.p, g.cur)
+                * (
+                    1.0
+                    + Sum(
+                        g.RtpShape[g.r, g.v, g.p, "2", g.j, g.jj],
+                        g.multi[g.jj, g.t] - 1.0,
+                    )
+                )
+                - macro.obj_fsb_GP(g.r, g.v, g.p, g.cur)
+                * (
+                    1.0
+                    + Sum(
+                        g.RtpShape[g.r, g.v, g.p, "3", g.j, g.jj],
+                        g.multi[g.jj, g.t] - 1.0,
+                    )
+                )
             )
         )
-        CST_ACTC[*arg2, r, v, t, p, "+"] = sparse(
-            Sum(
-                cur.where[par_actc["2", r, v, t, p, pgprim, cur]],
-                par_actc["2", r, v, t, p, pgprim, cur] * tmp_GP,
-            )
+    with gams_if(g, Card(g.PrcRcap)):
+        g.coef_cap[g.RtpCptyr[g.r, g.v, g.t, g.p]].where[
+            g.coef_cap[g.r, g.v, g.t, g.p]
+        ] = 1.0 - g.coef_cap[g.r, g.v, g.t, g.p] + SpecialValues.EPS
+        cst_fixc[*cc.arg2, g.RtpCptyr[g.r, g.v, g.t, g.p]] = sparse(
+            g.coef_cap[g.r, g.v, g.t, g.p] * cst_fixc[*cc.arg2, g.r, g.v, g.t, g.p]
         )
-        CST_FLOC[*arg2, r, v, t, p, c] = sparse(
-            Sum(
-                cur.where[par_floc["1", r, v, t, p, c, cur]],
-                par_floc["1", r, v, t, p, c, cur] * tmp_GP,
-            )
+        cst_fixx[*cc.arg2, g.RtpCptyr[g.r, g.v, g.t, g.p]] = sparse(
+            g.coef_cap[g.r, g.v, g.t, g.p] * cst_fixx[*cc.arg2, g.r, g.v, g.t, g.p]
         )
-        CST_FLOX[*arg2, r, v, t, p, c] = sparse(
-            Sum(
-                cur.where[par_floc["2", r, v, t, p, c, cur]],
-                par_floc["2", r, v, t, p, c, cur] * tmp_GP,
-            )
-        )
-        CST_COMC[*arg2, r, t, c] = sparse(
-            Sum(
-                cur.where[par_comc["1", r, t, c, cur]],
-                par_comc["1", r, t, c, cur] * tmp_GP,
-            )
-        )
-        CST_COMX[*arg2, r, t, c] = sparse(
-            Sum(
-                cur.where[par_comc["2", r, t, c, cur]],
-                par_comc["2", r, t, c, cur] * tmp_GP,
-            )
+    g.NcapYes[g.ObjYes] = True
+
+    # *-----------------------------------------------------------------------------
+    # * Marginal costs of endogenous trade
+    # *-----------------------------------------------------------------------------
+    g.ObjYes.setRecords(None)
+    g.cstvnt.setRecords(None)
+    g.par_ipric.setRecords(None)
+    g.par_ipric[g.Rtp[g.r, g.t, g.p], g.c, g.ts, "IMP"] = sparse(
+        (-1.0) * g.eq_ire.m[g.r, g.t, g.p, g.c, "IMP", g.ts]
+    )
+    g.CgGrp[g.r, g.p, g.c, g.Com].where[g.TopIre[g.r, g.c, g.r, g.Com, g.p]] = True
+    with Loop(
+        g.CgGrp[g.Reg, g.p, g.com1, g.Com].where[g.RpcMarket[g.Reg, g.p, g.Com, "IMP"]]
+    ):
+        g.par_ipric[g.RtpcsVarf[g.r, g.t, g.p, g.c, g.ts], "IMP"].where[
+            g.TopIre[g.Reg, g.com1, g.r, g.c, g.p]
+        ] = -Sum(
+            Domain(g.RsTree[g.r, g.allts, g.ts], g.s).where[
+                (
+                    g.ire_tscvt[g.r, g.allts, g.Reg, g.s].where[
+                        g.eq_ire.m[g.Reg, g.t, g.p, g.Com, "IMP", g.s]
+                    ]
+                )
+            ],
+            g.eq_ire.m[g.Reg, g.t, g.p, g.Com, "IMP", g.s]
+            * g.ire_ccvt[g.Reg, g.com1, g.Reg, g.Com]
+            * g.ire_ccvt[g.r, g.c, g.Reg, g.com1]
+            * g.rs_fr[g.r, g.allts, g.ts]
+            * g.ire_tscvt[g.r, g.allts, g.Reg, g.s],
         )
 
-    def exec_regional_costs(
-        self: CostAnnRpt,
-        arg1: str,
-        arg2: tuple[Set | Alias | str, ...] | tuple[()],
-        sysprefix: str,
-    ) -> None:
-        g = self.tc
-
-        r, v, t, p, c, Rp, Bdneq, Rcj, RpIre, Sysinv, Vnt, rpm = (
-            g.r,
-            g.v,
-            g.t,
-            g.p,
-            g.c,
-            g.Rp,
-            g.Bdneq,
-            g.Rcj,
-            g.RpIre,
-            g.Sysinv,
-            g.Vnt,
-            g.rpm,
+    g.par_xpri[g.RtpcsVarf[g.r, g.t, g.p, g.c, g.ts], g.Reg, g.Com].where[
+        (
+            g.TopIre[g.r, g.c, g.Reg, g.Com, g.p].where[
+                g.RpcIreio[g.r, g.p, g.c, "EXP", "IN"]
+            ]
         )
-        coef_pvt, par_actc, par_comc, par_floc, pastsum, prc_ymax = (
-            g.coef_pvt,
-            g.par_actc,
-            g.par_comc,
-            g.par_floc,
-            g.pastsum,
-            g.prc_ymax,
-        )
-        CST_ACTC = g.get_parameter(f"{arg1}CST_ACTC")
-        CST_COMC = g.get_parameter(f"{arg1}CST_COMC")
-        CST_COME = g.get_parameter(f"{arg1}CST_COME")
-        CST_COMX = g.get_parameter(f"{arg1}CST_COMX")
-        CST_FIXC = g.get_parameter(f"{arg1}CST_FIXC")
-        CST_FIXX = g.get_parameter(f"{arg1}CST_FIXX")
-        CST_FLOC = g.get_parameter(f"{arg1}CST_FLOC")
-        CST_FLOX = g.get_parameter(f"{arg1}CST_FLOX")
-        CST_INVC = g.get_parameter(f"{arg1}CST_INVC")
-        CST_INVX = g.get_parameter(f"{arg1}CST_INVX")
-        CST_IREC = g.get_parameter(f"{arg1}CST_IREC")
-        CST_PVC = g.get_parameter(f"{arg1}CST_PVC")
-        CST_PVP = g.get_parameter(f"{arg1}CST_PVP")
-        REG_ACOST = g.get_parameter(f"{arg1}REG_ACOST")
-
-        if CST_PVP.number_records:
-            CST_PVC[*arg2, f"{sysprefix}ELS", r, c].where[
-                Sum(Rcj[r, c, "1", Bdneq], 1)
-            ] = Sum(t, CST_COME[*arg2, r, t, c] * coef_pvt[r, t])
-            CST_PVP[*arg2, f"{sysprefix}IRE", RpIre[Rp[r, p]]] = sparse(prc_ymax[r, p])
-        # *----------------------------------------------------------------------
-        # * Regional annual costs
-        REG_ACOST[*arg2, r, t, "INV"] = Sum(
-            Domain(Vnt[v, t], p, Sysinv).where[CST_INVC[*arg2, r, v, t, p, Sysinv]],
-            CST_INVC[*arg2, r, v, t, p, Sysinv],
-        )
-        REG_ACOST[*arg2, r, t, "INVX"] = Sum(
-            Domain(Vnt[v, t], p, Sysinv).where[CST_INVX[*arg2, r, v, t, p, Sysinv]],
-            CST_INVX[*arg2, r, v, t, p, Sysinv],
-        )
-        REG_ACOST[*arg2, r, t, "FIX"] = Sum(
-            Domain(Vnt[v, t], p).where[CST_FIXC[*arg2, r, v, t, p]],
-            CST_FIXC[*arg2, r, v, t, p],
-        )
-        REG_ACOST[*arg2, r, t, "FIXX"] = Sum(
-            Domain(Vnt[v, t], p).where[CST_FIXX[*arg2, r, v, t, p]],
-            CST_FIXX[*arg2, r, v, t, p],
-        )
-        REG_ACOST[*arg2, r, t, "VAR"] = (
-            Sum(
-                Domain(Vnt[v, t], p, rpm).where[CST_ACTC[*arg2, r, v, t, p, rpm]],
-                CST_ACTC[*arg2, r, v, t, p, rpm],
+    ] = Sum(
+        Domain(g.RsTree[g.r, g.ts, g.allts], g.s).where[
+            (
+                g.ire_tscvt[g.r, g.allts, g.Reg, g.s].where[
+                    g.eq_ire.m[g.Reg, g.t, g.p, g.Com, "IMP", g.s]
+                ]
             )
-            + Sum(
-                Domain(Vnt[v, t], p, c).where[CST_FLOC[*arg2, r, v, t, p, c]],
-                CST_FLOC[*arg2, r, v, t, p, c],
-            )
-            + Sum(c.where[CST_COMC[*arg2, r, t, c]], CST_COMC[*arg2, r, t, c])
+        ],
+        g.eq_ire.m[g.Reg, g.t, g.p, g.Com, "IMP", g.s]
+        * g.ire_flo[g.r, g.t, g.p, g.c, g.Reg, g.Com, g.s]
+        * g.ire_ccvt[g.r, g.c, g.Reg, g.Com]
+        * g.rs_fr[g.r, g.allts, g.ts]
+        * g.ire_tscvt[g.r, g.allts, g.Reg, g.s],
+    )
+    g.par_ipric[g.RtpcsVarf[g.r, g.t, g.p, g.c, g.ts], "EXP"].where[
+        g.RpcIreio[g.r, g.p, g.c, "EXP", "IN"]
+    ] = sparse(
+        Smax(
+            g.TopIre[g.r, g.c, g.Reg, g.Com, g.p],
+            g.par_xpri[g.r, g.t, g.p, g.c, g.ts, g.Reg, g.Com],
         )
-        REG_ACOST[*arg2, r, t, "VARX"] = Sum(
-            Domain(Vnt[v, t], p, c).where[CST_FLOX[*arg2, r, v, t, p, c]],
-            CST_FLOX[*arg2, r, v, t, p, c],
-        ) + Sum(c.where[CST_COMX[*arg2, r, t, c]], CST_COMX[*arg2, r, t, c])
-        REG_ACOST[*arg2, r, t, "IRE"] = Sum(
-            Domain(Vnt[v, t], p, c).where[CST_IREC[*arg2, r, v, t, p, c]],
-            CST_IREC[*arg2, r, v, t, p, c],
+    )
+    g.par_ipric[g.Rtp[g.r, g.t, g.p], g.c, g.ts, "EXP"] = sparse(
+        g.eq_ire.m[g.r, g.t, g.p, g.c, "EXP", g.ts]
+    )
+    with Loop(g.RpcEqire[g.Reg, g.p, g.Com, "EXP"]):
+        g.par_ipric[g.RtpcsVarf[g.r, g.t, g.p, g.c, g.ts], "IMP"].where[
+            g.TopIre[g.Reg, g.Com, g.r, g.c, g.p]
+        ] = -Sum(
+            Domain(g.RsTree[g.r, g.allts, g.ts], g.s).where[
+                g.ire_tscvt[g.r, g.allts, g.Reg, g.s]
+            ],
+            g.eq_ire.m[g.Reg, g.t, g.p, g.Com, "EXP", g.s]
+            / g.ire_flo[g.Reg, g.t, g.p, g.Com, g.r, g.c, g.ts]
+            * g.ire_ccvt[g.r, g.c, g.Reg, g.Com]
+            * g.rs_fr[g.r, g.allts, g.ts]
+            * g.ire_tscvt[g.r, g.allts, g.Reg, g.s],
         )
-        REG_ACOST[*arg2, r, t, "ELS"] = Sum(
-            c.where[CST_COME[*arg2, r, t, c]], CST_COME[*arg2, r, t, c]
+    g.prc_ymax[g.RpIre[g.r, g.p]] = sparse(
+        Sum(
+            [
+                g.RpcIreio[g.r, g.p, g.c, g.ie, "IN"],
+                g.RtpVintyr[g.r, g.v, g.t, g.p],
+                g.RpcsVar[g.r, g.p, g.c, g.s],
+            ],
+            g.par_ipric[g.r, g.t, g.p, g.c, g.s, g.ie]
+            * g.par_ire[g.r, g.v, g.t, g.p, g.c, g.s, g.ie],
         )
-        # *----------------------------------------------------------------------
-        par_actc.setRecords(None)
-        par_comc.setRecords(None)
-        par_floc.setRecords(None)
-        prc_ymax.setRecords(None)
-        pastsum.setRecords(None)
+    )
 
-    def exec_salvage_costs(
-        self: CostAnnRpt,
-        arg1: str,
-        arg2: tuple[Set | Alias | str, ...] | tuple[()],
-        etl: str,
-    ) -> None:
-        g = self.tc
+    reg_irec[*cc.arg2, g.r] = sparse(Sum(g.p, g.prc_ymax[g.r, g.p]))
+    g.par_ipric[g.r, g.t, g.p, g.c, g.ts, g.ie].where[
+        g.par_ipric[g.r, g.t, g.p, g.c, g.ts, g.ie]
+    ] = g.par_ipric[g.r, g.t, g.p, g.c, g.ts, g.ie] * (1.0 / g.coef_pvt[g.r, g.t])
 
-        r, t, p, cur, item, obv = g.r, g.t, g.p, g.cur, g.item, g.obv
-        GRcur, ObjIcur, ObjSums, Rdcur, Rtp, Teg = (
-            g.GRcur,
-            g.ObjIcur,
-            g.ObjSums,
-            g.Rdcur,
-            g.Rtp,
-            g.Teg,
+    if cc.arg1 == "S":
+        spar_ipric = g.get_parameter("SPAR_IPRIC")
+        spar_ipric[*cc.arg2, g.r, g.t, g.p, g.c, g.ts, g.ie] = sparse(
+            g.par_ipric[g.r, g.t, g.p, g.c, g.ts, g.ie]
         )
-        obj_dceoh, objsic, par_objsal, reg_obj, sum_obj = (
-            g.obj_dceoh,
-            g.objsic,
-            g.par_objsal,
-            g.reg_obj,
-            g.sum_obj,
-        )
-        VAR_IC, VAR_NCAP, VAR_OBJ = g.VAR_IC, g.VAR_NCAP, g.VAR_OBJ
-        CST_SALV = g.get_parameter(f"{arg1}CST_SALV")
 
-        # * Calculate actual Salvage values
-        par_objsal[ObjIcur[r, t, p, cur]] = (
-            par_objsal[r, t, p, cur] * VAR_NCAP[r, t, p].l
+    g.CgGrp.setRecords(None)
+    g.par_objcap.setRecords(None)
+    g.par_xpri.setRecords(None)
+    g.rtp_obj.setRecords(None)
+    g.rtp_npv.setRecords(None)
+    g.coef_crf.setRecords(None)
+    g.coef_rvpt.setRecords(None)
+
+    # *------------------------------------------------------------------------------
+    # * Marginal costs associated with endogenous imports/exports
+    # * - note that price only applied when actually an internal region
+    # *------------------------------------------------------------------------------
+
+    cst_irec[*cc.arg2, g.RtpVintyr[g.r, g.v, g.t, g.p], g.c].where[
+        (g.Rpc[g.r, g.p, g.c].where[g.RpIre[g.r, g.p]])
+    ] = sparse(
+        Sum(
+            [
+                g.RtpcsVarf[g.r, g.t, g.p, g.c, g.s],
+                g.RpcIreio[g.r, g.p, g.c, g.ie, "IN"],
+            ],
+            g.par_ipric[g.r, g.t, g.p, g.c, g.s, g.ie]
+            * g.par_ire[g.r, g.v, g.t, g.p, g.c, g.s, g.ie],
         )
+    )
+
+    # *------------------------------------------------------------------------------
+    # * EQOBJVAR the objective function variable cost reporting
+    # *------------------------------------------------------------------------------
+    if anncost.upper() == "LEV":
+        x1 = "LEV"
+        tmp = 1 / g.obj_pvt[g.r, g.t, g.cur]
+
+    cst_time[*cc.arg2, g.r, g.t, g.Annual, f"{sysprefix}{x1}COST"] = g.coef_pvt[
+        g.r, g.t
+    ]
+
+    if anncost.upper() != "LEV":
+        # $BATINCLUDE eqobjvar.rpt PAR J('1'), J('2'), T
+        eqobjvar_rpt_GP(
+            g=g,
+            config=EqobjvarRptConfig(
+                arg1="PAR", arg2=(g.j["1"],), arg3=(g.j["2"],), arg4=(g.t,)
+            ),
+            pgprim=pgprim,
+            tpulse=tpulse_GP,
+            tmp=tmp,
+            stages=stages,
+            is_vnret_defined=is_vnret_defined,
+            varv=varv,
+            sws=sws,
+            varm=varm,
+        )
+
+    cst_actc[*cc.arg2, g.r, g.v, g.t, g.p, "-"] = sparse(
+        Sum(
+            g.cur.where[g.par_actc["1", g.r, g.v, g.t, g.p, pgprim, g.cur]],
+            g.par_actc["1", g.r, g.v, g.t, g.p, pgprim, g.cur] * tmp,
+        )
+    )
+    cst_actc[*cc.arg2, g.r, g.v, g.t, g.p, "+"] = sparse(
+        Sum(
+            g.cur.where[g.par_actc["2", g.r, g.v, g.t, g.p, pgprim, g.cur]],
+            g.par_actc["2", g.r, g.v, g.t, g.p, pgprim, g.cur] * tmp,
+        )
+    )
+    cst_floc[*cc.arg2, g.r, g.v, g.t, g.p, g.c] = sparse(
+        Sum(
+            g.cur.where[g.par_floc["1", g.r, g.v, g.t, g.p, g.c, g.cur]],
+            g.par_floc["1", g.r, g.v, g.t, g.p, g.c, g.cur] * tmp,
+        )
+    )
+    cst_flox[*cc.arg2, g.r, g.v, g.t, g.p, g.c] = sparse(
+        Sum(
+            g.cur.where[g.par_floc["2", g.r, g.v, g.t, g.p, g.c, g.cur]],
+            g.par_floc["2", g.r, g.v, g.t, g.p, g.c, g.cur] * tmp,
+        )
+    )
+    cst_comc[*cc.arg2, g.r, g.t, g.c] = sparse(
+        Sum(
+            g.cur.where[g.par_comc["1", g.r, g.t, g.c, g.cur]],
+            g.par_comc["1", g.r, g.t, g.c, g.cur] * tmp,
+        )
+    )
+    cst_comx[*cc.arg2, g.r, g.t, g.c] = sparse(
+        Sum(
+            g.cur.where[g.par_comc["2", g.r, g.t, g.c, g.cur]],
+            g.par_comc["2", g.r, g.t, g.c, g.cur] * tmp,
+        )
+    )
+    if is_obj_combal_defined:
+        powerflo_vda_rptb_GP(
+            g=g,
+            arg4=cc.arg1,
+            arg5=cc.arg2,
+            arg6=sow,
+            var=var,
+            vart=vart,
+            sws=sws,
+        )
+    # *------------------------------------------------------------------------------
+    # * EQOBJELS the objective function flexible demand cost reporting
+    # *------------------------------------------------------------------------------
+    eqobjels_rpt_GP(
+        g=g,
+        config=EqobjelsRptConfig(
+            arg1=cst_come[*cc.arg2, g.r, g.tt, g.c],
+            arg2=g.tt,
+        ),
+        micro=micro,
+        if_mi_agc_defined=is_mi_agc_defined,
+    )
+
+    with gams_if(g, Card(cst_pvp)):
+        cst_pvc[*cc.arg2, f"{sysprefix}ELS", g.r, g.c].where[
+            Sum(g.Rcj[g.r, g.c, "1", g.Bdneq], 1.0)
+        ] = Sum(g.t, cst_come[*cc.arg2, g.r, g.t, g.c] * g.coef_pvt[g.r, g.t])
+        cst_pvp[*cc.arg2, f"{sysprefix}IRE", g.RpIre[g.Rp]] = sparse(g.prc_ymax[g.Rp])
+
+    # *------------------------------------------------------------------------------
+    # * Regional annual costs
+
+    reg_acost[*cc.arg2, g.r, g.t, "INV"] = Sum(
+        Domain(g.Vnt[g.v, g.t], g.p, g.Sysinv).where[
+            cst_invc[*cc.arg2, g.r, g.v, g.t, g.p, g.Sysinv]
+        ],
+        cst_invc[*cc.arg2, g.r, g.v, g.t, g.p, g.Sysinv],
+    )
+    reg_acost[*cc.arg2, g.r, g.t, "INVX"] = Sum(
+        Domain(g.Vnt[g.v, g.t], g.p, g.Sysinv).where[
+            cst_invx[*cc.arg2, g.r, g.v, g.t, g.p, g.Sysinv]
+        ],
+        cst_invx[*cc.arg2, g.r, g.v, g.t, g.p, g.Sysinv],
+    )
+    reg_acost[*cc.arg2, g.r, g.t, "FIX"] = Sum(
+        Domain(g.Vnt[g.v, g.t], g.p).where[cst_fixc[*cc.arg2, g.r, g.v, g.t, g.p]],
+        cst_fixc[*cc.arg2, g.r, g.v, g.t, g.p],
+    )
+    reg_acost[*cc.arg2, g.r, g.t, "FIXX"] = Sum(
+        Domain(g.Vnt[g.v, g.t], g.p).where[cst_fixx[*cc.arg2, g.r, g.v, g.t, g.p]],
+        cst_fixx[*cc.arg2, g.r, g.v, g.t, g.p],
+    )
+    reg_acost[*cc.arg2, g.r, g.t, "VAR"] = (
+        Sum(
+            Domain(g.Vnt[g.v, g.t], g.p, g.rpm).where[
+                cst_actc[*cc.arg2, g.r, g.v, g.t, g.p, g.rpm]
+            ],
+            cst_actc[*cc.arg2, g.r, g.v, g.t, g.p, g.rpm],
+        )
+        + Sum(
+            Domain(g.Vnt[g.v, g.t], g.p, g.c).where[
+                cst_floc[*cc.arg2, g.r, g.v, g.t, g.p, g.c]
+            ],
+            cst_floc[*cc.arg2, g.r, g.v, g.t, g.p, g.c],
+        )
+        + Sum(
+            g.c.where[cst_comc[*cc.arg2, g.r, g.t, g.c]],
+            cst_comc[*cc.arg2, g.r, g.t, g.c],
+        )
+    )
+    reg_acost[*cc.arg2, g.r, g.t, "VARX"] = Sum(
+        Domain(g.Vnt[g.v, g.t], g.p, g.c).where[
+            cst_flox[*cc.arg2, g.r, g.v, g.t, g.p, g.c]
+        ],
+        cst_flox[*cc.arg2, g.r, g.v, g.t, g.p, g.c],
+    ) + Sum(
+        g.c.where[cst_comx[*cc.arg2, g.r, g.t, g.c]],
+        cst_comx[*cc.arg2, g.r, g.t, g.c],
+    )
+    reg_acost[*cc.arg2, g.r, g.t, "IRE"] = Sum(
+        Domain(g.Vnt[g.v, g.t], g.p, g.c).where[
+            cst_irec[*cc.arg2, g.r, g.v, g.t, g.p, g.c]
+        ],
+        cst_irec[*cc.arg2, g.r, g.v, g.t, g.p, g.c],
+    )
+    reg_acost[*cc.arg2, g.r, g.t, "ELS"] = Sum(
+        g.c.where[cst_come[*cc.arg2, g.r, g.t, g.c]],
+        cst_come[*cc.arg2, g.r, g.t, g.c],
+    )
+
+    g.par_actc.setRecords(None)
+    g.par_comc.setRecords(None)
+    g.par_floc.setRecords(None)
+    g.prc_ymax.setRecords(None)
+    g.pastsum.setRecords(None)
+
+    # *------------------------------------------------------------------------------
+
+    # *------------------------------------------------------------------------------
+    # * Salvage costs (not for stochastic runs)
+    # *------------------------------------------------------------------------------
+    # * Calculate actual Salvage values
+    if cc.arg1 != "S":
+        g.par_objsal[g.ObjIcur[g.r, g.t, g.p, g.cur]] = (
+            g.par_objsal[g.r, g.t, g.p, g.cur] * g.VAR_NCAP.l[g.r, g.t, g.p]
+        )
+
         if etl == "YES":
-            # A bare RTP on the right hand side reuses the indices controlled by
-            # the assignment domain, i.e. R, T and P.
-            par_objsal[Rtp[r, t, Teg[p]], cur].where[GRcur[r, cur]] = (
-                par_objsal[r, t, p, cur]
-                + Sum(ObjSums[r, t, p], objsic[r, t, p] * VAR_IC[r, t, p].l)
-                * obj_dceoh[r, cur]
+            g.par_objsal[g.Rtp[g.r, g.t, g.Teg[g.p]], g.cur].where[
+                g.GRcur[g.r, g.cur]
+            ] = (
+                g.par_objsal[g.Rtp, g.cur]
+                + Sum(g.ObjSums[g.Rtp], g.objsic[g.Rtp] * g.VAR_IC.l[g.Rtp])
+                * g.obj_dceoh[g.r, g.cur]
             )
-        CST_SALV[*arg2, r, t, p] = sparse(Sum(Rdcur[r, cur], par_objsal[r, t, p, cur]))
-        reg_obj[r] = Sum(
-            Domain(Rdcur[r, cur], item, obv).where[sum_obj[item, obv]],
-            VAR_OBJ[r, obv, cur].l * sum_obj[item, obv],
+        cst_salv[*cc.arg2, g.r, g.t, g.p] = sparse(
+            Sum(g.Rdcur[g.r, g.cur], g.par_objsal[g.r, g.t, g.p, g.cur])
+        )
+        g.reg_obj[g.r] = Sum(
+            Domain(g.Rdcur[g.r, g.cur], g.item, g.obv).where[g.sum_obj[g.item, g.obv]],
+            g.VAR_OBJ.l[g.r, g.obv, g.cur] * g.sum_obj[g.item, g.obv],
         )
 
 
@@ -1031,13 +880,6 @@ def cost_ann_rpt(
     micro: str,
     is_mi_agc_defined: bool,
 ) -> str:
-    """Legacy GAMS text of cost_ann.rpt.
-
-    Still needed by the callers that embed it into raw GAMS blocks they build
-    themselves - rptmain.stc and rpt_ext.mlf wrap it in a GAMS ``LOOP``, and
-    solprep.msa hands its text on to further string consumers. Everything that
-    is already translated goes through :class:`CostAnnRpt` instead.
-    """
     return_str = rf"""
   OBJ_YES(NCAP_YES)=YES;
   OPTION CLEAR=COEF_CAP; CNT=1$ROUND(RPT_OPT('OBJ','2'));

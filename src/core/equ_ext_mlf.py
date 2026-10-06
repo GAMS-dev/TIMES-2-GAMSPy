@@ -262,7 +262,7 @@ class EquExtMlf(GamsClass):
 
     def option_lp(self: EquExtMlf) -> None:
         # Options.fromGams({"LP": "KESTREL"})
-        # NOTE: # OPTION LP=KESTREL is overridden by solve.mod's `option lp=cplex, mip=cplex;`
+        # TODO: # OPTION LP=KESTREL is overridden by solve.mod's `option lp=%LPSOLVER%, mip=%LPSOLVER%;`
         # before any LP solve, so it has no effect.
         self.tc.solve_options.lp = "KESTREL"
 

@@ -1,0 +1,124 @@
+# =============================================================================
+# TIMES run file template
+# =============================================================================
+#
+#   python src/main.py --run mymodel.toml
+#
+# Copy this file next to your .dd files and rename it. Only the three REQUIRED
+# keys are active; every other setting is commented out. Remove its leading
+# "# " to use it. A setting you leave out keeps its default.
+#
+# Each setting reads:
+#
+#   key = example value   # what it does   [allowed values]   default: ...
+#
+# Without a "default:", leaving the setting out is the same as having no $SET
+# for it in a GAMS .run file. The keys are the lower-case names of the .run
+# file settings, e.g. $SET REDUCE YES  ->  reduce = "YES"  under [env_vars].
+# Unknown keys and invalid values are reported when the file is loaded,
+# unknown [options] names when the run starts.
+
+# --- Run --------------------------------------------------------------------
+time_slices     = "mymodel_ts.dd"                # REQUIRED  time slices, read first
+data_modules    = ["base.dd", "syssettings.dd"]  # REQUIRED  the other .dd files, in order
+milestone_years = [2005, 2010, 2020]             # REQUIRED  SET MILESTONYR
+
+# run_name   = "mymodel"   # output file names (.lst, .log, .gdx)   default: file name
+# data_dir   = "."         # .dd folder, relative to this file   default: its folder
+# lp_solver  = "CPLEX"     # LP/MIP solver (--lp-solver overrides)   default: GAMS default
+# nlp_solver = "CONOPT"    # NLP solver (--nlp-solver overrides)   default: GAMS default
+
+
+# =============================================================================
+# [env_vars] -- the $SET switches
+# =============================================================================
+[env_vars]
+
+# --- Model formulation ------------------------------------------------------
+# obj        = "MOD"       # objective   [STD, ALT, MOD, LIN, AUTO]   default: AUTO
+# mid_year   = "YES"       # mid-year discounting
+# oblong     = "YES"       # capacity costs follow activity timing   [YES, NO]
+# objann     = "YES"       # period-wise objective, e.g. for MACRO MSA   [YES, NO]
+# damage     = "NO"        # damage costs   [LP, NLP, NO = report only]   default: LP
+# varcost    = "LIN"       # interpolate dense costs during the solve   [LIN, NO]
+# reduce     = "YES"       # remove redundant flows and equations   [YES, NO]
+# var_uc     = "YES"       # slack variables for user constraints
+# botime     = 1960        # first year the data may refer to   default: 1980
+# eotime     = 2200        # last year the data may refer to   default: 2200
+
+# --- Extensions -------------------------------------------------------------
+# vda        = "YES"       # VDA extension (the *.vda attributes VEDA models use)
+# vintopt    = "1"         # vintage weighting; 2 also simulates vintages   [1, 2]
+# waver      = "YES"       # period-average interpolation of residual capacity (VDA)
+# dsc        = "YES"       # lumpy investments, solved as a MIP (DSC)
+# dscauto    = "YES"       # DSC with automatic settings
+# etl        = "YES"       # endogenous technology learning, solved as a MIP   [YES, NO]
+# cli        = "YES"       # climate module
+# abs        = "YES"       # ancillary balancing services   [YES, NO]   default: NO
+# ier        = "YES"       # IER extension (initmty.mod IER)   [YES, NO]   default: NO
+# chp_mode   = "YES"       # extraction-condensing CHP (IER)   [YES, NO]   default: NO
+
+# --- Equilibrium ------------------------------------------------------------
+# timesed    = "YES"       # elastic demands, reads com_bprice.gdx   [YES, NO]
+# macro      = "YES"       # TIMES-MACRO   [YES, MLF = linearized, MSA/CSA = decomposed]
+
+# --- Stochastics and sensitivity analysis -----------------------------------
+# stages     = "YES"       # multi-stage stochastic programming   [YES, NO]
+# sensis     = "YES"       # sensitivity analysis runs, switches on stages   [YES, NO]
+# spines     = "YES"       # stochastics without SOW on investments   [YES, NO]
+
+# --- Time-stepped solves and previous runs ----------------------------------
+# timestep   = 10          # solve in steps of this many years (limited foresight)
+# fixboh     = 2020        # fix the solution up to this year to the one of lpoint
+# lpoint     = "base"      # previous run's GDX to start from and to fix to
+# gdxpath    = "gamssave/" # folder of previous runs' GDX   default: gamssave/ if present
+# gdx_irebnd = "base"      # GDX under gdxpath with trade bounds to load (VDA)
+# gdx_ipric  = "base"      # GDX under gdxpath with trade prices to load (VDA)
+
+# --- Reporting --------------------------------------------------------------
+# rpt_opt    = [["NCAP", "1", 1]]   # RPT_OPT, one [item, j, value] row per entry,
+#                                   # e.g. $SET RPT_OPT NCAP.1 1
+# anncost    = "LEV"       # report levelized annual costs
+# solveda    = "YES"       # prepare the results for VEDA-BE   [YES, 1]
+# vedavdd    = "YES"       # set by VEDA-generated .run files; TIMES doesn't read it
+# datagdx    = "YES"       # write the input data to a GDX file
+# solans     = "YES"       # results for ANSWER   [YES, NO]   default: NO
+
+# --- Checks and debugging ---------------------------------------------------
+# xtqa       = "YES"       # extended checks of the input data (also on with debug)
+# debug      = "YES"       # dump all data, extended checks   [YES, NO]   default: NO
+# dumpsol    = "YES"       # dump solution values to text   [YES, NO]   default: NO
+# err_abort  = "NO"        # abort on input errors   [YES, NO]   default: YES
+# solve_now  = "NO"        # NO: stop before the solve   [YES, NO]   default: YES
+
+# --- Misc -------------------------------------------------------------------
+# model_name = "TIMES"     # name of the GAMS model   default: TIMES
+# validate   = "NO"        # only NO is accepted
+# gams_cgi   = "WWW"       # output for the TIMES web interface   [NO, WWW]   default: NO
+
+
+# =============================================================================
+# [options] -- OPTION statements, by their GAMS names in lower case
+# =============================================================================
+# OPTION RESLIM=50000;  ->  reslim = 50000. The values shown are the defaults
+# (the OPTION settings of the TIMES demo .run files). Set the solvers with
+# lp_solver/nlp_solver above, not here.
+[options]
+# reslim    = 50000
+# profile   = 1
+# solveopt  = "replace"
+# iterlim   = 999999
+# limrow    = 0
+# limcol    = 0
+# solprint  = "off"
+# bratio    = 1
+
+
+# =============================================================================
+# [solver_options.<solver>] -- the solver option file, one table per solver
+# =============================================================================
+# The entries of <solver>.opt. A table here is used instead of a <solver>.opt
+# in data_dir; without either, the solver uses its defaults.
+# [solver_options.cplex]
+# lpmethod  = 4
+# threads   = 4

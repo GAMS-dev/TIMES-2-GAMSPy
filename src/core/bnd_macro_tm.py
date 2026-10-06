@@ -47,13 +47,13 @@ def bnd_macro_tm_GP(g: TimesModelClass) -> None:
         ((g.tm_ddatpref[g.r, g.c] == 0.0).where[g.Dem[g.r, g.c]])
     ] = g.com_proj[g.r, g.t, g.c]
     g.VAR_INV.l[g.r, g.t] = g.tm_iv0[g.r] * g.tm_l[g.r, g.t]
-    g.VAR_INV.fx[g.r, g.t[g.T1]] = g.tm_iv0[g.r]
+    g.VAR_INV.fx[g.r, g.t[g.t1]] = g.tm_iv0[g.r]
     g.VAR_K.l[g.r, g.t] = g.tm_k0[g.r] * g.tm_l[g.r, g.t]
     # * user scalar (from CONSTANT table) to control investment tolerance
     g.VAR_K.lo[g.r, g.t] = g.tm_k0[g.r] * (
         g.tm_l[g.r, g.t] ** (g.tm_ivetol[g.r].where[(~(g.tm_sl))])
     )
-    g.VAR_K.fx[g.r, g.t[g.T1]] = g.tm_k0[g.r]
+    g.VAR_K.fx[g.r, g.t[g.t1]] = g.tm_k0[g.r]
     g.VAR_SP.fx[g.Rtc[g.r, g.t, g.c]].where[g.Dem[g.r, g.c]] = 0.0
     # *SK* V0.4 set MM_C for base year
     # * VAR_C.FX(R,T(MIYR_1)) = TM_C0(R);

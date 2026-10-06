@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Loop, Smax, Sum
+from gamspy import If, Loop, Smax, Sum
 from gamspy.math import Max, Min, aggregate
 
 from core.base_class import GamsClass
@@ -103,7 +103,10 @@ class SolvcoefMsa(GamsClass):
         )
         # * Weights for periods (use only if requested by TM_ARBM=1)
         g.tm_pwt[t] = 1
-        if g.tm_arbm.toValue() == 1:
+        # a GAMS IF, not a Python check: inside the IF block GAMS divides D(T)/Z
+        # exactly, while a top-level D(T)/Z is evaluated as D(T)*(1/Z), which
+        # differs in the last bit (e.g. 0.30000000000000004 vs 0.3)
+        with If(g.tm_arbm == 1):
             g.z[...] = Max(1, Smax(t, g.d[t]))
             g.tm_pwt[t] = g.d[t] / g.z
 

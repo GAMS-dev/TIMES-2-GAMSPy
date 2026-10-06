@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from gamspy import Alias, Expression, Number, Set
-    from gamspy._symbols.implicits import ImplicitSet
+    from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
 
 from gamspy import Loop, Ord, Sum
 
@@ -32,7 +32,7 @@ def pp_off_GP(
     arg1: Set | Alias,
     arg2: tuple[Set | Alias, ...] | tuple[()],
     arg3: ImplicitSet | Expression | Number,  # expect Number(1) for ""
-    arg4: ImplicitSet,
+    arg4: ImplicitSet | ImplicitParameter,
     arg5: int,  # 1 or 0
 ) -> None:
     # * Cope with multiple OFF-ranges

@@ -8,7 +8,9 @@ from gamspy import Alias, Domain, Expression, Number, Set, Sum
 from gamspy._algebra.condition import Condition
 from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet
 from gamspy.math import MathOp
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from core.utils import TpulseType
 
 
 class EnvironmentVariableSchema(BaseModel):
@@ -92,7 +94,7 @@ class EnvironmentVariableSchema(BaseModel):
     sensis: Literal["YES", "NO"] = Field(
         description="Enables automatic warm-start optimization tracking facilities via GAMS BRATIO adjustments across successive sensitivity run cases."
     )
-    spines: Literal["YES", "NO"] = Field(
+    spines: Literal["YES", "Yes", "NO", "%spines%"] = Field(
         description="Activates stochastic mode while setting the SOW index inactive for capacity-related investment variables to find optimal strategies under recurring uncertainties."
     )
     stages: Literal["YES", "Yes", "yes", "NO", "%stages%"] = Field(
@@ -349,9 +351,6 @@ class EnvironmentVariableSchema(BaseModel):
     )
     sow_GP: tuple[Literal["0", "1"] | Set | Alias] | tuple[()] = Field(
         description="Stochastic World (Scenario State) active indexing identifier token."
-    )
-    sowpre: Literal["", ",SOW", ",WW", ",WW)", ",0", ",'0'", "1", "SOW.TL"] = Field(
-        description="Copy of SOW taken before SOW is reset for EQ_OBJBAL (powerflo.vda)."
     )
     sowtmp: str = Field(
         description="Temporary scenario tracking storage token utilized in nested loop blocks."
@@ -645,9 +644,9 @@ class EnvironmentVariableSchema(BaseModel):
     tmp: str = Field(
         description="Universal temporary string parameter utilized across structural loops."
     )
-    tmp_GP: Expression | Sum | int = Field(
+    tmp_GP: Expression | Sum | int | TpulseType = Field(
         default=1,
-        description="GAMSPy counterpart of tmp where it carries a multiplier, e.g. the levelization factor 1/OBJ_PVT of cost_ann.rpt, or a full Sum expression, e.g. the vintaged-capacity formula of equ_ext.abs.",
+        description="GAMSPy counterpart of tmp: a multiplier, e.g. the levelization factor 1/OBJ_PVT of cost_ann.rpt, a full Sum expression, e.g. the vintaged-capacity formula of equ_ext.abs, or a <(sum domain, multiplier)> pulse pair like tpulse_GP, e.g. the OBJ_LINT pulse of rpt_obj.rpt consumed by eqobjvar.rpt.",
     )
     sic: str = Field(
         default="1",
@@ -681,9 +680,18 @@ class EnvironmentVariableSchema(BaseModel):
     supzero: str = "%supzero%"  # solputta_ans.py -- zero-supply handling
 
     swo: str
+    swo_GP: tuple[Literal["1"] | Set | Alias] = Field(
+        description="equ_ext.cli state index of the CM_AA/CM_BB/CM_CC coefficients: '1' outside, SOW inside a stochastic run."
+    )
     send: str
     swts: str
+    swts_GP: tuple[ImplicitSet] | tuple[()] = Field(
+        description="equ_ext.cli extra SW_TSW(SOW,T,W) summation domain of the non-emission EQ_CLIBEOH term."
+    )
     cpar: str
+    cpar_GP: ImplicitParameter = Field(
+        description="equ_ext.cli climate target parameter: CM_MAXC(LL,CG), or S_CM_MAXC(LL,CG,'1'%SOW%) in a stochastic run."
+    )
     powerflo: str
     pdtol: str
     bigm: str
@@ -705,12 +713,17 @@ class EnvironmentVariableSchema(BaseModel):
 
 
 class UserConfig(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        extra="forbid",
+        revalidate_instances="always",
+        validate_by_name=True,
+    )
 
     validate_: Literal["NO", "%validate%"] = Field(
         default="%validate%", alias="validate"
     )
-    reduce: Literal["YES", "%reduce%"] = "%reduce%"
+    reduce: Literal["YES", "NO", "%reduce%"] = "%reduce%"
     vda: Literal["YES", "%vda%"] = "%vda%"
     vintopt: Literal["1", "2", "%vintopt%"] = "%vintopt%"
     debug: Literal["YES", "NO"] = "NO"
@@ -734,7 +747,7 @@ class UserConfig(BaseModel):
     sensis: Literal["YES", "NO", "%sensis%"] = "%sensis%"
     spines: Literal["YES", "Yes", "NO", "%spines%"] = "%spines%"
     solveda: Literal["YES", "1", "%solveda%"] = "%solveda%"
-    varcost: Literal["LIN", "%varcost%"] = "%varcost%"
+    varcost: Literal["LIN", "NO", "%varcost%"] = "%varcost%"
     dscauto: Literal["YES", "%dscauto%"] = "%dscauto%"
     datagdx: Literal["YES", "%datagdx%"] = "%datagdx%"
     botime: int = 1980
@@ -755,16 +768,46 @@ class UserConfig(BaseModel):
     gdx_irebnd: str = "%gdx_irebnd%"
     gdx_ipric: str = "%gdx_ipric%"
 
+    @field_validator("rpt_opt", mode="before")
+    @classmethod
+    def _rpt_opt_from_rows(cls, value: object) -> object:
+        # Run files give RPT_OPT as a list of [item, j, value] rows
+        return pd.DataFrame(value) if isinstance(value, list) else value
+
+
+# A GAMS or solver option value as written in a run file
+OptionValue = str | int | float
+
+# The OPTION statements of the TIMES .run files, by their GAMS names
+DEFAULT_OPTIONS: dict[str, OptionValue] = {
+    "reslim": 50000,
+    "profile": 1,
+    "solveopt": "replace",
+    "iterlim": 999999,
+    "limrow": 0,
+    "limcol": 0,
+    "solprint": "off",
+    "bratio": 1,
+}
+
 
 class RunConfig(BaseModel):
     # Allow to accept un-validated custom Python classes (DataModules)
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
     run_name: str = "TEST"
-    milestone_years: list[str]
+    milestone_years: list[int]
     env_vars: UserConfig
-    data_dir: Path
+    # A run file's data_dir is relative to the file; the default is its folder
+    data_dir: Path = Path(".")
     data_modules: list[Path]
 
     time_slices: Path
-    lp_solver: str = Field(default="CPLEX")
+    # None: the default solver of the GAMS/GAMSPy installation for the model type
+    lp_solver: str | None = Field(default=None)
+    nlp_solver: str | None = Field(default=None)
+    # OPTION statements by their GAMS names (OPTION RESLIM=... -> reslim), on top
+    # of DEFAULT_OPTIONS
+    options: dict[str, OptionValue] = Field(default_factory=dict)
+    # Solver option file entries per solver, used instead of <data_dir>/<solver>.opt
+    solver_options: dict[str, dict[str, OptionValue]] = Field(default_factory=dict)

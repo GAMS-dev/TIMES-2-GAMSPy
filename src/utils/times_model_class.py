@@ -264,7 +264,7 @@ class TimesModelClass:
     cmlpk: Set = None  # type: ignore[assignment] # [*] CM_LPK
     cmlpt: Set = None  # type: ignore[assignment] # [*] CM_LPT
     tm_xwt: Parameter = None  # type: ignore[assignment] # [R,LL] TM_XWT
-    t1: Alias = None  # type: ignore[assignment] # [*] T_1: Aliased with TB
+    t1: Alias = None  # type: ignore[assignment] # [*] T_1: Aliased with TB (MSA) or MIYR_1 (TM/MLF)
 
     Milestonyr: Set = None  # type: ignore[assignment] # [allyear] MILESTONYR: Projection years for which model to be run
     t: Alias = None  # type: ignore[assignment] # [*] T: Aliased with MILESTONYR
@@ -994,6 +994,8 @@ class TimesModelClass:
     rtp_ffcs: Parameter = None  # type: ignore[assignment] # [R,ALLYEAR,P,CG,CG %SWD%] RTP_FFCS:
     Agej: Set = None  # type: ignore[assignment] # [j,age] AGEJ:
     vda_disc: Parameter = None  # type: ignore[assignment] # [r,allyear] VDA_DISC:
+    RegPrc: Set = None  # type: ignore[assignment] # [Reg,prc] REG_PRC:
+    RegCom: Set = None  # type: ignore[assignment] # [Reg,Com] REG_COM:
     dp_non: Parameter = None  # type: ignore[assignment] # [r,ll,p,upt,tsl,bd] DP_NON: Bounds on non-operational time between shut-down and next start-up
     obv: Set = None  # type: ignore[assignment] # [*] OBV:
     Obvann: Set = None  # type: ignore[assignment] # [obv] OBVANN: Annualized objective components
@@ -1761,7 +1763,6 @@ class TimesModelClass:
     Tlast: Set = None  # type: ignore[assignment] # [t] TLAST:
     Xcp: Set = None  # type: ignore[assignment] # [j] XCP: Market penetration step index used for VAR_XCAPP bounds
     tp: Alias = None  # type: ignore[assignment] # [t, tp] TP:
-    T1: Alias = None  # type: ignore[assignment] # [*] T_1: Aliased with MIYR_1
     tb: Alias = None  # type: ignore[assignment] # [*] TB: Aliased with MIYR_1
     tm_arbm: Parameter = None  # type: ignore[assignment] # TM_ARBM:
     tm_sl: Parameter = None  # type: ignore[assignment] # TM_SL: Additions to support MACRO soft-link
@@ -2105,7 +2106,6 @@ class TimesModelClass:
     rtp_safs: Parameter = None  # type: ignore[assignment] # RTP_SAFS
     rtcs_sfr: Parameter = None  # type: ignore[assignment] # RTCS_SFR
     rcs_ssfr: Parameter = None  # type: ignore[assignment] # RCS_SSFR
-    Rcgrid: Set = None  # type: ignore[assignment] # [r, t, c] RC_GRID:
     obj_combal: Parameter = None  # type: ignore[assignment] # [r, t, c, s, item, cur] OBJ_COMBAL:
     par_bptl: Parameter = None  # type: ignore[assignment] # [r, t, p] PAR_BPTL:
     par_bptm: Parameter = None  # type: ignore[assignment] # [r, t, p] PAR_BPTM:

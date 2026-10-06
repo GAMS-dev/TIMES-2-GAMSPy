@@ -24,6 +24,10 @@ $  IF '%SOLVE_NOW%'==NO  $GOTO NO_SOLVE
 $  IF NOT SET MIXLP $SETLOCAL MIXLP ''
 $  IF NOT SET NONLP $SETLOCAL NONLP ''
 $  IF NOT SET DUMP_SAVEPOINT $SETLOCAL DUMP_SAVEPOINT NO
+* LP/MIP solver for the real solve, selectable via --LPSOLVER=<name>
+$  IF NOT SET LPSOLVER $SETLOCAL LPSOLVER default
+* NLP solver for the real solve, selectable via --NLPSOLVER=<name>
+$  IF NOT SET NLPSOLVER $SETLOCAL NLPSOLVER default
 * if ETL or DSC with binary variables use MIP
 $  IF    '%DAMAGE%'==NLP    $SETLOCAL NONLP NL
 $  IF    '%MICRO%'==YES     $SETLOCAL NONLP NL
@@ -41,7 +45,7 @@ $offEcho
 option lp=convert, nlp=convert;
 SOLVE %MODEL_NAME% MAXIMIZING VAR_UTIL USING %METHOD%;
 
-option lp=cplex, nlp=conopt;
+option lp=%LPSOLVER%, nlp=%NLPSOLVER%;
 SOLVE %MODEL_NAME% MAXIMIZING VAR_UTIL USING %METHOD%;
 $GOTO CHECK
 $LABEL NOT_MACRO
@@ -57,25 +61,16 @@ $offEcho
 option lp=convert, mip=convert;
 SOLVE %MODEL_NAME% MINIMIZING objZ USING %METHOD%;
 
-option lp=cplex, mip=cplex;
+option lp=%LPSOLVER%, mip=%LPSOLVER%;
 $ifThenI.solvemode %SOLVEMODE%==SOLVE
 $  ifThenI.dumpsp %DUMP_SAVEPOINT%==YES
 * use GAMS's native savepoint mechanism (see GAMSAOsavepoint) to dump this
-* solve's solver point -- NOT execute_unload, which would unload every set
-* and parameter in scope along with it and silently freeze this run's input
-* data into the cache instead of just the variable/equation solution
+* solve's solver point
     OPTION SAVEPOINT=2;
 $  endIf.dumpsp
   SOLVE %MODEL_NAME% MINIMIZING objZ USING %METHOD%;
 $  ifThenI.dumpsp %DUMP_SAVEPOINT%==YES
-* this is the 2nd SOLVE this job (the CONVERT solve above is the 1st), so
-* GAMS just wrote the point to %MODEL_NAME%_p2.gdx; move it to the
-* caller-supplied per-instance path and record modelstat alongside it in
-* its own tiny GDX. savepointModelstat is declared by maindrv.mod (not
-* here) since solve.stp's stepped mode $BATINCLUDEs solve.mod from inside
-* an open WHILE loop, where GAMS forbids declarations -- only assignments,
-* which is all this is, are safe regardless of how many times or from what
-* context solve.mod ends up included per job.
+* this is the 2nd SOLVE this job (the CONVERT solve above is the 1st)
     execute 'mv -f %MODEL_NAME%_p2.gdx %SAVEPOINT_GDX%';
      savepointModelstat = %MODEL_NAME%.modelstat;
      execute_unload '%SAVEPOINT_MODELSTAT%', savepointModelstat;

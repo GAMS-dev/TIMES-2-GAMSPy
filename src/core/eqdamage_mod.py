@@ -532,38 +532,6 @@ SET OBV / 'OBJDAM' /;
         ) == Sum(obv, g.sum_obj["OBJDAM", obv] * VAR_OBJ[r, obv, cur, *sow])
 
 
-def eq_damage_mod(var: str, swd: str, stages: str) -> str:
-    equation = """
-    SUM(RTC(R,T,C)$(DAM_STEP(R,C,'FX')$DAM_COST(R,T,C,CUR)),
-"""
-    if stages.upper() == "YES":
-        equation += """
-SUM(SWW(SOW,WW)$(SW_TSW(SOW,T,WW)$(NOT WWDAM(C))+SWW(WW,SOW)$WWDAM(C)),
-"""
-    equation += rf"""
-  (SUM((DAM_NUM(R,C,JJ,'LO'),JSUBJ(JJ,J)),
-     ({var}_DAM(R,T,C,'LO',J{swd}) + DAM_ELAST(R,C,'N')*{var}_DAM.UP(R,T,C,'LO',J{swd}))*
-     ((DAM_TQTY(R,T,C)-DAM_SIZE(R,T,C,'FX')/2-DAM_SIZE(R,T,C,'LO')*(ORD(JJ)-ORD(J)+.5))**DAM_ELAST(R,C,'LO') /
-      DAM_TQTY(R,T,C)**DAM_ELAST(R,C,'LO') + DAM_ELAST(R,C,'N')))$DAM_TQTY(R,T,C) +
-   {var}_DAM(R,T,C,'FX','1'{swd}) * (1 + DAM_ELAST(R,C,'N')) +
-   SUM((DAM_NUM(R,C,JJ,'UP'),JSUBJ(JJ,J)),
-     {var}_DAM(R,T,C,'UP',J{swd}) *
-     ((DAM_TQTY(R,T,C)+DAM_SIZE(R,T,C,'FX')/2+DAM_SIZE(R,T,C,'UP')*(ORD(J)-.5))**DAM_ELAST(R,C,'UP') /
-      DAM_TQTY(R,T,C)**DAM_ELAST(R,C,'UP') + DAM_ELAST(R,C,'N')))$DAM_TQTY(R,T,C)
-  ) * OBJ_PVT(R,T,CUR) *
-"""
-
-    if stages.upper() != "YES":
-        equation += "DAM_COST(R,T,C,CUR)"
-    else:
-        equation += "  S_DAM_COST(R,T,C,CUR,'1',WW))"
-
-    equation += """
-)
-"""
-    return equation
-
-
 def eq_damage_mod_GP(
     g: TimesModelClass,
     var: str,

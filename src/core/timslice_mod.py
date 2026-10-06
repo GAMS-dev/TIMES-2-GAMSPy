@@ -13,10 +13,25 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from gamspy import Alias, Parameter, Set
+from gamspy import (
+    Alias,
+    Domain,
+    Else,
+    If,
+    Loop,
+    Number,
+    Ord,
+    Parameter,
+    Product,
+    Set,
+    SpecialValues,
+    Sum,
+    sparse,
+)
+from gamspy.math import Max, Round, aggregate, mod, project, same_as
 
 from core.base_class import GamsClass
-from core.pp_off_mod import pp_off
+from core.pp_off_mod import pp_off_GP
 from core.pp_qaput_mod import pp_qaput
 from utils.macros import macro_config as macro
 
@@ -76,7 +91,7 @@ class TimsliceMod(GamsClass):
 
         self.tc.enqueue(
             self.prepare_dynamic_timeslice_tree,
-            mx=self.env.mx,
+            mx=self.env.mx_GP,
         )
 
         if self.env.obmac == "YES":
@@ -87,67 +102,95 @@ class TimsliceMod(GamsClass):
         self.tc.enqueue(self.exec2)
 
     def exec1(self) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code="""
-  TS_GROUP(ALL_R,'ANNUAL',S) = ANNUAL(S);
-  OPTION STOAL < TS_GROUP;
-  TS_MAP(R,ANNUAL,S) = STOAL(R,S);
-  TS_MAP(R,ALL_TS,TS)$SUM(TS_MAP(R,ALL_TS,S),TS_MAP(R,S,TS)) = YES;
-  TS_MAP(R,S,S) = STOAL(R,S);
-  STOAL(ALL_R,S)$STOAL(ALL_R,S) = STOAL(ALL_R,S)-1;
-  IF(CARD(STOAL),ABORT "Error: Timeslice on several levels.");
-* Set for timeslices strictly below
-  RS_BELOW(TS_MAP(R,S,TS))$(NOT TS_MAP(R,TS,S)) = YES;
-* Set for timeslices strictly ONE level below
-  RS_BELOW1(RS_BELOW(R,S,TS))$(SUM(TS_MAP(R,S,ALL_TS)$RS_BELOW(R,ALL_TS,TS),1)=1) = YES;
-  """,
-        )
+        g = self.tc
+        g.TsGroup[g.allr, "ANNUAL", g.s] = g.Annual[g.s]
+        aggregate(source=g.TsGroup, target=g.stoal)
+        g.TsMap[g.r, g.Annual, g.s] = g.stoal[g.r, g.s]
+        g.TsMap[g.r, g.allts, g.ts].where[
+            Sum(g.TsMap[g.r, g.allts, g.s], g.TsMap[g.r, g.s, g.ts])
+        ] = True
+        g.TsMap[g.r, g.s, g.s] = g.stoal[g.r, g.s]
+        g.stoal[g.allr, g.s].where[g.stoal[g.allr, g.s]] = g.stoal[g.allr, g.s] - 1.0
+        if g.stoal.number_records:
+            raise ValueError("Error: Timeslice on several levels.")
+        # * Set for timeslices strictly below
+        g.RsBelow[g.TsMap[g.r, g.s, g.ts]].where[(~(g.TsMap[g.r, g.ts, g.s]))] = True
+        # * Set for timeslices strictly ONE level below
+        g.RsBelow1[g.RsBelow[g.r, g.s, g.ts]].where[
+            (
+                Sum(
+                    g.TsMap[g.r, g.s, g.allts].where[g.RsBelow[g.r, g.allts, g.ts]], 1.0
+                )
+                == 1.0
+            )
+        ] = True
 
-    def prepare_dynamic_timeslice_tree(self: TimsliceMod, mx: str) -> None:
-        self.tc.add_gams_code(
-            module=self,
-            phase="run",
-            code=rf"""
-  LOOP(RS_BELOW1(R,ANNUAL,S)$SUM(TS_OFF(R,S,BOHYEAR,EOHYEAR),1),
-{pp_off("TS_OFF", "S", "", f"NORTS(R,T{mx},S)$(", "1")}
-    IF(PROD(T{mx},FIL(T)),G_YRFR(R,TS)$TS_MAP(R,S,TS) = 0;
-    ELSE NORTS(R,T(FIL{mx}),TS)$TS_MAP(R,S,TS) = -INF));
-""",
-        )
+    def prepare_dynamic_timeslice_tree(
+        self: TimsliceMod, mx: tuple[Set] | tuple[()]
+    ) -> None:
+        g = self.tc
+        # T%MX% / FIL%MX%: restricted to MIYR_1 unless dynamic timeslices are active
+        tmx = g.t[mx[0]] if mx else g.t
+        filmx = g.Fil[mx[0]] if mx else g.Fil
+        with Loop(
+            g.RsBelow1[g.r, g.Annual, g.s].where[
+                Sum(g.TsOff[g.r, g.s, g.bohyear, g.eohyear], 1.0)
+            ]
+        ):
+            pp_off_GP(g, g.TsOff, (g.s,), Number(1), g.norts[g.r, tmx, g.s], 1)
+            with If(Product(tmx, g.Fil[g.t])):
+                g.g_yrfr[g.r, g.ts].where[g.TsMap[g.r, g.s, g.ts]] = 0.0
+            with Else():
+                g.norts[g.r, g.t[filmx], g.ts].where[g.TsMap[g.r, g.s, g.ts]] = (
+                    SpecialValues.NEGINF
+                )
 
     def exec2(self: TimsliceMod) -> None:
+        g = self.tc
+        # * Set the annual year fraction to 1
+        g.g_yrfr[g.allr, g.Annual] = 1.0
+        # * Complete missing year fractions if non-zero fractions are given for timeslices right below:
+        g.g_yrfr[g.r, g.s].where[
+            ((g.g_yrfr[g.r, g.s] <= 0.0).where[g.TsGroup[g.r, "WEEKLY", g.s]])
+        ] = sparse(Sum(g.RsBelow1[g.r, g.s, g.ts], g.g_yrfr[g.r, g.ts]))
+        g.g_yrfr[g.r, g.s].where[
+            ((g.g_yrfr[g.r, g.s] <= 0.0).where[g.TsGroup[g.r, "SEASON", g.s]])
+        ] = sparse(Sum(g.RsBelow1[g.r, g.s, g.ts], g.g_yrfr[g.r, g.ts]))
+        # *-----------------------------------------------------------------------------
+        # * Remove timeslices that have a zero time fraction
+        with Loop(g.tsl):
+            g.Finest[g.r, g.s].where[
+                ((g.g_yrfr[g.r, g.s] <= 0.0).where[g.TsGroup[g.r, g.tsl, g.s]])
+            ] = True
+        g.TsGroup[g.r, g.tsl, g.s].where[g.Finest[g.r, g.s]] = False
+        g.TsMap[g.r, g.ts, g.s].where[g.Finest[g.r, g.s]] = False
+        g.RsBelow[g.r, g.ts, g.s].where[g.Finest[g.r, g.s]] = False
+        g.RsBelow1[g.r, g.ts, g.s].where[g.Finest[g.r, g.s]] = False
+        g.norts[g.r, g.t, g.s].where[g.Finest[g.r, g.s]] = 0.0
+        g.Finest.setRecords(None)
+        # * Build a set for all timeslices in the same subtree
+        g.RsTree[g.r, g.s, g.ts].where[
+            ((g.TsMap[g.r, g.ts, g.s]) | (g.RsBelow[g.r, g.s, g.ts]))
+        ] = True
+        # * Define the set of the finest (highest) timeslices in use:
+        g.Finest[g.r, g.s].where[(Sum(g.TsMap[g.r, g.s, g.ts], 1.0) == 1.0)] = True
+        with Loop(g.j.where[same_as("5", g.j)]):
+            g.Rjlvl[g.j - Ord(g.tsl), g.r, g.tsl] = Sum(g.TsGroup[g.r, g.tsl, g.s], 1.0)
+        # * Define above-map for TSL levels
+        with Loop(Domain(g.j, g.r, g.tsl).where[g.Rjlvl[g.j, g.r, g.tsl]]):
+            g.z[...] = Ord(g.j)
+            with Loop(g.Rjlvl[g.jj, g.r, g.tslvl].where[(Ord(g.jj) > g.z)]):
+                g.Rlup[g.r, g.tsl, g.tslvl] = 1.0
+                g.z[...] = 9.0
+        # *-----------------------------------------------------------------------------
+        # * Target accuracy of fractions: 1 second
+        g.z[...] = 8760.0 * 3600.0
+        g.putgrp[...] = 0.0
+
         self.tc.add_gams_code(
             module=self,
             phase="run",
             code=rf"""
-* Set the annual year fraction to 1
-  G_YRFR(ALL_R,ANNUAL) = 1;
-* Complete missing year fractions if non-zero fractions are given for timeslices right below:
-  G_YRFR(R,S)$((G_YRFR(R,S)<=0)$TS_GROUP(R,'WEEKLY',S)) $= SUM(RS_BELOW1(R,S,TS),G_YRFR(R,TS));
-  G_YRFR(R,S)$((G_YRFR(R,S)<=0)$TS_GROUP(R,'SEASON',S)) $= SUM(RS_BELOW1(R,S,TS),G_YRFR(R,TS));
-
-*-----------------------------------------------------------------------------
-* Remove timeslices that have a zero time fraction
-  LOOP(TSL,FINEST(R,S)$((G_YRFR(R,S)<=0)$TS_GROUP(R,TSL,S)) = YES);
-  TS_GROUP(R,TSL,S)$FINEST(R,S) = NO;
-  TS_MAP(R,TS,S)$FINEST(R,S) = NO;
-  RS_BELOW(R,TS,S)$FINEST(R,S) = NO;
-  RS_BELOW1(R,TS,S)$FINEST(R,S) = NO;
-  NORTS(R,T,S)$FINEST(R,S) = 0;
-  OPTION CLEAR=FINEST;
-* Build a set for all timeslices in the same subtree
-  RS_TREE(R,S,TS)$(TS_MAP(R,TS,S) OR RS_BELOW(R,S,TS)) = YES;
-* Define the set of the finest (highest) timeslices in use:
-  FINEST(R,S)$(SUM(TS_MAP(R,S,TS),1)=1) = YES;
-  LOOP(SAMEAS('5',J),RJLVL(J-ORD(TSL),R,TSL)=SUM(TS_GROUP(R,TSL,S),1));
-* Define above-map for TSL levels
-  LOOP((J,R,TSL)$RJLVL(J,R,TSL),Z=ORD(J);LOOP(RJLVL(JJ,R,TSLVL)$(ORD(JJ)>Z),RLUP(R,TSL,TSLVL)=1;Z=9));
-*-----------------------------------------------------------------------------
-
-* Target accuracy of fractions: 1 second
-  Z = 8760*3600; PUTGRP=0;
 * Normalize year fractions if they do not sum up
   LOOP(TS_GROUP(R,TSL,S)$(NOT FINEST(R,S)),
    IF(ANNUAL(S)$CARD(NORTS), F=0;
@@ -165,44 +208,136 @@ class TimsliceMod(GamsClass):
      PUT QLOG ' WARNING       - TS fractions normalized,  (R.TSL.S)=',TS_GROUP.TE(TS_GROUP);
   ));
 *-----------------------------------------------------------------------------
-* Calculate the number of storage periods for each timeslice
-  G_CYCLE(TSL('WEEKLY'))$(G_CYCLE(TSL)=0)=8760/(24*7); TS_CYCLE(FINEST)=0;
-  LOOP(RLUP(R,TSLVL,TSL),TS_CYCLE(R,S)$((TS_CYCLE(R,S)<1)$TS_GROUP(R,TSL,S)) = 365/G_CYCLE(TSLVL));
-  LOOP(TSL,RS_STGPRD(R,S)$TS_GROUP(R,TSL,S) = MAX(1,SUM(RS_BELOW1(R,TS,S),G_YRFR(R,TS)*365/TS_CYCLE(R,TS))));
+  """,
+        )
+        # * Calculate the number of storage periods for each timeslice
+        g.g_cycle[g.tsl["WEEKLY"]].where[(g.g_cycle[g.tsl] == 0.0)] = 8760.0 / (
+            24.0 * 7.0
+        )
+        g.ts_cycle[g.Finest] = 0.0
+        with Loop(g.Rlup[g.r, g.tslvl, g.tsl]):
+            g.ts_cycle[g.r, g.s].where[
+                ((g.ts_cycle[g.r, g.s] < 1.0).where[g.TsGroup[g.r, g.tsl, g.s]])
+            ] = 365.0 / g.g_cycle[g.tslvl]
+        with Loop(g.tsl):
+            g.rs_stgprd[g.r, g.s].where[g.TsGroup[g.r, g.tsl, g.s]] = Max(
+                1.0,
+                Sum(
+                    g.RsBelow1[g.r, g.ts, g.s],
+                    g.g_yrfr[g.r, g.ts] * 365.0 / g.ts_cycle[g.r, g.ts],
+                ),
+            )
+        # * Timeslice level for all timeslices
+        with Loop(g.tsl):
+            g.rs_tslvl[g.r, g.s].where[g.TsGroup[g.r, g.tsl, g.s]] = g.tslvlnum[g.tsl]
+        # * Calculate the lead from previous storage timeslice for each timeslice
+        with Loop(g.TsMap[g.r, g.Annual, g.s]):
+            g.f[...] = 0.0
+            with Loop(g.RsBelow1[g.r, g.s, g.ts]):
+                with If(g.f):
+                    g.rs_stg[g.r, g.ts] = Ord(g.ts) - g.z
+                    g.z[...] = Ord(g.ts)
+                with Else():
+                    g.z[...] = Ord(g.ts)
+                    g.f[...] = g.z
+            g.rs_stg[g.r, g.s + (g.f - Ord(g.s))].where[g.f] = g.f - g.z
+        # * Calculate average residence time for storage activity in each timeslice
+        with Loop(
+            Domain(g.r, g.s, g.ts[g.s.lag(g.rs_stg[g.r, g.s], "circular")]).where[
+                g.rs_stgprd[g.r, g.s]
+            ]
+        ):
+            g.rs_stgav[g.r, g.s] = (
+                (g.g_yrfr[g.r, g.s] + g.g_yrfr[g.r, g.ts]) / 2.0 / g.rs_stgprd[g.r, g.s]
+            )
+        g.rs_stgav[g.r, g.Annual] = 1.0
+        aggregate(source=g.RsBelow1, target=g.stoal)
+        g.rs_hr.setRecords(None)
+        g.stoal[g.r, g.s].where[(g.stoal[g.r, g.s] == 1.0)] = 0.0
 
-* Timeslice level for all timeslices
-  LOOP(TSL, RS_TSLVL(R,S)$TS_GROUP(R,TSL,S) = TSLVLNUM(TSL));
-* Calculate the lead from previous storage timeslice for each timeslice
-  LOOP(TS_MAP(R,ANNUAL,S), F=0;
-   LOOP(RS_BELOW1(R,S,TS), IF(F, RS_STG(R,TS)=ORD(TS)-Z; Z=ORD(TS); ELSE Z=ORD(TS); F=Z));
-   RS_STG(R,S+(F-ORD(S)))$F = F-Z;);
-* Calculate average residence time for storage activity in each timeslice
-  LOOP((R,S,TS(S--RS_STG(R,S)))$RS_STGPRD(R,S),RS_STGAV(R,S) = (G_YRFR(R,S)+G_YRFR(R,TS))/2/RS_STGPRD(R,S));
-  RS_STGAV(R,ANNUAL) = 1;
-
-  OPTION STOAL<RS_BELOW1,CLEAR=RS_HR; STOAL(R,S)$(STOAL(R,S)=1)=0;
+        self.tc.add_gams_code(
+            module=self,
+            phase="run",
+            code=rf"""
   IF(CARD(STOAL),PUTGRP=0;
     LOOP((R,S)$STOAL(R,S),
 {pp_qaput("PUTOUT", "PUTGRP", "99", "Duplicate parent timeslices - Fatal")}
     PUT QLOG ' FATAL ERROR   -    REG=',R.TL,' TS='S.TL));
-* Define the lags to the ANNUAL timeslice for all S
-  LOOP(ANNUAL(TS), STOA(S) = ORD(TS)-ORD(S));
-  LOOP(TSL,STOAL(R,S)$TS_GROUP(R,TSL,S) = ORD(TSL)-1);
 *----------------------------------------------------------------------
-* Define TS hours and map for TS within same cycle
-  IF(CARD(RP_UPR)+CARD(RP_UPT),LOOP(TS_MAP(R,ANNUAL,TS),F=0;Z=0;LOOP(RS_BELOW1(R,TS,S),F=G_YRFR(R,S)/RS_STGPRD(R,S);RS_HR(R,S)=MOD(Z+F/2,1);Z=Z+F));
-  LOOP(JS(J,ANNUAL),
-    RJ_SL(R,J+(MOD(ROUND((RS_HR(R,TS)*8760)/146,0),60)*2),S,TS)$RS_BELOW1(R,S,TS) = YES;
-    RJ_SL(R,J+(MOD(ROUND((RS_HR(R,TS)*8760-73)/146+60,0),60)*2+1),S,TS)$RS_BELOW1(R,S,TS) = YES;
-    OPTION RS_UP < RJ_SL;
-  ));
-  IF(CARD(RS_UP),
-*   Remove hours too far
-    RS_UP(R,TS,J,S)$((MOD(RS_HR(R,TS)-(ORD(J)-2)*73/8760+1,1)<48/8760) OR (MOD(ORD(J)*73/8760-RS_HR(R,TS)+1,1)<25/8760)) = NO;
-    OPTION JS < RS_UP; RJ_SL(R,J,S,TS)$(NOT JS(J,S)) = NO;
-*   Cycles
-    JS_CCL(R,JS(J,S)) = MAX(1/G_YRFR(R,S),365/TS_CYCLE(R,S));
-    RS_MODUS(RS_UP(R,S,JS),SL)$RJ_SL(R,JS,SL) = MOD(RS_HR(R,S)-RS_HR(R,SL)+G_YRFR(R,S)/RS_STGPRD(R,S)/2+2/JS_CCL(R,JS),1/JS_CCL(R,JS));
-  );
 """,
         )
+
+        # * Define the lags to the ANNUAL timeslice for all S
+        with Loop(g.Annual[g.ts]):
+            g.stoa[g.s] = Ord(g.ts) - Ord(g.s)
+        with Loop(g.tsl):
+            g.stoal[g.r, g.s].where[g.TsGroup[g.r, g.tsl, g.s]] = Ord(g.tsl) - 1.0
+        # *----------------------------------------------------------------------
+        # * Define TS hours and map for TS within same cycle
+        if g.RpUpr.number_records + g.RpUpt.number_records:
+            with Loop(g.TsMap[g.r, g.Annual, g.ts]):
+                g.f[...] = 0.0
+                g.z[...] = 0.0
+                with Loop(g.RsBelow1[g.r, g.ts, g.s]):
+                    g.f[...] = g.g_yrfr[g.r, g.s] / g.rs_stgprd[g.r, g.s]
+                    g.rs_hr[g.r, g.s] = mod(g.z + g.f / 2.0, 1.0)
+                    g.z[...] = g.z + g.f
+            with Loop(g.Js[g.j, g.Annual]):
+                g.RjSl[
+                    g.r,
+                    g.j
+                    + (
+                        mod(Round((g.rs_hr[g.r, g.ts] * 8760.0) / 146.0, 0), 60.0) * 2.0
+                    ),
+                    g.s,
+                    g.ts,
+                ].where[g.RsBelow1[g.r, g.s, g.ts]] = True
+                g.RjSl[
+                    g.r,
+                    g.j
+                    + (
+                        mod(
+                            Round(
+                                (g.rs_hr[g.r, g.ts] * 8760.0 - 73.0) / 146.0 + 60.0, 0
+                            ),
+                            60.0,
+                        )
+                        * 2.0
+                        + 1.0
+                    ),
+                    g.s,
+                    g.ts,
+                ].where[g.RsBelow1[g.r, g.s, g.ts]] = True
+                project(source=g.RjSl, target=g.RsUp)
+        if g.RsUp.number_records:
+            # *   Remove hours too far
+            g.RsUp[g.r, g.ts, g.j, g.s].where[
+                (
+                    (
+                        mod(
+                            g.rs_hr[g.r, g.ts] - (Ord(g.j) - 2.0) * 73.0 / 8760.0 + 1.0,
+                            1.0,
+                        )
+                        < 48.0 / 8760.0
+                    )
+                    | (
+                        mod(Ord(g.j) * 73.0 / 8760.0 - g.rs_hr[g.r, g.ts] + 1.0, 1.0)
+                        < 25.0 / 8760.0
+                    )
+                )
+            ] = False
+            project(source=g.RsUp, target=g.Js)
+            g.RjSl[g.r, g.j, g.s, g.ts].where[(~(g.Js[g.j, g.s]))] = False
+            # *   Cycles
+            g.js_ccl[g.r, g.Js[g.j, g.s]] = Max(
+                1.0 / g.g_yrfr[g.r, g.s], 365.0 / g.ts_cycle[g.r, g.s]
+            )
+            g.rs_modus[g.RsUp[g.r, g.s, g.Js], g.sl].where[g.RjSl[g.r, g.Js, g.sl]] = (
+                mod(
+                    g.rs_hr[g.r, g.s]
+                    - g.rs_hr[g.r, g.sl]
+                    + g.g_yrfr[g.r, g.s] / g.rs_stgprd[g.r, g.s] / 2.0
+                    + 2.0 / g.js_ccl[g.r, g.Js],
+                    1.0 / g.js_ccl[g.r, g.Js],
+                )
+            )

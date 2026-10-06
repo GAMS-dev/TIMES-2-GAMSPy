@@ -47,6 +47,10 @@ $   IF DEFINED REG_FIXT $SET R_T 'RT_PP(%R_T%)' SET R_V_T 'RVT(%R_V_T%)' SET RTP
 
 $   BATINCLUDE err_stat.mod '$IF NOT ERRORFREE' ABORT '*** ERRORS IN INPUT DATA/COMPILE ***'
 
+* job-level NLP solver, selectable via --NLPSOLVER=<name>; set before the
+* extensions so they can still override it (e.g. equ_ext.mlf's KESTREL)
+$   IF SET NLPSOLVER OPTION NLP=%NLPSOLVER%;
+
 *-----------------------------------------------------------------------------
 * perform preprocessor tasks
 *-----------------------------------------------------------------------------

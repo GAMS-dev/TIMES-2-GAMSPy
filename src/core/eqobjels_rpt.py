@@ -18,7 +18,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from gamspy import Domain, Ord, Sum
+from gamspy import Domain, Number, Ord, Sum
 from gamspy.math import Max, ceil
 
 from core.base_class import GamsClass
@@ -78,135 +78,138 @@ class EqobjelsRpt(GamsClass):
         micro: str,
         if_mi_agc_defined: bool,
     ) -> None:
-        g = self.tc
-        cc = config
-
-        r, c, t, s, j, jj, bd, age, span, cur, Com = (
-            g.r,
-            g.c,
-            g.t,
-            g.s,
-            g.j,
-            g.jj,
-            g.bd,
-            g.age,
-            g.span,
-            g.cur,
-            g.Com,
+        eqobjels_rpt_GP(
+            g=self.tc,
+            config=config,
+            micro=micro,
+            if_mi_agc_defined=if_mi_agc_defined,
         )
-        Bdneq, ComTs, MiDmas, Periodyr, Rcj, Rdcur, RtcShed = (
-            g.Bdneq,
-            g.ComTs,
-            g.MiDmas,
-            g.Periodyr,
-            g.Rcj,
-            g.Rdcur,
-            g.RtcShed,
-        )
-        bdsig, com_bprice, com_elast, com_elastx, com_step, com_voc = (
-            g.bdsig,
-            g.com_bprice,
-            g.com_elast,
-            g.com_elastx,
-            g.com_step,
-            g.com_voc,
-        )
-        shape, shaped = g.shape, g.shaped
-        VAR_ELAST = g.VAR_ELAST
 
-        # *V0.5a 980729 control the inner sums according to the years in the periods
 
-        # The relative demand change of step J, shared by every term below
-        step = (Ord(j) - 0.5) * com_voc[r, t, c, bd] / com_step[r, c, bd]
+def eqobjels_rpt_GP(
+    g: TimesModelClass,
+    config: EqobjelsRptConfig,
+    micro: str,
+    if_mi_agc_defined: bool,
+) -> None:
+    cc = config
 
-        # Plain (unshaped) elastic demand steps
-        els_plain = Sum(
-            Rcj[r, c, j, bd],
-            VAR_ELAST.l[r, t, c, s, j, bd]
-            * ((1 - bdsig[bd] * step) ** (1 / com_elast[r, t, c, s, bd])),
-        ).where[~com_elastx[r, t, c, bd]]
+    # *V0.5a 980729 control the inner sums according to the years in the periods
 
-        # Shaped elastic demand steps
-        els_shaped = Sum(
-            RtcShed[r, t, c, bd, jj[age]],
+    # $IF DEFINED MI_AGC
+    mi_agc_term = (
+        Sum(
+            g.MiDmas[g.r, g.Com, g.c].where[g.mi_dope[g.r, g.t, g.c]],
             Sum(
-                Domain(
-                    Rcj[r, c, j, bd],
-                    span[age.lead(ceil(step * 100 - Ord(age)))],
-                ),
-                (
-                    shaped[bd, jj, span]
-                    * ((1 - bdsig[bd] * step) / shaped[bd, "1", span])
-                    ** (1 / Max(1e-3, shape[jj, span]))
-                )
-                ** (1 / com_elast[r, t, c, s, bd])
-                * VAR_ELAST.l[r, t, c, s, j, bd],
+                g.Rcj[g.r, g.c, g.j, g.bd],
+                g.VAR_ELAST.l[g.r, g.t, g.c, g.s, g.j, g.bd]
+                * g.mi_agc[g.r, g.t, g.Com, g.c, g.j, g.bd],
             ),
         )
+        if if_mi_agc_defined
+        else Number(0)
+    )
 
-        els = els_plain + els_shaped
-
-        # $IF DEFINED MI_AGC: integral demand prices of the MICRO extension
-        if if_mi_agc_defined:
-            els = els + Sum(
-                MiDmas[r, Com, c].where[g.mi_dope[r, t, c]],
+    cc.arg1.where[Sum(g.Rcj[g.r, g.c, "1", g.Bdneq], 1)] = cc.arg3 * Sum(
+        Domain(g.Rdcur[g.r, g.cur], g.Bdneq[g.bd]),
+        g.bdsig[g.bd]
+        # *V0.5b 980824 - correct ORD adjustment
+        * Sum(
+            Domain(g.Periodyr[g.t, cc.arg2], g.ComTs[g.r, g.c, g.s]).where[
+                g.com_elast[g.r, g.t, g.c, g.s, g.bd]
+            ],
+            g.com_bprice[g.r, g.t, g.c, g.s, g.cur]
+            * (
                 Sum(
-                    Rcj[r, c, j, bd],
-                    VAR_ELAST.l[r, t, c, s, j, bd] * g.mi_agc[r, t, Com, c, j, bd],
-                ),
-            )
-
-        cc.arg1.where[Sum(Rcj[r, c, "1", Bdneq], 1)] = cc.arg3 * Sum(
-            Domain(Rdcur[r, cur], Bdneq[bd]),
-            bdsig[bd]
-            # *V0.5b 980824 - correct ORD adjustment
-            * Sum(
-                Domain(Periodyr[t, cc.arg2], ComTs[r, c, s]).where[
-                    com_elast[r, t, c, s, bd]
-                ],
-                com_bprice[r, t, c, s, cur] * els,
+                    g.Rcj[g.r, g.c, g.j, g.bd],
+                    g.VAR_ELAST.l[g.r, g.t, g.c, g.s, g.j, g.bd]
+                    * (
+                        (
+                            1
+                            - g.bdsig[g.bd]
+                            * (Ord(g.j) - 0.5)
+                            * g.com_voc[g.r, g.t, g.c, g.bd]
+                            / g.com_step[g.r, g.c, g.bd]
+                        )
+                        ** (1 / g.com_elast[g.r, g.t, g.c, g.s, g.bd])
+                    ),
+                ).where[~g.com_elastx[g.r, g.t, g.c, g.bd]]
+                + Sum(
+                    g.RtcShed[g.r, g.t, g.c, g.bd, g.jj[g.age]],
+                    Sum(
+                        Domain(
+                            g.Rcj[g.r, g.c, g.j, g.bd],
+                            g.span[
+                                g.age
+                                + ceil(
+                                    (Ord(g.j) - 0.5)
+                                    * g.com_voc[g.r, g.t, g.c, g.bd]
+                                    / g.com_step[g.r, g.c, g.bd]
+                                    * 100
+                                    - Ord(g.age)
+                                )
+                            ],
+                        ),
+                        (
+                            g.shaped[g.bd, g.jj, g.span]
+                            * (
+                                (
+                                    1
+                                    - g.bdsig[g.bd]
+                                    * (Ord(g.j) - 0.5)
+                                    * g.com_voc[g.r, g.t, g.c, g.bd]
+                                    / g.com_step[g.r, g.c, g.bd]
+                                )
+                                / g.shaped[g.bd, "1", g.span]
+                            )
+                            ** (1 / Max(1e-3, g.shape[g.jj, g.span]))
+                        )
+                        ** (1 / g.com_elast[g.r, g.t, g.c, g.s, g.bd])
+                        * g.VAR_ELAST.l[g.r, g.t, g.c, g.s, g.j, g.bd],
+                    ),
+                )
+                + mi_agc_term
             ),
-        )
+        ),
+    )
 
-        # $IFI NOT %MICRO%==YES $EXIT
-        if micro.upper() != "YES":
-            return
+    # $IFI NOT %MICRO%==YES $EXIT
+    if micro.upper() != "YES":
+        return
 
-        com_agg, com_fr, rd_nlp, rd_shar = g.com_agg, g.com_fr, g.rd_nlp, g.rd_shar
-        ddf_qref, mi_ccons, mi_elasp, mi_esub, mi_rho = (
-            g.ddf_qref,
-            g.mi_ccons,
-            g.mi_elasp,
-            g.mi_esub,
-            g.mi_rho,
-        )
-        VAR_DEM = g.VAR_DEM
-
-        # * NLP utility loss
-        ces = (
-            Sum(
-                MiDmas[r, c, Com],
-                rd_shar[r, t, c, Com] ** (1 / mi_esub[r, t, c])
-                * (com_agg[r, t, Com, c] * VAR_DEM.l[r, t, Com]) ** mi_rho[r, t, c],
-            )
-            ** (1 / mi_rho[r, t, c])
-        ) ** mi_elasp[r, t, c]
-
-        utility = (
-            (VAR_DEM.l[r, t, c] ** mi_elasp[r, t, c]).where[rd_nlp[r, c] == 1]
-            + ces.where[rd_nlp[r, c] > 2]
-            - ddf_qref[r, t, c] ** mi_elasp[r, t, c]
-        ).where[rd_nlp[r, c] > 0]
-
-        cc.arg1.where[rd_nlp[r, c]] = cc.arg3 * Sum(
-            Rdcur[r, cur],
-            Sum(
-                Domain(Periodyr[t, cc.arg2], ComTs[r, c, s]).where[
-                    com_bprice[r, t, c, s, cur] * mi_elasp[r, t, c]
-                ],
-                -com_fr[r, t, c, s] * mi_ccons[r, t, c] * utility,
-            ),
-        )
+    # * NLP utility loss
+    cc.arg1.where[g.rd_nlp[g.r, g.c]] = cc.arg3 * Sum(
+        g.Rdcur[g.r, g.cur],
+        Sum(
+            Domain(g.Periodyr[g.t, cc.arg2], g.ComTs[g.r, g.c, g.s]).where[
+                g.com_bprice[g.r, g.t, g.c, g.s, g.cur].where[g.mi_elasp[g.r, g.t, g.c]]
+            ],
+            -g.com_fr[g.r, g.t, g.c, g.s]
+            * g.mi_ccons[g.r, g.t, g.c]
+            * (
+                (g.VAR_DEM.l[g.r, g.t, g.c] ** g.mi_elasp[g.r, g.t, g.c]).where[
+                    g.rd_nlp[g.r, g.c] == 1
+                ]
+                + (
+                    (
+                        Sum(
+                            g.MiDmas[g.r, g.c, g.Com],
+                            g.rd_shar[g.r, g.t, g.c, g.Com]
+                            ** (1 / g.mi_esub[g.r, g.t, g.c])
+                            * (
+                                g.com_agg[g.r, g.t, g.Com, g.c]
+                                * g.VAR_DEM.l[g.r, g.t, g.Com]
+                            )
+                            ** g.mi_rho[g.r, g.t, g.c],
+                        )
+                        ** (1 / g.mi_rho[g.r, g.t, g.c])
+                    )
+                    ** g.mi_elasp[g.r, g.t, g.c]
+                ).where[g.rd_nlp[g.r, g.c] > 2]
+                - g.ddf_qref[g.r, g.t, g.c] ** g.mi_elasp[g.r, g.t, g.c]
+            ).where[g.rd_nlp[g.r, g.c] > 0],
+        ),
+    )
 
 
 def eqobjels_rpt(

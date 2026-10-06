@@ -92,8 +92,7 @@ class PrepretDsc(GamsClass):
         elif arg_upper == "EQOBJ":
             self.comp_eqobj()
         elif arg_upper == "OBJFIX":
-            raise NotImplementedError("Need to call as function")
-            # return objfix(capwd=self.env.capwd, vart=self.env.vart, sws=self.env.sws)
+            raise NotImplementedError("Need to call as function: objfix_GP")
         elif arg_upper == "OBSALV":
             objsalv(
                 var=self.env.var, varv=self.env.varv, sws=self.env.sws, sow=self.env.sow
@@ -699,19 +698,17 @@ class PrepretDsc(GamsClass):
 def objfix_GP(
     g: TimesModelClass,
     capwd: ImplicitParameter | Number,
-    vart: tuple[str, ImplicitSet | None],
-    sws: tuple[Set | Alias, ...] | tuple[()],
+    vart: tuple[str, ImplicitSet | tuple[ImplicitSet, ImplicitParameter] | None],
+    sws: tuple[Set | Alias | ImplicitSet, ...] | tuple[()],
 ) -> Any:
-    """GAMSPy counterpart of objfix(): the retirement credit terms of EQ_OBJFIX."""
+    """prepret.dsc OBJFIX: the retirement credit terms of EQ_OBJFIX / EQ_ANNFIX."""
     r, v, t, p, cur, k, ll = g.r, g.v, g.t, g.p, g.cur, g.k, g.ll
     age, jot, life, j, jj = g.age, g.jot, g.life, g.j, g.jj
     KEoh, YEoh = g.KEoh, g.YEoh
 
     vart_id, vart_set = vart
     vart_scap = g.get_variable(f"{vart_id}_SCAP")
-    scap: Any = vart_scap[r, v, t, p, *sws]
-    if vart_set is not None:
-        scap = Sum(vart_set, scap)
+    scap = wrap_in_sum(vart_scap[r, v, t, p, *sws], vart_set)
 
     def shaped(cost: Any, index: str, with_shape: bool) -> Any:
         """cost * (1+SUM(RTP_SHAPE(R,V,P,index,J,JJ),[SHAPE(J,AGE)*]MULTI(JJ,Y_EOH)-1))"""
@@ -758,32 +755,6 @@ def objfix_GP(
     )
 
     return credit + resid
-
-
-def objfix(capwd: str, vart: str, sws: str) -> str:
-    return rf"""
-* Credit retired capacity for the avoided fixed costs
-   SUM((OBJ_SUMIV(K_EOH,R,V,P,JOT,LIFE),VNRET(V,T))$RVPRL(R,V,P),
-     SUM((INVSPRED(K_EOH,JOT,LL,K),KTYAGE(LL,T,Y_EOH,AGE))$OPYEAR(LIFE,AGE),
-          -OBJ_DISC(R,Y_EOH,CUR) * (1+RTP_CPX(R,V,P,T)$NCAP_CPX(R,V,P)) * {capwd}
-             (
-                {macro.obj_fom("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'1',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) +
-                {macro.obj_ftx("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'2',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1)) -
-                {macro.obj_fsb("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'3',J,JJ),SHAPE(J,AGE)*MULTI(JJ,Y_EOH)-1))
-             )
-        ) *
-        {macro.VAR_SCAP(vart, "R", "V", "T", "P", sws)} / OBJ_DIVIV(R,V,P)) +
-
-* RESIDS require special handling
-   SUM(RTP_CPTYR(R,PYR_S(V(K)),T,P)$((NOT RVPRL(R,V,P))$PRC_RCAP(R,P)),
-        SUM(PERIODYR(T,Y_EOH), -OBJ_DISC(R,Y_EOH,CUR) *
-             (
-                {macro.obj_fom("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'1',J,JJ),MULTI(JJ,Y_EOH)-1)) +
-                {macro.obj_ftx("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'2',J,JJ),MULTI(JJ,Y_EOH)-1)) -
-                {macro.obj_fsb("R", "K", "P", "CUR")} * (1+SUM(RTP_SHAPE(R,V,P,'3',J,JJ),MULTI(JJ,Y_EOH)-1))
-             )) *
-        {macro.VAR_SCAP(vart, "R", "V", "T", "P", sws)}) +
-"""
 
 
 def objsalv(var: str, varv: str, sws: str, sow: str) -> str:

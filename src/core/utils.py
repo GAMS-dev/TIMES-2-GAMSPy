@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -8,6 +9,8 @@ from gamspy import (
     Alias,
     Domain,
     Expression,
+    For,
+    If,
     Model,
     Parameter,
     Set,
@@ -18,23 +21,34 @@ from gamspy import (
 from gamspy._algebra.condition import Condition
 from gamspy._internals import MODEL_ATTRIBUTE_MAP
 from gamspy._symbols.implicits import ImplicitParameter, ImplicitSet, ImplicitVariable
+from gamspy.math import MathOp
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Generator, Sequence
+
+    from gamspy._types import ConditionType
 
     from utils.compile_environment import CompileEnvironment
     from utils.times_model_class import TimesModelClass
 
+# %TPULSE% always expands to "<sum domain>,<multiplier of the summand>"
+TpulseType = tuple[
+    Condition | Domain | ImplicitSet,
+    Expression | ImplicitParameter | MathOp | Sum,
+]
+
 SET_OR_ALIAS = Set | ImplicitSet | Alias
 EquationSenseTypes = Literal["E", "N", "L", "G"]
-TargetType = Expression | Sum | Variable | ImplicitVariable | Condition
-DomainType = (
-    SET_OR_ALIAS
-    | tuple[ImplicitSet | Condition, ImplicitParameter]
+TargetType = (
+    Expression
+    | Sum
+    | Variable
+    | ImplicitVariable
+    | ImplicitParameter
+    | MathOp
     | Condition
-    | Domain
-    | None
 )
+DomainType = SET_OR_ALIAS | TpulseType | Condition | Domain | tuple[()] | None
 SowGPType = tuple[Literal["0", "1"] | Set | Alias] | tuple[()]
 
 
@@ -60,12 +74,15 @@ class BaseUcModConfig:
     arg7: SET_OR_ALIAS | tuple[()] = ()
 
 
-def expand_set(symbol: Set | Alias, elements: Sequence[str | tuple[str, str]]) -> None:
+def expand_set(symbol: Set | Alias, elements: Sequence[str | tuple[str, ...]]) -> None:
     """
-    Expands a 1D GAMSPy Set with additional elements,
+    Expands a GAMSPy Set with additional elements,
     preserving existing records (and their text) and avoiding duplicates.
-    Accepts elements as a Sequence of strings or (element, text) tuples.
+    Accepts elements as a Sequence of strings (1D only) or tuples of the
+    element's labels, optionally followed by its text: (element, text) for 1D,
+    (label1, label2) or (label1, label2, text) for 2D, and so on.
     """
+    dim = symbol.dimension
     updated_records = []
     existing_keys = set()
 
@@ -74,23 +91,22 @@ def expand_set(symbol: Set | Alias, elements: Sequence[str | tuple[str, str]]) -
         data = symbol.records.astype(object).fillna("")
 
         for row in data.values.tolist():  # noqa: PD011
-            uni = row[0]
-            text = row[1] if len(row) > 1 else ""
+            key = tuple(row[:dim])
+            text = row[dim] if len(row) > dim else ""
 
-            updated_records.append((uni, text))
-            existing_keys.add(uni)
+            updated_records.append((*key, text))
+            existing_keys.add(key)
 
     # 2. Append the new elements (Handles strings or tuples dynamically)
     for item in elements:
-        if isinstance(item, tuple):
-            new_el, new_text = item
-        else:
-            new_el, new_text = item, ""
+        labels = item if isinstance(item, tuple) else (item,)
+        key = tuple(labels[:dim])
+        new_text = labels[dim] if len(labels) > dim else ""
 
         # Avoid duplicates
-        if new_el not in existing_keys:
-            updated_records.append((new_el, new_text))
-            existing_keys.add(new_el)
+        if key not in existing_keys:
+            updated_records.append((*key, new_text))
+            existing_keys.add(key)
 
     # 3. Update the GAMSPy symbol with the combined list of tuples
     symbol.setRecords(updated_records)
@@ -268,10 +284,11 @@ def generate_equation(lhs: Any, type: EquationSenseTypes, rhs: Any) -> Any:
 def wrap_in_sum[T: TargetType](target: T, domain: DomainType) -> T | Sum:
     """
     Wraps a target expression or variable in a Sum based on the provided domain/condition.
-    Returns the unmodified target if the expression is None.
+    Returns the unmodified target if the domain is None or blank ().
     """
     match domain:
-        case None:
+        # TODO: consider moving the ~44 callers passing None to the blank () and dropping None here
+        case None | ():
             return target
         case (condition, imp_param) if imp_param is not None:
             return Sum(condition, imp_param * target)
@@ -308,6 +325,60 @@ def model_status_symbol(model: Model) -> Parameter:
     return Parameter(model.container, name=attr_symbols["modelStat"])
 
 
+# The name predates this shared helper (it was rptmisc_rpt.py's own counter);
+# kept so the gdxdiff SkipID in tests/test_symbols.py still matches.
+_ONCE_COUNTER_NAME = "RPTMISC_ONCE"
+
+
+def once_counter(tc: TimesModelClass) -> Parameter:
+    """A dedicated scalar counter used only to give a one-pass ``For()`` loop
+    something to iterate over -- not a TIMES model parameter, not referenced
+    anywhere else. Used by :func:`gams_if` to host a ``gp.If`` at top level.
+
+    A numeric ``Parameter`` never adds an element to the shared GAMS universe
+    (``*``) the way a driver ``Set`` with a literal record would -- that
+    leaked into every other universal-alias symbol (``ITEM``, ``U2``, ``U3``,
+    ``U4``, ...), since they're all aliases of the same universe. Created
+    lazily so repeated callers share the same symbol instead of colliding on
+    the name. Must be called outside any Loop, since it emits a declaration.
+    """
+    if tc.declared(_ONCE_COUNTER_NAME):
+        once = tc.container.getParameter(_ONCE_COUNTER_NAME)
+    else:
+        once = Parameter(
+            tc.container,
+            name=_ONCE_COUNTER_NAME,
+            description="Singleton driver counter; forces exactly one For pass.",
+        )
+    return once
+
+
+@contextmanager
+def gams_if(tc: TimesModelClass, condition: ConditionType) -> Generator[None]:
+    """Translate a GAMS runtime ``IF(condition, ...)``.
+
+    ``gp.If`` is only allowed inside a ``gp.Loop``/``gp.For``, and
+    ``x.toValue()`` is not allowed inside one. A ``*_GP`` function that may be
+    called both at top level and from within a GAMS loop (e.g. cost_ann.rpt
+    inside the Negishi/SOW loops) therefore uses ``with gams_if(tc, cond):``:
+    inside a loop it is a plain ``gp.If``; at top level the ``gp.If`` is
+    wrapped in a one-pass ``For`` over :func:`once_counter`.
+
+    A following ``gp.Else``/``gp.ElseIf`` only works when already inside a
+    loop (e.g. nested in another ``gams_if``); at top level the one-pass
+    ``For`` is closed before it.
+
+    Stopgap: relies on GAMSPy internals (``Container._in_loop``). Replace with
+    ``gp.If`` once GAMSPy allows it at top level.
+    """
+    if tc.container._in_loop:
+        with If(condition):
+            yield
+    else:
+        with For(once_counter(tc), 1, 1), If(condition):
+            yield
+
+
 def extract_var_domain(var: str | tuple[str, Any]) -> tuple[str, ImplicitSet | None]:
     if isinstance(var, tuple) and len(var) > 1:
         var_id, var_set = var
@@ -315,3 +386,9 @@ def extract_var_domain(var: str | tuple[str, Any]) -> tuple[str, ImplicitSet | N
         var_id = var
         var_set = None
     return var_id, var_set
+
+
+def str_repr_for_gms(arg2: tuple[Set | Alias | str, ...] | tuple[()]) -> str:
+    """GAMS text of the %2 index prefix, e.g. ('1',) -> "'1'," and (SOW,) -> "SOW,".
+    NOTE: Use of this should be removed eventually."""
+    return "".join(f"'{a}'," if isinstance(a, str) else f"{a.name}," for a in arg2)
