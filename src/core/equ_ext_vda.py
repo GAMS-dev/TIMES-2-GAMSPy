@@ -22,7 +22,7 @@ from core.bnd_ire_vda import BndIreVda
 from core.eqactups_vda import EqactupsVda
 from core.eqashar_vda import EqasharVda, EqasharVdaConfig
 from core.eqcaflac_vda import EqcaflacVda
-from core.eqlducs_vda import EqlducsVda
+from core.eqlducs_vda import EqlducsVda, EqlducsVdaConfig
 from core.equcrtp_vda import EqucrtpVda, EqucrtpVdaConfig
 from core.powerflo_vda import PowerfloVda, PowerfloVdaConfig
 from core.pp_actef_vda import PpActefVda
@@ -126,7 +126,7 @@ class EquExtVda(GamsClass):
                 )
             )
         self.include(EqactupsVda(self.tc, self.env, arg1=self.env.mx_GP))
-        self.include(EqlducsVda(self.tc, self.env, arg1="EQU"))
+        self.include(EqlducsVda(self.tc, self.env, config=EqlducsVdaConfig(arg1="EQU")))
 
         # * ASHAR equations:
         eqashar_batinclude: list[EqasharVdaConfig] = [

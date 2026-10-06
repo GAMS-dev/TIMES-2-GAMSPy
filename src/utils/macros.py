@@ -342,9 +342,9 @@ class VarBsContext:
 @dataclass
 class EqlducsContext:
     """eqlducs.vda's var_on/var_off/var_load/var_gap/v_u/SUDHFR/SPRSV
-    $macros -- shared here since equ_ext_abs.py needs some natively, and
-    eqlducs_vda.py's own still-raw equations call the string form instead
-    of a locally defined $macro. sdtol is a plain constant used only
+    $macros -- shared here since a GAMS $macro stays defined for the rest of
+    the compile, so equ_ext_abs.py reuses some of them natively after
+    eqlducs_vda.py activates them. sdtol is a plain constant used only
     within eqlducs_vda.py, so it's a local variable there instead."""
 
     active: bool = False

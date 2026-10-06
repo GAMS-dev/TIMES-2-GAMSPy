@@ -21,7 +21,7 @@ from gamspy.math import Max, Min, Round, mod, power, project
 
 from core.base_class import GamsClass
 from core.eqashar_vda import EqasharVda, EqasharVdaConfig
-from core.eqlducs_vda import EqlducsVda
+from core.eqlducs_vda import EqlducsVda, EqlducsVdaConfig
 from core.fillwave_gms import FillwaveGms, FillwaveGmsConfig
 from core.powerflo_vda import PowerfloVda, PowerfloVdaConfig
 from utils.macros import macro_config as macro
@@ -84,7 +84,7 @@ class CoefExtVda(GamsClass):
             condition2=self.env.sensis.upper() != "YES",
         )
 
-        self.include(EqlducsVda(self.tc, self.env))
+        self.include(EqlducsVda(self.tc, self.env, config=EqlducsVdaConfig()))
         self.include(EqasharVda(self.tc, self.env, config=EqasharVdaConfig()))
 
         if self.tc.defined("COM_CSTBAL"):
